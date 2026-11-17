@@ -28,6 +28,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - A new quick-question type, `typed` ([ADR-0027](docs/decisions/0027-typed-answers.md), proposed): the learner types a command, a term, a value or a short phrase from memory, which builds memory better than picking it from a list. An item lists every accepted answer and, optionally, known mistakes with a sentence on each. Answers are read forgivingly and the same way by the validator and the page: spaces, curly quotes, a copied `$ ` prompt before a command, quotes round a term and (for terms) case don't count, and a term with one slip of the fingers among its letters is accepted with its spelling shown. The validator checks that the accepted answers differ, that no mistake is also an answer, and that the prompt doesn't give the answer away. Typed items work in practice, the "Check what you know" quiz, reviews (where they count as a produced answer), follow-ups and the placement test, and their answers are saved with what was typed. `content/README.md` says how to write one.
 
+### Added (cloud Module 3, first half: puzzles, questions in the lesson, real incidents)
+
+- The first eight networking topics (layers, CIDR, IPv6, TCP and UDP, routing, NAT, DNS, troubleshooting) each open with a puzzle, ask 3 or 4 of their own practice questions inside the lesson, right after the part each one tests (31 in all), and tell a real incident from its public write-up: Cloudflare's misdelivered ICMP (2015), the borrowed 1.1.1.1 (2018), rogue IPv6 router advertisements in IPv4-only Kubernetes clusters (2020), Expedia's idle connections behind a load balancer (2021), Datadog's vanished routing rules (2023), XING's NAT port race (2017), AWS's empty DynamoDB record (2025) and Slack's first working day of 2021.
+- Five "which one is this?" questions for ideas that are easy to mix up: a refused connection or a timed-out one, longest prefix or administrative distance, source or destination NAT, a recursive resolver or an authoritative server, and the IP header's TTL or a DNS record's.
+
+### Added (lessons: a glossary, with definitions where a word is used)
+
+- A topic can list the terms it teaches in `glossary.yaml` beside its lesson ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed). Where another topic's lesson first uses one, the word has a dotted underline; pressing it, or hovering with a mouse, shows its definition and "Taught in: <topic>", linking to that topic. It works with a keyboard and on a phone, and is never added to headings, links, code, a puzzle or a question.
+- A new page, `/glossary`, lists every term with its definition and the topic that teaches it.
+- The validator checks each `glossary.yaml`: a term or alias is defined by one topic only, across all content, ignoring case; a definition is one line of at most 40 words; a ready topic's lesson uses each term it defines.
+- The validator also asks that each `<Check>`, `<Puzzle>` and `<Story>` tag stands on a line of its own; in the middle of a line, MDX would draw the box inside a paragraph.
+- NAT's topic is the first with a glossary (NAT, source NAT, destination NAT, masquerade, port exhaustion), so ten other lessons that mention NAT now explain it on the spot.
+
 ### Added (lessons: questions inside the lesson, an opening puzzle, and a real incident)
 
 - A lesson can ask one of its topic's practice quick questions where it stands, with `<Check item="..." />`. It's graded and saved exactly as in practice, and the practice ladder leaves it out, so it shows once ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed).

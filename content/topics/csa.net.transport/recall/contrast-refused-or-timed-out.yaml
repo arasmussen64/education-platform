@@ -1,0 +1,16 @@
+id: contrast-refused-or-timed-out
+type: mcq
+rev: 1
+prompt: |
+  From app, `nc -zv -w 10 HOST 5432` is tried against two database machines. Against db1 it prints `Connection refused` within a millisecond. Against db2 it waits the whole 10 seconds and prints `Connection timed out`. What does each result say?
+choices:
+  - "db1 is up and answered with a reset, since nothing listens on 5432; db2's SYNs got no answer at all"
+  - "db1's firewall dropped the SYNs and said so; db2 is up, but its database is too busy to accept yet"
+  - "db1 is switched off, so its router refused for it; db2 is up and listening, but slow to answer it"
+  - "Neither has anything listening on 5432; db2 is only further away, so the refusal took longer to come"
+answer: 0
+explanation: |
+  The speed tells them apart. A refusal is an answer: db1's kernel got the SYN, found nothing listening on port 5432, and sent a reset back at once, so db1 is up and reachable, and the fault is the missing listener. A timeout is silence: db2's SYNs were sent again and again and nothing came back, which is what a firewall that drops them (or an address nobody holds) looks like. nc gave up at its own 10-second limit; left to itself, Linux would have tried for about 2 minutes.
+
+  A firewall that drops says nothing, so it gives a timeout, not a refusal (a `reject` rule would answer, but that's the firewall choosing to). A busy database still accepts the connection, or refuses it; it doesn't leave the SYN unanswered. A machine that's switched off can't send a reset, and a router that can't reach it sends an ICMP unreachable, which nc reports as `No route to host`, not `Connection refused`. And distance changes milliseconds, not the difference between one millisecond and ten seconds.
+skills: [tcp-timers]

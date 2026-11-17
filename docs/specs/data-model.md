@@ -21,6 +21,7 @@ content/
     └── py.variables/
         ├── topic.yaml
         ├── lesson.mdx
+        ├── glossary.yaml             the terms the topic teaches (ADR-0026)
         ├── recall/                   multiple-choice and predict-the-output items
         │   └── reassign-mcq.yaml
         └── exercises/
@@ -318,6 +319,18 @@ A lesson may also use the building blocks of [ADR-0026](../decisions/0026-lesson
 | `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>` | a real public incident the topic explains, in our own words, with a link to its source                                                                       |
 
 Compiling a lesson adds `export const checks = ["mcq-free-column", ...]` to the module, the items its `<Check>` tags place, in order; `loadTopicContent` returns them as `lessonChecks`. How to write each block, and the validator's rules, are in [content/README.md](../../content/README.md#lesson-building-blocks).
+
+### Glossary
+
+`glossary.yaml` lists the terms a topic teaches ([ADR-0026](../decisions/0026-lesson-building-blocks.md)). A term or alias belongs to one topic only, across all content, ignoring case.
+
+```yaml
+- term: source NAT # a word or short phrase as prose writes it, at most 60 characters
+  aliases: [SNAT] # optional: other spellings with the same meaning
+  definition: NAT that rewrites a packet's source. # one line, at most 40 words
+```
+
+The build reads every ready topic's glossary and, where a lesson first uses another topic's term, wraps the word in `<Term term definition topicId topicTitle>`, which the app draws as a word that shows its definition (`web/src/tooling/remarkGlossary.ts`). Nothing about it is saved.
 
 ## Learner data (Postgres)
 

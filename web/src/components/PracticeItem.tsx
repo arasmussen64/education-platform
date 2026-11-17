@@ -198,6 +198,27 @@ function describe(
       ),
     }
   }
+  if (recall?.type === 'typed') {
+    return {
+      heading:
+        recall.kind === 'command' ? 'Type the command' : 'Type the answer',
+      body: (
+        <TypedQuestion
+          item={recall}
+          quiet={quiet}
+          onAnswer={(correct, answer) =>
+            onAnswer(correct, {
+              typed:
+                answer === null ? null : clip(answer.typed, MAX_TEXT_CHARS),
+              mistake: answer?.mistake ?? null,
+              slip: answer?.slip ?? null,
+              ...unknownIf(answer === null),
+            })
+          }
+        />
+      ),
+    }
+  }
   const exercise = content.exercises[itemId]
   if (exercise) {
     return {
