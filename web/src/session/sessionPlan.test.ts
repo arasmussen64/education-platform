@@ -7,7 +7,9 @@ import {
   nextNewTopic,
   planSession,
   QUICK_REVIEW_COUNT,
+  quickCount,
   quickPlan,
+  reviewMinutes,
 } from './sessionPlan.ts'
 
 // Two small tracks: Python (first, then second built on it) and Cloud (one
@@ -221,5 +223,42 @@ describe('quickPlan', () => {
   it('keeps fewer when fewer are due', () => {
     const full = plan(proved(FIRST, daysBefore(30)))
     expect(quickPlan(full).reviews).toHaveLength(1)
+  })
+})
+
+describe('the time a session takes', () => {
+  /** Review answers that took `seconds` each. */
+  const reviewAnswers = (seconds: number) =>
+    Array.from({ length: 5 }, () =>
+      attempt(FIRST, daysBefore(2), {
+        context: 'review',
+        duration_ms: seconds * 1000,
+      }),
+    )
+
+  it('fits two reviews in five minutes until the learner has review times', () => {
+    // Two questions a review at a minute each: two reviews.
+    expect(quickCount([])).toBe(2)
+  })
+
+  it("fits as many as the learner's own review times allow, one to three", () => {
+    expect(quickCount(reviewAnswers(30))).toBe(3)
+    expect(quickCount(reviewAnswers(180))).toBe(1)
+  })
+
+  it('adds up two questions a review and one a mistake', () => {
+    const attempts = [
+      ...proved(FIRST, daysBefore(30)),
+      ...proved(SECOND, daysBefore(10)),
+    ]
+    const twoReviewsOneMistake = plan(attempts, [
+      followUp(FIRST, 'skill', '2026-11-10'),
+    ])
+    // Five questions at the default minute each.
+    expect(reviewMinutes(twoReviewsOneMistake, attempts)).toBe(5)
+    // At 30 seconds each, 2.5 minutes, rounded up.
+    expect(
+      reviewMinutes(twoReviewsOneMistake, [...attempts, ...reviewAnswers(30)]),
+    ).toBe(3)
   })
 })
