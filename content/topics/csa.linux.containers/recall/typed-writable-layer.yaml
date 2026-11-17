@@ -1,0 +1,24 @@
+id: typed-writable-layer
+type: typed
+rev: 1
+prompt: |
+  An overlay mount stacks read-only directories at the bottom, a writable one on top, and shows the two combined. What is the writable directory called, as the mount's options name it?
+kind: text
+answers:
+  - "upperdir"
+  - "upper"
+  - "upper directory"
+  - "upper layer"
+mistakes:
+  - id: lower
+    answers: ["lowerdir", "lower"]
+    why: "The lower directories are the image's read-only layers. Writes land in the one on top."
+  - id: merged
+    answers: ["merged"]
+    why: "`merged` is the combined view the container sees as its root, not where the changed files are stored."
+  - id: workdir
+    answers: ["workdir"]
+    why: "`workdir` is a scratch folder overlayfs needs for its own bookkeeping, on the same filesystem as the upper directory."
+explanation: |
+  overlayfs mounts the image's layers as `lowerdir` (read-only), a fresh empty `upperdir` on top, and shows both as one merged tree. A write copies the file up into `upperdir` first, and a delete leaves a whiteout there. The upper directory is deleted with the container, which is why data that must outlive it goes in a volume or a bind mount.
+skills: [layers-overlay]

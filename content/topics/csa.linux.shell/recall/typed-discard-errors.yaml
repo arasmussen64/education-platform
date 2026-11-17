@@ -1,0 +1,19 @@
+id: typed-discard-errors
+type: typed
+rev: 1
+prompt: |
+  A command prints its results and, mixed in with them, a stream of error messages you don't care about. Type what you add to the end of the command to throw the error messages away and keep the results.
+kind: command
+answers:
+  - "2>/dev/null"
+  - "2> /dev/null"
+mistakes:
+  - id: drops-the-output
+    answers: [">/dev/null", "> /dev/null", "1>/dev/null"]
+    why: "That throws away the normal output, stdout, and leaves the errors on the screen. Errors are stream 2, so the redirect needs the 2 in front."
+  - id: merges-instead
+    answers: ["2>&1"]
+    why: "That folds the errors into the normal output, so you'd see them mixed in rather than lose them."
+explanation: |
+  Every program has two output streams: stdout (number 1) for its results and stderr (number 2) for complaints. `2>` redirects stream 2, and `/dev/null` is the special file that discards whatever is written to it, so `2>/dev/null` silences the errors while the results still reach the screen or the next command in a pipe. `>` on its own means `1>`, the results, and `2>&1` sends errors to wherever stdout is going, which keeps them.
+skills: [pipes-redirects]

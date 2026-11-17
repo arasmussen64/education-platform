@@ -1,0 +1,15 @@
+id: typed-grow-not-shrink
+type: typed
+rev: 1
+prompt: |
+  Name the filesystem that can grow while it's mounted but can never be shrunk, the default on Red Hat and its relatives.
+kind: text
+answers:
+  - "XFS"
+mistakes:
+  - id: ext4
+    answers: ["ext4"]
+    why: "ext4 can shrink, as long as it's unmounted first, and it's the default on Debian and Ubuntu."
+explanation: |
+  XFS grows online (`xfs_growfs` on the mount point) and never shrinks, allocates inodes as it needs them, and handles large files and many writers well. ext4 grows online too (`resize2fs`), can shrink when unmounted, and fixes its number of inodes when it's made. Both are journaling filesystems and fine for most work; "never shrinks" is the one fact that can force the choice.
+skills: [filesystems]

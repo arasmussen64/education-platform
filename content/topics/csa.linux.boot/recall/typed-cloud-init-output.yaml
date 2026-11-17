@@ -1,0 +1,16 @@
+id: typed-cloud-init-output
+type: typed
+rev: 1
+prompt: |
+  A new instance came up, but a package your user data asked for isn't installed. Which log file holds the output of what cloud-init ran, package installs and `runcmd` included? Type its full path.
+kind: text
+case: sensitive
+answers:
+  - "/var/log/cloud-init-output.log"
+mistakes:
+  - id: own-log
+    answers: ["/var/log/cloud-init.log"]
+    why: "That's cloud-init's own log of what it decided and did, module by module. The commands' own output, apt's error included, is in the file with `-output` in its name."
+explanation: |
+  cloud-init keeps two logs: `/var/log/cloud-init-output.log`, everything its stages and your commands printed (an apt error naming a package it can't find shows up there), and `/var/log/cloud-init.log`, its own detailed record. `cloud-init status --long` sums up whether it finished and which stage failed. Those three answer "why didn't my package install?" nearly every time.
+skills: [cloud-init]

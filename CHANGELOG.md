@@ -18,6 +18,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (cloud Module 1 content: glossaries and typed questions)
+
+- Every topic of the cloud track's Linux module has a glossary: 79 terms in all, three to eight a topic, from `stderr` and `shebang` to `IMDSv2` and `CIS Benchmark`. Other lessons that use one of them now explain it on the spot.
+- 28 typed questions, two a topic, where the learner types a command, a flag, a file, a value or a name from memory instead of picking it: `2>/dev/null`, `systemctl daemon-reload`, `df -i`, `memory.max`, `169.254.169.254`, `set -euo pipefail`, `sshd -t` and more, each with the likely wrong answers named. They're in their topics' practice and review pools.
+
 ### Added (cloud Module 1 content: puzzles, questions in the lesson, real incidents and "which one is this?")
 
 - Every lesson of the cloud track's Linux module (14 topics) opens with a puzzle, and asks three or four of its own quick questions inside the lesson, right after the part each one tests (54 placed in all, most of them "what will it print?" and number questions).

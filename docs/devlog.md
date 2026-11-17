@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, cloud Module 1 content: glossaries and typed questions
+
+The second pass over the 14 Linux topics, now that the glossary (#310) and typed answers (#298) are on `main`.
+
+**What changed.**
+
+- **A `glossary.yaml` for every topic**, 79 terms: Shell essentials 6 (shell, process, system call, stderr, exit status, shebang), Processes 6 (PID, PPID, fork, exec, zombie, systemd), Permissions 6 (octal, umask, service user, SSH, private key, public key), Services 3 (unit file, drop-in, journal), Packages 3 (package, package manager, security update), Disks 7 (block device, filesystem, mount point, inode, UUID, LVM, IOPS), Memory 8 (virtual memory, RSS, page cache, swapping, thrashing, huge page, OOM killer, cgroup), CPU 5 (CFS, nice value, load average, context switch, throttling), Containers 6 (namespace, overlayfs, whiteout, bind mount, capability, seccomp), Networking from the host 8 (loopback, default gateway, ephemeral port, three-way handshake, connection tracking, nftables, veth pair, network namespace), Boot 8 (firmware, bootloader, initramfs, cloud-init, user data, IMDS, IMDSv2, server-side request forgery), Scripting 4 (strict mode, idempotency, symbolic link, ShellCheck), Triage 5 (USE method, run queue, retransmit, flame graph, device-mapper) and Hardening 4 (hardening, attack surface, security group, CIS Benchmark).
+- **28 typed questions** (`typed-*`), two a topic, each with its likely wrong answers named and explained (`>/dev/null` for `2>/dev/null`, `systemctl reload app` for `daemon-reload`, `sshd -T` for `sshd -t`, `0.0.0.0` for `127.0.0.1`). Each is in its topic's practice, before the fill-in lab, and in its review pool, where it counts as an answer the learner produces.
+- Memory's lesson now says that the kernel "starts **swapping**", so the glossary has a word to mark (below).
+
+**Author notes:**
+
+- _A term is marked wherever its word appears in any ready lesson,_ whatever the track, so I checked each candidate against every lesson before keeping it, and left out the words other lessons use in another sense: `kernel` (a convolution kernel in the ML track), `swap` (swapping two Python variables), `container` (a Python lesson's picture of a variable), `signal` and `saturation` (ML lessons), `suite` (a TLS cipher suite), `immutable` (an HTTP caching header), `partition` (a Hyper-V partition, a GPU partition) and `dependency` (a load balancer's health check). Memory's term is `swapping`, not `swap`, for that reason, and the lesson gained the word. `throttling` stays, defined as CPU throttling, though cloud APIs throttle too; a later topic on API limits can use "rate limiting".
+- _`port` and `idempotent` went to Module 3,_ whose writers merged their glossaries first (`csa.net.layers`, `csa.net.http-semantics`). Scripting keeps `idempotency`, the word its lesson puts in bold.
+- _Words previewed early belong where they're taught,_ an exception to "the first topic to use it". Shell essentials mentions swapping, Processes mentions unit files and Memory mentions containers, each in a sentence that promises a later topic, so `swapping` is Memory's and `unit file` Services'. The rest follow first use: `process` and `system call` are Shell's, and `cgroup` is Memory's, which explains it before CPU does.
+- _`public key` and `private key` are defined for SSH and TLS both,_ because the certificates topic uses the same words.
+- _Typed questions ask for what the topic drills,_ one answer each, with `sudo` accepted where it would be typed, and none whose flags come in too many orders to list (`ss -ltnp` stays a multiple-choice and predict-the-output matter).
+
+**Next:** the owner's first pass through the Linux lessons with puzzles, questions and stories; any story whose source moves is a broken link to fix.
+
 ## 2026-11-16, cloud Module 1 content: puzzles, questions in the lesson, real incidents and "which one is this?"
 
 The first content pass with the new lesson building blocks ([ADR-0026](decisions/0026-lesson-building-blocks.md), Proposed), over the 14 ready topics of the cloud track's Linux module. Three other writers are doing Modules 2 and 3 at the same time; nothing outside `csa.linux.*` changed.

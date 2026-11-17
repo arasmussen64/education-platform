@@ -1,0 +1,18 @@
+id: typed-ssh-dir-mode
+type: typed
+rev: 1
+prompt: |
+  What mode, as an octal number, is the safe setting for your `~/.ssh` folder, so that only you may list it, change it and go into it?
+kind: text
+answers:
+  - "700"
+mistakes:
+  - id: no-execute
+    answers: ["600"]
+    why: "600 is right for the key files inside, but a folder needs `x` to be entered: at 600 you couldn't reach your own keys."
+  - id: others-read
+    answers: ["755", "744"]
+    why: "That lets every other user on the server list what's in the folder. The private setting gives the group and others nothing: 700."
+explanation: |
+  On a folder, `r` lists the names, `w` creates and deletes entries, and `x` lets you go in. 7 is all three (4 + 2 + 1) for the owner, and 0 for the group and others, so 700 is "mine alone". The files inside get 600, read and write without execute. `sshd` refuses keys kept in a `~/.ssh` that other users could write to, so a looser folder can make a correct key fail.
+skills: [ssh-keys]

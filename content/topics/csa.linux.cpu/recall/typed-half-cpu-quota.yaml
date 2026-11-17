@@ -1,0 +1,18 @@
+id: typed-half-cpu-quota
+type: typed
+rev: 1
+prompt: |
+  A service may use half of one CPU, with the usual period of 100,000 microseconds. Type the two numbers its `cpu.max` file holds, separated by a space.
+kind: text
+answers:
+  - "50000 100000"
+mistakes:
+  - id: swapped
+    answers: ["100000 50000"]
+    why: "The quota comes first and the period second, so that reads 100 ms of CPU every 50 ms: two CPUs."
+  - id: five-cpus
+    answers: ["500000 100000"]
+    why: "That's 500 ms of CPU every 100 ms, five CPUs. Half a CPU is 50 ms, 50000 µs, of every 100 ms."
+explanation: |
+  `cpu.max` holds the quota, then the period, both in microseconds: the group may use the quota's worth of CPU time in every period. 50000 out of 100000 is half a CPU; 200000 100000 would be two CPUs, and `max 100000` no limit. systemd's `CPUQuota=50%`, Docker's `--cpus=0.5` and a Kubernetes limit of `500m` all write this line.
+skills: [cgroups-v2]

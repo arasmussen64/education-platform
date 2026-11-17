@@ -1,0 +1,19 @@
+id: typed-hold-package
+type: typed
+rev: 1
+prompt: |
+  Your database was tested at one exact version of `postgresql`, and the rest of the server must keep getting updates. Type the command that holds that package where it is, so `apt upgrade` leaves it alone, with `sudo` in front if you like.
+kind: command
+answers:
+  - "sudo apt-mark hold postgresql"
+  - "apt-mark hold postgresql"
+mistakes:
+  - id: no-apt-hold
+    answers: ["sudo apt hold postgresql", "apt hold postgresql"]
+    why: "`apt` has no `hold` command; holds are set with `apt-mark`."
+  - id: unhold
+    answers: ["sudo apt-mark unhold postgresql", "apt-mark unhold postgresql"]
+    why: "`unhold` releases a hold, for the day you're ready to upgrade it on purpose."
+explanation: |
+  `apt-mark hold postgresql` keeps the package at its installed version while everything else upgrades; `apt-mark showhold` lists the holds and `apt-mark unhold` releases one. On the Red Hat family the same idea is `dnf versionlock add`. A hold is a decision to revisit: the held package gets no security fixes until you release it.
+skills: [patching]

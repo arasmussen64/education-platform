@@ -1,0 +1,18 @@
+id: typed-throttled-counter
+type: typed
+rev: 1
+prompt: |
+  In a container's `cpu.stat`, one counter says in how many periods the group was stopped for using up its quota. Type that counter's name.
+kind: text
+answers:
+  - "nr_throttled"
+mistakes:
+  - id: all-periods
+    answers: ["nr_periods"]
+    why: "`nr_periods` counts every period that has passed. Divide the other counter by it for the share of periods in which the group was stopped."
+  - id: time-not-periods
+    answers: ["throttled_usec"]
+    why: "`throttled_usec` is the total time the group spent stopped, in microseconds, not the number of periods."
+explanation: |
+  `cpu.stat` has `nr_periods` (periods that have passed), `nr_throttled` (periods in which the group hit its quota and was stopped) and `throttled_usec` (how long it was stopped in all). `nr_throttled` divided by `nr_periods` is the share of periods throttled, the number to watch on a service whose average CPU looks low and whose latency doesn't.
+skills: [throttling]

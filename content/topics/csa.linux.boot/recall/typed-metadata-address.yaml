@@ -1,0 +1,15 @@
+id: typed-metadata-address
+type: typed
+rev: 1
+prompt: |
+  At what IP address does software on an AWS or Azure instance reach the instance metadata service?
+kind: text
+answers:
+  - "169.254.169.254"
+mistakes:
+  - id: loopback
+    answers: ["127.0.0.1"]
+    why: "`127.0.0.1` is the instance talking to itself. The metadata service is the cloud's, at a link-local address only the instance can reach."
+explanation: |
+  `169.254.169.254` is a link-local address: it never leaves the instance's own network link, so only that instance can ask it. On Google Cloud the same address is named `metadata.google.internal`. It hands out identity, user data and temporary role credentials, which is why a web app that can be tricked into fetching it is dangerous, and why IMDSv2 asks for a session token first.
+skills: [metadata]

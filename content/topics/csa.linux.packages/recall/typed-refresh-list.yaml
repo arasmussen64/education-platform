@@ -1,0 +1,21 @@
+id: typed-refresh-list
+type: typed
+rev: 1
+prompt: |
+  On an Ubuntu server, type the command that downloads the latest list of available packages from the repositories and installs nothing, with `sudo` in front if you like.
+kind: command
+answers:
+  - "sudo apt update"
+  - "apt update"
+  - "sudo apt-get update"
+  - "apt-get update"
+mistakes:
+  - id: installs
+    answers: ["sudo apt upgrade", "apt upgrade", "sudo apt-get upgrade", "apt-get upgrade"]
+    why: "`upgrade` installs the newer versions of what's installed. Refreshing the list is the step before it."
+  - id: red-hat-update
+    answers: ["sudo dnf update", "dnf update"]
+    why: "That's the Red Hat family's tool, and there `dnf update` is an old name for `dnf upgrade`: it installs."
+explanation: |
+  `apt update` only refreshes what `apt` knows is available; `apt upgrade` then installs the newer versions. The ritual is update, look (`apt list --upgradable`), then upgrade. A server that runs only `apt update` every night knows about every fix and has applied none of them.
+skills: [apt-dnf]

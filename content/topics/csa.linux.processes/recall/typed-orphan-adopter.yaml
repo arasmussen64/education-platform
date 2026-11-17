@@ -1,0 +1,15 @@
+id: typed-orphan-adopter
+type: typed
+rev: 1
+prompt: |
+  A buggy server leaves zombie children behind, and you restart it, so the parent process exits. Its zombies are now orphans. Which PID adopts them and reaps them? Type the number.
+kind: text
+answers:
+  - "1"
+mistakes:
+  - id: zero
+    answers: ["0"]
+    why: "No process you can signal or see in `ps` has PID 0. The process at the root of the tree, which adopts every orphan, is PID 1."
+explanation: |
+  When a process's parent dies, the kernel hands it to PID 1, systemd on a modern server, which reads its exit status at once. That's why ending or restarting a parent clears its zombies, and why a zombie that `kill -9` can't touch still goes away. If the restarted parent makes new zombies, the lasting fix is in how it starts its children.
+skills: [process-model]

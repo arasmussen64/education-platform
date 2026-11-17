@@ -1,0 +1,16 @@
+id: typed-local-only-address
+type: typed
+rev: 1
+prompt: |
+  In the Local Address column of `ss -ltnp`, a database is listening on one IPv4 address that only this machine itself can reach. Which address? Type it without the port.
+kind: text
+answers:
+  - "127.0.0.1"
+  - "localhost"
+mistakes:
+  - id: every-interface
+    answers: ["0.0.0.0"]
+    why: "`0.0.0.0` means every interface: the program can be reached on all of the machine's addresses, from anywhere a route and the firewall allow."
+explanation: |
+  `127.0.0.1` is the loopback address, the machine talking to itself, so a program listening there answers connections from the same machine and nowhere else. That's what you want for a database only local programs use, and the reason a web app "works with curl on the server" and is refused from everywhere else. The address is the program's own setting, in its config, a flag or its unit.
+skills: [sockets-ss]

@@ -1,0 +1,21 @@
+id: typed-iostat-checklist
+type: typed
+rev: 1
+prompt: |
+  Type the `iostat` command from the first-minute checklist: extended statistics per disk (with `await`, `aqu-sz` and `%util`), leaving out idle disks, once a second.
+kind: command
+answers:
+  - "iostat -xz 1"
+  - "iostat -zx 1"
+  - "iostat -x -z 1"
+  - "iostat -z -x 1"
+mistakes:
+  - id: not-extended
+    answers: ["iostat 1", "iostat -z 1"]
+    why: "Without `-x`, `iostat` shows only reads and writes per second, not `await`, `aqu-sz` and `%util`, which are what show saturation."
+  - id: vmstat
+    answers: ["vmstat 1"]
+    why: "`vmstat 1` shows `wa` for the whole machine, a hint that a disk is slow, but not which disk or how deep its queue is."
+explanation: |
+  `-x` adds the extended columns (`r/s`, `w/s`, `await`, `aqu-sz`, `%util`), `-z` hides devices that did nothing, and `1` reports every second. Read the reports after the first: the first is the average since boot. Near 100% `%util` with a queue above 1 and rising `await` is a saturated disk, and `pidstat -d 1` then says who is writing.
+skills: [disk-io]

@@ -1,0 +1,18 @@
+id: typed-count-inodes
+type: typed
+rev: 1
+prompt: |
+  Writes to `/var` fail with "No space left on device", yet `df -h` says it's only 40% used. Type the `df` command that counts inodes instead of bytes, for every mounted filesystem.
+kind: command
+answers:
+  - "df -i"
+  - "df -ih"
+  - "df -hi"
+  - "df --inodes"
+mistakes:
+  - id: folder-sizes
+    answers: ["du -sh /var/*", "sudo du -sh /var/*"]
+    why: "`du` adds up how many bytes each folder holds, which `df -h` already says is fine. The thing that has run out is counted by `df -i`."
+explanation: |
+  Every file costs one inode, and ext4 fixes the number of them when the filesystem is made. Millions of tiny files (a session store, a cache) can use them all while bytes are still free, and then any new file fails with the same "No space left on device" as a full disk. `df -i` shows `IUse%` for each filesystem; find the folder with the most files and clear it.
+skills: [disk-full]
