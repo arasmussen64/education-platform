@@ -31,6 +31,7 @@ import { TopicOutline } from '../components/TopicOutline.tsx'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { ExplainCheck, ExplainClosed } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
+import { BREAK_ID, PartBreak } from '../parts/PartBreak.tsx'
 import { recallPart, rememberPart } from '../parts/partMemory.ts'
 import {
   aboutMinutes,
@@ -138,7 +139,7 @@ export function TopicView({
     [content, isTopic, items, locked],
   )
   const done = content ? partsDone(parts, content, states, passed) : null
-  const { currentPart, openPart, goTo } = usePartChoice(
+  const { currentPart, openPart, goTo, breakAfter, endBreak } = usePartChoice(
     topic.id,
     content,
     parts,
@@ -210,6 +211,9 @@ export function TopicView({
               // Moves to the proofs part, with focus on its heading.
               <ProveItNow onChoose={() => openPart('prove')} />
             )}
+            {breakAfter && (
+              <PartBreak finished={breakAfter} onDismiss={endBreak} />
+            )}
             {currentPart.kind === 'learn' && (
               <Learn content={content} eyebrow={eyebrow} />
             )}
@@ -235,6 +239,17 @@ export function TopicView({
                 parts={parts}
                 current={currentPart}
                 onOpen={(part) => openPart(part.id)}
+                onNext={(next) =>
+                  openPart(
+                    next.id,
+                    // A break is suggested on moving on from a finished part.
+                    // The lesson has no answers, so reaching its end and
+                    // going on is finishing it.
+                    currentPart.kind === 'learn' || done?.get(currentPart.id)
+                      ? currentPart.title
+                      : null,
+                  )
+                }
               />
             )}
           </>
@@ -309,11 +324,19 @@ function usePartChoice(
     }
   }, [initialAnchor])
 
+  // The part just finished, while a break is suggested after it (PartBreak).
+  const [breakAfter, setBreakAfter] = useState<string | null>(null)
+
   /** Opens the part that holds an element, then scrolls to the element. */
   const goTo = useCallback(
     (anchor: string) => {
       const part = content ? partOfAnchor(parts, content, anchor) : undefined
-      if (part) flushSync(() => setChosen(part.id))
+      if (part) {
+        flushSync(() => {
+          setChosen(part.id)
+          setBreakAfter(null)
+        })
+      }
       document.getElementById(anchor)?.scrollIntoView({ block: 'start' })
       setHashAnchor(anchor)
     },
@@ -330,21 +353,35 @@ function usePartChoice(
     return () => window.removeEventListener('hashchange', follow)
   }, [goTo])
 
-  /** Opens a part at its top, with keyboard focus on its heading. */
+  /**
+   * Opens a part at its top, with keyboard focus on its heading, or on the
+   * break suggested before it (`finished`: the title of the part just done).
+   */
   const openPart = useCallback(
-    (id: string) => {
+    (id: string, finished: string | null = null) => {
       const part = parts.find((each) => each.id === id)
       if (!part) return
-      flushSync(() => setChosen(part.id))
-      const heading = document.getElementById(partAnchor(part))
-      heading?.scrollIntoView({ block: 'start' })
-      heading?.focus({ preventScroll: true })
+      flushSync(() => {
+        setChosen(part.id)
+        setBreakAfter(finished)
+      })
+      const target = document.getElementById(
+        finished ? BREAK_ID : partAnchor(part),
+      )
+      target?.scrollIntoView({ block: 'start' })
+      target?.focus({ preventScroll: true })
       setHashAnchor(partAnchor(part))
     },
     [parts],
   )
 
-  return { currentPart, openPart, goTo }
+  return {
+    currentPart,
+    openPart,
+    goTo,
+    breakAfter,
+    endBreak: () => setBreakAfter(null),
+  }
 }
 
 /** Back and on between a topic's parts, below the part on screen. */
@@ -352,10 +389,13 @@ function PartNav({
   parts,
   current,
   onOpen,
+  onNext,
 }: {
   parts: TopicPart[]
   current: TopicPart
   onOpen: (part: TopicPart) => void
+  /** Moving on to the next part, which may suggest a break first. */
+  onNext: (part: TopicPart) => void
 }) {
   const index = parts.indexOf(current)
   const previous = parts[index - 1]
@@ -380,7 +420,7 @@ function PartNav({
       {next && (
         <button
           type="button"
-          onClick={() => onOpen(next)}
+          onClick={() => onNext(next)}
           // Lime is for moving forward (the Momentum design).
           className="rounded-md bg-lime-600 px-4 py-2 text-sm font-semibold text-white hover:bg-lime-700 dark:bg-lime-500 dark:text-slate-950 dark:hover:bg-lime-400"
         >
