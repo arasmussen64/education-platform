@@ -30,6 +30,8 @@ type Row = {
   total?: unknown
   /** The learner's own calendar day, recorded since 2026-11-11. */
   local_day?: unknown
+  /** Set on a quick-check answer (ADR-0025, amended 2026-11-16). */
+  quick_check?: unknown
 }
 
 function isTextList(value: unknown): value is string[] {
@@ -86,6 +88,11 @@ export function toAttempt(row: Row): Attempt | null {
   if (typeof row.duration_ms === 'number') attempt.duration_ms = row.duration_ms
   if (isContext(row.context)) attempt.context = row.context
   if (typeof row.local_day === 'string') attempt.local_day = row.local_day
+  // The server reads it out of the data as text; this device keeps it as
+  // it was recorded, a boolean.
+  if (row.quick_check === true || row.quick_check === 'true') {
+    attempt.quick_check = true
+  }
   if (row.type === 'review' && isRating(row.rating)) {
     attempt.rating = row.rating
   }
@@ -118,6 +125,7 @@ export function localAttempt(row: EventRow): Attempt | null {
     message: data.message,
     total: data.total,
     local_day: data.local_day,
+    quick_check: data.quick_check,
   })
 }
 
@@ -143,7 +151,7 @@ export async function fetchAttempts(topicId?: string): Promise<Attempt[]> {
     let query = getSupabase()
       .from('events')
       .select(
-        'id, type, topic_id, item_id, correct, occurred_at, duration_ms, context, status:data->>status, failing:data->failing, rating:data->>rating, outcome:data->>outcome, message:data->>message, total:data->total, local_day:data->>local_day',
+        'id, type, topic_id, item_id, correct, occurred_at, duration_ms, context, status:data->>status, failing:data->failing, rating:data->>rating, outcome:data->>outcome, message:data->>message, total:data->total, local_day:data->>local_day, quick_check:data->>quick_check',
       )
       .in('type', [...ATTEMPT_TYPES])
       .not('correct', 'is', null)
