@@ -23,6 +23,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Practising a topic now counts as part of a review for the topics it builds on, as Math Academy's "FIRe" does ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). A review rated Good, or a passed build or debug, moves each direct prerequisite's next review half way toward where a real Good review would have put it; a Hard review a quarter of the way; topics further down get half as much at each step. A credit only counts once a topic is half way to due, at most once a day, never while it's relearning, and at most twice between its own reviews. It never makes a review come sooner and never counts toward Mastered. In a simulated year of cloud Modules 1 to 3 it removes about a third of the reviews; `npm run sim:reviews` in `web/` runs the simulation.
 - The topic page reads the whole history, as the map and the Today page do, since a topic's schedule now depends on practice in other topics. A follow-up opened by a checkpoint's test now shows on the topic page too.
 
+### Added (explain it back: how it's marked, before you write)
+
+- Every explain-it-back check has a folded "How it's marked" note under its question: how many points your explanation is checked against and how many a pass needs, that the ideas count and not the wording, and that a missing point brings up to three questions, never the answer. The points' own wording stays hidden, because in every topic it's the answer itself ([ADR-0013](docs/decisions/0013-explain-grading.md), amended, proposed).
+
 ### Added (topic page: the goals at the top, ticked once proven)
 
 - A topic now opens with what you'll be able to do (its goals), at the top of every part: unfolded with the lesson, folded on the other parts. Each goal is ticked once the topic is Learned, when all three proofs have passed, with the date. They're ticked together, since the content doesn't say which proof shows which goal.

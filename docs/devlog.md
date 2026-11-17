@@ -38,6 +38,25 @@ So credit spares about a third of the reviews. "Worthless" is the worst case: th
 
 **Next:** answer time in review ratings.
 
+## 2026-11-16, topic page: how an explanation is marked
+
+Part of today's improvement plan for the topic page. The plan asked for an explain-back's rubric points to be shown before the learner writes, unless that would hand them the answer.
+
+**What I found.** It would. Every rubric read (Python's lists, the shell, routing, and a sample across the tracks) is written as the answer itself: "append adds the item to the end of the list it's called on, changing that list; it returns None"; "the longest matching prefix wins, and the default route only when nothing else matches". The points' ids are no better as labels: some are abbreviations ("lpm"), and the readable ones hint at the answer. The component even said so: "The rubric and the model answer are never shown."
+
+**What changed.** A folded "How it's marked" note under every explain prompt (topics and, once open, checkpoints): how many points the explanation is checked against and how many a pass needs, in words ("six points, drawn from the question above: five needed to pass, and one extra that isn't needed"); the grader's own rules, from its instructions (the ideas count, not the wording; an idea only hinted at or stated wrongly doesn't count); and what a miss brings (up to three questions, never the answer, unlimited tries). Written up as an amendment to [ADR-0013](decisions/0013-explain-grading.md), proposed.
+
+- `web/src/explain/HowItsMarked.tsx` (its sentence about the points in `marking.ts`), placed in `ExplainCheck.tsx` under the prompt.
+- Tested: four tests of the note (the counts and rules behind the fold, no rubric wording or model answer, the sentences for one, all-required and some-extra points, nothing for an empty rubric) and one in the explain check itself.
+
+**Author notes:**
+
+- _Counts and rules, not points._ This is the "topics only, or explain why" case the plan allowed: there are no answer-free topics in the content to show, so the note shows the marking's shape and leaves the question as the list of what to cover.
+- _Folded by default,_ so the question stays the first thing read; the rules are one click away for a learner who wants them.
+- _A content change could add short, answer-free labels_ to rubric points ("what append returns", "why the reply can fail") if showing the points matters later. That would touch every topic's rubric and the validator, so it isn't done here.
+
+**Next:** "Check what you know", a short quick check before the practice.
+
 ## 2026-11-16, topic page: the goals at the top
 
 Part of today's improvement plan for the topic page, after the parts (#297) and the breaks (#303).
