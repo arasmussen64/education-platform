@@ -1,0 +1,19 @@
+id: typed-stapling-on
+type: typed
+rev: 1
+prompt: |
+  The shop's nginx site already names its full chain in `ssl_certificate` and has a `resolver` that answers. Which one-line directive, added to its `server` block, makes nginx fetch the CA's OCSP answer and attach it to its handshakes? Type the line as it goes in the file.
+kind: command
+answers:
+  - ssl_stapling on;
+  - ssl_stapling on
+mistakes:
+  - id: verify
+    answers: ["ssl_stapling_verify on;", "ssl_stapling_verify on"]
+    why: "`ssl_stapling_verify` makes nginx check the OCSP answer it fetched; it doesn't switch stapling on by itself."
+  - id: status-flag
+    answers: [openssl s_client -status]
+    why: "`-status` is how a client asks for and shows a stapled answer. The server side is a line in nginx's file."
+explanation: |
+  `ssl_stapling on;` switches stapling on. It needs the other two things in place: the full chain in `ssl_certificate`, so nginx knows who issued the certificate, and a `resolver` that answers, so it can find the CA's responder. Even then, the first handshake after a start goes without, because nginx fetches the answer only when a handshake first asks for one; `openssl s_client -status` shows `OCSP Response Status: successful` from the next one on.
+skills: [tls-server-config]

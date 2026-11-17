@@ -18,6 +18,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (cloud Module 3, second half: glossaries and typed questions)
+
+- The eight networking topics from Congestion control and QUIC to Site-to-site VPNs each have a glossary of the terms they teach, 63 in all (from congestion window and bufferbloat to route reflector and NAT traversal), so a later lesson that uses one shows its definition and links back.
+- Each also has two new typed questions, 16 in all: a command, a setting, a header, a status code or a term, recalled and typed rather than picked from a list (`net.ipv4.tcp_congestion_control`, `ssl_stapling on;`, `set server web/web2 state drain`, `swanctl --list-sas`, SNI, DNS-01, 504, port 179 and more).
+
 ### Added (saying how sure you are before a quick question is checked)
 
 - Every quick question (multiple choice, predict the output, Parsons, estimate, typed) is checked with one of three buttons, "Guessing", "Fairly sure" or "Certain", instead of Check ([ADR-0028](docs/decisions/0028-confidence-before-the-answer.md), proposed). One press still checks the answer. In an estimate or a typed answer, Enter moves to the three buttons rather than choosing one. The answer event saves the choice as `confidence`; it changes no grade, rating, Mastered or follow-up. The placement test keeps its single Check.

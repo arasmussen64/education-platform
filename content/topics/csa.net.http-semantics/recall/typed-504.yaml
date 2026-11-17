@@ -1,0 +1,21 @@
+id: typed-504
+type: typed
+rev: 1
+prompt: |
+  nginx passes the shop's monthly report request on to the app, and the app is still working on it when nginx's `proxy_read_timeout`, 60 seconds, runs out. Which status code does nginx send the client? Type the number.
+kind: text
+answers:
+  - "504"
+mistakes:
+  - id: bad-gateway
+    answers: ["502"]
+    why: "502 Bad Gateway is a broken answer from the upstream, or none because it crashed or closed the connection. A slow upstream that the proxy gave up waiting for is 504."
+  - id: unavailable
+    answers: ["503"]
+    why: "503 means the service isn't available for now, often sent when there is nowhere to pass the request. Here nginx reached the app and waited for it: 504."
+  - id: client-timeout
+    answers: ["408"]
+    why: "408 is the server giving up on a slow *client*. Here the slow party is the upstream, behind nginx, so it's a 5xx: 504."
+explanation: |
+  **504 Gateway Timeout**: the proxy "did not receive a timely response" from the upstream. A 504 after exactly 60 seconds, every time, is nginx's `proxy_read_timeout` running out at its default. The fix is in the app (make the report faster, or build it in the background) or, if the wait is fair, a longer timeout on that one location.
+skills: [methods-and-status]
