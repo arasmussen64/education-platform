@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="Two teams each built a cloud network on the range 10.0.0.0/16, and both work perfectly. A year later they're asked to connect the two networks so their servers can talk. Why might that take months instead of an afternoon?">
+
+Because the two networks use the same addresses. For routing to work, an address must mean one machine, so 10.0.1.5 can't be a server in both networks at once. Every cloud refuses to connect (peer) two networks whose ranges overlap, and a VPN can't route a range that exists at both ends. The cure is renumbering one of the networks while it's in use. That's why the range is chosen before anything is built.
+
+</Puzzle>
+
 Every cloud network starts with a range of addresses, chosen before anything is built, and a bad choice is one of the hardest things in a cloud to undo: two networks on the same range can never be joined directly. Module 1 wrote `10.0.1.0/24` without explaining it. This topic explains it, and it is arithmetic: done in your head for speed, in bash so a script can check a whole plan, and checked with `ipcalc`, a small program that prints any block's facts. The quick questions ask for exact numbers. A calculator of your own is fine; the skill is setting up the sum.
 
 **Bits and octets.** A **bit** is a single 0 or 1, and **binary** writes numbers in bits, the way decimal writes them in digits. An IPv4 address is 32 bits, written as four numbers of 8 bits each, called **octets**, with dots between: **dotted decimal**, like `10.20.30.77`. Eight bits can make 256 values, so each octet is 0 to 255. Each bit has a **place value**, doubling from the right:
@@ -10,6 +16,8 @@ Every cloud network starts with a range of addresses, chosen before anything is 
 
 To read an octet, add the place values of its 1 bits: `10110100` is 128 + 32 + 16 + 4 = 180. To write one, take away the biggest place values that fit: 240 is 128 + 64 + 32 + 16, so `11110000`. You've done this before: `rwx` in Module 1 was three bits read as a number (`rw-` is 4 + 2 = 6); an octet is eight. bash reads binary directly: `echo $((2#11110000))` prints 240.
 
+<Check item="est-binary-octet" />
+
 **Prefix, mask and block.** A **prefix length**, the `/24` after an address, says how many of the 32 bits, counted from the left, name the network: the **network part**. The rest, the **host part**, number the machines inside it. Together they describe a **block**: every address that starts with those network bits. A /24 has 8 host bits, so its block holds 2⁸ = 256 addresses; a /N holds 2 to the power of (32 − N). Writing networks this way is **CIDR**, classless inter-domain routing. Until CIDR arrived in 1993, the first number of an address decided its network's size (a "class A" was a /8, "class B" a /16, "class C" a /24); CIDR let any length be used, and the classes are history, though `ipcalc` still prints "Class A". These sizes are worth knowing on sight:
 
 | Prefix | /16 | /20 | /21 | /22 | /23 | /24 | /25 | /26 | /27 | /28 | /29 | /30 |
@@ -18,7 +26,11 @@ To read an octet, add the place values of its 1 bits: `10110100` is 128 + 32 + 1
 
 The **netmask** (mask, for short) is the prefix written as an address: N ones then zeros. A /20 is twenty 1 bits and twelve 0 bits, `255.255.240.0`. AND (a bit is 1 only where both numbers have a 1) of an address with its mask keeps the network bits and clears the host bits, which gives the block's first address, the **network address**. That is the umask from Module 1 the other way round: `$((0666 & ~0022))` took bits away with AND, and a mask keeps them. The **wildcard mask** is the mask with every bit flipped (`0.0.15.255` for a /20); OR (a bit is 1 where either has a 1) of an address with it sets every host bit, which gives the block's last address, the **broadcast address**. Classic networks keep both back from machines, so a block of 256 has 254 usable addresses; the clouds keep more (below).
 
+<Check item="est-mask-octet" />
+
 **The interesting octet.** You rarely need all 32 bits. Find the octet where the mask isn't 255 or 0; the block size in that octet is 256 minus the mask's number there; the block starts at the biggest multiple of that size that isn't above the address's number. For `10.20.30.77/27`: the mask is `255.255.255.224`, so the last octet is the interesting one, the block size is 256 − 224 = 32, and the multiples of 32 are 0, 32, 64, 96 ... 77 falls in the one from 64, so the block is 10.20.30.64 to 10.20.30.95 (64 + 32 − 1). The same method works when the prefix ends in another octet. For `10.50.77.200/21` the mask is `255.255.248.0`: the third octet is the interesting one, the size there is 8, 77 falls in the block from 72, and the block runs from 10.50.72.0 to 10.50.79.255.
+
+<Check item="est-network-octet" />
 
 **A block starts on a multiple of its size.** `10.30.4.0/23` is a block (4 is even, and a /23 is two /24s); `10.30.5.0/23` isn't. Give Linux an address like that and it says nothing: it quietly works out the block the address is in and uses that. The worked example shows it, live: `10.20.3.1/23` becomes the route `10.20.2.0/23`, which takes in the /24 next door. A wrong prefix is just as quiet the other way. A host at 10.20.1.10 given a /16 where its network is a /24 thinks every 10.20.x.x address is on its own switch: it asks ARP for machines on other networks, nobody answers, and they go silent. A router can be set to answer ARP for other networks (proxy ARP), which hides the mistake until the next change breaks it; fix the prefix instead.
 
@@ -29,6 +41,18 @@ The **netmask** (mask, for short) is the prefix written as an address: N ones th
 **Overlaps.** Two CIDR blocks either nest, one inside the other, or don't touch at all; they never half overlap, because each is "every address that starts with these bits". So compare them on the shorter of their two prefix lengths, k: the same first k bits means they overlap. `10.0.3.128/25` is inside `10.0.0.0/22`; the two halves of a /24 touch at .127 and .128 without overlapping. In bash, with each address as a number, the test is `(( x >> (32 - k) == y >> (32 - k) ))`: shifting right throws the host bits away. Overlaps matter because an address must mean one machine for routing to work. All three clouds refuse to **peer** (connect directly) two networks whose ranges overlap; AWS also won't let overlapping networks share one Direct Connect gateway (the hub that joins its private lines from data centres to many cloud networks); and a **VPN** (virtual private network: a tunnel that joins two private networks across the internet, built in the VPNs and IPsec topic) can't route a range that exists on both of its ends. Undoing an overlap means renumbering a network in use, and Module 11 has a whole topic on it.
 
 **Private and special ranges.** RFC 1918 sets aside three **private** ranges that are never routed on the internet, for any organisation to use inside its own networks: `10.0.0.0/8` (16,777,216 addresses), `172.16.0.0/12` (1,048,576) and `192.168.0.0/16` (65,536). The trap is the middle one: a /12 runs from 172.16 to 172.31, so `172.32.0.0` is somebody's public address space. Other ranges have jobs of their own. `100.64.0.0/10` is **shared address space**, for internet providers' carrier-grade NAT (one provider translating many customers behind few public addresses); its RFC warns that other uses may run into trouble, though all three clouds accept it in a network. `169.254.0.0/16` is **link-local**: routers never forward it, which is why every cloud VM reaches its own metadata service at 169.254.169.254 (Module 1's boot topic) and nothing else can. `127.0.0.0/8` is **loopback** (the machine itself), `0.0.0.0/8` means "this network", and `224.0.0.0/4` is **multicast** (one packet to many receivers). `192.0.2.0/24`, `198.51.100.0/24` and `203.0.113.0/24` are kept for **documentation** and never appear on the internet, which is why the labs use them for "the internet".
+
+<Check item="mcq-not-private" />
+
+<Story title="The 1.1.1.1 that wasn't free, 2018" source="https://blog.cloudflare.com/fixing-reachability-to-1-1-1-1-globally/" sourceTitle="Fixing reachability to 1.1.1.1, GLOBALLY!" license="linked, not copied">
+
+On 1 April 2018 Cloudflare launched a public name server at 1.1.1.1, and for some people it simply didn't answer. The block 1.0.0.0/8 had been unassigned until 2010, when it went to APNIC, the address registry for Asia and the Pacific, and over the years plenty of equipment had treated it as free to borrow. Unassigned isn't private. A common US modem, the Pace 5268, used 1.1.1.0/29 for its own internal traffic; Cisco wireless controllers in hotels and cafés used 1.1.1.1 for their login pages; some internet providers still had internal routes for 1.1.1.1 left over from old tests, which sent it nowhere. Behind any of them, 1.1.1.1 meant a box in the customer's own network, not Cloudflare.
+
+Cloudflare found the failures by testing from RIPE Atlas probes, volunteer measuring boxes in thousands of networks: over 1,000 of them couldn't reach 1.1.1.1. It then worked through them one network at a time, with providers, who removed their leftover routes, and with device makers, who shipped new firmware.
+
+The lesson: inside your own networks, use the RFC 1918 ranges. A block that nobody seems to use today belongs to somebody, and one day they will use it.
+
+</Story>
 
 **The clouds' rules.** A cloud network is a **VPC** (virtual private cloud) on AWS and Google Cloud and a **VNet** (virtual network) on Azure: an isolated network you give a range and carve into subnets. Module 11 builds them; here are the address rules, read on 2026-11-12 from each cloud's documentation:
 
