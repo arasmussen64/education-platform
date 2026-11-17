@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, Today page: a plan for when and where to study
+
+The last of the Today page's study-habit changes. Deciding in advance when and where you'll do something ("on Monday and Thursday at 7:30 pm, at the library, I'll study") makes following through much more likely than an intention alone; psychologists call these implementation intentions (Gollwitzer and Sheeran, 2006). Putting the plan in the learner's own calendar brings the reminder to where they already look.
+
+**What changed.**
+
+- **The question, asked once** at the foot of the Today page: days (checkboxes), a time, and a place in free text, or "Not now". Once made, the plan shows as one line at the top of the page, naming today's time on one of its days, with "Add to my calendar (.ics)" and "Change my plan". The Account page has a Study plan section to make, change or forget it.
+- **The calendar file** (`web/src/studyplan/calendarFile.ts`): one event repeating weekly on the chosen days (`RRULE:FREQ=WEEKLY;BYDAY=…`), starting at the first of them still ahead, 30 minutes long, with the place, the product name from the config constant, and a link to `/session`. Made in the browser and saved through the existing download helper, which gained `downloadText`.
+- **Storage** (`web/src/studyplan/studyPlan.ts`): `localStorage`, with every read and write in try/catch, and anything stored that isn't a valid plan ignored. When the browser refuses to keep it, the page says so and the plan lasts for the visit.
+- Tests: saving, reading back, junk in storage, blocked storage, "Not now", the sentences (`studyPlan.test.ts`); the first session, the file line by line, escaping, CRLF endings and line folding (`calendarFile.test.ts`); asking, saving, the reminder, "Not now", the at-least-one-day check and the download on the Today page; making, changing, downloading and forgetting on the Account page.
+
+**Author notes:**
+
+- _Kept per device, not with the account._ Saving the plan with the learner's account would need a new event type or table, a migration only the owner can push to the live database. Syncing the plan across devices is left as a future owner decision; it's a small change once a place to keep it exists.
+- _A "floating" time in the calendar file,_ written without a time zone, so "7:30 pm" stays 7:30 pm on the learner's clock even after they travel or the clocks change. Google Calendar, Outlook and Apple Calendar all show floating times in the calendar's own zone.
+- _Asked at the foot of the page, shown back at the top._ The question shouldn't compete with "Start today's session"; the reminder is one line and belongs where the learner starts.
+- _Thirty minutes for the calendar event,_ a common session length; the learner can change it in their calendar.
+- _The time is written by hand_ ("7:30 pm"), because browsers differ in the space they put before "PM" and the sentence should read the same everywhere.
+- _No new event type, table or migration,_ as the brief asked.
+
+**Next:** the Today page stream is done; its decisions go to the owner queue with the coordinator.
+
 ## 2026-11-16, topic page: "Check what you know"
 
 The last of today's five topic-page changes. The page already had "Prove it now", which skips everything; this is the lighter option in between.
