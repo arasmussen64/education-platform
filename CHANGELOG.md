@@ -18,6 +18,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (lessons: questions inside the lesson, an opening puzzle, and a real incident)
+
+- A lesson can ask one of its topic's practice quick questions where it stands, with `<Check item="..." />`. It's graded and saved exactly as in practice, and the practice ladder leaves it out, so it shows once ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed).
+- A lesson can open with `<Puzzle question="...">answer</Puzzle>`: the learner types a guess, then sees the answer. The guess isn't graded or saved.
+- A lesson can tell a real public incident with `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>`, in the platform's own words, linking the postmortem it's drawn from.
+- The validator checks every tag in a lesson: only the six the app can draw, each written as `content/README.md` says, with the lesson's line in every problem.
+
 ### Added (reviews: a personal forgetting curve)
 
 - Once a learner has 100 review outcomes, the scheduler fits one number to them: how many times longer (or shorter) their memory lasts than FSRS's average curve says, between 0.5 and 2 ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). Every interval is stretched or shrunk by it. The Account page says it in plain words ("You forget a little faster than average: reviews come about 20% sooner"), or how many reviews are left before it's fitted. Below 100 reviews nothing changes. Nothing is stored; it's worked out from the event log each visit.
