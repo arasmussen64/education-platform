@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="On a café's Wi-Fi, a stranger records every packet while you shop on an HTTPS site. What can they learn from the recording: the site's name, the pages you open, your password?">
+
+The site's name, but not the pages or the password. Before anything is encrypted, your browser says in the clear which site it wants, so that the server can pick the right certificate; the addresses, and the sizes and timing of the traffic, show too. Everything after the opening hellos is encrypted: the paths of the pages, the headers, the cookies and whatever you type. With TLS 1.3 even the server's certificate is hidden, and a newer extension that both ends must support can hide the name as well.
+
+</Puzzle>
+
 Module 1 used `curl -v https://...` to see an HTTP exchange, DNS named the certificate in one sentence, and Congestion control and QUIC put HTTP/3 on QUIC. This topic is the layer in between: **HTTP** as it travels, in versions 1.1 and 2, and **TLS**, the protocol that encrypts it (HTTPS is HTTP inside TLS, on port 443). By the end you can say what HTTP/2 changes, read a TLS 1.3 and a TLS 1.2 handshake message by message and say what anyone watching the network still sees, and set up a web server for several sites on one address with the right versions, HTTP/2 and a stapled OCSP answer. The labs use the shop's web server, `web`, running nginx for `www.shop.test` and `api.shop.test`; a customer's laptop, `office`; `ca`, the shop's own certificate authority's OCSP responder; and `resolver`, the shop's name server.
 
 **HTTP in one paragraph.** A client sends a **request**: a **method** (what it wants done: `GET` to fetch, `POST` to send something), a path (`/account/orders`), then **headers**, lines of `Name: value` such as `Host: www.shop.test`, the name of the site it wants, and sometimes a body. The server sends a **response**: a **status line** with a code (`HTTP/1.1 200 OK`; `404` for not found, `301` for moved), its own headers, and the body, the page itself. HTTP semantics, two topics on, is about what methods and codes promise; this one is about how they travel.
@@ -9,6 +15,8 @@ Module 1 used `curl -v https://...` to see an HTTP exchange, DNS named the certi
 **HTTP/2: many streams on one connection.** HTTP/2 cuts every request and response into binary **frames** (HTTP/2's own frames, not Layers and packets' Ethernet frames), each labelled with a **stream** number, and interleaves the frames of many streams on one connection: **multiplexing**. Each request and its answer is one stream, so a page and forty images travel at once, and a site needs one connection, not six. Headers that repeat in every request (cookies, the browser's name) are compressed with **HPACK**: both ends keep a table, and a header sent once is referred to by number afterwards. The meaning is unchanged (methods, headers and status codes are the same), and the first line becomes headers with names that start with a colon, `:method` and `:path`. What HTTP/2 can't fix is underneath it: TCP delivers bytes complete and in order (TCP and UDP's numbered postcards), so when one packet is lost, every stream waits until it is resent, the head-of-line blocking Congestion control and QUIC described. HTTP/3 runs on QUIC instead, which orders each stream on its own (that topic's). This topic stays with HTTP/1.1 and 2, which nginx speaks here.
 
 **Which version? ALPN.** The two sides agree on HTTP's version inside the TLS handshake, with **ALPN** (Application-Layer Protocol Negotiation): the client lists what it speaks, the server picks one. `curl -v` shows both halves, `ALPN: curl offers h2,http/1.1` and `ALPN: server accepted h2` (`h2` is HTTP/2's name there), and `curl -w '%{http_version}'` prints just `2` or `1.1`.
+
+<Check item="alpn-from-curl-v" />
 
 **Two kinds of encryption.** **Symmetric** encryption uses one secret key both to lock and to unlock: fast, and what protects the conversation itself (AES and ChaCha20, in the labs' captures). Its problem is getting the same key to both ends over a network anyone can read. **Public-key** encryption uses a key pair, like Module 1's SSH keys: a private key kept secret and a public key handed to anyone. It is slow, but it makes two things possible: a **signature** (DNS's word), which proves that the holder of a private key made it, and key exchange.
 
@@ -28,9 +36,13 @@ Module 1 used `curl -v https://...` to see an HTTP exchange, DNS named the certi
 
 After its Finished the client can send its request at once: **one round trip** after TCP's. In `-trace` each message sits inside a **record**, TLS's unit on the wire, whose header says `Content Type = Handshake (22)` for the two hellos. From EncryptedExtensions on, the outer type is `ApplicationData (23)`, and only the ends see the `Inner Content Type = Handshake (22)` inside. TLS 1.3's standard, RFC 9846 (July 2026, which replaced RFC 8446), says it in one line: all handshake messages after the ServerHello are encrypted. The `ChangeCipherSpec` records in a 1.3 trace mean nothing; they are sent only so that old boxes in the middle aren't confused.
 
+<Check item="trace-13-messages" />
+
 **TLS 1.2, for comparison.** `ClientHello ServerHello Certificate ServerKeyExchange ServerHelloDone`, then the client's `ClientKeyExchange` and `Finished`, then the server's `NewSessionTicket` and `Finished`. The server sends its certificate in clear, straight after its hello, then its key share (signed) and "done"; the client's share and Finished make a second round trip, and only then may the request go.
 
 **Round trips.** Count them before the first byte of the request leaves: TCP's handshake is one; a full TLS 1.2 handshake adds two (three in all, 240 ms at an 80 ms round trip); TLS 1.3 adds one (two in all); QUIC does both in one. A client that comes back can present its session ticket and resume, skipping the certificate, and TLS 1.3's **0-RTT** lets it send its request along with its very first message, the ClientHello. The price, in RFC 9846's words: "There are no guarantees of non-replay between connections." Someone who records those first packets can send them again, so a server accepts early data only for requests that are safe to repeat, if at all.
+
+<Check item="est-rtt-tls12" />
 
 **What the wire still shows.** Someone watching sees the addresses and ports, and the ClientHello in clear, including its **SNI** (Server Name Indication), the name of the site. In TLS 1.3 everything after the ServerHello is hidden, the certificate, the path, the headers and cookies included; in TLS 1.2 the certificate crosses in clear too. The worked example counts it: `www.shop.test` appears once in a TLS 1.3 capture and three times in a TLS 1.2 one. **ECH** (Encrypted Client Hello, RFC 9849, March 2026) hides the name as well, with a key the server publishes in DNS; it needs both ends to support it, and Ubuntu 24.04's nginx and OpenSSL don't. To read your own encrypted traffic, a client can write its session keys to a file (`SSLKEYLOGFILE=keys.txt curl ...`), and Wireshark or `tshark` decrypts a capture with them: guard that file like a password.
 
@@ -53,7 +65,17 @@ After its Finished the client can send its request at once: **one round trip** a
 
 nginx fetches the answer only when a handshake first asks for one, so **the first handshake after a start goes without**. nginx handles connections in several **worker processes**, copies of itself, and each fetches its own answer, which is why the labs run only one.
 
+<Check item="stapling-status" />
+
 **Stapling today.** Let's Encrypt, the largest public CA, dropped OCSP addresses from its certificates on 7 May 2025 and turned its responders off on 6 August 2025, for privacy. It publishes revocations in lists (CRLs) instead, and certificates are getting shorter-lived (topic 32). A Let's Encrypt certificate has nothing to staple; stapling still matters with CAs that run OCSP, such as companies' own CAs, like the labs'.
+
+<Story title="Heartbleed, 2014" source="https://heartbleed.com/" sourceTitle="Heartbleed Bug" license="linked, not copied">
+
+On 7 April 2014 the OpenSSL project announced a bug that had sat in its code since the 1.0.1 release two years before, in **heartbeat**, a small TLS extension that lets one end check the other is still there. A crafted heartbeat request made the server answer with up to 64 KB of whatever lay in its memory, as many times as the attacker liked, and left nothing in the logs. OpenSSL was the TLS library under most web servers: nginx and Apache alone ran over two-thirds of active sites. The people who found it attacked their own servers from outside and came away with their certificates' private keys, user names and passwords, and messages.
+
+Patching stopped new leaks but couldn't say what had already leaked, so the advice was to patch, revoke every certificate whose key might have been read, get new ones with new keys, and have users change their passwords. The lesson worth keeping is forward secrecy: a stolen key let someone pose as the site from then on, but recordings of past connections stayed unreadable if they had used a throwaway key exchange, and were open if they hadn't.
+
+</Story>
 
 **Where the three clouds differ.** Their layer 7 load balancers end TLS for you (the client's TLS connection stops at the load balancer, which holds the certificate), and their defaults aren't always the advice above (each provider's pages, read 2026-11-12):
 

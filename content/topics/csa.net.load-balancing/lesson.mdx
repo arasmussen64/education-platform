@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="A shop's app blocks any address that sends more than 100 requests a minute. The day a load balancer goes in front of its servers, the app blocks every customer at once. What happened?">
+
+Every request now reaches the servers from one address: the load balancer's. A balancer that works as a proxy accepts each customer's connection itself and opens a second connection of its own to a server, so the app sees all the shop's customers as one very busy client, and blocks it. The fix is for the balancer to pass each customer's address along, in a header such as `X-Forwarded-For`, and for the app to read that instead.
+
+</Puzzle>
+
 TCP and UDP named a **load balancer** in one sentence: a box that spreads connections across several servers. This topic is that box. Every cloud architecture diagram has one in front of its servers, and most outages that start "the site went down although the servers were fine" end in one of its settings. Five ideas carry the topic: what kind of balancer a flow needs, how a balancer chooses a server, how it decides a server is broken, how to take a server out without hurting anyone, and how to read what the balancer is really doing.
 
 **The shop's balancer.** The labs' picture, which the rest of this lesson uses: the office laptops on one side; on the other, the shop's servers on a network of their own, `web1` to `web3` for the website, `api1` and `api2` for the API, `stock1` and `stock2` for the stock service, and a database, `db`, that the web servers share. Between them is `lb`, running **HAProxy**, a free and widely used load balancer. Customers only ever see one address, 10.0.9.1, the **virtual IP** (VIP): an address that belongs to the service rather than to any one server. Every request reaches exactly one server; the balancer decides which, and stops sending to one that is broken. The parts have a name in each product:
@@ -22,6 +28,8 @@ TCP and UDP named a **load balancer** in one sentence: a box that spreads connec
 
 To route `/api/` to other servers, you need layer 7: the path is inside the HTTP request, and over HTTPS it's encrypted until something ends the TLS, so a layer 7 balancer holds the site's certificate. The other way round, a protocol whose **server speaks first** needs layer 4. The shop's stock service greets every new connection with `STOCK-SYNC 1.0 ready` before the client sends anything. Behind HAProxy in HTTP mode the client connects and gets nothing, ever: the proxy is waiting for an HTTP request before it even picks a server, and the client is waiting for the greeting. In `mode tcp` it works at once. The walkthrough shows both.
 
+<Check item="mcq-speaks-first" />
+
 **Who is asking.** A proxy's second connection comes from the proxy, so every server sees the balancer's address, as the NAT topic's server saw the gateway's. In the lab, `/whoami` reports `connection from 10.0.1.1`. A **rate limiter** (a part of an app that caps how many requests each client address may make in a minute) or a log that counts clients then sees one client. Layer 7 proxies fix it with a header: HAProxy's `option forwardfor` adds **`X-Forwarded-For: 10.0.9.2`**, the client's address, to each request. A client can send an `X-Forwarded-For` of its own, so a server reads the value its own balancer added and ignores anything before it: HAProxy's is the last value; Google's Application Load Balancers add two, the client's address and then their own (their overview page, read 2026-11-12). For any TCP protocol, the **PROXY protocol** does the same job: the balancer sends a short header with the client's address at the start of the connection, and the server must be set up to expect it (HAProxy's `send-proxy`; AWS's Network Load Balancer uses version 2). Pass-through balancers need neither, with exceptions (each provider's page, read 2026-11-12):
 
 - **AWS:** the Network Load Balancer keeps the client's address for targets registered as instances, and for UDP; for targets registered by IP address over TCP or TLS it doesn't by default, and offers client IP preservation or proxy protocol v2. The Application Load Balancer adds `X-Forwarded-For`.
@@ -39,10 +47,22 @@ To route `/api/` to other servers, you need layer 7: the path is inside the HTTP
 
 **What to check** is the question that takes down whole fleets. David Yanacek's article, the second reading, names three kinds: a **liveness** check (is the process there and answering?), a **local health** check (is this server's own disk, memory and threads all right?), and a **dependency** check (can it reach what it needs: the database, another service?). The trap is a dependency that every server *shares*. In the lab, each web server's `/health` answers 200 only if the shared database answers too. The database restarts for a few seconds; within one interval, all three servers fail their checks together; after `fall` of them HAProxy has no server left, and it answers every request, even for the front page that needs no database, with `503 Service Unavailable`, "No server is available to handle this request". Yanacek's line is the moral: trouble arises when the check "fails for a non-critical reason" and that failure "is correlated across servers". (HAProxy's own guide, written for checking one server at a time, suggests a check may even confirm that "the database it relies on is still accessible": exactly the check that does it.) So check the server itself (`/livez`), and let the pages that need the database fail on their own while it's away. A cheap check matters too: AWS's Network Load Balancer checks from many nodes at once, so "targets receive more than the configured number of health checks".
 
+<Story title="Stack Overflow's health check, 2016" source="https://stackstatus.tumblr.com/post/147710624694/outage-postmortem-july-20-2016" sourceTitle="Outage Postmortem - July 20, 2016" license="linked, not copied">
+
+On 20 July 2016 Stack Overflow was down for 34 minutes from 14:44 UTC. It began with one malformed post holding about 20,000 spaces in a row. A regular expression that trimmed spaces from the ends of lines burned the web servers' processors on that much whitespace, and because the post was listed on the home page, it ran on every view of the home page, which stopped answering in time.
+
+The home page was also what the load balancer requested as its health check. So every web server failed its check at once, the balancer took them all out of rotation, and the whole site went down, although the servers were running and, Stack Exchange's engineers believed, every page but the home page would have worked. Finding the cause took 10 minutes, writing a fix 14 (the regular expression became a plain substring call) and rolling it out 10. One follow-up was a way to switch the balancer's health check off. The lesson is this topic's: a check that rests on something every server shares, here one expensive page, fails on all of them together.
+
+</Story>
+
+<Check item="mcq-deep-check" />
+
 **The arithmetic.** How long does a broken server keep getting traffic? It depends on how it breaks, and on whether the balancer waits for one check to end before it schedules the next.
 
 - **HAProxy** waits `inter` after each check *ends* (measured in this topic's lab: a hung server's checks came every `inter` plus the timeout). A server that refuses connections fails each check at once, so it's out after about `fall × inter`: 3 × 2 = 6 seconds with the defaults. A server that **hangs** (it accepts the connection and never answers, like an overloaded or stuck one) makes each check last its whole timeout, so it's out after about `fall × (inter + timeout)`: 3 × (2 + 2) = 12 seconds, measured in the walkthrough. A recovered server is back after about `rise × inter`.
 - **The clouds' balancers** start each check on a fixed clock. AWS's Application Load Balancer page: "Each health check request is independent", and the target's answer time "does not affect the interval for the next health check request". So with its defaults (interval 30 s, timeout 5 s, unhealthy threshold 2, healthy threshold 5) a hung target is out after 2 × 30 + 5 = 65 seconds, and a recovered one waits 5 × 30 = 150 seconds.
+
+<Check item="est-haproxy-hung-server" />
 
 | Defaults, read 2026-11-12 | Interval | Timeout | Out after | Back after |
 | --- | --- | --- | --- | --- |
@@ -95,6 +115,8 @@ Draining meets stickiness differently in each product. HAProxy's drain "still al
 **Runtime against configuration.** Whatever the runtime API changes lives in the running HAProxy only. A reload or a restart reads the file again, and the server put in maintenance by hand is back in rotation: the lab's debug turns on it. What lasts is in `haproxy.cfg`: the server's line removed, or `disabled` on it, which starts it in maintenance with the configuration's flag, administrative state 5 (4 and 1).
 
 **Capacity when one fails.** If any one of N servers can fail, the other N − 1 must carry the peak: **N+1**. Four servers at 60% each at the peak lose one, and its share spreads over three: 4 × 60 ÷ 3 = 80% each. Size so that 80% (or whatever your limit is) is still acceptable, or add a server.
+
+<Check item="est-n-plus-one" />
 
 **HAProxy's configuration, the whole shape.** The labs' file is sections, each a heading line and its settings indented under it:
 

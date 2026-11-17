@@ -1,0 +1,18 @@
+id: contrast-prepend-or-localpref
+type: mcq
+rev: 1
+prompt: |
+  A company has two ExpressRoute-style circuits to an Azure-style cloud, which honours AS-path prepending but no community you send, and wants circuit 1 used both ways. Engineer A sets local preference 200 on the routes the company's router learns over circuit 1. Engineer B prepends the company's AS number twice on the routes it announces over circuit 2. Which traffic does each change move?
+choices:
+  - "A's moves the company's outgoing traffic; B's moves the cloud's traffic to the company"
+  - "A's moves the cloud's traffic to the company; B's moves the company's outgoing traffic"
+  - "Both move both directions, since local preference is compared before AS path length"
+  - "A's moves the company's outgoing traffic; B's moves nothing, since the cloud ignores it"
+answer: 0
+explanation: |
+  Each router chooses its own way out, so the two changes act on two different routers. **Local preference** is set on routes the company's router *learns*, and it is compared on that router, so it decides which circuit the company's packets *leave* by. It never leaves the company's AS, so the cloud never sees it and its traffic is unchanged.
+
+  **Prepending** changes what the company *announces*: over circuit 2 the path now reads three ASes long, so the cloud's router, comparing the two paths it hears for the company's prefix, picks the shorter one through circuit 1. That moves the cloud's traffic coming *in*. It works here because this cloud compares AS path length and uses no community; against a cloud that sets its own local preference first, as AWS does by Region, prepending can lose.
+
+  So local preference is compared before AS path only among the paths one router chooses between; it doesn't make the company's setting win on the cloud's router.
+skills: [inbound-steering]

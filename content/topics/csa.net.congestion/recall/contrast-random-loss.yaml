@@ -1,0 +1,16 @@
+id: contrast-random-loss
+type: mcq
+rev: 1
+prompt: |
+  A second backup runs from shop to dr2 over another 50 Mbit/s link with CUBIC, a link that loses about 1% of packets at random. iperf3's `receiver` line says 5 Mbit/s, and `ss -tni` shows `rtt:51` against `minrtt:50`. Why is it so slow, while its round trip stays at the path's minimum?
+choices:
+  - "Each random loss makes CUBIC cut its window, so it never sends enough to fill a queue"
+  - "A router's deep queue is full, and the time each packet waits there caps the send rate"
+  - "CUBIC has measured the shortest round trip and paces the connection down to 5 Mbit/s"
+  - "dr2 keeps its receive window small while it repairs the gaps that lost packets leave"
+answer: 0
+explanation: |
+  This is packet loss, not queueing delay. A loss-based sender reads every lost packet as congestion and cuts its window, here to 0.7 of what it was, so with 1% of packets lost at random the window is cut again and again and the connection runs at a small share of the link: the ceiling of about 1.2 × MSS ÷ (RTT × √p). Because so little is in flight, nothing ever waits in a queue, and the round trip stays at its minimum.
+
+  A full queue is the other case: the round trip climbs far above `minrtt` while the link runs nearly full, as on the clean link to dr1. Measuring the shortest round trip and pacing to a model of the path is what BBR does, not CUBIC, and BBR would run near the link's speed here because it doesn't react directly to loss. And the receive window is the receiver's buffer, which doesn't shrink because segments are missing; the congestion window is what loss cuts.
+skills: [loss-based-cc]
