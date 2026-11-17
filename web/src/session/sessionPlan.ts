@@ -10,10 +10,12 @@ import { getTopic, isOpen, topicIdsOf, tracks } from '../content/content.ts'
 import type { Topic, Track } from '../content/types.ts'
 import { dayOf } from '../days.ts'
 import type { Attempt, FollowUp } from '../followups/followUps.ts'
+import { reviewItemMinutes } from '../progress/pace.ts'
 import { nextUp, type TopicProgress } from '../progress/progress.ts'
 import {
   type DueReview,
   dueReviews,
+  ITEMS_PER_REVIEW,
   reviewsLeftToday,
 } from '../reviews/reviews.ts'
 
@@ -23,6 +25,8 @@ export const QUICK_SESSION_PATH = '/session?minutes=5'
 
 /** The most reviews the five-minute session asks. */
 export const QUICK_REVIEW_COUNT = 3
+/** How long the short session aims to take. */
+export const QUICK_MINUTES = 5
 
 /** The topic to learn next, and the track it's in. */
 export type NextTopic = {
@@ -144,4 +148,26 @@ export function quickPlan(
     followUps: [],
     next: null,
   }
+}
+
+/**
+ * How many reviews fit in the five-minute session, from how long the
+ * learner's own review questions take (progress/pace.ts): at least one, at
+ * most QUICK_REVIEW_COUNT. Two a minute each, say, fit two reviews.
+ */
+export function quickCount(attempts: Attempt[]): number {
+  const perReview = ITEMS_PER_REVIEW * reviewItemMinutes(attempts)
+  const fit = Math.floor(QUICK_MINUTES / perReview)
+  return Math.max(1, Math.min(QUICK_REVIEW_COUNT, fit))
+}
+
+/**
+ * About how many minutes a plan's reviews and mistakes coming back take,
+ * from the learner's own review times: two questions a review, one a
+ * mistake. Rounded up to a whole minute; 0 when there are none.
+ */
+export function reviewMinutes(plan: SessionPlan, attempts: Attempt[]): number {
+  const questions =
+    plan.reviews.length * ITEMS_PER_REVIEW + plan.followUps.length
+  return Math.ceil(questions * reviewItemMinutes(attempts))
 }
