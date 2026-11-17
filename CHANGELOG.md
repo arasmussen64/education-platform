@@ -24,6 +24,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - "Add to my calendar (.ics)" downloads a calendar file made in the browser: one weekly event on the chosen days at the chosen time (a "floating" local time, so it shows at that time wherever the learner is), 30 minutes long, with the place and a link to today's session. No calendar service is involved. `web/src/studyplan/calendarFile.ts`.
 - The plan is kept on this device only, in `localStorage`, and every read and write is guarded, so the pages work the same without it. It is not saved with the learner's account: that would need a new table or event type, a database change for the owner to decide.
 
+### Added (topic page: a short break between parts)
+
+- Finishing a part of a topic and pressing Next now suggests a five-minute break, in a small card above the next part: rest quietly, away from your phone, because a few minutes of quiet straight after learning helps memory (Dewar et al., 2012). An optional timer counts the five minutes down on the page and says when they're up. The next part is open underneath the whole time, Skip puts the card away, and nothing is ever blocked or sent as a notification. Leaving the lesson counts as finishing it; a practice part counts once every question in it is right.
+
 ### Added (a topic page in parts)
 
 - A topic page now shows one part at a time ([ADR-0025](docs/decisions/0025-topics-in-parts.md), proposed): the lesson, then the practice cut into parts of about 30 minutes, then the proofs. Each part says "Part 2 of 5 · about 30 min" above its heading, and buttons below it go to the parts before and after. The outline beside the page lists the parts with a tick for each one done, worked out from your saved answers, and every link in it opens the right part. The page opens where you were: the part you last looked at on this device if it isn't done, or else the first part that isn't. Parts never lock anything, "Prove it now" opens the proofs part, and checkpoints stay as they were.
