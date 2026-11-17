@@ -1,0 +1,19 @@
+id: typed-detect-vm
+type: typed
+rev: 1
+prompt: |
+  You're in a shell on a Linux machine that might be a container inside a VM. Type the command that names the virtual machine underneath (such as `amazon`, `microsoft` or `kvm`), looking past any container it's in.
+kind: command
+answers:
+  - systemd-detect-virt --vm
+  - systemd-detect-virt -v
+mistakes:
+  - id: innermost-layer
+    answers: [systemd-detect-virt]
+    why: "On its own it names the innermost layer it can see, which is the container if there is one: on Docker Desktop for Windows it says `wsl`. `--vm` looks past containers to the VM."
+  - id: container-only
+    answers: [systemd-detect-virt --container, systemd-detect-virt -c]
+    why: "`--container` names only the container layer, the opposite of what's asked. `--vm` names the virtual machine."
+explanation: |
+  `systemd-detect-virt --vm` (or `-v`) names the VM under the machine, `amazon`, `microsoft`, `google`, `kvm`, `qemu` or `xen`, and prints `none` with a non-zero exit status on bare metal. Without `--vm` it names the innermost layer, which inside a container is the container. `lscpu`'s `Hypervisor vendor` line and the firmware's name plate under `/sys/class/dmi/id/` are the next places to look.
+skills: [read-the-guest]

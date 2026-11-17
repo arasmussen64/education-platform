@@ -24,6 +24,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Twelve of the fourteen lessons tell a real, public incident in our own words, with its source linked: Amazon S3's typo (2017), the sudo flaw Baron Samedit (2021), the xz backdoor (2024), Netlify's full database disk (2016), Redpanda's brokers killed at their own memory limit (2022), Indeed's throttled services (2018 to 2019), the runc container breakout (2019), a Kubernetes connection reset caused by conntrack (2019), Capital One's stolen metadata credentials (2019), Steam for Linux emptying a home folder (2015), Cloudflare's one-second latency spikes (2015) and the OpenSSH flaw regreSSHion (2024). For Processes and signals and for Services and logs no fitting incident could be checked against a public source, so they have none.
 - Five "which one is this?" questions, each asking the learner to tell two easily confused ideas apart: exit status 143 or 137 (Memory), a memory limit or a CPU limit (CPU), a namespace or a cgroup (Containers), a refused connection or a dropped one (Networking from the host) and I/O wait or steal (Performance triage). They are in their topics' practice and review pools.
 
+### Added (cloud Module 2: glossaries and typed questions)
+
+- Every topic of the cloud track's Module 2 now lists the terms it teaches in `glossary.yaml`, 60 terms in all (such as SR-IOV, cross-compile, NUMA, local disk, VRAM, domain controller, Group Policy object and Software Assurance). Where a later lesson uses one, the word shows its definition and links back.
+- Sixteen typed questions, two per topic: a command (`systemd-detect-virt --vm`, `uname -m`, `numactl --hardware`, `nvidia-smi`, `klist`, `realm permit -g`, `gpupdate`), a term (instance store, MIG, Product Terms, Azure Hybrid Benefit), a file or setting name (`cpu.stat`, `IOWriteIOPSMax`), a record name or a number, each with the mistakes learners are likely to type.
+
 ### Added (cloud Module 3, first half: glossaries and typed questions)
 
 - Glossaries for the first eight networking topics, 75 terms in all (layers 11, CIDR 9, IPv6 9, TCP and UDP 8, routing 9, NAT 4 more beside its first 5, DNS 9, troubleshooting 7): the networking basics later topics lean on, such as packet, port, TTL, MTU, subnet, router, TCP, UDP and DNS.

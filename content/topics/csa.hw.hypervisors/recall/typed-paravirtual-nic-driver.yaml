@@ -1,0 +1,22 @@
+id: typed-paravirtual-nic-driver
+type: typed
+rev: 1
+prompt: |
+  A Linux guest on KVM and QEMU is given the fast, made-for-VMs network card rather than an imitation of a real Intel one. Type the name of the driver its kernel uses for that card.
+kind: text
+answers:
+  - virtio_net
+  - virtio-net
+mistakes:
+  - id: emulated-card
+    answers: [e1000]
+    why: "`e1000` is the driver for the real Intel card QEMU imitates register by register: the emulated path, the slow one."
+  - id: hyper-v-card
+    answers: [hv_netvsc]
+    why: "`hv_netvsc` is the paravirtual card on Hyper-V, carried by VMBus. On KVM and QEMU the standard is virtio."
+  - id: aws-card
+    answers: [ena]
+    why: "`ena` is AWS's network card, a virtual function of a Nitro card handed to the guest by SR-IOV, not the paravirtual card of plain KVM and QEMU."
+explanation: |
+  On KVM and QEMU the paravirtual standard is **virtio**: `virtio_net` for a network card and `virtio_blk` for a disk. The guest knows it's in a VM and hands the host whole batches of packets through queues in shared memory, which is much faster than an emulated card. QEMU gives it to a guest with `-nic user,model=virtio-net-pci`.
+skills: [device-paths]

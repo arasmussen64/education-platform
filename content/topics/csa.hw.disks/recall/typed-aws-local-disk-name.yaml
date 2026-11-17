@@ -1,0 +1,24 @@
+id: typed-aws-local-disk-name
+type: typed
+rev: 1
+prompt: |
+  On AWS, what is the local disk called: the one physically inside the host an EC2 instance runs on, included in the price and erased when the instance stops? Type AWS's name for it.
+kind: text
+answers:
+  - instance store
+  - instance storage
+  - instance store volume
+  - EC2 instance store
+mistakes:
+  - id: network-disk
+    answers: [EBS, EBS volume, Elastic Block Store]
+    why: "EBS volumes are AWS's network-attached disks: they live in AWS's storage service, not in the host, and keep their data through a stop."
+  - id: azure-name
+    answers: [temporary disk, temp disk]
+    why: "That's Azure's name for its local disk. AWS calls it the instance store."
+  - id: google-name
+    answers: [Local SSD]
+    why: "That's Google Cloud's name for its local disk. AWS calls it the instance store."
+explanation: |
+  AWS calls a local disk the **instance store**: it is in the host, fast, included in the price, kept through a reboot and erased by a stop, a change of size or a move to another host. Azure calls the same idea the temporary disk and Google Cloud Local SSD. On Nitro instances both kinds show up as NVMe devices, and `sudo nvme list`'s model column (`Amazon EC2 NVMe Instance Storage` or `Amazon Elastic Block Store`) tells them apart.
+skills: [what-survives]
