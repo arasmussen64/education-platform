@@ -336,7 +336,7 @@ def test_an_estimate_is_produced_so_it_meets_the_review_pool_rule(
     # Without it, the pool's only items are choices.
     found = topic_with(tree, (pool, "review_pool: [mcq-print, mcq-print, mcq-print]"))
     assert any(
-        "the review pool needs a predict-the-output, estimate, Parsons or "
-        "review_code item" in p
+        "the review pool needs a predict-the-output, estimate, typed, Parsons "
+        "or review_code item" in p
         for p in found
     )

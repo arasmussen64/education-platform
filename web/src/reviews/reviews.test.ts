@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Attempt } from '../followups/followUps.ts'
 import { progressOf } from '../progress/progress.ts'
-import { ESTIMATE, fakeContent, fakeTopic, MCQ } from '../test/fakeContent.tsx'
+import {
+  ESTIMATE,
+  fakeContent,
+  fakeTopic,
+  MCQ,
+  TYPED_TERM,
+} from '../test/fakeContent.tsx'
 import { replayCard } from './fsrs.ts'
 import {
   chooseReviewItems,
@@ -245,6 +251,24 @@ describe('chooseReviewItems', () => {
     }
     expect(chooseReviewItems(pool, [attempt(ESTIMATE.id, day(5))])).toEqual([
       ESTIMATE.id,
+      'mcq-print',
+    ])
+  })
+
+  it('counts a typed answer as recalled, not picked (ADR-0027)', () => {
+    const base = fakeContent(
+      fakeTopic({ review_pool: ['mcq-print', 'mcq-two', TYPED_TERM.id] }),
+    )
+    const pool = {
+      ...base,
+      recall: {
+        ...base.recall,
+        'mcq-two': { ...MCQ, id: 'mcq-two' },
+        [TYPED_TERM.id]: TYPED_TERM,
+      },
+    }
+    expect(chooseReviewItems(pool, [attempt(TYPED_TERM.id, day(5))])).toEqual([
+      TYPED_TERM.id,
       'mcq-print',
     ])
   })

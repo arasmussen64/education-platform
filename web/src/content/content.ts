@@ -274,6 +274,9 @@ function withRecallDefaults(item: RecallItem): RecallItem {
   if (item.type === 'predict_shell') {
     return { ...item, skills, files: item.files ?? {} }
   }
+  if (item.type === 'typed') {
+    return { ...item, skills, mistakes: item.mistakes ?? [] }
+  }
   return { ...item, skills }
 }
 

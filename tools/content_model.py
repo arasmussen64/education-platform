@@ -426,8 +426,62 @@ class EstimateItem(Strict):
         return self
 
 
+# --- Typed answers (ADR-0027) -----------------------------------------------------
+
+# One accepted (or known wrong) answer: a command, a term, a value or a short
+# phrase, on one line. Strictly text, so `22` or `yes` unquoted is refused
+# rather than read as a number or true (YAML 1.1) and as text in the browser.
+TypedAnswer = Annotated[
+    str, Field(strict=True, min_length=1, max_length=120, pattern=r"^[^\r\n]+$")
+]
+
+
+class TypedMistake(Strict):
+    """A wrong answer a learner is likely to type, and what went wrong."""
+
+    id: ItemId
+    # One or more ways of typing the same slip, read like the answers.
+    answers: list[TypedAnswer] = Field(min_length=1)
+    # Shown when what the learner typed matches one of them.
+    why: Text
+
+
+class TypedItem(Strict):
+    """A short answer the learner types from memory: a command, a term, a
+    value or a phrase (ADR-0027). It's right when, read the item's way
+    (tools/typed_answers.py), it's one of the accepted answers."""
+
+    id: ItemId
+    type: Literal["typed"]
+    rev: Rev
+    prompt: Text
+    # command: case matters, and a copied "$ " prompt is taken off.
+    # text: case doesn't matter, and quotes round it are taken off.
+    kind: Literal["text", "command"]
+    # Leave out for the kind's own rule: sensitive for a command,
+    # insensitive for text.
+    case: Literal["sensitive", "insensitive"] | None = None
+    # Every answer that counts. The first is the one the page shows.
+    answers: list[TypedAnswer] = Field(min_length=1)
+    mistakes: list[TypedMistake] = []
+    explanation: Text
+    skills: list[ItemId] = []
+
+    @model_validator(mode="after")
+    def mistake_ids_are_unique(self) -> TypedItem:
+        ids = [mistake.id for mistake in self.mistakes]
+        if len(set(ids)) != len(ids):
+            raise ValueError("mistake ids must all be different")
+        return self
+
+
 RecallItem = Annotated[
-    McqItem | PredictOutputItem | ParsonsItem | PredictShellItem | EstimateItem,
+    McqItem
+    | PredictOutputItem
+    | ParsonsItem
+    | PredictShellItem
+    | EstimateItem
+    | TypedItem,
     Field(discriminator="type"),
 ]
 recall_item = TypeAdapter(RecallItem)

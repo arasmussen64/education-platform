@@ -28,6 +28,9 @@ It checks:
 - that every estimate's working gives its answer and each known mistake's
   gives that mistake's value, and that the tolerance accepts the answer and
   none of the mistakes (ADR-0024). It's plain arithmetic, so --no-run checks it.
+- that a typed item's accepted answers are different once read the item's way,
+  that none of its known mistakes is also an accepted answer, and that its
+  prompt doesn't give an answer away (ADR-0027). --no-run checks it too.
 - the diagnostics the placement test walks (ADR-0021): their shape and ids.
 - that a lesson uses only the tags the app can draw, each written as
   content/README.md says (ADR-0026, lesson_blocks.py): a <Check> names one of
@@ -53,6 +56,7 @@ import subprocess
 import sys
 import tempfile
 from collections import Counter
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -64,6 +68,7 @@ import arithmetic
 import lesson_blocks
 import mcq_lengths
 import parsons_orders
+import typed_answers
 import yaml
 from content_model import (
     FOLLOW_UP_STAGES,
@@ -82,15 +87,24 @@ from content_model import (
     PredictShellItem,
     Topic,
     Track,
+    TypedItem,
     recall_item,
 )
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-AnyRecall = McqItem | PredictOutputItem | ParsonsItem | PredictShellItem | EstimateItem
+AnyRecall = (
+    McqItem
+    | PredictOutputItem
+    | ParsonsItem
+    | PredictShellItem
+    | EstimateItem
+    | TypedItem
+)
 AnyItem = AnyRecall | Exercise
-# The recall kinds that ask the learner to produce an answer, the output or a
-# number, rather than choose one. An estimate counts (ADR-0024).
-PREDICT_KINDS = {"predict_output", "predict_shell", "estimate"}
+# The recall kinds that ask the learner to produce an answer, the output, a
+# number or a typed answer, rather than choose one. An estimate counts
+# (ADR-0024), and so does a typed answer (ADR-0027).
+PREDICT_KINDS = {"predict_output", "predict_shell", "estimate", "typed"}
 
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS_CLI = ROOT / "harness" / "cli.py"
@@ -336,8 +350,8 @@ def check_ready_topic(folder: TopicFolder, report: Report) -> None:
         if not review_stages & {*PREDICT_KINDS, "parsons", "review_code"}:
             report.add(
                 topic_file,
-                "the review pool needs a predict-the-output, estimate, Parsons "
-                "or review_code item",
+                "the review pool needs a predict-the-output, estimate, typed, "
+                "Parsons or review_code item",
             )
         for item_id in topic.review_pool:
             review_kinds = {None, "mcq", *PREDICT_KINDS, "parsons", "review_code"}
@@ -1440,6 +1454,98 @@ def work_out(
         return None
 
 
+# --- Typed answers (ADR-0027) --------------------------------------------------------
+
+# An answer at least this long, read the item's way, mustn't appear in the
+# prompt. Shorter ones ("ls", "A") turn up inside ordinary sentences.
+SHORTEST_GIVEAWAY = 4
+
+
+def check_typed(path: Path, item: TypedItem, report: Report) -> None:
+    """A typed item is proved like an exercise (ADR-0004, ADR-0027): read the
+    way the page reads them (typed_answers.py), its accepted answers are all
+    different and none is empty, and every known mistake is a wrong answer
+    the page can tell apart from the right ones and from each other. No code
+    runs, so it's checked under --no-run too."""
+    case = item.case or typed_answers.default_case(item.kind)
+
+    def read(text: str) -> str:
+        return typed_answers.normalise(text, item.kind, case)
+
+    accepted: dict[str, str] = {}
+    for answer in item.answers:
+        key = read(answer)
+        if key == "":
+            report.add(path, f"answer {answer!r} is empty once it's read")
+        elif key in accepted:
+            report.add(
+                path,
+                f"answers {accepted[key]!r} and {answer!r} are the same once "
+                f"they're read ({_reading_rules(item.kind, case)}); keep one",
+            )
+        accepted.setdefault(key, answer)
+
+    first_with: dict[str, str] = {}
+    for mistake in item.mistakes:
+        where = f"mistake {mistake.id!r}"
+        for answer in mistake.answers:
+            key = read(answer)
+            if key == "":
+                report.add(path, f"{where}: {answer!r} is empty once it's read")
+            elif key in accepted:
+                report.add(
+                    path,
+                    f"{where}: {answer!r} is also an accepted answer once it's "
+                    f"read ({_reading_rules(item.kind, case)}), so a learner who "
+                    "types it is marked right; drop it from one of the lists",
+                )
+            elif key in first_with:
+                report.add(
+                    path,
+                    f"{where}: {answer!r} is already in mistake "
+                    f"{first_with[key]!r}, so the page can't tell which slip a "
+                    "learner made; keep it in one",
+                )
+            first_with.setdefault(key, mistake.id)
+
+    for key, answer in accepted.items():
+        if gives_away(item, key, read):
+            report.add(
+                path,
+                f"the prompt gives away the answer {answer!r}: it says it in so "
+                "many words. Ask for it without naming it",
+            )
+
+
+def gives_away(item: TypedItem, key: str, read: Callable[[str], str]) -> bool:
+    """Whether the prompt states an accepted answer (`key`, already read).
+
+    A command is given away when the prompt shows it as code: a `span` or a
+    line of a code block that reads as the answer. Looking for it in the
+    prose as well would catch `docker ps -a`, a longer command, as giving
+    away docker ps. A term is given away when it appears as a whole word
+    or phrase, if it's long enough to look for."""
+    if item.kind == "command":
+        spans = re.findall(r"`([^`\n]+)`", item.prompt)
+        blocks = re.findall(r"```[^\n]*\n(.*?)```", item.prompt, re.DOTALL)
+        lines = [line for block in blocks for line in block.splitlines()]
+        return any(read(code) == key for code in [*spans, *lines])
+    return len(key) >= SHORTEST_GIVEAWAY and (
+        re.search(rf"(?<![\w-]){re.escape(key)}(?![\w-])", read(item.prompt))
+        is not None
+    )
+
+
+def _reading_rules(kind: str, case: str) -> str:
+    """The reading rules in a few words, for a problem's message."""
+    rules = "spaces and quotes tidied"
+    if case == "insensitive":
+        rules += ", case ignored"
+    if kind == "command":
+        rules += ", a leading $ taken off"
+    return rules
+
+
 # --- Multiple-choice explanations ----------------------------------------------------
 
 # "The last choice", "the second option", "the first and last answers".
@@ -1578,6 +1684,8 @@ def check_topic(
                 report.add(item_path, problem)
         if isinstance(item, EstimateItem):
             check_estimate(item_path, item, report)
+        if isinstance(item, TypedItem):
+            check_typed(item_path, item, report)
         if isinstance(item, PredictOutputItem) and run:
             check_predict_output(item_path, item, report)
         elif isinstance(item, ParsonsItem) and run:
