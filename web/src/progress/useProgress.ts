@@ -11,6 +11,7 @@ import {
   fetchStepsOpened,
   localStepsOpened,
 } from '../checkpoints/stepsOpened.ts'
+import { getTopic } from '../content/content.ts'
 import type { Topic } from '../content/types.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import {
@@ -138,7 +139,9 @@ export function useProgress(
     return {
       status: 'ready',
       progress: withOpenFollowUps(
-        progressOf(topics, attempts, stepsOpened),
+        // Any bundled topic can give what it builds on implicit review
+        // credit (ADR-0009, amended 2026-11-16), so look them all up.
+        progressOf(topics, attempts, stepsOpened, getTopic),
         followUps,
       ),
       attempts,

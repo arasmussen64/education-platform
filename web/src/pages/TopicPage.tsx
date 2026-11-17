@@ -459,7 +459,11 @@ function ladderOf(
 
 /**
  * The learner's progress on a topic and on what it builds on, which is what
- * its state depends on. Reads each of those topics' history.
+ * its state depends on. Reads the whole history, as the map and the Today
+ * page do: practice in the topics built on this one gives it implicit
+ * review credit (ADR-0009, amended 2026-11-16), and a checkpoint's tests
+ * can open follow-ups on its skills (ADR-0011), so its state depends on
+ * events outside it. With `loadAttempts` (in tests), reads each topic's.
  */
 function useTopicProgress(
   topic: Topic,
@@ -475,8 +479,8 @@ function useTopicProgress(
     [topic],
   )
   const load = useCallback(async () => {
-    const read = loadAttempts ?? fetchAttempts
-    const lists = await Promise.all(topics.map((each) => read(each.id)))
+    if (!loadAttempts) return fetchAttempts()
+    const lists = await Promise.all(topics.map((each) => loadAttempts(each.id)))
     return mergeAttempts(...lists)
   }, [loadAttempts, topics])
   return useProgress(topics, load)

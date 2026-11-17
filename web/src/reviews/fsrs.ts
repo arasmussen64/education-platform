@@ -56,7 +56,7 @@ const FACTOR = 19 / 81
 
 /** Stability never leaves this range, in days (fsrs-optimizer, fsrs-rs). */
 const MIN_STABILITY = 0.01
-const MAX_STABILITY = 36_500
+export const MAX_STABILITY = 36_500
 
 /** The chance of remembering we aim for at review time (ADR-0009). */
 export const REQUESTED_RETENTION = 0.9
@@ -199,7 +199,8 @@ export function daysBetween(from: string, to: string): number {
   return (Date.parse(to) - Date.parse(from)) / DAY_MS
 }
 
-function addDays(iso: string, days: number): string {
+/** The ISO time `days` (fractional) after `iso`. */
+export function addDays(iso: string, days: number): string {
   return new Date(Date.parse(iso) + days * DAY_MS).toISOString()
 }
 
