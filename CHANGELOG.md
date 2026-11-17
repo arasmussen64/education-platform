@@ -18,6 +18,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (a topic page in parts)
+
+- A topic page now shows one part at a time ([ADR-0025](docs/decisions/0025-topics-in-parts.md), proposed): the lesson, then the practice cut into parts of about 30 minutes, then the proofs. Each part says "Part 2 of 5 · about 30 min" above its heading, and buttons below it go to the parts before and after. The outline beside the page lists the parts with a tick for each one done, worked out from your saved answers, and every link in it opens the right part. The page opens where you were: the part you last looked at on this device if it isn't done, or else the first part that isn't. Parts never lock anything, "Prove it now" opens the proofs part, and checkpoints stay as they were.
+
 ### Added (a "Back to top" button on long pages)
 
 - Every page gains a "Back to top" button in its bottom right corner once the learner has scrolled more than one screen down. It scrolls back smoothly (or jumps, when the system asks for less motion) and puts keyboard focus at the top of the page. Pages leave room under their last line so it never covers anything at the very bottom.

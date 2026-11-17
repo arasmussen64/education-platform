@@ -26,10 +26,21 @@ import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
 import { CARD, PROSE, SECONDARY_BUTTON } from '../components/styles.ts'
-import { type LadderItem, TopicOutline } from '../components/TopicOutline.tsx'
+import { TopicOutline } from '../components/TopicOutline.tsx'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { ExplainCheck, ExplainClosed } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
+import { recallPart, rememberPart } from '../parts/partMemory.ts'
+import {
+  aboutMinutes,
+  type LadderItem,
+  partAnchor,
+  partOfAnchor,
+  partsDone,
+  resumePart,
+  topicParts,
+  type TopicPart,
+} from '../parts/topicParts.ts'
 import { recallPlace } from '../place/placeMemory.ts'
 import {
   itemPlace,
@@ -91,7 +102,6 @@ export function TopicView({
   // Gating applies to a signed-in learner once their progress is known.
   // Until then the page shows everything, rather than flashing in and out.
   const locked = state === 'locked'
-  const [proveNow, setProveNow] = useState(false)
   const isTopic = content?.topic.kind === 'topic'
 
   // The learner's place in a long topic: the practice ladder as the page
@@ -116,19 +126,41 @@ export function TopicView({
       ),
     )
   }
-  const article = useRef<HTMLElement>(null)
-  const { current, lessonParts } = useCurrentPlace(
-    topic.id,
-    article,
-    `${progress.status} ${proveNow} ${locked}`,
-  )
-  // Read once, before this visit starts remembering places of its own.
-  const [resume] = useState(() => recallPlace(topic.id))
   const passed =
     progress.status === 'ready'
       ? (progress.progress.get(topic.id)?.passed ?? {})
       : null
+
+  // The topic in parts, one on screen at a time (ADR-0025).
+  const parts = useMemo(
+    () => (content && isTopic ? topicParts(content, items, { locked }) : []),
+    [content, isTopic, items, locked],
+  )
+  const done = content ? partsDone(parts, content, states, passed) : null
+  const { currentPart, openPart, goTo } = usePartChoice(
+    topic.id,
+    content,
+    parts,
+    done,
+    progress.status !== 'loading',
+  )
+
+  const article = useRef<HTMLElement>(null)
+  const { current, lessonParts } = useCurrentPlace(
+    topic.id,
+    article,
+    `${progress.status} ${locked} ${currentPart?.id}`,
+  )
+  // Read once, before this visit starts remembering places of its own.
+  const [resume] = useState(() => recallPlace(topic.id))
   const showOutline = Boolean(content) && isTopic
+  const partNumber = currentPart ? parts.indexOf(currentPart) + 1 : 0
+  // "Part 2 of 5 · about 30 min", above the part's heading, once there's
+  // more than one part.
+  const eyebrow =
+    currentPart && parts.length > 1
+      ? `Part ${partNumber} of ${parts.length} · ${aboutMinutes(currentPart.minutes)}`
+      : undefined
 
   return (
     <article
@@ -138,21 +170,20 @@ export function TopicView({
       <div className="mb-8 lg:col-span-2">
         <TopicHeader topic={topic} state={state} progress={progress} />
       </div>
-      {content && showOutline && (
+      {content && showOutline && currentPart && (
         <aside className="mb-8 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-2 lg:mb-0 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto">
           <TopicOutline
             content={content}
+            parts={parts}
+            currentPart={currentPart.id}
+            done={done}
             items={items}
             states={states}
             passed={passed}
             current={current}
             lessonParts={lessonParts}
             resume={resume}
-            sections={{
-              learn: !proveNow,
-              practice: !locked && !proveNow,
-              prove: !locked,
-            }}
+            onGoTo={goTo}
           />
         </aside>
       )}
@@ -170,42 +201,41 @@ export function TopicView({
             />
           </>
         )}
-        {content && isTopic && (
+        {content && isTopic && currentPart && (
           <>
             <SignInToSave />
             {locked && <LockedNotice topic={topic} progress={progress} />}
-            {state === 'available' && !proveNow && (
-              <ProveItNow
-                onChoose={() => {
-                  // Show the checks straight away, then move focus to them.
-                  flushSync(() => setProveNow(true))
-                  document.getElementById('prove-it')?.focus()
-                }}
-              />
+            {state === 'available' && currentPart.kind !== 'prove' && (
+              // Moves to the proofs part, with focus on its heading.
+              <ProveItNow onChoose={() => openPart('prove')} />
             )}
-            {proveNow ? (
-              <p className={CARD}>
-                You skipped the lesson and practice to prove it now.{' '}
-                <button
-                  type="button"
-                  onClick={() => setProveNow(false)}
-                  className="underline"
-                >
-                  Show them anyway
-                </button>
-              </p>
-            ) : (
-              <Learn content={content} />
+            {currentPart.kind === 'learn' && (
+              <Learn content={content} eyebrow={eyebrow} />
             )}
-            {!locked && !proveNow && (
+            {currentPart.kind === 'practice' && (
               <Practice
                 content={content}
-                items={items}
+                part={currentPart}
+                total={items.length}
                 states={states}
                 doneAtLoad={doneAtLoad}
+                eyebrow={eyebrow}
               />
             )}
-            {!locked && <ProveIt content={content} progress={progress} />}
+            {currentPart.kind === 'prove' && (
+              <ProveIt
+                content={content}
+                progress={progress}
+                eyebrow={eyebrow}
+              />
+            )}
+            {parts.length > 1 && (
+              <PartNav
+                parts={parts}
+                current={currentPart}
+                onOpen={(part) => openPart(part.id)}
+              />
+            )}
           </>
         )}
         {!content && (
@@ -216,6 +246,148 @@ export function TopicView({
         )}
       </div>
     </article>
+  )
+}
+
+/** The id in the address after "#", if any. */
+function hashAnchor(): string | null {
+  const hash = window.location.hash.slice(1)
+  if (!hash) return null
+  try {
+    return decodeURIComponent(hash)
+  } catch {
+    return hash
+  }
+}
+
+/** Puts an id in the address after "#", without a new history entry. */
+function setHashAnchor(anchor: string) {
+  // The router's own state is kept, so Back works as before.
+  window.history.replaceState(window.history.state, '', `#${anchor}`)
+}
+
+/**
+ * Which part of the topic is on screen (ADR-0025), and how to move. The page
+ * opens at the part a link's "#…" points into; failing that, once the
+ * progress is known, at the part last viewed on this device if it isn't
+ * done, or else at the first part that isn't done. That choice is made once:
+ * finishing a part never moves the learner on by itself. Any part can be
+ * opened at any time; parts never gate anything.
+ */
+function usePartChoice(
+  topicId: string,
+  content: TopicContent | null,
+  parts: TopicPart[],
+  done: Map<string, boolean> | null,
+  settled: boolean,
+) {
+  const [initialAnchor] = useState(hashAnchor)
+  const [chosen, setChosen] = useState<string | null>(() => {
+    if (!initialAnchor || !content || parts.length === 0) return null
+    return partOfAnchor(parts, content, initialAnchor)?.id ?? null
+  })
+  // Read once, before this visit remembers parts of its own.
+  const [lastViewed] = useState(() => recallPart(topicId))
+  // Setting state during the render, as for doneAtLoad above.
+  if (chosen === null && settled && parts.length > 0) {
+    setChosen(resumePart(parts, done, lastViewed))
+  }
+  const currentId = chosen ?? resumePart(parts, null, lastViewed)
+  const currentPart =
+    parts.find((part) => part.id === currentId) ?? parts[0] ?? null
+
+  useEffect(() => {
+    if (chosen) rememberPart(topicId, chosen)
+  }, [topicId, chosen])
+
+  // The page opened from a link to a place in it: go there, now that its
+  // part is on screen.
+  useEffect(() => {
+    if (initialAnchor) {
+      document.getElementById(initialAnchor)?.scrollIntoView({ block: 'start' })
+    }
+  }, [initialAnchor])
+
+  /** Opens the part that holds an element, then scrolls to the element. */
+  const goTo = useCallback(
+    (anchor: string) => {
+      const part = content ? partOfAnchor(parts, content, anchor) : undefined
+      if (part) flushSync(() => setChosen(part.id))
+      document.getElementById(anchor)?.scrollIntoView({ block: 'start' })
+      setHashAnchor(anchor)
+    },
+    [content, parts],
+  )
+
+  // A link in the lesson's own text, or an address changed by hand.
+  useEffect(() => {
+    function follow() {
+      const anchor = hashAnchor()
+      if (anchor) goTo(anchor)
+    }
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [goTo])
+
+  /** Opens a part at its top, with keyboard focus on its heading. */
+  const openPart = useCallback(
+    (id: string) => {
+      const part = parts.find((each) => each.id === id)
+      if (!part) return
+      flushSync(() => setChosen(part.id))
+      const heading = document.getElementById(partAnchor(part))
+      heading?.scrollIntoView({ block: 'start' })
+      heading?.focus({ preventScroll: true })
+      setHashAnchor(partAnchor(part))
+    },
+    [parts],
+  )
+
+  return { currentPart, openPart, goTo }
+}
+
+/** Back and on between a topic's parts, below the part on screen. */
+function PartNav({
+  parts,
+  current,
+  onOpen,
+}: {
+  parts: TopicPart[]
+  current: TopicPart
+  onOpen: (part: TopicPart) => void
+}) {
+  const index = parts.indexOf(current)
+  const previous = parts[index - 1]
+  const next = parts[index + 1]
+  return (
+    <nav
+      aria-label="Parts of this topic"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-6 dark:border-slate-800"
+    >
+      {previous ? (
+        <button
+          type="button"
+          onClick={() => onOpen(previous)}
+          className={SECONDARY_BUTTON}
+        >
+          <span aria-hidden="true">← </span>
+          Part {index}: {previous.title}
+        </button>
+      ) : (
+        <span />
+      )}
+      {next && (
+        <button
+          type="button"
+          onClick={() => onOpen(next)}
+          // Lime is for moving forward (the Momentum design).
+          className="rounded-md bg-lime-600 px-4 py-2 text-sm font-semibold text-white hover:bg-lime-700 dark:bg-lime-500 dark:text-slate-950 dark:hover:bg-lime-400"
+        >
+          Next: Part {index + 2}, {next.title}
+          <span aria-hidden="true"> →</span>
+        </button>
+      )}
+    </nav>
   )
 }
 
@@ -619,17 +791,41 @@ function TopicHeader({
   )
 }
 
-function SectionHeading({ id, children }: { id: string; children: string }) {
-  return (
-    // Focusable, so "Prove it now" can move focus to the checks.
+function SectionHeading({
+  id,
+  eyebrow,
+  children,
+}: {
+  id: string
+  /** A line above the heading: "Part 2 of 5 · about 30 min" (ADR-0025). */
+  eyebrow?: string
+  children: string
+}) {
+  const heading = (
+    // Focusable, so "Prove it now" and the part buttons can move focus to it.
     <h2 id={id} tabIndex={-1} className="text-2xl font-bold">
       {children}
     </h2>
   )
+  if (!eyebrow) return heading
+  return (
+    <div>
+      <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+        {eyebrow}
+      </p>
+      {heading}
+    </div>
+  )
 }
 
 /** The lesson: what you'll be able to do, then intro, resource and recap. */
-function Learn({ content }: { content: TopicContent }) {
+function Learn({
+  content,
+  eyebrow,
+}: {
+  content: TopicContent
+  eyebrow?: string
+}) {
   const { topic, Lesson } = content
   // The first resource is the main one, placed in the lesson; the rest are
   // listed after it (content/README.md).
@@ -637,7 +833,9 @@ function Learn({ content }: { content: TopicContent }) {
 
   return (
     <section aria-labelledby="learn" className="space-y-4">
-      <SectionHeading id="learn">Learn</SectionHeading>
+      <SectionHeading id="learn" eyebrow={eyebrow}>
+        Learn
+      </SectionHeading>
       <div
         id={START_PLACE}
         {...{ [PLACE_ATTRIBUTE]: START_PLACE }}
@@ -686,32 +884,46 @@ function Learn({ content }: { content: TopicContent }) {
   )
 }
 
-/** The practice ladder, in order: each step asks a little more (F5). */
+/**
+ * One part of the practice ladder, in order: each step asks a little more
+ * (F5). Items are numbered across the whole ladder, as the outline numbers
+ * them.
+ */
 function Practice({
   content,
-  items,
+  part,
+  total,
   states,
   doneAtLoad,
+  eyebrow,
 }: {
   content: TopicContent
-  items: LadderItem[]
+  part: Extract<TopicPart, { kind: 'practice' }>
+  /** How many items the whole ladder has. */
+  total: number
   /** Each attempted item's state, by itemKey, once known. */
   states: Map<string, ItemState> | null
   /** The items already done when the page opened, by itemKey, once known. */
   doneAtLoad: Set<string> | null
+  eyebrow?: string
 }) {
+  const { items } = part
   if (items.length === 0) return null
   const interleaved = items.some((item) => item.content !== content)
+  const anchor = partAnchor(part)
   return (
-    <section aria-labelledby="practice" className="space-y-4">
-      <SectionHeading id="practice">Practice</SectionHeading>
+    <section aria-labelledby={anchor} className="space-y-4">
+      <SectionHeading id={anchor} eyebrow={eyebrow}>
+        {part.title}
+      </SectionHeading>
       <p className="text-slate-600 dark:text-slate-400">
         Work through these in order. Each one asks a little more of you.
         {interleaved &&
           ' One question is from an earlier topic, to keep it fresh.'}
       </p>
-      {items.map((item, index) => {
+      {items.map((item, offset) => {
         const key = itemKey(item.content.topic.id, item.itemId)
+        const number = part.start + offset + 1
         return (
           <PracticeItem
             key={key}
@@ -720,8 +932,8 @@ function Practice({
             context="practice"
             position={
               item.content === content
-                ? `Practice ${index + 1} of ${items.length}`
-                : `Practice ${index + 1} of ${items.length} · from ${item.content.topic.title}`
+                ? `Practice ${number} of ${total}`
+                : `Practice ${number} of ${total} · from ${item.content.topic.title}`
             }
             status={states?.get(key)}
             collapsed={doneAtLoad?.has(key) ?? false}
@@ -746,8 +958,11 @@ function ProveIt({
   afterBuild,
   afterDebug,
   progress,
+  eyebrow,
 }: {
   content: TopicContent
+  /** A line above the heading: "Part 5 of 5 · about 40 min" (ADR-0025). */
+  eyebrow?: string
   intro?: string
   /**
    * On a checkpoint: keep the explain check closed until the build has
@@ -772,7 +987,9 @@ function ProveIt({
   const numbered = furtherParts(content.topic).length > 0
   return (
     <section aria-labelledby="prove-it" className="space-y-4">
-      <SectionHeading id="prove-it">Prove it</SectionHeading>
+      <SectionHeading id="prove-it" eyebrow={eyebrow}>
+        Prove it
+      </SectionHeading>
       <p className="text-slate-600 dark:text-slate-400">{intro}</p>
       <ProofProgress content={content} state={progress} />
       {beforeBuild}
