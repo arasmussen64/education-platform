@@ -43,6 +43,13 @@ import {
 import { subjectOfDiagnostic } from '../placement/history.ts'
 import { usePlacements } from '../placement/usePlacements.ts'
 import { countModule, describeModule } from '../progress/modules.ts'
+import {
+  formatRatio,
+  type Pace,
+  paced,
+  stretches,
+  topicPace,
+} from '../progress/pace.ts'
 import { nextUp, stateOf, type TopicProgress } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import {
@@ -55,7 +62,9 @@ import {
   bundledTopics,
   planSession,
   QUICK_SESSION_PATH,
+  quickCount,
   quickPlan,
+  reviewMinutes,
   SESSION_PATH,
   type SessionPlan,
 } from '../session/sessionPlan.ts'
@@ -110,15 +119,24 @@ function Plan() {
   const progress = useProgress(topics)
   // Read the clock once, when the page opens.
   const [now] = useState(() => new Date().toISOString())
+  // How long topics take this learner, against their estimates
+  // (progress/pace.ts), for every time figure on the page.
+  const pace = useMemo(
+    () =>
+      progress.status === 'ready'
+        ? topicPace(topics, progress.progress, progress.attempts)
+        : null,
+    [topics, progress],
+  )
   if (progress.status === 'failed') {
     return <CouldNotLoad what="Your progress" retry={progress.retry} />
   }
   return (
     <>
-      <StartSession topics={topics} progress={progress} now={now} />
+      <StartSession topics={topics} progress={progress} now={now} pace={pace} />
       <Reviews topics={topics} progress={progress} now={now} />
       <Revisit progress={progress} />
-      <NextUp topics={topics} progress={progress} />
+      <NextUp topics={topics} progress={progress} pace={pace} />
       <PracticeHours progress={progress} now={now} />
     </>
   )
@@ -138,10 +156,12 @@ function StartSession({
   topics,
   progress,
   now,
+  pace,
 }: {
   topics: Topic[]
   progress: ProgressState
   now: string
+  pace: Pace | null
 }) {
   // Fixed when the history first loads, like the sections below.
   const [plan, setPlan] = useState<SessionPlan | null>(null)
@@ -164,7 +184,13 @@ function StartSession({
       count(followUps.length, 'mistake coming back', 'mistakes coming back'),
   ].filter(Boolean)
   if (due.length === 0 && !next) return null
-  const quick = quickPlan(plan).reviews.length
+  const attempts = progress.status === 'ready' ? progress.attempts : []
+  const quick = quickPlan(plan, quickCount(attempts)).reviews.length
+  const time = describeTime(
+    reviewMinutes(plan, attempts),
+    next && paced(next.topic.estimated_minutes, pace),
+    stretches(pace),
+  )
 
   let summary: string
   if (due.length === 0) {
@@ -189,7 +215,9 @@ function StartSession({
       <h2 id="session" className="text-xl font-semibold">
         Today's session
       </h2>
-      <p>{summary}</p>
+      <p>
+        {summary} {time}
+      </p>
       {whereInModule && (
         <p className="text-slate-600 dark:text-slate-400">{whereInModule}</p>
       )}
@@ -211,6 +239,26 @@ function StartSession({
       )}
     </section>
   )
+}
+
+/**
+ * "About 6 minutes for those, then about 42 for the new topic at your pace."
+ * The reviews' time comes from the learner's own review answers, the
+ * topic's from its estimate stretched to their pace (progress/pace.ts).
+ */
+function describeTime(
+  reviews: number,
+  topic: number | null,
+  atYourPace: boolean,
+): string {
+  const pace = atYourPace ? ' at your pace' : ''
+  const minutes = (n: number) => `${n} ${n === 1 ? 'minute' : 'minutes'}`
+  if (reviews > 0 && topic !== null) {
+    return `About ${minutes(reviews)} for those, then about ${topic} for the new topic${pace}.`
+  }
+  if (reviews > 0) return `About ${minutes(reviews)}.`
+  if (topic !== null) return `About ${minutes(topic)}${pace}.`
+  return ''
 }
 
 /**
@@ -482,9 +530,11 @@ const LEARNED_STATES = new Set([
 function NextUp({
   topics,
   progress,
+  pace,
 }: {
   topics: Topic[]
   progress: ProgressState
+  pace: Pace | null
 }) {
   if (progress.status !== 'ready') return null
   const open = new Set(topics.filter(isOpen).map((topic) => topic.id))
@@ -529,7 +579,8 @@ function NextUp({
                 {next.topic.summary}
                 <span className="text-sm text-slate-500 dark:text-slate-400">
                   {' · about '}
-                  {next.topic.estimated_minutes} minutes
+                  {paced(next.topic.estimated_minutes, pace)} minutes
+                  {stretches(pace) && ' at your pace'}
                 </span>
               </p>
             ) : learned === own.length ? (
@@ -547,8 +598,25 @@ function NextUp({
           </div>
         )
       })}
+      <PaceNote pace={pace} />
       <PlacementNote progress={progress.progress} />
     </section>
+  )
+}
+
+/**
+ * Why the times above are longer than the authors' estimates, when they
+ * are: one plain sentence, and what the measure leaves out.
+ */
+function PaceNote({ pace }: { pace: Pace | null }) {
+  if (!stretches(pace)) return null
+  return (
+    <p className="text-sm text-slate-600 dark:text-slate-400">
+      Topics you've proven took you about {formatRatio(pace.ratio)} their
+      estimate, so the times on this page are stretched to match. That's counted
+      from your first answer in each sitting, so reading before it isn't
+      included: if anything, the real figure is a little higher.
+    </p>
   )
 }
 

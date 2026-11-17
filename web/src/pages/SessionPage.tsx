@@ -13,6 +13,7 @@ import { FollowUpCard } from '../followups/FollowUpCard.tsx'
 import type { TopicContent } from '../content/types.ts'
 import { type Attempt, topicsToLoad } from '../followups/followUps.ts'
 import { useTopicContents } from '../followups/useTopicContents.ts'
+import { type Pace, paced, stretches, topicPace } from '../progress/pace.ts'
 import type { TopicProgress } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
@@ -21,6 +22,7 @@ import {
   bundledTopics,
   type NextTopic,
   planSession,
+  quickCount,
   quickPlan,
   SESSION_PATH,
   type SessionPlan,
@@ -131,6 +133,8 @@ function Session({ quick }: { quick: boolean }) {
   // The plan is fixed when the history first loads, so finishing a review
   // doesn't reshuffle the steps under the learner's feet.
   const [plan, setPlan] = useState<SessionPlan | null>(null)
+  // The learner's pace (progress/pace.ts), for the new topic's time.
+  const [pace, setPace] = useState<Pace | null>(null)
   if (progress.status === 'ready' && plan === null) {
     const full = planSession({
       topics,
@@ -139,7 +143,8 @@ function Session({ quick }: { quick: boolean }) {
       followUps: progress.followUps,
       now,
     })
-    setPlan(quick ? quickPlan(full) : full)
+    setPlan(quick ? quickPlan(full, quickCount(progress.attempts)) : full)
+    setPace(topicPace(topics, progress.progress, progress.attempts))
   }
   // Each topic's progress as the plan saw it, for its review's card.
   const [entries, setEntries] = useState<Map<string, TopicProgress> | null>(
@@ -187,17 +192,19 @@ function Session({ quick }: { quick: boolean }) {
     )
   }
   if (steps.length === 0) return <NothingToDo quick={quick} />
-  return <Steps steps={steps} progress={progress} now={now} />
+  return <Steps steps={steps} progress={progress} now={now} pace={pace} />
 }
 
 function Steps({
   steps,
   progress,
   now,
+  pace,
 }: {
   steps: Step[]
   progress: Extract<ProgressState, { status: 'ready' }>
   now: string
+  pace: Pace | null
 }) {
   const [index, setIndex] = useState(0)
   const [today] = useState(() => dayOf(now))
@@ -248,7 +255,7 @@ function Steps({
           today={today}
         />
       )}
-      {step.kind === 'new' && <NewTopic next={step.next} />}
+      {step.kind === 'new' && <NewTopic next={step.next} pace={pace} />}
       <div className="flex flex-wrap items-center gap-3">
         {step.kind === 'new' ? (
           <button
@@ -276,14 +283,15 @@ function Steps({
 }
 
 /** The last step: the topic to learn next, with the way into it. */
-function NewTopic({ next }: { next: NextTopic }) {
+function NewTopic({ next, pace }: { next: NextTopic; pace: Pace | null }) {
   const verb = next.state === 'in-progress' ? 'Continue' : 'Start'
   return (
     <div className={CARD}>
       <h3 className="text-lg font-semibold">{next.topic.title}</h3>
       <p>{next.topic.summary}</p>
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        {next.track.title} · about {next.topic.estimated_minutes} minutes
+        {next.track.title} · about {paced(next.topic.estimated_minutes, pace)}{' '}
+        minutes{stretches(pace) && ' at your pace'}
       </p>
       <Link to={`/topic/${next.topic.id}`} className={PRIMARY_BUTTON}>
         {verb} {next.topic.title}

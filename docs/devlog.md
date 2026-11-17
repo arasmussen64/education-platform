@@ -37,6 +37,27 @@ So credit spares about a third of the reviews. "Worthless" is the worst case: th
 
 **Next:** answer time in review ratings.
 
+## 2026-11-16, Today page: honest times from the learner's own pace
+
+The third of the Today page's study-habit changes. Authors' estimates (`estimated_minutes`) are guesses and tend to be low, and a plan built on times that are too short leads to sessions that overrun and feel like failing. People also underestimate their own time on tasks (the "planning fallacy"); their own past times are the best correction.
+
+**What changed.**
+
+- **`web/src/progress/pace.ts`,** a small helper any page can use. `timeInTopic` measures the time in one topic up to the moment it was proven; `topicPace` takes the middle (median) of the proven topics' measured time over their estimates, once there are three; `paced` stretches an estimate by it; `reviewItemMinutes` gives the learner's typical time per review question.
+- **The Today page uses it** for "Next up" ("about 42 minutes at your pace"), with one sentence saying why and what the measure leaves out. The guided session's new topic does too.
+- **"Today's session" says how long it takes:** reviews and mistakes at the learner's own time per question, then the new topic at their pace. **"Just 5 minutes"** now fits one to three reviews by those same times (two at the default of a minute a question).
+- Tests: sittings, gaps, what's left out and the cap (`pace.test.ts`); the median, the three-topic minimum, stretching only; the five-minute fit and the session's minutes (`sessionPlan.test.ts`); and the Today page's paced times with three topics proven in twice their estimates.
+
+**Author notes:**
+
+- _What `duration_ms` measures, and the comparison chosen._ An attempt's `duration_ms` runs from the learner's first touch of a question (or their previous attempt) to the answer. Reading the lesson is never in it, so adding durations up and comparing with an estimate that includes reading would make every topic look quicker than it was. Instead the time in a topic is counted by sittings: its events in order, a gap of more than 30 minutes (the practice-hours cap) starting a new sitting, each sitting counted from its first event to its last, plus the time on its first question. That includes reading between questions, but not the reading before the first question of a sitting, which leaves no trace in the data.
+- _So the measure is a floor, and times are only stretched._ A floor can show that topics take longer than their estimates, never that they take less. A learner whose measured pace is under 1 sees the authors' estimates unchanged, and the page says nothing about pace. The sentence on the page says plainly what isn't counted.
+- _The median, from three proven topics._ One topic left open over lunch, or proven quickly from earlier knowledge, shouldn't swing every figure; the median ignores both, and three is the fewest for a middle value to mean anything. Only events up to the moment the topic was proven count, and not reviews, the placement test or the Today page's questions.
+- _Review times start at a minute a question,_ a round figure for two-question reviews, until the learner has five timed review answers of their own.
+- _Placing the explanation under "Next up"_, beside the times it changes, rather than in Practice hours.
+
+**Next:** a calm welcome-back plan after a break, and a gentle evening line.
+
 ## 2026-11-16, Today page: weeks with practice, and progress through the module
 
 The second of the Today page's study-habit changes. Two findings from behavioural science behind it: a daily streak turns one missed day into a loss, and the fear of losing it pushes people to cram or to give up after the first break, while spaced practice only needs regular returns; and progress feels fastest near the end of a goal (the "goal gradient"), and the start of something new is a natural moment to begin again (the "fresh start" effect).

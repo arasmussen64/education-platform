@@ -6,6 +6,7 @@ import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { getTopic, loadTopicContent } from '../content/content.ts'
 import { dayOf } from '../days.ts'
 import { EventsProvider } from '../events/EventsProvider.tsx'
+import type { Topic } from '../content/types.ts'
 import type { Attempt } from '../followups/followUps.ts'
 import { fetchAttempts } from '../followups/history.ts'
 import { fetchPlacements, type PlacementRecord } from '../placement/history.ts'
@@ -730,5 +731,81 @@ describe('next up on the Today page', () => {
   it('is absent for signed-out visitors', () => {
     renderToday([], { signedIn: false })
     expect(screen.queryByRole('region', { name: 'Next up' })).toBeNull()
+  })
+})
+
+describe('honest times on the Today page', () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  const FIRST_THREE = [
+    getTopic('py.programs-and-print')!,
+    getTopic('py.values-and-types')!,
+    getTopic('py.variables')!,
+  ]
+  const ARITHMETIC = getTopic('py.arithmetic')!
+
+  /**
+   * A topic worked through in one sitting `days` ago, from noon, for twice
+   * its estimate: an answer every 10 minutes, its proof checks at the end.
+   */
+  function provenInTwiceItsEstimate(topic: Topic, days: number): Attempt[] {
+    const start = Date.parse(daysAgo(days))
+    const minutes = 2 * topic.estimated_minutes
+    const at = (minute: number) =>
+      new Date(start + minute * 60_000).toISOString()
+    const steps: Attempt[] = []
+    for (let minute = 0; minute < minutes; minute += 10) {
+      steps.push({
+        ...answer('mcq-print', true, at(minute)),
+        topic_id: topic.id,
+      })
+    }
+    const end = at(minutes)
+    return [
+      ...steps,
+      { ...check(topic.prove.build ?? '', true, end), topic_id: topic.id },
+      { ...check(topic.prove.debug ?? '', true, end), topic_id: topic.id },
+      {
+        ...answer('explain', true, end),
+        type: 'explain_submit',
+        topic_id: topic.id,
+      },
+    ]
+  }
+
+  it("stretches the topics' times to the learner's pace, and says why", async () => {
+    renderToday(
+      FIRST_THREE.flatMap((topic, index) =>
+        provenInTwiceItsEstimate(topic, 30 - 10 * index),
+      ),
+    )
+    const next = await screen.findByRole('region', { name: 'Next up' })
+    expect(next).toHaveTextContent(
+      `about ${2 * ARITHMETIC.estimated_minutes} minutes at your pace`,
+    )
+    expect(next).toHaveTextContent(
+      "Topics you've proven took you about 2.0× their estimate, so the times on this page are stretched to match.",
+    )
+    expect(next).toHaveTextContent(/reading before it isn't included/)
+    const session = await screen.findByRole('region', {
+      name: "Today's session",
+    })
+    // Three reviews at the default minute a question, then the new topic.
+    expect(session).toHaveTextContent(
+      `About 6 minutes for those, then about ${2 * ARITHMETIC.estimated_minutes} for the new topic at your pace.`,
+    )
+  })
+
+  it("keeps the authors' estimates until three topics are proven", async () => {
+    renderToday(provenInTwiceItsEstimate(FIRST_THREE[0], 10))
+    const next = await screen.findByRole('region', { name: 'Next up' })
+    expect(next).toHaveTextContent(
+      `about ${FIRST_THREE[1].estimated_minutes} minutes`,
+    )
+    expect(next).not.toHaveTextContent('at your pace')
+    expect(next).not.toHaveTextContent('their estimate')
   })
 })

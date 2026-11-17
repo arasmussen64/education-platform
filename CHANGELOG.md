@@ -23,6 +23,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Practising a topic now counts as part of a review for the topics it builds on, as Math Academy's "FIRe" does ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). A review rated Good, or a passed build or debug, moves each direct prerequisite's next review half way toward where a real Good review would have put it; a Hard review a quarter of the way; topics further down get half as much at each step. A credit only counts once a topic is half way to due, at most once a day, never while it's relearning, and at most twice between its own reviews. It never makes a review come sooner and never counts toward Mastered. In a simulated year of cloud Modules 1 to 3 it removes about a third of the reviews; `npm run sim:reviews` in `web/` runs the simulation.
 - The topic page reads the whole history, as the map and the Today page do, since a topic's schedule now depends on practice in other topics. A follow-up opened by a checkpoint's test now shows on the topic page too.
 
+### Added (Today page: honest times from the learner's own pace)
+
+- Once three topics are proven, the Today page compares how long they took the learner with their authors' estimates, and stretches its time figures to match: "about 42 minutes at your pace", with one plain sentence under "Next up": "Topics you've proven took you about 1.4× their estimate, so the times on this page are stretched to match." The guided session's new topic uses the same figure.
+- What it measures, said on the page: the time in a topic counted by sittings, from the first answer to the last, so reading before the first answer of a sitting isn't included. Because that makes the measure a floor, times are only ever stretched, never shrunk.
+- "Today's session" says how long it should take ("About 6 minutes for those, then about 42 for the new topic at your pace."), from the learner's own review answer times (a minute a question until there are five). "Just 5 minutes" now fits as many reviews as those times allow, from one to three.
+- The calculation is `web/src/progress/pace.ts`, for any page to reuse.
+
 ### Added (Today page: weeks with practice, and progress through the module)
 
 - Practice hours on the Today page opens with consistency counted in weeks, never as a daily streak: "You practised in 4 of the last 5 weeks.", with a row of five marks, oldest first. A week is the seven days up to today, in the learner's own calendar days (each event's recorded day), and a learner newer than five weeks is counted over the weeks since they began. When this week has nothing in it yet, one line says a session today counts for it; there are no warnings. `web/src/progress/weeks.ts`.
