@@ -20,6 +20,7 @@ import {
   type TopicProgress,
   type TopicState,
 } from '../progress/progress.ts'
+import { countModule } from '../progress/modules.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import { memoryPercent } from '../reviews/reviews.ts'
 
@@ -225,13 +226,29 @@ function ModuleSection({
       )
     })
   const capstone = module.capstone ? getTopic(module.capstone) : undefined
+  // How far through the module the learner is (progress/modules.ts), once
+  // anything in it can be opened.
+  const count =
+    progress.status === 'ready'
+      ? countModule(module, progress.progress, (id) => {
+          const topic = getTopic(id)
+          return topic !== undefined && isOpen(topic)
+        })
+      : null
 
   return (
     <>
       <li className="space-y-3">
-        <h2 className="text-xl font-semibold">
-          Module {number}: {module.title}
-        </h2>
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <h2 className="text-xl font-semibold">
+            Module {number}: {module.title}
+          </h2>
+          {count && count.open > 0 && (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {count.proven} of {count.open} proven
+            </p>
+          )}
+        </div>
         <ol className="space-y-2">
           {rows([...module.topics, module.checkpoint])}
         </ol>

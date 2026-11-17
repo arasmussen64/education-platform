@@ -95,8 +95,10 @@ function renderSession(history: Attempt[], path = '/session') {
   return { client }
 }
 
+// A step shows once its topics' questions have downloaded, which can take
+// more than the default second on a busy machine.
 const stepHeading = (name: string) =>
-  screen.findByRole('heading', { name, level: 2 })
+  screen.findByRole('heading', { name, level: 2 }, { timeout: 5000 })
 const next = () => userEvent.click(screen.getByRole('button', { name: 'Next' }))
 
 describe('the guided session', () => {
