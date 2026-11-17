@@ -1,0 +1,23 @@
+id: typed-route-get
+type: typed
+rev: 1
+prompt: |
+  On a Linux router, type the command that asks the kernel which route, next hop and interface it would use for a packet to 10.3.0.10: the answer packets actually follow.
+kind: command
+answers:
+  - ip route get 10.3.0.10
+  - ip r get 10.3.0.10
+  - ip ro get 10.3.0.10
+mistakes:
+  - id: route-show
+    answers: [ip route show 10.3.0.10, ip route list 10.3.0.10, ip route show match 10.3.0.10]
+    why: That lists routes from the table; it doesn't do the longest-prefix match and say which one wins. `ip route get` does.
+  - id: traceroute
+    answers: [traceroute 10.3.0.10, traceroute -n 10.3.0.10]
+    why: traceroute shows the routers a packet passes, from the answers they send back. To ask this one machine's kernel which route it chooses, use `ip route get`.
+  - id: frr-view
+    answers: [show ip route 10.3.0.10, vtysh -c 'show ip route 10.3.0.10']
+    why: That's FRR's view, its RIB, which can disagree with the kernel. The kernel's choice, the one packets follow, is `ip route get`.
+explanation: |
+  `ip route get 10.3.0.10` makes the kernel look the address up as it would for a real packet, longest prefix first, and print the result: `10.3.0.10 via 10.0.13.2 dev r3 src ...`, or `Network is unreachable`, or `Invalid argument` for a blackhole. Run it on each router along the path to find where packets go astray.
+skills: [find-the-black-hole]

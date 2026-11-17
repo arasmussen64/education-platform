@@ -18,6 +18,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (cloud Module 3, first half: glossaries and typed questions)
+
+- Glossaries for the first eight networking topics, 75 terms in all (layers 11, CIDR 9, IPv6 9, TCP and UDP 8, routing 9, NAT 4 more beside its first 5, DNS 9, troubleshooting 7): the networking basics later topics lean on, such as packet, port, TTL, MTU, subnet, router, TCP, UDP and DNS.
+- Two typed questions in each of those topics (16): a command, a term, a block or a number to recall and type, each with the likely wrong answers named, such as IPv4's "fragmentation needed" beside IPv6's Packet Too Big, and curl's exit 28 beside 7.
+
 ### Added (saying how sure you are before a quick question is checked)
 
 - Every quick question (multiple choice, predict the output, Parsons, estimate, typed) is checked with one of three buttons, "Guessing", "Fairly sure" or "Certain", instead of Check ([ADR-0028](docs/decisions/0028-confidence-before-the-answer.md), proposed). One press still checks the answer. In an estimate or a typed answer, Enter moves to the three buttons rather than choosing one. The answer event saves the choice as `confidence`; it changes no grade, rating, Mastered or follow-up. The placement test keeps its single Check.

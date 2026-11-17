@@ -1,0 +1,21 @@
+id: typed-short-form-tie
+type: typed
+rev: 1
+prompt: |
+  Type the RFC 5952 short form of `2001:0db8:0000:0000:0001:0000:0000:0001`.
+kind: text
+answers:
+  - "2001:db8::1:0:0:1"
+mistakes:
+  - id: second-run
+    answers: ["2001:db8:0:0:1::1"]
+    why: The two runs of zero groups are the same length, two groups each, and then the first one gets the `::`.
+  - id: two-double-colons
+    answers: ["2001:db8::1::1"]
+    why: "`::` may be used only once, or nobody could tell how many zero groups each one stands for."
+  - id: kept-zeros
+    answers: ["2001:db8::0001:0:0:1", "2001:0db8::1:0:0:1"]
+    why: Leading zeros are dropped from every group, so `0db8` is `db8` and `0001` is `1`.
+explanation: |
+  Drop the leading zeros: `2001:db8:0:0:1:0:0:1`. There are two runs of zero groups, each two long; when runs tie, the first gets the `::`, giving `2001:db8::1:0:0:1`. The `::` stands for two groups here: six are written, so it fills the other two.
+skills: [v6-notation]

@@ -1,0 +1,23 @@
+id: typed-bdp-name
+type: typed
+rev: 1
+prompt: |
+  A path's rate multiplied by its round-trip time gives the number of bytes in flight when the path is full, and so the smallest window one TCP connection needs to fill it. What is that product called?
+kind: text
+answers:
+  - bandwidth-delay product
+  - BDP
+  - bandwidth delay product
+mistakes:
+  - id: window
+    answers: [receive window, window, TCP window]
+    why: The receive window is what the receiver allows in flight. The bandwidth-delay product is what the path needs, and the window has to be at least that big.
+  - id: throughput
+    answers: [throughput]
+    why: Throughput is a rate, at most window ÷ round-trip time for one connection. Rate × round-trip time is an amount of data, the bandwidth-delay product.
+  - id: mss
+    answers: [MSS, maximum segment size]
+    why: The MSS is the most data in one segment, set by the link's MTU. The bytes a whole path holds in flight are its bandwidth-delay product.
+explanation: |
+  The bandwidth-delay product (BDP) is rate × RTT, in bytes once the bits are divided by 8: 50 Mbit/s over 100 ms is 50,000,000 ÷ 8 × 0.1 = 625,000 bytes. A connection whose window is smaller can't fill the path, however fast the link: throughput ≤ window ÷ RTT.
+skills: [window-math]

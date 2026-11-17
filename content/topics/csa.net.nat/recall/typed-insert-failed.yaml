@@ -1,0 +1,22 @@
+id: typed-insert-failed
+type: typed
+rev: 1
+prompt: |
+  At lunchtime, new connections from a Linux NAT gateway to one payment provider time out. Running `conntrack -S` twice, a minute apart, which counter do you watch climb when NAT can't record a new connection and drops its first packet? Type its name.
+kind: text
+answers:
+  - insert_failed
+  - insert failed
+mistakes:
+  - id: drop
+    answers: [drop]
+    why: "`drop` counts packets conntrack dropped for other reasons. A connection NAT couldn't record is counted under `insert_failed`."
+  - id: early-drop
+    answers: [early_drop]
+    why: "`early_drop` counts old entries thrown out because the whole table was full. A NAT out of ports for one destination shows in `insert_failed`."
+  - id: invalid
+    answers: [invalid]
+    why: "`invalid` counts packets conntrack couldn't track at all, such as malformed ones. A new connection NAT couldn't record is `insert_failed`."
+explanation: |
+  `insert_failed` counts connections whose entry couldn't be written into the table: with NAT out of ports for a destination, every attempt (retries included) adds one, so it runs ahead of the failed connections. A race in port choice adds to it too, with plenty of ports free, so check how many connections go to the busy destination before calling it exhaustion.
+skills: [port-exhaustion]

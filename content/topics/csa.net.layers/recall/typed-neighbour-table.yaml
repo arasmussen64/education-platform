@@ -1,0 +1,27 @@
+id: typed-neighbour-table
+type: typed
+rev: 1
+prompt: |
+  On a Linux router, type the command that shows its neighbour table: each address it has asked ARP about, the MAC address it got, and the entry's state (`REACHABLE`, `STALE`, `FAILED`).
+kind: command
+answers:
+  - ip neigh
+  - ip neigh show
+  - ip neighbour
+  - ip neighbor
+  - ip n
+  - ip neighbour show
+  - ip neighbor show
+mistakes:
+  - id: routes
+    answers: [ip route, ip route show, ip r]
+    why: "`ip route` shows where packets are sent next, by prefix. The MAC address of each next box is in the neighbour table, `ip neigh`."
+  - id: addresses
+    answers: [ip addr, ip address, ip a, ip -brief addr]
+    why: "`ip addr` shows the machine's own addresses. Its neighbours' addresses and MACs are in `ip neigh`."
+  - id: links
+    answers: [ip link, ip link show]
+    why: "`ip link` shows the machine's own interfaces and their MAC addresses, not its neighbours'. That's `ip neigh`."
+explanation: |
+  `ip neigh` (short for `ip neighbour`) prints one line per neighbour: its address, the interface, its MAC address (`lladdr`) when it has one, and the state. `FAILED` means ARP asked three times and nobody answered; `PERMANENT` is an entry typed in by hand. IPv6's neighbours are in the same table, with `ip -6 neigh`.
+skills: [arp-neighbours]

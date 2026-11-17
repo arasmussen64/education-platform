@@ -1,0 +1,21 @@
+id: typed-masquerade
+type: typed
+rev: 1
+prompt: |
+  A branch gateway's internet line gets a new public address from its provider now and then. Which nftables statement does source NAT to whatever address the outgoing interface has at that moment? Type the one word.
+kind: text
+answers:
+  - masquerade
+mistakes:
+  - id: fixed-snat
+    answers: [snat, snat to]
+    why: "`snat to ADDRESS` names one fixed address, which breaks when the provider hands out a new one. `masquerade` reads the interface's address each time."
+  - id: dnat
+    answers: [dnat, dnat to]
+    why: "`dnat` rewrites the destination, for publishing a service. Source NAT to the interface's own address is `masquerade`."
+  - id: redirect
+    answers: [redirect]
+    why: "`redirect` sends packets to the gateway itself, a kind of destination NAT. Source NAT to the interface's address is `masquerade`."
+explanation: |
+  `masquerade` is source NAT to the address the outgoing interface has when each new connection starts (its first address, if it has several), so it keeps working after the line's address changes. Written as `oifname "wan" masquerade` in a `postrouting` chain, so it touches only traffic leaving for the internet.
+skills: [nat-rules]
