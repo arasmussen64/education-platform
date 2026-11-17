@@ -4,9 +4,15 @@
  */
 export function downloadJson(fileName: string, value: unknown): void {
   // Two-space indents, so the file is readable in any text editor.
-  const file = new Blob([JSON.stringify(value, null, 2)], {
-    type: 'application/json',
-  })
+  downloadText(fileName, JSON.stringify(value, null, 2), 'application/json')
+}
+
+/**
+ * Saves `text` as a file of the given type (a calendar file, say), through
+ * the browser's normal download. Made in the browser; nothing is sent.
+ */
+export function downloadText(fileName: string, text: string, type: string) {
+  const file = new Blob([text], { type })
   // A temporary address for the file, pointing into the browser's memory.
   const address = URL.createObjectURL(file)
   const link = document.createElement('a')

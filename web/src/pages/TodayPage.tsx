@@ -60,6 +60,11 @@ import {
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
 import { EVENING_LINE, isLateEvening } from '../session/evening.ts'
 import { type WelcomeBack, welcomeBack } from '../session/welcomeBack.ts'
+import {
+  StudyPlanQuestion,
+  StudyPlanReminder,
+} from '../studyplan/StudyPlanParts.tsx'
+import { useStudyPlan } from '../studyplan/useStudyPlan.ts'
 import { WelcomeBackPlan } from '../session/WelcomeBackPlan.tsx'
 import {
   bundledTopics,
@@ -131,11 +136,14 @@ function Plan() {
         : null,
     [topics, progress],
   )
+  // When and where the learner plans to study, kept on this device.
+  const studyPlan = useStudyPlan()
   if (progress.status === 'failed') {
     return <CouldNotLoad what="Your progress" retry={progress.retry} />
   }
   return (
     <>
+      <StudyPlanReminder state={studyPlan} />
       {isLateEvening(now) && (
         <p className="text-slate-600 dark:text-slate-400">{EVENING_LINE}</p>
       )}
@@ -145,6 +153,7 @@ function Plan() {
       <Revisit progress={progress} />
       <NextUp topics={topics} progress={progress} pace={pace} />
       <PracticeHours progress={progress} now={now} />
+      <StudyPlanQuestion state={studyPlan} />
     </>
   )
 }

@@ -1,10 +1,17 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { getTopic, loadTopicContent } from '../content/content.ts'
 import { dayOf } from '../days.ts'
+import { downloadText } from '../export/download.ts'
 import { EventsProvider } from '../events/EventsProvider.tsx'
 import type { Topic } from '../content/types.ts'
 import type { Attempt } from '../followups/followUps.ts'
@@ -40,6 +47,11 @@ vi.mock(
 )
 // The real content loads as usual; tests can see which topics did, or make
 // a download fail.
+// The calendar file is made, not saved: tests check what would be saved.
+vi.mock('../export/download.ts', () => ({
+  downloadJson: vi.fn(),
+  downloadText: vi.fn(),
+}))
 vi.mock('../content/content.ts', async (importOriginal) => {
   const content = await importOriginal<typeof import('../content/content.ts')>()
   return { ...content, loadTopicContent: vi.fn(content.loadTopicContent) }
@@ -869,5 +881,98 @@ describe('late in the evening on the Today page', () => {
     renderToday([])
     await screen.findByRole('region', { name: 'Next up' })
     expect(screen.queryByText(EVENING)).not.toBeInTheDocument()
+  })
+})
+
+describe('a plan for when and where, on the Today page', () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+    vi.mocked(downloadText).mockReset()
+  })
+
+  const QUESTION = 'When and where will you study?'
+
+  it('asks once, keeps the answer on this device, and shows it back in one line', async () => {
+    renderToday([])
+    const question = await screen.findByRole('region', { name: QUESTION })
+    await userEvent.click(
+      within(question).getByRole('checkbox', { name: 'Monday' }),
+    )
+    await userEvent.click(
+      within(question).getByRole('checkbox', { name: 'Thursday' }),
+    )
+    fireEvent.change(within(question).getByLabelText('Time'), {
+      target: { value: '19:30' },
+    })
+    await userEvent.type(
+      within(question).getByLabelText('Where (optional)'),
+      'the library',
+    )
+    await userEvent.click(
+      within(question).getByRole('button', { name: 'Save my plan' }),
+    )
+
+    // The page's day, Wednesday, isn't one of them: the week's plan.
+    expect(
+      await screen.findByText(
+        'Your plan: Monday and Thursday at 7:30 pm, at the library.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('region', { name: QUESTION }),
+    ).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('study-plan') ?? 'null')).toEqual({
+      days: ['MO', 'TH'],
+      time: '19:30',
+      place: 'the library',
+    })
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Add to my calendar (.ics)' }),
+    )
+    expect(downloadText).toHaveBeenCalledWith(
+      'study-plan.ics',
+      expect.stringContaining('RRULE:FREQ=WEEKLY;BYDAY=MO,TH'),
+      'text/calendar',
+    )
+    const [, text] = vi.mocked(downloadText).mock.calls[0]
+    // The first session is the next Thursday at 19:30, local time.
+    expect(text).toContain('DTSTART:20261112T193000')
+    expect(text).toContain('LOCATION:the library')
+  })
+
+  it("says the plan for today on one of the plan's days", async () => {
+    localStorage.setItem(
+      'study-plan',
+      JSON.stringify({ days: ['WE'], time: '18:00', place: '' }),
+    )
+    renderToday([])
+    expect(
+      await screen.findByText('Your plan for today: 6:00 pm.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: QUESTION })).toBeNull()
+  })
+
+  it('asks for at least one day', async () => {
+    renderToday([])
+    const question = await screen.findByRole('region', { name: QUESTION })
+    await userEvent.click(
+      within(question).getByRole('button', { name: 'Save my plan' }),
+    )
+    expect(question).toHaveTextContent('Pick at least one day.')
+    expect(localStorage.getItem('study-plan')).toBeNull()
+  })
+
+  it('takes "Not now" for an answer, and asks no more on this device', async () => {
+    renderToday([])
+    const question = await screen.findByRole('region', { name: QUESTION })
+    await userEvent.click(
+      within(question).getByRole('button', { name: 'Not now' }),
+    )
+    expect(
+      screen.queryByRole('region', { name: QUESTION }),
+    ).not.toBeInTheDocument()
+    expect(localStorage.getItem('study-plan-dismissed')).toBe('yes')
   })
 })
