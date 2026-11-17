@@ -68,6 +68,8 @@ function rate(
     progress.learnedAt ?? at,
     [...progress.reviews, { at, rating }],
     progress.credits,
+    // The learner's own forgetting curve, when one is fitted.
+    progress.card?.personal,
   )
   return { rating, due: card.due, slow, slowed }
 }
