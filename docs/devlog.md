@@ -24,6 +24,27 @@ The last of the Today page's study-habit changes. Deciding in advance when and w
 
 **Next:** the Today page stream is done; its decisions go to the owner queue with the coordinator.
 
+## 2026-11-16, topic page: a topic in parts
+
+Part of today's improvement plan for the topic page. A cloud topic is estimated at four to five hours, and its page was one scroll of all of it.
+
+**What changed.** A topic page shows one part at a time ([ADR-0025](decisions/0025-topics-in-parts.md), proposed): Learn, then the practice ladder cut into parts of about 30 minutes, then Prove it. Each part says "Part 2 of 5 · about 30 min" above its heading; a practice part's heading says what's in it ("Practice: worked example and 8 questions"), and its items keep their numbers across the whole ladder. Buttons below go back and on. The outline lists the parts with a tick for each one done and, inside each, the places it already listed; any link to a place opens its part, and the address keeps it after the `#`. The page opens at the part a link points into, or else at the part last viewed on this device if it isn't done, or else at the first part not done. "Prove it now" opens the proofs part. Checkpoints are unchanged.
+
+- `web/src/parts/estimates.ts` holds the time guesses, `web/src/parts/topicParts.ts` the cutting, the done marks, where to open and which part a link points into, and `web/src/parts/partMemory.ts` the last part viewed.
+- Tested: 24 new unit tests for the parts, 9 new page tests (moving between parts, opening where the learner was, never moving on by itself, links into parts, a long topic's six parts, Locked topics and checkpoints), and the page's older tests updated to open the part they look at.
+- Tried on every ready topic: a cloud topic comes out as a lesson of about 55 to 125 minutes, three or four practice parts of 20 to 40, and proofs of about 80 to 90; a Python or ML topic as three parts of 10 to 20 minutes.
+
+**Author notes:**
+
+- _The time guesses are the authors' own figures_ (a question 1.5 minutes, labs from the "Worked out" notes in Module 2 and 3's topic.yaml files), scaled so the parts add up to the topic's total. Where the guesses leave the lesson under a quarter of the total, as in short Python topics and some of Module 1's, the practice and proof figures are scaled down instead. The lesson's figure is what's left, since the page can't count a lesson's words or readings.
+- _The lesson and the proofs are one part each,_ even at 60 to 120 minutes and about 90, as the plan asked. Each proof check, and each place in the lesson, is still a natural stop, and the outline shows them.
+- _Cuts prefer a change in the kind of work:_ a small cost for cutting between two quick questions moves a cut to where questions give way to a lab, when that costs a part only a few minutes.
+- _Only the part on screen is rendered._ Keeping the others hidden would keep an unchecked answer, but would also keep every editor loaded and a lesson video playing out of sight; code and explanations are kept as drafts anyway.
+- _The lesson counts as done once anything after it has been tried,_ since a lesson has no answers and the plan ruled out new storage. A click past it doesn't count, so nothing can be ticked off without work (ADR-0002).
+- _The page picks its opening part once,_ when the progress is known, so finishing the last question of a part never moves the learner on.
+
+**Next:** a short break between parts, then the topic's goals at the top.
+
 ## 2026-11-16, Today page: a welcome-back plan, and new topics earlier in the day
 
 The fourth of the Today page's study-habit changes. Two ideas behind it. Coming back after a break to a long list of overdue reviews reads as a debt, and that is when many learners stop; the same reviews set out as a short plan over a few days read as doable. And a new topic takes fresh attention, which runs low late at night, while a review is short retrieval practice that suits a tired evening.
