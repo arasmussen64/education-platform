@@ -97,6 +97,10 @@ export type ItemFacts = {
   /** Exercises only: a question has no stage. */
   stage?: Stage
   test_skills?: Record<string, string[]>
+  /** Questions only: the question's type, e.g. "mcq" (for answer times). */
+  type?: string
+  /** "lab" for a lab exercise; left out for Python (and questions). */
+  runtime?: string
 }
 
 /** A topic's questions and exercises, by item ID. */

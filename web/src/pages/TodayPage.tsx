@@ -548,6 +548,7 @@ function Reviews({
                 progress={entry}
                 attempts={progress.attempts}
                 now={now}
+                usualTimes={progress.usualTimes}
               />
             ) : null
           })}

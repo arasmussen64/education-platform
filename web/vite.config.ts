@@ -75,7 +75,8 @@ function rawFilesAFewAtATime(): Plugin {
 }
 
 // The skill index (src/followups/skillIndex.ts): every question's and
-// exercise's skills, stage and test skills, gathered from ../content into one
+// exercise's skills, stage, test skills, and kind (a question's type, a
+// lab's runtime), gathered from ../content into one
 // small module, `virtual:skill-index`. Mistakes coming back, and so Mastered
 // (ADR-0011), need only these, so the app needn't download whole topics to
 // find them. It reads the same files content.ts loads, a few at a time like
@@ -129,6 +130,10 @@ type IndexedItem = {
   skills: string[]
   stage?: string
   test_skills?: Record<string, string[]>
+  /** A question's type (mcq, predict_output...), for answer times. */
+  type?: string
+  /** "lab" for a lab; left out for Python. */
+  runtime?: string
 }
 
 /** Every topic's questions and exercises, by topic ID, then item ID. */
@@ -152,6 +157,11 @@ async function readSkillIndex(topicsFolder: string) {
       const [topicId = ''] = file.split(/[\\/]/)
       const item: IndexedItem = { skills: data.skills ?? [] }
       if (data.stage) item.stage = data.stage
+      // How long the learner usually takes is worked out by kind of item,
+      // so a review can tell a slow right answer (ADR-0009, amended
+      // 2026-11-16).
+      if (data.type) item.type = data.type
+      if (data.runtime === 'lab') item.runtime = 'lab'
       if (Object.keys(data.test_skills ?? {}).length > 0) {
         item.test_skills = data.test_skills
       }

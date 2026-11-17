@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, reviews: answer time in ratings
+
+The second of four changes to the review engine. A review with every answer right was Good however long it took. Now a right answer that took far longer than this learner usually needs makes the session Hard, which brings the next review a little sooner. ADR-0009 has an amendment for it (Proposed).
+
+**What changed.**
+
+- **`web/src/reviews/answerTime.ts`**: `usualTimes` works out the learner's usual time for each kind of item (the median of their last 50 timed right answers), and `rateSession` turns an all-right Good into Hard when an answer took more than three times that and more than a minute. Kinds with fewer than 10 timed answers aren't judged; labs, missing times and answers carried over from an earlier visit aren't timed.
+- **The skill index** (`web/vite.config.ts`) now keeps each question's type and marks labs, so the usual times come from the whole history without downloading topics. `useProgress` returns them as `usualTimes`.
+- **`PracticeItem`'s `onGraded`** passes the attempt's time as well as whether it was right. **`ReviewSession`** rates with it, says why a slow session is Hard, and records the slow answers in the review event's `data.slow`.
+- 15 new tests (the thresholds, missing history, the floor, speeding up, and a whole session in the browser that took five minutes on a prediction).
+
+**Author notes:**
+
+- _Three times the median and over a minute._ Three times keeps ordinary variation out (times to a known answer are skewed, and most fall within twice the median); the minute keeps careful reading of a quick check out. Both are guesses, and the review log now records what the learner's own data needs to test them.
+- _Labs aren't timed:_ a lab's time is mostly building and starting its container.
+- _Answers from an earlier visit aren't timed,_ because the session can't be sure how they were split across visits; they can't make a session Hard.
+- _Old reviews keep their ratings._ Cards replay stored ratings, and re-rating would change what the learner was told.
+- _Slow means Hard, never Easy._ "Later" suggested time could tell Good from Easy; Easy isn't used, and a lucky fast answer shouldn't lengthen an interval.
+- _The owner may need to restart a running dev server:_ `vite.config.ts` changed.
+
+**Next:** a personal forgetting curve.
+
 ## 2026-11-16, Today page: a plan for when and where to study
 
 The last of the Today page's study-habit changes. Deciding in advance when and where you'll do something ("on Monday and Thursday at 7:30 pm, at the library, I'll study") makes following through much more likely than an intention alone; psychologists call these implementation intentions (Gollwitzer and Sheeran, 2006). Putting the plan in the learner's own calendar brings the reminder to where they already look.
