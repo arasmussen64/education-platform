@@ -1,0 +1,21 @@
+id: typed-cc-setting
+type: typed
+rev: 1
+prompt: |
+  The shop's server sends the nightly backups, and you want every new TCP connection it makes to use BBR. Which kernel setting, read and written with `sysctl`, chooses the congestion control for new connections? Type the setting's name.
+kind: command
+answers:
+  - net.ipv4.tcp_congestion_control
+mistakes:
+  - id: available-list
+    answers: [net.ipv4.tcp_available_congestion_control]
+    why: "That one only lists the algorithms the kernel has loaded. It reports; it doesn't choose."
+  - id: allowed-list
+    answers: [net.ipv4.tcp_allowed_congestion_control]
+    why: "That one lists the algorithms a program not running as root may pick for its own socket. The machine's default for new connections is `tcp_congestion_control`."
+  - id: qdisc
+    answers: [net.core.default_qdisc]
+    why: "That sets the queueing discipline, how packets wait to leave an interface. Guides often set it to fq beside BBR, but it doesn't choose the algorithm, and BBR paces without it."
+explanation: |
+  `net.ipv4.tcp_congestion_control` is the machine's choice for new connections: `sysctl -w net.ipv4.tcp_congestion_control=bbr` sets it until the next boot, and the same line in a file under `/etc/sysctl.d/` sets it at every boot. It matters on the machine that *sends*: congestion control runs where the data comes from, so the backups' sender is the one to change.
+skills: [bbr-model]
