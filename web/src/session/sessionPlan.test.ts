@@ -249,9 +249,11 @@ describe('the time a session takes', () => {
   })
 
   it('adds up two questions a review and one a mistake', () => {
+    // Two topics that don't build on each other, so both are due (see
+    // "puts the most faded review first").
     const attempts = [
       ...proved(FIRST, daysBefore(30)),
-      ...proved(SECOND, daysBefore(10)),
+      ...proved(CLOUD, daysBefore(10)),
     ]
     const twoReviewsOneMistake = plan(attempts, [
       followUp(FIRST, 'skill', '2026-11-10'),

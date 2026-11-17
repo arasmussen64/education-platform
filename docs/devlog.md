@@ -14,6 +14,7 @@ The first of four changes to the review engine. ADR-0009 listed implicit repetit
 - **The topic page reads the whole history,** as the map and the Today page do. A topic's schedule now depends on practice in the topics built on it, and reading only its own history would have shown a different state from the map. This also closes an older gap: a follow-up opened by a checkpoint's test now shows on the topic page.
 - **`npm run sim:reviews`** (in `web/`, `web/scripts/review-load.ts`) simulates a learner, with the real topic graph and the app's own scheduler.
 - 26 new tests, with the ADR's worked examples among them.
+- Three Today-page tests written earlier today proved a topic and, days later, the topic built on it, and expected both to be due. With implicit credit the first one isn't, so their fixtures now use topics that don't build on each other, or prove them a day apart.
 
 **The simulation.** An hour of new study a day through cloud Modules 1 to 3 (38 topics and 3 checkpoints), every due review done, each item right with the chance the card predicts; 20 runs of a year:
 
