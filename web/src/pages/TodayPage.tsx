@@ -536,7 +536,8 @@ function Reviews({
             {due.length === 1
               ? 'One topic is due for a review.'
               : `${due.length} topics are due for a review, the most forgotten first.`}{' '}
-            Each asks two quick questions. No hints here.
+            Each asks two short items, sometimes a lab in place of one. No hints
+            here.
           </p>
           {due.map((review) => {
             const content = contents.get(review.topic.id)

@@ -43,6 +43,16 @@ Five design decisions were made under your message of 2026-11-11 and built on. E
 - **Recommendation:** accept all five. A "yes" is enough; Claude records it in each status line.
 - **Holds up:** nothing.
 
+**Added 2026-11-16,** from the four-expert plan you asked to have built ("Build everything on this list"). Each is built and live, marked _Proposed_ until you rule:
+
+- [ADR-0025](decisions/0025-topics-in-parts.md), a topic shown in parts of about 30 minutes, one at a time, with a suggested break between parts and "Check what you know" before the practice.
+- [ADR-0026](decisions/0026-lesson-building-blocks.md), questions inside the lesson, an opening puzzle, real incident stories with their sources, and a glossary.
+- [ADR-0027](decisions/0027-typed-answers.md), typed answers: a command, a term or a value typed from memory, read the same way in Python and the browser.
+- [ADR-0028](decisions/0028-confidence-before-the-answer.md), "Guessing / Fairly sure / Certain" on every quick question, and a calibration summary on the Account page. It changes no grading.
+- [ADR-0009's four amendments of 2026-11-16](decisions/0009-reviews.md#amendment-2026-11-16-implicit-repetition): partial review credit for the topics a later topic uses; a slow right answer makes a review Hard; a personal forgetting rate once you have 100 review outcomes; review labs for the cloud topics.
+- [ADR-0013's amendment of 2026-11-16](decisions/0013-explain-grading.md#amendment-2026-11-16-how-its-marked-shown-before-writing): an explain-back shows how it is marked (the number of points, how many a pass needs, and the grader's rules) before you write, without the rubric's wording.
+- **Recommendation:** accept all six.
+
 ### 4. Confirm three design decisions marked accepted without your explicit yes
 
 ADR-0020, 0021 and 0022 (backups, the placement test, step-through) were marked _Accepted_ because you asked for Phase 2 to be built, not because you read them. In a sentence each: backups are a nightly encrypted copy of the database committed to a private repository of yours; the placement test finds a starting point by probing topics with their own review questions and never ticks a topic off; step-through records each line's effect under Python's own trace hook and plays it back.
@@ -78,6 +88,18 @@ Module 2 is complete without them: every topic is proven locally, for free. Thes
 ## Decided for you
 
 Made under your message of 2026-11-11. Say the word to overturn any of them.
+
+- **2026-11-16, how the four-expert plan was built.** You asked for every recommendation to be built (#293 to #318). The judgement calls, each with its reason in the devlog entries of 2026-11-16:
+  - _Your study plan and the puzzle's guess stay on this device._ Syncing the plan would need a database migration, which is yours to push; the guess is never graded or saved.
+  - _Implicit credit_ gives a direct prerequisite half a review for a Good review or a passed proof, halving at each step back, only once a card is half-way to due, at most twice between real reviews, and never as the review Mastered needs. A year's simulation of Modules 1 to 3 says it cuts about a third of the reviews. Even without it, the busiest day is about 7 reviews, so the 20-a-day limit was never at risk.
+  - _A slow right answer_ is more than three times your usual time for that kind of question and over 60 seconds, judged only once there are 10 timed answers of that kind.
+  - _Your forgetting rate_ is fitted from 100 review outcomes on, between half and twice the standard intervals. "Remembered" means any rating but Again, as FSRS defines it.
+  - _Review labs_ come at most once in three reviews of a topic, only once a review's gap is 14 days or more, and can be put off without penalty.
+  - _The rubric's wording isn't shown before an explain-back,_ because every rubric in the content is written as the answer itself.
+  - _Goals are ticked all at once_ when a topic is Learned, because nothing in the content ties a goal to one proof.
+  - _Typed answers_ are lists of accepted answers, not patterns; one slipped letter is forgiven in a word, never in a command.
+  - _The lesson and the proofs each stay one part,_ so a cloud topic's lesson part is still about 55 to 125 minutes. The questions placed inside each lesson break it up; splitting it further is a next step (below in the devlog).
+  - _Stories only where a public source documents them:_ 35 of the 38 ready cloud topics have one; IPsec, processes and signals, and services and logs don't.
 
 - **2026-11-15, the cloud track is raised to the principal bar.** You asked for the track to be audited as a vice president of cloud would, so that it qualifies a learner for a principal or distinguished architect's job. It was strong to senior level and thin above it. **Decided:** a new Module 31 on technology strategy and enterprise architecture (ten topics and a checkpoint, "the inherited estate"); six more topics (SAP, VMware estates, virtual desktops, safe change at scale, post-quantum cryptography, identity governance); a reliability specialty; and three proofs for Stage 4 that test judgement over a whole company's estate from its data. **Why:** a principal is hired on strategy, on steering other people's designs and on enterprise workloads, and none of those was taught or proven. **The cost:** about 100 more hours of study, all of it free to run. **What it can't do:** grant the title. The spec's new section, [The principal bar](specs/cloud-solutions-architect.md#the-principal-bar), says what a course can't give. The findings are in the [devlog](devlog.md), 2026-11-15.
 - **2026-11-11, debug exercises that name their bugs.** About 70 debug exercises (Python Modules 4 to 6, ML Module 3 onward, half of cloud Module 1) told the learner each bug and often the fix, which makes "debug unfamiliar code" ([ADR-0002](decisions/0002-mastery-and-gating.md)) closer to following instructions. **Decided:** rewrite them all so a prompt gives what the program should do, the symptom and how many bugs there are, with the specifics moved into hints. Order: cloud Module 1 first, then Python, then ML. **Why:** finding the bug is the skill being proven, and effort spent finding it is what makes it stick. **The cost:** the hard modules get harder, with the tutor off during proofs; the specifics are kept as hints in the content, but the app shows no hints on a debug exercise, since every debug is a proof. Each rewritten debug was checked to be findable from its symptom, a Run and its Check messages alone. **Done** in all three tracks: cloud Module 1's ten (#223 to #226), then 79 Python and ML prompts (#218, #219, #228 to #230). The last three cloud Module 1 debug labs (Users, permissions and SSH; Package management and patching; How containers work) followed in #237.
