@@ -18,6 +18,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (topic page: the goals at the top, ticked once proven)
+
+- A topic now opens with what you'll be able to do (its goals), at the top of every part: unfolded with the lesson, folded on the other parts. Each goal is ticked once the topic is Learned, when all three proofs have passed, with the date. They're ticked together, since the content doesn't say which proof shows which goal.
+
 ### Added (topic page: a short break between parts)
 
 - Finishing a part of a topic and pressing Next now suggests a five-minute break, in a small card above the next part: rest quietly, away from your phone, because a few minutes of quiet straight after learning helps memory (Dewar et al., 2012). An optional timer counts the five minutes down on the page and says when they're up. The next part is open underneath the whole time, Skip puts the card away, and nothing is ever blocked or sent as a notification. Leaving the lesson counts as finishing it; a practice part counts once every question in it is right.
