@@ -22,6 +22,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - A topic's first practice part offers "Check what you know": three to five of the topic's own quick questions, one per skill where it can ([ADR-0025](docs/decisions/0025-topics-in-parts.md), amended). Every practice item whose skills you got right on the first try is then marked optional: folded, dashed in the outline, and not holding its part's tick back. The proofs stay required. The answers are saved as ordinary practice answers with `quick_check: true` in their data, so no new event type or database change was needed.
 
+### Added (explain it back: how it's marked, before you write)
+
+- Every explain-it-back check has a folded "How it's marked" note under its question: how many points your explanation is checked against and how many a pass needs, that the ideas count and not the wording, and that a missing point brings up to three questions, never the answer. The points' own wording stays hidden, because in every topic it's the answer itself ([ADR-0013](docs/decisions/0013-explain-grading.md), amended, proposed).
+
 ### Added (topic page: the goals at the top, ticked once proven)
 
 - A topic now opens with what you'll be able to do (its goals), at the top of every part: unfolded with the lesson, folded on the other parts. Each goal is ticked once the topic is Learned, when all three proofs have passed, with the date. They're ticked together, since the content doesn't say which proof shows which goal.
