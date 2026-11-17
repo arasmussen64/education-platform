@@ -25,6 +25,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A lesson can tell a real public incident with `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>`, in the platform's own words, linking the postmortem it's drawn from.
 - The validator checks every tag in a lesson: only the six the app can draw, each written as `content/README.md` says, with the lesson's line in every problem.
 
+### Added (Today page: one button for today's session, and a five-minute version)
+
+- The Today page opens with "Today's session": one sentence saying what is waiting ("1 review and 1 mistake coming back, then your next topic, Values and types.") and a lime "Start today's session" button. It opens a new page, `/session`, that goes through the day's work one step at a time: the due reviews, the most faded first, then the mistakes coming back today, then the next new topic, in the track the learner worked in most recently. Every section below stays for browsing.
+- "Just 5 minutes" (`/session?minutes=5`), for a day with little time or energy: only the one to three reviews closest to fading. They are ordinary review sessions, saved and rated exactly as on the Today page.
+- The session's steps are the Today page's own review and follow-up components, so nothing about saving or grading is duplicated. The follow-up card moved to `web/src/followups/FollowUpCard.tsx` (its helpers to `cards.ts`), and the ordering lives in `web/src/session/sessionPlan.ts`, which reads the due list and the daily limit from `web/src/reviews/` without changing them.
+
 ### Added (a "Back to top" button on long pages)
 
 - Every page gains a "Back to top" button in its bottom right corner once the learner has scrolled more than one screen down. It scrolls back smoothly (or jumps, when the system asks for less motion) and puts keyboard focus at the top of the page. Pages leave room under their last line so it never covers anything at the very bottom.

@@ -512,6 +512,50 @@ describe('reviews on the Today page', () => {
   })
 })
 
+describe("today's session on the Today page", () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  const PRINT = getTopic('py.programs-and-print')!
+  const sessionSection = () =>
+    screen.findByRole('region', { name: "Today's session" })
+
+  it('says what the session holds, and starts it with one button', async () => {
+    renderToday([
+      check(PRINT.prove.build ?? '', true, daysAgo(10)),
+      check(PRINT.prove.debug ?? '', true, daysAgo(10)),
+      { ...answer('explain', true, daysAgo(10)), type: 'explain_submit' },
+      answer('predict-four-lines', false, daysAgo(1)),
+    ])
+    const session = await sessionSection()
+    expect(session).toHaveTextContent(
+      '1 review and 1 mistake coming back, then your next topic, Values and types.',
+    )
+    expect(
+      within(session).getByRole('link', { name: "Start today's session" }),
+    ).toHaveAttribute('href', '/session')
+    expect(
+      within(session).getByRole('link', { name: 'Just 5 minutes' }),
+    ).toHaveAttribute('href', '/session?minutes=5')
+    expect(session).toHaveTextContent(
+      'Just 5 minutes: the one review closest to fading, counted in full.',
+    )
+  })
+
+  it('goes straight to the next topic when nothing is due, with no short version', async () => {
+    renderToday([])
+    const session = await sessionSection()
+    expect(session).toHaveTextContent(
+      'Nothing to review today, so straight to your next topic, Programs and print.',
+    )
+    expect(
+      within(session).queryByRole('link', { name: 'Just 5 minutes' }),
+    ).not.toBeInTheDocument()
+  })
+})
+
 describe('next up on the Today page', () => {
   beforeEach(() => {
     setFakeRunner()
