@@ -175,6 +175,19 @@ describe('which parts are done', () => {
     expect(partsDone(parts, content, all, {})!.get('practice-1')).toBe(true)
   })
 
+  it('counts practice the quick check made optional as not holding a part back', () => {
+    const allButOne = states(
+      ...content.topic.practice.filter((item) => item !== 'write-hello'),
+    )
+    expect(partsDone(parts, content, allButOne, {})!.get('practice-1')).toBe(
+      false,
+    )
+    const optional = new Set([itemKey(content.topic.id, 'write-hello')])
+    expect(
+      partsDone(parts, content, allButOne, {}, optional)!.get('practice-1'),
+    ).toBe(true)
+  })
+
   it('counts the proofs done once all three have passed', () => {
     const two = { build: '2026-11-06', debug: '2026-11-06' }
     expect(partsDone(parts, content, new Map(), two)!.get('prove')).toBe(false)

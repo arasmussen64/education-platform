@@ -48,6 +48,128 @@ A dated log of each working session: what changed, what was decided, what's next
 
 **Next:** confidence before the answer (ADR-0028): "Guessing", "Fairly sure" and "Certain" in place of Check, and a calibration summary on the Account page.
 
+## 2026-11-16, reviews: a personal forgetting curve
+
+The third of four changes to the review engine. ADR-0009 left personal FSRS parameters to the ML capstone. A modest version comes first: one number, fitted to the learner's own reviews, that stretches or shrinks every interval. ADR-0009 has an amendment for it (Proposed).
+
+**What changed.**
+
+- **`web/src/reviews/personal.ts`**: `fitMultiplier` finds the stability multiplier (0.5 to 2) under which the learner's reviews are most likely, searching 400 steps; `personalCurve` fits it once there are 100 review outcomes; `withPersonalCurve` schedules every card by it; `describeCurve` says it in plain words.
+- **The replay** (`replayWithCredits`) records what the card predicted at each real review, and takes the multiplier for the due date. Cards carry it as `personal`, and `retrievabilityAt` uses it, so the map's memory percentage matches.
+- **`useProgress`** now works out progress for every bundled topic, not only the page's own, so the fit sees every review; it returns the curve as `personalCurve`.
+- **The Account page** has a "Your forgetting curve" section.
+- 10 new tests, among them fits to simulated learners who forget faster or slower than average.
+
+**Author notes:**
+
+- _Remembering means any rating but Again._ The brief for this work said to compare the prediction with whether a review was Good. FSRS's own optimizer counts Hard as remembered, and the 90% target means "not Again": with Good only, the target would quietly become "both items right nine times in ten", and nearly everyone's multiplier would fall. Listed for the owner.
+- _100 reviews, clamped to 0.5 to 2, rounded to 0.05._ The clamp keeps an odd early run from extremes; the rounding keeps one new review from nudging every date.
+- _The fit includes implicit credit's predictions,_ so if credit is worth less than it's given, reviews after it fail more often than predicted and the multiplier falls. The two rules check each other.
+- _Nothing changes for a learner below the threshold;_ the Account page counts down to it.
+- _Every page now works out every bundled topic's progress._ It's a few hundred replays, cheap next to reading the history.
+
+**Next:** review labs for hands-on skills.
+
+## 2026-11-16, reviews: answer time in ratings
+
+The second of four changes to the review engine. A review with every answer right was Good however long it took. Now a right answer that took far longer than this learner usually needs makes the session Hard, which brings the next review a little sooner. ADR-0009 has an amendment for it (Proposed).
+
+**What changed.**
+
+- **`web/src/reviews/answerTime.ts`**: `usualTimes` works out the learner's usual time for each kind of item (the median of their last 50 timed right answers), and `rateSession` turns an all-right Good into Hard when an answer took more than three times that and more than a minute. Kinds with fewer than 10 timed answers aren't judged; labs, missing times and answers carried over from an earlier visit aren't timed.
+- **The skill index** (`web/vite.config.ts`) now keeps each question's type and marks labs, so the usual times come from the whole history without downloading topics. `useProgress` returns them as `usualTimes`.
+- **`PracticeItem`'s `onGraded`** passes the attempt's time as well as whether it was right. **`ReviewSession`** rates with it, says why a slow session is Hard, and records the slow answers in the review event's `data.slow`.
+- 15 new tests (the thresholds, missing history, the floor, speeding up, and a whole session in the browser that took five minutes on a prediction).
+
+**Author notes:**
+
+- _Three times the median and over a minute._ Three times keeps ordinary variation out (times to a known answer are skewed, and most fall within twice the median); the minute keeps careful reading of a quick check out. Both are guesses, and the review log now records what the learner's own data needs to test them.
+- _Labs aren't timed:_ a lab's time is mostly building and starting its container.
+- _Answers from an earlier visit aren't timed,_ because the session can't be sure how they were split across visits; they can't make a session Hard.
+- _Old reviews keep their ratings._ Cards replay stored ratings, and re-rating would change what the learner was told.
+- _Slow means Hard, never Easy._ "Later" suggested time could tell Good from Easy; Easy isn't used, and a lucky fast answer shouldn't lengthen an interval.
+- _The owner may need to restart a running dev server:_ `vite.config.ts` changed.
+
+**Next:** a personal forgetting curve.
+
+## 2026-11-16, Today page: a plan for when and where to study
+
+The last of the Today page's study-habit changes. Deciding in advance when and where you'll do something ("on Monday and Thursday at 7:30 pm, at the library, I'll study") makes following through much more likely than an intention alone; psychologists call these implementation intentions (Gollwitzer and Sheeran, 2006). Putting the plan in the learner's own calendar brings the reminder to where they already look.
+
+**What changed.**
+
+- **The question, asked once** at the foot of the Today page: days (checkboxes), a time, and a place in free text, or "Not now". Once made, the plan shows as one line at the top of the page, naming today's time on one of its days, with "Add to my calendar (.ics)" and "Change my plan". The Account page has a Study plan section to make, change or forget it.
+- **The calendar file** (`web/src/studyplan/calendarFile.ts`): one event repeating weekly on the chosen days (`RRULE:FREQ=WEEKLY;BYDAY=…`), starting at the first of them still ahead, 30 minutes long, with the place, the product name from the config constant, and a link to `/session`. Made in the browser and saved through the existing download helper, which gained `downloadText`.
+- **Storage** (`web/src/studyplan/studyPlan.ts`): `localStorage`, with every read and write in try/catch, and anything stored that isn't a valid plan ignored. When the browser refuses to keep it, the page says so and the plan lasts for the visit.
+- Tests: saving, reading back, junk in storage, blocked storage, "Not now", the sentences (`studyPlan.test.ts`); the first session, the file line by line, escaping, CRLF endings and line folding (`calendarFile.test.ts`); asking, saving, the reminder, "Not now", the at-least-one-day check and the download on the Today page; making, changing, downloading and forgetting on the Account page.
+
+**Author notes:**
+
+- _Kept per device, not with the account._ Saving the plan with the learner's account would need a new event type or table, a migration only the owner can push to the live database. Syncing the plan across devices is left as a future owner decision; it's a small change once a place to keep it exists.
+- _A "floating" time in the calendar file,_ written without a time zone, so "7:30 pm" stays 7:30 pm on the learner's clock even after they travel or the clocks change. Google Calendar, Outlook and Apple Calendar all show floating times in the calendar's own zone.
+- _Asked at the foot of the page, shown back at the top._ The question shouldn't compete with "Start today's session"; the reminder is one line and belongs where the learner starts.
+- _Thirty minutes for the calendar event,_ a common session length; the learner can change it in their calendar.
+- _The time is written by hand_ ("7:30 pm"), because browsers differ in the space they put before "PM" and the sentence should read the same everywhere.
+- _No new event type, table or migration,_ as the brief asked.
+
+**Next:** the Today page stream is done; its decisions go to the owner queue with the coordinator.
+
+## 2026-11-16, topic page: "Check what you know"
+
+The last of today's five topic-page changes. The page already had "Prove it now", which skips everything; this is the lighter option in between.
+
+**What changed.** At the top of a topic's first practice part, a signed-in learner is offered "Check what you know": three to five of the topic's own quick questions (multiple choice, predict the output, estimates), one per skill where the topic has enough. Starting it puts the questions in the practice's place, with a summary at the end ("You got 2 of 3 right…"). Back in the practice, each item whose skills were all answered right on the first try is marked optional: folded behind a dashed line, dashed in the outline, skipped by "Next not done", and not holding its part's tick back. The proofs stay required. Written up as an amendment to [ADR-0025](decisions/0025-topics-in-parts.md).
+
+- `web/src/parts/quickCheck.ts` picks the questions and works out which skills were shown and what's optional; `web/src/parts/QuickCheck.tsx` is the offer and the check. The topic page, the outline and the parts' done marks use them.
+- **How the answers are recorded:** as ordinary `answer` events in context `practice`, with `quick_check: true` in their data, through `PracticeItem`'s existing `eventData`. No new event type, so no migration. `web/src/followups/history.ts` now reads `quick_check` out of the data (one more field in its select, and in a locally recorded event), and `Attempt` has an optional `quick_check`. Described in the [data model](specs/data-model.md).
+- Tested: 9 unit tests for the picking and the counting, 2 for the history read, 1 for a part's tick with optional items, and 3 page tests (the whole flow with the answers saved and the right items optional; a later visit reading it from saved answers; not offered without three quick questions or when signed out).
+
+**Author notes:**
+
+- _Only the first answer to each question counts,_ as in a review: a second try after the feedback shows less about what the learner knew.
+- _An item is optional only when every skill it names was shown._ A lab on two skills stays required after one of them; an item that names no skills is never optional.
+- _A quick-check answer marks its own item Done or Tried,_ like any practice answer, since it is that item answered; a wrong one opens a follow-up as usual. That's honest, and it means a known question isn't asked twice.
+- _Offered once:_ any answer in it counts as taking it, so it isn't offered again (its questions would be ones already answered). Not offered on a Learned topic, or to a signed-out visitor, whose answers aren't saved and so couldn't mark anything.
+- _Parsons problems are left out,_ since they take longer than a quick check should.
+
+**Next:** for the coordinator: the learning-science page could cite Dewar et al. (2012) for the breaks, and the roadmap could note the topic page's five changes.
+
+## 2026-11-16, reviews: implicit repetition
+
+The first of four changes to the review engine. ADR-0009 listed implicit repetition under "Later": when a learner practises an advanced topic, the topics it builds on get part of a review's credit. Math Academy calls its version FIRe. It's built now, as an amendment to ADR-0009 (Proposed).
+
+**What changed.**
+
+- **`web/src/reviews/implicit.ts`** works out the credits from the event log and replays them with each card's own reviews. A review rated Good or a passed proof (a build, a debug, a checkpoint's fresh version or further part) gives a direct prerequisite half a review; a Hard review a quarter; Again nothing. Each step further down the prerequisites halves the share, down to an eighth. Half a review means the next review date moves half way toward where a real Good review that day would have put it.
+- **The guards:** no credit until a topic is half way to due, at most one a day, none while it's relearning, and at most two between its own reviews. A credit never makes a review sooner (a test runs 2,000 random histories) and isn't a review, so Mastered still needs a real one.
+- **`progressOf`** takes a `topicOf` lookup, so a topic on one track can credit one on another; `useProgress` passes `getTopic`. A finished review shows its next date with the credits in.
+- **The topic page reads the whole history,** as the map and the Today page do. A topic's schedule now depends on practice in the topics built on it, and reading only its own history would have shown a different state from the map. This also closes an older gap: a follow-up opened by a checkpoint's test now shows on the topic page.
+- **`npm run sim:reviews`** (in `web/`, `web/scripts/review-load.ts`) simulates a learner, with the real topic graph and the app's own scheduler.
+- 26 new tests, with the ADR's worked examples among them.
+- Three Today-page tests written earlier today proved a topic and, days later, the topic built on it, and expected both to be due. With implicit credit the first one isn't, so their fixtures now use topics that don't build on each other, or prove them a day apart.
+
+**The simulation.** An hour of new study a day through cloud Modules 1 to 3 (38 topics and 3 checkpoints), every due review done, each item right with the chance the card predicts; 20 runs of a year:
+
+| | Reviews in the year | A day, on average | Busiest day | Rated Again |
+| --- | --- | --- | --- | --- |
+| Without credit | 167 | 0.46 | 3.3 | 1.4 |
+| Credit, if it's right | 114 | 0.31 | 2.6 | 0.7 |
+| Credit, if it's worthless | 129 | 0.35 | 3.1 | 4.1 |
+
+So credit spares about a third of the reviews. "Worthless" is the worst case: the schedule trusts the credit while the learner's memory gets nothing from it, so the reviews that are left fail more often. At two hours a day the numbers are much the same (178 reviews without, 114 with). Over all 31 modules' outlines (376 topics, two hours a day, 1,100 days) it spares about a tenth (1,968 to 1,789), because most outlines list only their module's checkpoint as a prerequisite, and credit doesn't cross checkpoints. The written topics list more.
+
+**Author notes:**
+
+- _The cap of 20 a day isn't under threat._ The brief for this work expected the review load to outgrow it at about 340 topics. The simulation doesn't bear that out: with 90% retention, FSRS's intervals grow fast enough that the busiest day of the whole track is about 7 reviews. Implicit repetition is still worth having, for a different reason: it spares reviews of topics the learner uses every week anyway.
+- _Credit reaches three steps down, halving each step,_ not direct prerequisites only, because topics list only their nearest prerequisites (DNS lists Transport, and uses three more). Where two paths reach a topic, the shorter counts; they don't add up.
+- _Credit doesn't pass through a checkpoint._ "Builds on Checkpoint 1" means "comes after Module 1"; passing through would credit every Module 1 topic for any Module 2 review. A checkpoint's own build does credit the topics it lists, because its tests use them.
+- _Half a review is moving the due date half way,_ not a weighted grade inside FSRS's formulas, which FSRS doesn't have. Between real reviews the scheduler stays exactly FSRS-4.5.
+- _Two credits at most between real reviews,_ so credit can't put a topic's own review off for ever. Without it, a topic used every week might never be reviewed, and never become Mastered.
+- _Practice answers don't count:_ they're given while learning a topic, often with hints, so a right one is weak evidence about the topic underneath.
+- _The topic page now pays for a whole-history read,_ as Today and the map already do. When that gets slow, the cache ADR-0008 and ADR-0011 describe is the answer for all three.
+
+**Next:** answer time in review ratings.
+
 ## 2026-11-16, topic page: how an explanation is marked
 
 Part of today's improvement plan for the topic page. The plan asked for an explain-back's rubric points to be shown before the learner writes, unless that would hand them the answer.

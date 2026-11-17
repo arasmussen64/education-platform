@@ -56,7 +56,13 @@ function asAttempt(event: NewEvent, when: string, index: number): Attempt {
 }
 
 /** One page load: the Today page's session for the topic. */
-function openReview(history: Attempt[], { strict = false } = {}) {
+function openReview(
+  history: Attempt[],
+  {
+    strict = false,
+    usualTimes,
+  }: { strict?: boolean; usualTimes?: Map<string, number> } = {},
+) {
   const { log, events } = recordingEventLog()
   const progress = progressOf([content.topic], history).get(content.topic.id)!
   const session = (
@@ -68,6 +74,7 @@ function openReview(history: Attempt[], { strict = false } = {}) {
             progress={progress}
             attempts={history}
             now={new Date().toISOString()}
+            usualTimes={usualTimes}
           />
         </MemoryRouter>
       </EventLogContext>
@@ -211,5 +218,54 @@ describe('a review session', () => {
       screen.queryByText(/answered this one on an earlier visit/),
     ).not.toBeInTheDocument()
     expect(reviewsIn(events)).toHaveLength(0)
+  })
+
+  it('all right but one far slower than usual is Hard, and says why', async () => {
+    // This learner usually gets a prediction right in 20 seconds.
+    const usualTimes = new Map([['predict_output', 20_000]])
+    const { events } = openReview(learnedEvents, { usualTimes })
+    const predict = screen.getByRole('region', { name: 'Predict the output' })
+    await userEvent.type(
+      within(predict).getByLabelText('What will it print?'),
+      'a{Enter}b',
+    )
+    // Five minutes on it: more than three times 20 seconds, and a minute.
+    vi.setSystemTime(new Date(Date.parse(VISIT) + 5 * 60 * 1000))
+    await userEvent.click(
+      within(predict).getByRole('button', { name: 'Fairly sure' }),
+    )
+    await answerQuickCheck('Hi')
+    expect(reviewsIn(events)).toEqual([
+      expect.objectContaining({
+        correct: false,
+        data: {
+          rating: 'hard',
+          items: [
+            { id: 'predict-print', correct: true },
+            { id: 'mcq-print', correct: true },
+          ],
+          slow: ['predict-print'],
+        },
+      }),
+    ])
+    expect(
+      screen.getByText(
+        /^Hard: all right, but one took much longer than you usually need\./,
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('in a usual time is Good, with nothing slow recorded', async () => {
+    const usualTimes = new Map([['predict_output', 20_000]])
+    const { events } = openReview(learnedEvents, { usualTimes })
+    await answerPrediction('a{Enter}b')
+    await answerQuickCheck('Hi')
+    expect(reviewsIn(events)[0]?.data).toEqual({
+      rating: 'good',
+      items: [
+        { id: 'predict-print', correct: true },
+        { id: 'mcq-print', correct: true },
+      ],
+    })
   })
 })

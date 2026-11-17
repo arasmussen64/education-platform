@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,7 +6,7 @@ import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { fetchRatedAnswers } from '../confidence/confidence.ts'
 import type { EventLog } from '../events/eventLog.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
-import { downloadJson } from '../export/download.ts'
+import { downloadJson, downloadText } from '../export/download.ts'
 import { collectExport, type DataExport } from '../export/exportData.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { eventRow, recordingEventLog } from '../test/fakeEvents.ts'
@@ -19,7 +19,19 @@ vi.mock('../export/exportData.ts', async (importOriginal) => ({
   collectExport: vi.fn(),
   exportFileName: () => 'learning-data.json',
 }))
-vi.mock('../export/download.ts', () => ({ downloadJson: vi.fn() }))
+vi.mock('../export/download.ts', () => ({
+  downloadJson: vi.fn(),
+  downloadText: vi.fn(),
+}))
+// The forgetting curve reads the review history from the server: none here.
+vi.mock('../followups/history.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../followups/history.ts')>()),
+  fetchAttempts: vi.fn(async () => []),
+}))
+vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../checkpoints/stepsOpened.ts')>()),
+  fetchStepsOpened: vi.fn(async () => []),
+}))
 // The calibration summary reads the learner's answers from the server.
 vi.mock('../confidence/confidence.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../confidence/confidence.ts')>()),
@@ -98,6 +110,18 @@ describe('the account page', () => {
     expect(
       screen.queryByRole('button', { name: 'Download my data' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('says the forgetting curve is the average one until there are 100 reviews', async () => {
+    renderAccount()
+    expect(
+      screen.getByRole('heading', { name: 'Your forgetting curve' }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        /timed by the average forgetting curve for now\. After 100 reviews the app fits the curve to you; 100 more to go\./,
+      ),
+    ).toBeInTheDocument()
   })
 
   it("downloads the learner's data as a file, and says how much", async () => {
@@ -239,13 +263,12 @@ describe("the account page's calibration summary (ADR-0028)", () => {
       ...rated('guess', 4, 6),
       ...rated('fair', 3, 0),
     ])
-    // An answer only this browser holds counts too.
-    const log = {
-      ...recordingEventLog().log,
-      getLocalRows: () => [
-        eventRow({ id: 'here', correct: true, data: { confidence: 'guess' } }),
-      ],
-    }
+    // An answer only this browser holds counts too. The same array every
+    // time, as the real event log gives it (useSyncExternalStore needs it).
+    const here = [
+      eventRow({ id: 'here', correct: true, data: { confidence: 'guess' } }),
+    ]
+    const log = { ...recordingEventLog().log, getLocalRows: () => here }
     renderAccount({ log })
     expect(
       await screen.findByText(
@@ -277,6 +300,55 @@ describe("the account page's calibration summary (ADR-0028)", () => {
     renderAccount()
     expect(
       await screen.findByText(/Your answers couldn't be read/),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('the study plan on the account page', () => {
+  const section = () => screen.getByRole('region', { name: 'Study plan' })
+
+  it('makes, changes and forgets a plan kept on this device', async () => {
+    renderAccount()
+    await userEvent.click(
+      within(section()).getByRole('checkbox', { name: 'Tuesday' }),
+    )
+    fireEvent.change(within(section()).getByLabelText('Time'), {
+      target: { value: '07:15' },
+    })
+    await userEvent.click(
+      within(section()).getByRole('button', { name: 'Save my plan' }),
+    )
+    expect(section()).toHaveTextContent('Tuesday at 7:15 am.')
+    expect(section()).toHaveTextContent('kept on this device only')
+
+    await userEvent.click(
+      within(section()).getByRole('button', {
+        name: 'Add to my calendar (.ics)',
+      }),
+    )
+    expect(downloadText).toHaveBeenCalledWith(
+      'study-plan.ics',
+      expect.stringContaining('RRULE:FREQ=WEEKLY;BYDAY=TU'),
+      'text/calendar',
+    )
+
+    await userEvent.click(
+      within(section()).getByRole('button', { name: 'Change my plan' }),
+    )
+    await userEvent.click(
+      within(section()).getByRole('checkbox', { name: 'Friday' }),
+    )
+    await userEvent.click(
+      within(section()).getByRole('button', { name: 'Save my plan' }),
+    )
+    expect(section()).toHaveTextContent('Tuesday and Friday at 7:15 am.')
+
+    await userEvent.click(
+      within(section()).getByRole('button', { name: 'Forget my plan' }),
+    )
+    expect(localStorage.getItem('study-plan')).toBeNull()
+    expect(
+      within(section()).getByRole('button', { name: 'Save my plan' }),
     ).toBeInTheDocument()
   })
 })

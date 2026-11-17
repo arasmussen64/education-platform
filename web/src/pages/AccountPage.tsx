@@ -9,10 +9,14 @@ import { couldNotSave, keptAndRetried } from '../events/refusedText.ts'
 import { useEventLogStatus } from '../events/useEvents.ts'
 import { downloadJson } from '../export/download.ts'
 import { collectExport, exportFileName } from '../export/exportData.ts'
+import { useProgress } from '../progress/useProgress.ts'
+import { describeCurve } from '../reviews/personal.ts'
+import { StudyPlanSection } from '../studyplan/StudyPlanParts.tsx'
+import { useStudyPlan } from '../studyplan/useStudyPlan.ts'
 
 // The learner's own page: who's signed in, whether any of their work is
-// still only on this device, and a copy of everything they've done here
-// ("Export my data", v1 spec, F16).
+// still only on this device, their study plan, and a copy of everything
+// they've done here ("Export my data", v1 spec, F16).
 export function AccountPage() {
   const auth = useAuth()
   return (
@@ -37,9 +41,43 @@ export function AccountPage() {
         <>
           <NotSavedYet />
           <CalibrationSummary />
+
+          <StudyPlanOnAccount />
+          <ForgettingCurve />
           <ExportData userId={auth.user.id} />
         </>
       )}
+    </section>
+  )
+}
+
+/** When and where the learner plans to study (studyplan/), to change. */
+function StudyPlanOnAccount() {
+  const state = useStudyPlan()
+  return <StudyPlanSection state={state} />
+}
+
+/** No topics of its own: useProgress adds every bundled topic. */
+const NO_TOPICS: never[] = []
+
+/**
+ * How fast the learner forgets, compared with the average curve the
+ * scheduler starts from, in plain words (ADR-0009, amended 2026-11-16).
+ */
+function ForgettingCurve() {
+  const progress = useProgress(NO_TOPICS)
+  return (
+    <section aria-labelledby="forgetting" className="space-y-2">
+      <h2 id="forgetting" className="text-xl font-semibold">
+        Your forgetting curve
+      </h2>
+      <p className={PROSE}>
+        {progress.status === 'ready'
+          ? describeCurve(progress.personalCurve)
+          : progress.status === 'failed'
+            ? "Your reviews couldn't load, so this can't be worked out right now."
+            : 'Working it out from your reviews…'}
+      </p>
     </section>
   )
 }

@@ -24,10 +24,11 @@ function expectedFor(content: TopicContent) {
       skills: exercise.skills,
       stage: exercise.stage,
       ...(Object.keys(tests).length > 0 ? { test_skills: tests } : {}),
+      ...(exercise.runtime === 'lab' ? { runtime: 'lab' } : {}),
     }
   }
   for (const item of Object.values(content.recall)) {
-    expected[item.id] = { skills: item.skills }
+    expected[item.id] = { skills: item.skills, type: item.type }
   }
   return expected
 }
@@ -62,6 +63,7 @@ describe('the skill index', () => {
   it('covers the topics with questions', () => {
     expect(index['py.programs-and-print']?.['predict-four-lines']).toEqual({
       skills: ['print-commas'],
+      type: 'predict_output',
     })
     expect(index['py.programs-and-print']?.['write-recipe-card']).toMatchObject(
       { stage: 'write' },

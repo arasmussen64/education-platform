@@ -17,10 +17,13 @@ Run these inside `web/`.
 | `npm run format`       | Formats the code (Prettier). `npm run format:check` only reports.       |
 | `npm run build`        | Builds the production version into `dist/`.                             |
 | `npm run time:content` | Times exercises' reference solutions in the browser's Python (below).   |
+| `npm run sim:reviews`  | Simulates a learner's daily reviews, with and without implicit credit.  |
 
 CI runs `format:check`, `lint`, `typecheck`, `test` and `build` on every pull request.
 
 **Timing content.** `npm run time:content` times each exercise's reference solution in Pyodide (the browser's Python), the way the Run and Check buttons run it, and shows what share of its time limit it uses. Add the starts of topic ids to time only some: `npm run time:content -- ml.nn. py.loops`. Rows over 40% are marked and the command exits with an error; an author keeps every exercise under that before a topic is marked `ready` ([content/README.md](../content/README.md)). Close other programs first, because a busy machine reads high. NumPy is imported before timing starts, so on a NumPy topic the first Run or Check on a real page is about half a second slower than the figure shown.
+
+**Simulating reviews.** `npm run sim:reviews` runs a made-up learner through the Cloud Solutions Architect track's first three modules with the app's own scheduler, and prints how many reviews a day they face with and without implicit repetition ([ADR-0009](../docs/decisions/0009-reviews.md), amended 2026-11-16). `npm run sim:reviews -- 120 31 1100` studies 120 minutes a day, through all 31 modules' outlines, for 1,100 days. It reads `content/` and runs in Node, which runs the TypeScript files directly.
 
 **Deploying** happens automatically: Cloudflare builds and deploys every merge to `main` using `wrangler.jsonc`. `npx wrangler deploy --dry-run`, run after `npm run build`, checks the config without uploading anything. `.nvmrc` tells Cloudflare's build which Node version to use; keep it the same as the one at the repository root.
 

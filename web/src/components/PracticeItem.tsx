@@ -53,9 +53,10 @@ type Props = {
   onCheck?: (passed: boolean) => void
   /**
    * Called after each graded attempt, an answer or a Check, with whether it
-   * was correct. Review sessions rate themselves from these (ADR-0009).
+   * was correct and how long it took (null when not known). Review sessions
+   * rate themselves from these (ADR-0009, amended 2026-11-16).
    */
-  onGraded?: (correct: boolean) => void
+  onGraded?: (correct: boolean, durationMs: number | null) => void
 }
 
 type Handlers = {
@@ -260,14 +261,15 @@ export function PracticeItem({
     // or reviews.
     allowTutor: context === 'practice',
     onAnswer(correct, data) {
+      const duration = timer.lap()
       record({
         ...about,
         type: 'answer',
         correct,
-        duration_ms: timer.lap(),
+        duration_ms: duration,
         data,
       })
-      onGraded?.(correct)
+      onGraded?.(correct, duration)
     },
     onActivity(activity) {
       if (activity.kind === 'hint') {
@@ -310,27 +312,29 @@ export function PracticeItem({
         // A lab's result is a Check of the learner's work, like a Python
         // Check, so it's the same event (ADR-0018) and counts the same way.
         const passed = activity.result.passed === activity.result.total
+        const duration = timer.lap()
         record({
           ...about,
           type: 'code_check',
           correct: passed,
-          duration_ms: timer.lap(),
+          duration_ms: duration,
           hints_used: activity.hintsUsed,
           data: labEventData(activity.result),
         })
         onCheck?.(passed)
-        onGraded?.(passed)
+        onGraded?.(passed, duration)
       } else {
         // Undefined when the Check couldn't run (see checkGrade.ts).
         const correct = checkCorrect(activity.outcome)
         const ran = correct !== undefined
+        // A Check that couldn't run isn't an attempt, so the time so far
+        // carries on to the next one.
+        const duration = ran ? timer.lap() : null
         record({
           ...about,
           type: 'code_check',
           correct,
-          // A Check that couldn't run isn't an attempt, so the time so far
-          // carries on to the next one.
-          duration_ms: ran ? timer.lap() : null,
+          duration_ms: duration,
           hints_used: activity.hintsUsed,
           data: checkEventData(activity.code, activity.outcome),
         })
@@ -339,7 +343,7 @@ export function PracticeItem({
         // a checkpoint doesn't count it as a failed try.
         if (ran) {
           onCheck?.(correct)
-          onGraded?.(correct)
+          onGraded?.(correct, duration)
         }
       }
     },
