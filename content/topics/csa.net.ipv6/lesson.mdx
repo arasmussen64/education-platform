@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="IPv4 addresses are 32 bits long, about 4.3 billion of them. IPv6 addresses are 128 bits: four times as long. Roughly how many times as many addresses does IPv6 have? Four times? A million times?">
+
+About 79 billion billion billion times (2⁹⁶). Every bit added doubles the count, so 96 more bits means doubling 96 times, not multiplying by four. That's why IPv6 can give every device its own global address again, and why every IPv6 subnet is given 2⁶⁴ addresses, as many as the whole IPv4 internet squared, however few machines it holds.
+
+</Puzzle>
+
 IPv4 has 2³² addresses, about 4.3 billion, and they ran out years ago. NAT (Module 1 named it: a router rewriting the private addresses of everything behind it to its own public one, topic 27 in full) stretched them, at the price of every connection passing through a translator. **IPv6**, version 6 of the Internet Protocol, has 128-bit addresses, enough to give every device its own global address again. Every cloud supports it beside IPv4, mobile networks run on it, and it changes four things an architect deals with: how addresses are written, how a network is planned, how a machine gets its address, and what protects it. The labs use an office like Layers and packets': laptops `h1` and `h2` on a switch, a router `r1`, the office's internet provider, and a server, `web`, in the cloud.
 
 **Writing an address.** 128 bits are written as eight **groups** of 16 bits each, separated by colons, and each group as four **hex** digits (Layers and packets' hexadecimal: 0 to 9, then `a` to `f` for 10 to 15). One hex digit is 4 bits, which network people call a **nibble**. In full, an address is long: `2001:0db8:0000:0000:0000:ff00:0042:8329`. RFC 5952 sets one **short form**, so that everyone writes an address the same way and a search or a firewall rule finds it:
@@ -10,6 +16,8 @@ IPv4 has 2³² addresses, about 4.3 billion, and they ran out years ago. NAT (Mo
 4. Write the letters in lower case.
 
 To read a short form, count what's written and give `::` the rest: `2001:db8::1` has three groups written, so `::` stands for five. In a URL an address goes in brackets, so its colons aren't read as a port: `http://[2001:db8::80]:8080/`. `sipcalc ADDRESS/64`, from CIDR's toolkit, prints both forms (`Expanded Address` and `Compressed address`) to check your own.
+
+<Check item="est-groups-in-colons" />
 
 **Prefixes on nibble boundaries.** Prefix lengths mean what they meant in IPv4: `/48` fixes the first 48 bits. Lengths that are multiples of 4 cut between hex digits, so the prefix can be read straight off the text: a /48 is the first three groups, a /56 those and the fourth group's first two digits, a /64 the first four groups. Count the digits with the group written in full: in `2001:db8:abcd:1a::`, the fourth group is `001a`, so its /56 is `2001:db8:abcd::/56`, not `...:1a00::/56`. That's why IPv6 plans stick to /32, /48, /52, /56, /60 and /64.
 
@@ -39,6 +47,8 @@ A **link-local address** is on every interface, even with no router anywhere: Mo
 
 ARP broadcasts its question to every machine. A neighbour solicitation goes to the target's **solicited-node** multicast group, `ff02::1:ff` followed by the address's last 24 bits (`ff02::1:ff7a:9104` for an address ending `fe7a:9104`), which only machines whose addresses end that way have joined, so in practice only the owner is woken. Answers land in the neighbour table, `ip -6 neigh`, with Layers and packets' states (`REACHABLE`, `STALE`, `FAILED`).
 
+<Check item="mcq-ndp-not-arp" />
+
 **How a host gets its address.** Plug a laptop into an IPv6 network and, with nobody's help:
 
 1. It makes its link-local address, `fe80::` and a 64-bit **interface identifier**, and checks that no other machine has it: **duplicate address detection** (DAD), a neighbour solicitation for its own new address, sent from `::`. No answer within a second, and the address is its own.
@@ -47,6 +57,8 @@ ARP broadcasts its question to every machine. A neighbour solicitation goes to t
 4. It takes a default route to where the advertisement came from: the router's **link-local** address, `default via fe80::446:42ff:fe11:3dca dev eth0 proto ra`. A link-local address never changes when a network is given a new prefix, so the route survives renumbering.
 
 The interface identifier can be made from the MAC address, **EUI-64**: put `ff:fe` in the middle and flip the second-lowest bit of the first byte, so `8e:26:af:7a:91:04` becomes `8c26:afff:fe7a:9104`. The labs use it, because a new namespace does. But an EUI-64 address carries the laptop's MAC address to every network it joins, so most systems now use a **stable** random identifier for each network instead (RFC 7217), and **temporary** addresses that change every day or so for connections they open (RFC 8981). The rule that bites: SLAAC needs a **/64**. A host ignores a prefix of any other length (RFC 4862) and says nothing; it still takes the default route, so it ends up with a route out and no address to send from.
+
+<Check item="mcq-prefix-56" />
 
 Two alternatives, in a sentence each: **DHCPv6** hands out addresses from a server, as DHCP (the service that gives a machine its IPv4 address when it joins a network) does for IPv4, and the labs don't use it; **prefix delegation** is a router asking its provider for a whole prefix to advertise downstream, which is how home routers get theirs. In the clouds, the platform hands each VM its addresses, and you choose the subnets.
 
@@ -74,9 +86,21 @@ radvd checks what it can, and its journal is the first place to look (`journalct
 | Kept back | the subnet's first four addresses and its last | not stated for IPv6 on the pages read | the subnet's first and last /96 |
 | IPv6-only VMs | supported | not supported: every network card needs an IPv4 configuration | supported, in IPv6-only subnets |
 
+<Check item="est-64s-in-48" />
+
 **Dual stack.** Running both families side by side is **dual stack**: every interface has an IPv4 and an IPv6 address, and a name has both. A **DNS record** is one fact about a name that DNS hands out: an A record holds an IPv4 address (Module 1's `dig` showed them), and an **AAAA record** ("quad A") holds an IPv6 address. Which one does a client use? RFC 6724's default **address selection** table ranks IPv6 above IPv4, so clients try the AAAA address first. And **Happy Eyeballs** (RFC 8305) keeps that from hurting: a client starts an IPv4 attempt 250 milliseconds after the IPv6 one and keeps whichever connects first. So a broken IPv6 path costs each connection a quarter of a second, nobody reports it, and broken IPv6 can go unnoticed for months; a monitor that tests each family on its own catches it. One more line in that table catches people: it ranks a ULA destination below IPv4, so Windows, which follows the table, picks IPv4 over a ULA. Linux keeps an older table that puts the ULA first (on the labs' Ubuntu, `getent ahosts` lists a ULA before an IPv4 address), and an update to RFC 6724 that raises ULAs above IPv4 was waiting to be published in November 2026. So on a network built on ULAs and IPv4, which family a connection uses depends on the machine: test both, don't assume.
 
 Firewalls have to cover both families. nftables tables have a family: `inet` covers IPv4 and IPv6 (the table Module 1 used), `ip` IPv4 only, `ip6` IPv6 only. A server "protected" by a `table ip filter` is wide open over IPv6, and a router whose only filter is an `ip6` table is open over IPv4.
+
+<Story title="Rogue router advertisements in IPv4-only clusters, 2020" source="https://github.com/kubernetes/kubernetes/issues/91507" sourceTitle="CVE-2020-10749: IPv4 only clusters susceptible to MitM attacks via IPv6 rogue router advertisements" license="linked, not copied">
+
+In 2020 Etienne Champetier reported a hole in many Kubernetes clusters whose owners thought IPv6 didn't concern them. (Kubernetes runs programs in containers, small isolated environments that share one Linux machine.) The clusters used IPv4 only, but the machines underneath still had IPv6 switched on, and accepted router advertisements, as a host does by default.
+
+A program in a container allowed to send raw packets, which Kubernetes' default settings allowed, could send its host a router advertisement, and the host would act on it: take a route through the container. Then, whenever a name had a AAAA record, many programs on the host tried IPv6 first, and those connections went through the attacker, who could read or change anything not protected by TLS. Docker, Calico, Flannel, Weave Net and the standard CNI plugins, the parts that connect containers to the network, were all affected (CVE-2020-10749).
+
+The fixes: updated plugins (the CNI plugins' version 0.8.6), `net.ipv6.conf.all.accept_ra = 0` on hosts that don't use IPv6, and taking the raw-packet permission (CAP_NET_RAW) away from untrusted containers. The lesson: IPv6 is on until you switch it off, so a network that "doesn't use IPv6" still needs IPv6 rules.
+
+</Story>
 
 **Egress without NAT.** With an address for every machine, IPv6 needs no translation to reach the internet. What NAT seemed to give, nobody outside opening a connection in, came from its state table, not from the translation: RFC 4864 says plainly that NAT "was not developed as a security mechanism". A **stateful firewall** that admits only replies gives the same protection without rewriting anything. r1's forward chain in the labs is exactly that:
 

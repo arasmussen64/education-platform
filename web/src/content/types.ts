@@ -192,6 +192,42 @@ export type EstimateItem = {
 }
 
 /**
+ * What a typed answer is: a command, whose case matters and which may be
+ * typed after a copied "$ " prompt, or text (a term, a value, a phrase),
+ * whose case doesn't and which may be typed in quotes (ADR-0027).
+ */
+export type TypedKind = 'text' | 'command'
+export type TypedCase = 'sensitive' | 'insensitive'
+
+/** A wrong answer a learner is likely to type, and what went wrong. */
+export type TypedMistake = {
+  id: string
+  /** One or more ways of typing the same slip. */
+  answers: string[]
+  /** Shown when what the learner typed matches one of them. */
+  why: string
+}
+
+/**
+ * A short answer the learner types from memory (ADR-0027). It's right when,
+ * read the item's way (typed.ts), it's one of the accepted answers.
+ */
+export type TypedItem = {
+  id: string
+  type: 'typed'
+  rev: number
+  prompt: string
+  kind: TypedKind
+  /** Left out in the file for the kind's own rule (see typed.ts). */
+  case?: TypedCase
+  /** Every answer that counts. The first is the one the page shows. */
+  answers: string[]
+  mistakes: TypedMistake[]
+  explanation: string
+  skills: string[]
+}
+
+/**
  * One rung of a diagnostic's ladder (ADR-0021): a few multiple-choice
  * questions, and where to refresh the level until the platform teaches it.
  */
@@ -214,7 +250,12 @@ export type Diagnostic = {
 }
 
 export type RecallItem =
-  McqItem | PredictOutputItem | ParsonsItem | PredictShellItem | EstimateItem
+  | McqItem
+  | PredictOutputItem
+  | ParsonsItem
+  | PredictShellItem
+  | EstimateItem
+  | TypedItem
 
 export type Stage =
   'worked_example' | 'fill_in' | 'write' | 'build' | 'debug' | 'review_code'
