@@ -18,6 +18,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (explain it back: how it's marked, before you write)
+
+- Every explain-it-back check has a folded "How it's marked" note under its question: how many points your explanation is checked against and how many a pass needs, that the ideas count and not the wording, and that a missing point brings up to three questions, never the answer. The points' own wording stays hidden, because in every topic it's the answer itself ([ADR-0013](docs/decisions/0013-explain-grading.md), amended, proposed).
+
 ### Added (topic page: the goals at the top, ticked once proven)
 
 - A topic now opens with what you'll be able to do (its goals), at the top of every part: unfolded with the lesson, folded on the other parts. Each goal is ticked once the topic is Learned, when all three proofs have passed, with the date. They're ticked together, since the content doesn't say which proof shows which goal.
