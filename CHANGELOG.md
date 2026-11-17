@@ -24,6 +24,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - "Add to my calendar (.ics)" downloads a calendar file made in the browser: one weekly event on the chosen days at the chosen time (a "floating" local time, so it shows at that time wherever the learner is), 30 minutes long, with the place and a link to today's session. No calendar service is involved. `web/src/studyplan/calendarFile.ts`.
 - The plan is kept on this device only, in `localStorage`, and every read and write is guarded, so the pages work the same without it. It is not saved with the learner's account: that would need a new table or event type, a database change for the owner to decide.
 
+### Added (explain it back: how it's marked, before you write)
+
+- Every explain-it-back check has a folded "How it's marked" note under its question: how many points your explanation is checked against and how many a pass needs, that the ideas count and not the wording, and that a missing point brings up to three questions, never the answer. The points' own wording stays hidden, because in every topic it's the answer itself ([ADR-0013](docs/decisions/0013-explain-grading.md), amended, proposed).
+
 ### Added (topic page: the goals at the top, ticked once proven)
 
 - A topic now opens with what you'll be able to do (its goals), at the top of every part: unfolded with the lesson, folded on the other parts. Each goal is ticked once the topic is Learned, when all three proofs have passed, with the date. They're ticked together, since the content doesn't say which proof shows which goal.

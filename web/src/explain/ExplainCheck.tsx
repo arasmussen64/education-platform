@@ -8,6 +8,7 @@ import type { Explain, Topic } from '../content/types.ts'
 import { useDraft } from '../drafts/useDraft.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
+import { HowItsMarked } from './HowItsMarked.tsx'
 import {
   type GradeExplanation,
   gradeExplanation,
@@ -22,7 +23,8 @@ type State = { status: 'idle' } | { status: 'working' } | GradeOutcome
 /**
  * The explain-it-back check (F7): the learner writes an explanation, and
  * Claude grades it against the rubric (ADR-0013). Every attempt is saved,
- * graded or not. The rubric and the model answer are never shown.
+ * graded or not. How it's marked is shown before the learner writes
+ * (HowItsMarked); the rubric's wording and the model answer never are.
  */
 export function ExplainCheck({
   topic,
@@ -87,6 +89,7 @@ export function ExplainCheck({
         Explain it back
       </h3>
       <Markdown>{explain.prompt}</Markdown>
+      <HowItsMarked explain={explain} />
       {auth.status === 'signed-out' ? (
         <p className="text-sm text-slate-600 dark:text-slate-400">
           <Link to="/sign-in" className="underline">
