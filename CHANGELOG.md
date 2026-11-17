@@ -22,6 +22,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - A topic page now shows one part at a time ([ADR-0025](docs/decisions/0025-topics-in-parts.md), proposed): the lesson, then the practice cut into parts of about 30 minutes, then the proofs. Each part says "Part 2 of 5 · about 30 min" above its heading, and buttons below it go to the parts before and after. The outline beside the page lists the parts with a tick for each one done, worked out from your saved answers, and every link in it opens the right part. The page opens where you were: the part you last looked at on this device if it isn't done, or else the first part that isn't. Parts never lock anything, "Prove it now" opens the proofs part, and checkpoints stay as they were.
 
+### Added (Today page: a welcome-back plan, and new topics earlier in the day)
+
+- After a break of 7 days or more, or whenever more reviews are due than the daily limit of 20 can clear, the Today page opens with a calm plan: "Welcome back" (or "A plan for your reviews"), what's due, and the reviews set out over the next few days within the limit, the most faded first, each day with about how long it takes and, folded away, which topics and how much of each is still remembered. It changes the message only: which reviews are due, their order and the limit are the reviews engine's own. `web/src/session/welcomeBack.ts`.
+- Opened late in the learner's evening (21:00 to 04:00 on their own clock), the Today page adds one line: "It's late in your day: a good time for reviews. A new topic takes fresh attention, so it may go better earlier tomorrow, with a night's sleep after it to help it settle." Nothing is blocked or hidden. `web/src/session/evening.ts`.
+
 ### Added (Today page: honest times from the learner's own pace)
 
 - Once three topics are proven, the Today page compares how long they took the learner with their authors' estimates, and stretches its time figures to match: "about 42 minutes at your pace", with one plain sentence under "Next up": "Topics you've proven took you about 1.4× their estimate, so the times on this page are stretched to match." The guided session's new topic uses the same figure.
