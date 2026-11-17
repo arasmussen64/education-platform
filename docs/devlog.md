@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, topic page: "Check what you know"
+
+The last of today's five topic-page changes. The page already had "Prove it now", which skips everything; this is the lighter option in between.
+
+**What changed.** At the top of a topic's first practice part, a signed-in learner is offered "Check what you know": three to five of the topic's own quick questions (multiple choice, predict the output, estimates), one per skill where the topic has enough. Starting it puts the questions in the practice's place, with a summary at the end ("You got 2 of 3 right…"). Back in the practice, each item whose skills were all answered right on the first try is marked optional: folded behind a dashed line, dashed in the outline, skipped by "Next not done", and not holding its part's tick back. The proofs stay required. Written up as an amendment to [ADR-0025](decisions/0025-topics-in-parts.md).
+
+- `web/src/parts/quickCheck.ts` picks the questions and works out which skills were shown and what's optional; `web/src/parts/QuickCheck.tsx` is the offer and the check. The topic page, the outline and the parts' done marks use them.
+- **How the answers are recorded:** as ordinary `answer` events in context `practice`, with `quick_check: true` in their data, through `PracticeItem`'s existing `eventData`. No new event type, so no migration. `web/src/followups/history.ts` now reads `quick_check` out of the data (one more field in its select, and in a locally recorded event), and `Attempt` has an optional `quick_check`. Described in the [data model](specs/data-model.md).
+- Tested: 9 unit tests for the picking and the counting, 2 for the history read, 1 for a part's tick with optional items, and 3 page tests (the whole flow with the answers saved and the right items optional; a later visit reading it from saved answers; not offered without three quick questions or when signed out).
+
+**Author notes:**
+
+- _Only the first answer to each question counts,_ as in a review: a second try after the feedback shows less about what the learner knew.
+- _An item is optional only when every skill it names was shown._ A lab on two skills stays required after one of them; an item that names no skills is never optional.
+- _A quick-check answer marks its own item Done or Tried,_ like any practice answer, since it is that item answered; a wrong one opens a follow-up as usual. That's honest, and it means a known question isn't asked twice.
+- _Offered once:_ any answer in it counts as taking it, so it isn't offered again (its questions would be ones already answered). Not offered on a Learned topic, or to a signed-out visitor, whose answers aren't saved and so couldn't mark anything.
+- _Parsons problems are left out,_ since they take longer than a quick check should.
+
+**Next:** for the coordinator: the learning-science page could cite Dewar et al. (2012) for the breaks, and the roadmap could note the topic page's five changes.
+
 ## 2026-11-16, reviews: implicit repetition
 
 The first of four changes to the review engine. ADR-0009 listed implicit repetition under "Later": when a learner practises an advanced topic, the topics it builds on get part of a review's credit. Math Academy calls its version FIRe. It's built now, as an amendment to ADR-0009 (Proposed).

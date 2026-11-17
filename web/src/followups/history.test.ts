@@ -155,6 +155,11 @@ describe('toAttempt', () => {
     )
     expect(toAttempt(row(2))).not.toHaveProperty('local_day')
   })
+
+  it('marks a quick-check answer, which the server reads out as text', () => {
+    expect(toAttempt(row(1, { quick_check: 'true' }))?.quick_check).toBe(true)
+    expect(toAttempt(row(2))).not.toHaveProperty('quick_check')
+  })
 })
 
 describe('localAttempt', () => {
@@ -180,6 +185,15 @@ describe('localAttempt', () => {
       data: { code: 'print()', outcome: 'failed' },
     })
     expect(localAttempt(failed)).toBeNull()
+  })
+
+  it('reads the quick-check mark from the data', () => {
+    const answer = eventRow({
+      type: 'answer',
+      correct: true,
+      data: { quick_check: true, choice: 0 },
+    })
+    expect(localAttempt(answer)?.quick_check).toBe(true)
   })
 })
 
