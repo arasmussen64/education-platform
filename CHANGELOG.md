@@ -24,6 +24,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Each tells a real, public incident in its own words, linked to its source: VENOM, the QEMU floppy-controller flaw (Hypervisors); TensorFlow's `Illegal instruction` on CPUs without AVX (CPU architectures); MySQL's "swap insanity" on two NUMA nodes (Cores and memory); AWS's EBS re-mirroring storm of 2011 (Disks); LeftoverLocals, GPU memory left readable between programs (GPUs); the November 2022 Windows update that broke Kerberos (Active Directory); Zerologon (Domain join); and Microsoft's 2019 change to licences on dedicated hosts (Windows licensing).
 - Six new "which one is this?" questions, each telling apart two ideas learners mix up: a wrong architecture or a missing instruction; the IOPS cap or the throughput cap (two); the card's memory or the VM's; a domain controller or a member server; Windows Server's per-VM minimum or SQL Server's.
 
+### Added (lessons: a glossary, with definitions where a word is used)
+
+- A topic can list the terms it teaches in `glossary.yaml` beside its lesson ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed). Where another topic's lesson first uses one, the word has a dotted underline; pressing it, or hovering with a mouse, shows its definition and "Taught in: <topic>", linking to that topic. It works with a keyboard and on a phone, and is never added to headings, links, code, a puzzle or a question.
+- A new page, `/glossary`, lists every term with its definition and the topic that teaches it.
+- The validator checks each `glossary.yaml`: a term or alias is defined by one topic only, across all content, ignoring case; a definition is one line of at most 40 words; a ready topic's lesson uses each term it defines.
+- The validator also asks that each `<Check>`, `<Puzzle>` and `<Story>` tag stands on a line of its own; in the middle of a line, MDX would draw the box inside a paragraph.
+- NAT's topic is the first with a glossary (NAT, source NAT, destination NAT, masquerade, port exhaustion), so ten other lessons that mention NAT now explain it on the spot.
+
 ### Added (lessons: questions inside the lesson, an opening puzzle, and a real incident)
 
 - A lesson can ask one of its topic's practice quick questions where it stands, with `<Check item="..." />`. It's graded and saved exactly as in practice, and the practice ladder leaves it out, so it shows once ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed).
