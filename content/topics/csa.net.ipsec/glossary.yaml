@@ -1,0 +1,21 @@
+# The terms this topic teaches (ADR-0026). Where another topic's lesson
+# first uses one, the app shows its definition and links back here.
+- term: site-to-site VPN
+  definition: An encrypted tunnel across the internet between two networks' gateways, such as an office and a cloud network, so their machines reach each other as if wired together.
+- term: IPsec
+  definition: "The standard for site-to-site VPNs, made of two protocols: IKE, which proves who each end is and agrees keys, and ESP, which carries the encrypted traffic."
+- term: IKE
+  aliases: [Internet Key Exchange]
+  definition: The conversation in which two VPN gateways prove who they are and agree keys and algorithms, on UDP 500 and then 4500. Phase 1 builds the IKE_SA, phase 2 the CHILD_SAs for traffic.
+- term: ESP
+  aliases: [Encapsulating Security Payload]
+  definition: IPsec's protocol for the traffic itself, IP protocol 50, with no ports. In tunnel mode it encrypts a whole packet and wraps it in a new header between the two gateways.
+- term: security association
+  definition: A set of keys and algorithms that two IPsec ends agreed for one purpose, numbered by an SPI that travels in every packet. IKE builds them, and replaces them when they're rekeyed.
+- term: perfect forward secrecy
+  aliases: [PFS]
+  definition: In IPsec, a Diffie-Hellman group in the ESP proposal, so each new set of traffic keys comes from a fresh exchange. A mismatch shows only at the first rekey.
+- term: NAT traversal
+  definition: Wrapping ESP in UDP on port 4500 when IKE detects a NAT between the two gateways, because ESP has no ports a NAT could track.
+- term: MSS clamping
+  definition: Rewriting the largest segment size in each new TCP connection's SYN on a tunnel, in both directions, so no segment is too big for the tunnel and none vanishes where ICMP is dropped.
