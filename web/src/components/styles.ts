@@ -23,6 +23,14 @@ export const PROSE =
 export const CARD =
   'space-y-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900'
 
+/**
+ * The one "forward" action on a page, in Momentum's lime (index.css): the
+ * way on, such as starting today's session. Pine ink on lime reads at well
+ * over 4.5 to 1 in light and dark mode alike. Use it once per screen.
+ */
+export const PRIMARY_BUTTON =
+  'inline-block rounded-md bg-lime-400 px-5 py-2.5 font-semibold text-slate-900 hover:bg-lime-300 disabled:opacity-50'
+
 export const SECONDARY_BUTTON =
   'rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'
 

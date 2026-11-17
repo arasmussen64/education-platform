@@ -512,6 +512,100 @@ describe('reviews on the Today page', () => {
   })
 })
 
+describe("today's session on the Today page", () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  const PRINT = getTopic('py.programs-and-print')!
+  const sessionSection = () =>
+    screen.findByRole('region', { name: "Today's session" })
+
+  it('says what the session holds, and starts it with one button', async () => {
+    renderToday([
+      check(PRINT.prove.build ?? '', true, daysAgo(10)),
+      check(PRINT.prove.debug ?? '', true, daysAgo(10)),
+      { ...answer('explain', true, daysAgo(10)), type: 'explain_submit' },
+      answer('predict-four-lines', false, daysAgo(1)),
+    ])
+    const session = await sessionSection()
+    expect(session).toHaveTextContent(
+      '1 review and 1 mistake coming back, then your next topic, Values and types.',
+    )
+    expect(
+      within(session).getByRole('link', { name: "Start today's session" }),
+    ).toHaveAttribute('href', '/session')
+    expect(
+      within(session).getByRole('link', { name: 'Just 5 minutes' }),
+    ).toHaveAttribute('href', '/session?minutes=5')
+    expect(session).toHaveTextContent(
+      'Just 5 minutes: the one review closest to fading, counted in full.',
+    )
+    // Where the next topic sits in its module.
+    expect(session).toHaveTextContent(
+      /1 of (\d+) topics proven in Module 1, First programs: \d+ to go\./,
+    )
+  })
+
+  it('goes straight to the next topic when nothing is due, with no short version', async () => {
+    renderToday([])
+    const session = await sessionSection()
+    expect(session).toHaveTextContent(
+      'Nothing to review today, so straight to your next topic, Programs and print.',
+    )
+    expect(
+      within(session).queryByRole('link', { name: 'Just 5 minutes' }),
+    ).not.toBeInTheDocument()
+    // Nothing proven in the module yet: a fresh start.
+    expect(session).toHaveTextContent(
+      /A fresh start: Module 1, First programs, begins here, with \d+ topics\./,
+    )
+  })
+})
+
+describe('weeks with practice on the Today page', () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  const hours = () => screen.findByRole('region', { name: 'Practice hours' })
+
+  it('counts the weeks with practice, not a streak of days', async () => {
+    // This week, last week, and four weeks back.
+    renderToday([
+      answer('mcq-print', true, daysAgo(0)),
+      answer('mcq-print', true, daysAgo(8)),
+      answer('mcq-print', true, daysAgo(30)),
+    ])
+    const section = await hours()
+    expect(section).toHaveTextContent('You practised in 3 of the last 5 weeks.')
+    expect(section).not.toHaveTextContent(/streak/i)
+    expect(section).not.toHaveTextContent('A session today counts')
+    const marks = within(section).getByTestId('week-marks').children
+    // Oldest first.
+    expect(
+      [...marks].map((mark) => mark.getAttribute('data-practised')),
+    ).toEqual(['true', 'false', 'false', 'true', 'true'])
+  })
+
+  it('says gently that today counts when this week has nothing yet', async () => {
+    renderToday([
+      answer('mcq-print', true, daysAgo(9)),
+      answer('mcq-print', true, daysAgo(20)),
+    ])
+    const section = await hours()
+    expect(section).toHaveTextContent('You practised in 2 of the last 3 weeks.')
+    expect(section).toHaveTextContent('A session today counts for this week.')
+  })
+
+  it('says nothing about weeks before any practice', async () => {
+    renderToday([])
+    expect(await hours()).not.toHaveTextContent('You practised')
+  })
+})
+
 describe('next up on the Today page', () => {
   beforeEach(() => {
     setFakeRunner()

@@ -37,6 +37,49 @@ So credit spares about a third of the reviews. "Worthless" is the worst case: th
 
 **Next:** answer time in review ratings.
 
+## 2026-11-16, Today page: weeks with practice, and progress through the module
+
+The second of the Today page's study-habit changes. Two findings from behavioural science behind it: a daily streak turns one missed day into a loss, and the fear of losing it pushes people to cram or to give up after the first break, while spaced practice only needs regular returns; and progress feels fastest near the end of a goal (the "goal gradient"), and the start of something new is a natural moment to begin again (the "fresh start" effect).
+
+**What changed.**
+
+- **Weeks, not a streak.** The Practice hours section starts with "You practised in 4 of the last 5 weeks." and five small marks, oldest first. `web/src/progress/weeks.ts` works it out from the graded history: a week is the seven days up to today, then the seven before, in the learner's own recorded days. A learner who began less than five weeks ago is counted over the weeks since then ("2 of the last 2 weeks"), and in their first week it says "You've practised this week." When this week is empty, one line: "A session today counts for this week."
+- **Progress through the module.** The "Today's session" card says where the next topic sits: "6 of 8 topics proven in Module 2, Linux: 2 to go.", or "A fresh start: Module 2, Linux, begins here, with 8 topics." when nothing in it is proven yet. The map shows "N of M proven" beside each module's heading. `web/src/progress/modules.ts`.
+- Tests: the rolling weeks, the shorter count for a new learner, the recorded day winning over the UTC date, placement answers left out, a fast clock, and every sentence (`weeks.test.ts`); the module counts and sentences (`modules.test.ts`); the Today page's line and marks, and the map's counts.
+
+**Author notes:**
+
+- _Rolling weeks, not Monday to Sunday._ With calendar weeks, every Monday morning the current week is empty and the count drops, which is the loss framing this is meant to avoid. A rolling week is always a whole seven days, and a practice day stays in "this week" for seven days.
+- _A new learner isn't shown "1 of the last 5 weeks"._ The count covers the weeks since their first practice, up to five.
+- _What counts as practice:_ any graded attempt (answer, Check, explanation, review), except answers in the placement test, which looks for a starting point rather than practising. The practice-hours total still counts those, as before.
+- _The marks are hidden from screen readers;_ the sentence beside them says the same thing. They use lime, which Momentum keeps for progress fills.
+- _"Proven" counts a module's topics and its checkpoint, not its capstone,_ which the map shows as its own section. Topics still being written aren't in the count, and the sentence says how many there are.
+- _The module line follows the session's next topic,_ so it names the module the learner is about to work in. The "Next up" section keeps its per-track count.
+
+**Next:** honest pacing from the learner's own history.
+
+## 2026-11-16, Today page: one button for today's session
+
+Part of a set of study-habit improvements to the Today page, from behavioural science: the fewer choices a learner has to make before starting, the more likely they start, and a plan for bad days keeps a habit alive when a full session feels like too much.
+
+**What changed.**
+
+- **"Today's session" on the Today page:** a sentence saying what's waiting, and one lime button, "Start today's session". It opens `/session`, which shows one thing at a time: each due review (most faded first, by the FSRS chance of still remembering it), then each mistake coming back today, then the next new topic with a button into it. "Next" moves on at any point; whatever was answered is saved. At the end it counts what was finished during the visit.
+- **"Just 5 minutes"** (`/session?minutes=5`): the one to three reviews closest to fading, nothing else. It is shown only when a review is due.
+- **No grading logic is copied.** A review step is the same `ReviewSession` the Today page shows, and a mistake is the same follow-up card, now in `web/src/followups/FollowUpCard.tsx` with its helpers in `cards.ts`. The order is worked out in `web/src/session/sessionPlan.ts`, which calls `dueReviews` and `reviewsLeftToday` as they are, so the daily limit of 20 and the scheduling are untouched.
+- Tests: the plan's order, the daily limit, the track chosen for the next topic and the five-minute cut (`sessionPlan.test.ts`); the session's steps, grading and saving, the summary, and both versions' empty cases (`SessionPage.test.tsx`); the Today page's sentence and links.
+
+**Author notes:**
+
+- _A page of its own, not a mode of the Today page._ The Today page shows every section at once, and a guided session is the opposite: one step on screen. A route gives it a clean screen, its own Back link, and an address the five-minute version can share with a query (`?minutes=5`). The plan is fixed when the page opens, like the Today page's lists, so finishing a review doesn't reshuffle the steps.
+- _The next topic comes from the track worked in most recently,_ so a learner on two tracks carries on where they were; an untouched track comes after, in the app's order. The Today page's "Next up" still lists every track.
+- _It links to the topic, not to one of its parts._ Topic pages are being split into parts by another stream; the topic page already remembers where the learner was on it and offers to continue there.
+- _At most three reviews in five minutes._ A review asks two questions; three is about what fits. A later change can size it from the learner's own review times.
+- _"Next" never waits for an answer._ Nothing is blocked: a review left half-way still counts its answers (ADR-0009, amended 2026-11-11).
+- _The Start button is lime;_ "Done for today" on the last step is not, because on that step the lime button is the way into the new topic. A shared `PRIMARY_BUTTON` style joins `styles.ts` for this.
+
+**Next:** count practice in weeks rather than a daily streak, and show the current module's progress.
+
 ## 2026-11-16: A "Back to top" button
 
 **The owner asked** for last week's audits to be reviewed and anything buildable from them built, for Module 1 only, and for a button to jump back to the top of long pages. Reviewed: the whole-app audit of 2026-11-10, the cloud track's principal-bar audit of 2026-11-15, and the "Three roads to Distinguished" plan of the same day. Cloud Module 1 has nothing left from any of them: the 2026-11-10 findings were fixed in #209 to #237, and yesterday's leftovers work (#278 to #291) finished what remained. The audits still list Module 1 work in the Python track (multiple-choice items whose right answer is the longest choice) and in the ML track's math refresher (the same, plus placement-test topics with only two questions), and the plan would start Full Stack and Mobile at their Module 1. Asked which to build, the owner said: "Just build the back to top button then. Right now I only care about the cloud track."

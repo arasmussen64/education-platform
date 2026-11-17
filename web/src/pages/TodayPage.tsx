@@ -2,8 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { Markdown } from '../components/Markdown.tsx'
-import { PracticeItem } from '../components/PracticeItem.tsx'
-import { BUTTON, INLINE_CODE } from '../components/styles.ts'
+import { BUTTON, INLINE_CODE, PRIMARY_BUTTON } from '../components/styles.ts'
 import {
   diagnostics,
   getTopic,
@@ -13,14 +12,19 @@ import {
   topicIdsOf,
   tracks,
 } from '../content/content.ts'
-import type { Topic, TopicContent, Track } from '../content/types.ts'
-import { addDays, type Day, dayOf } from '../days.ts'
+import type { Topic, Track } from '../content/types.ts'
+import { dayOf } from '../days.ts'
 import {
-  type Attempt,
+  type Card,
+  dueCards,
+  keyOf,
+  skillName,
+  whenDue,
+} from '../followups/cards.ts'
+import { FollowUpCard } from '../followups/FollowUpCard.tsx'
+import {
   CORRECT_DAYS_NEEDED,
   type FollowUp,
-  type PlannedCard,
-  planCards,
   topicsToLoad,
 } from '../followups/followUps.ts'
 import { useTopicContents } from '../followups/useTopicContents.ts'
@@ -38,9 +42,23 @@ import {
 } from '../placement/describe.ts'
 import { subjectOfDiagnostic } from '../placement/history.ts'
 import { usePlacements } from '../placement/usePlacements.ts'
+import { countModule, describeModule } from '../progress/modules.ts'
 import { nextUp, stateOf, type TopicProgress } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
+import {
+  describeWeeks,
+  type WeeksPractised,
+  weeksPractised,
+} from '../progress/weeks.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
+import {
+  bundledTopics,
+  planSession,
+  QUICK_SESSION_PATH,
+  quickPlan,
+  SESSION_PATH,
+  type SessionPlan,
+} from '../session/sessionPlan.ts'
 import {
   type DueReview,
   dueReviews,
@@ -88,14 +106,7 @@ export function TodayPage() {
 function Plan() {
   // The topics bundled with the app. An outline-only track's topics aren't,
   // and don't need to be: nothing in them can be due or next (content.ts).
-  const topics = useMemo(
-    () =>
-      tracks()
-        .flatMap(topicIdsOf)
-        .map((id) => getTopic(id))
-        .filter((topic) => topic !== undefined),
-    [],
-  )
+  const topics = useMemo(() => bundledTopics(), [])
   const progress = useProgress(topics)
   // Read the clock once, when the page opens.
   const [now] = useState(() => new Date().toISOString())
@@ -104,12 +115,123 @@ function Plan() {
   }
   return (
     <>
+      <StartSession topics={topics} progress={progress} now={now} />
       <Reviews topics={topics} progress={progress} now={now} />
       <Revisit progress={progress} />
       <NextUp topics={topics} progress={progress} />
       <PracticeHours progress={progress} now={now} />
     </>
   )
+}
+
+/** "2 reviews", "1 review". */
+function count(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`
+}
+
+/**
+ * The one button that runs the day's work in order (pages/SessionPage.tsx),
+ * with a sentence saying what's in it, and the five-minute version for a
+ * day with little time. The sections below stay for browsing.
+ */
+function StartSession({
+  topics,
+  progress,
+  now,
+}: {
+  topics: Topic[]
+  progress: ProgressState
+  now: string
+}) {
+  // Fixed when the history first loads, like the sections below.
+  const [plan, setPlan] = useState<SessionPlan | null>(null)
+  if (progress.status === 'ready' && plan === null) {
+    setPlan(
+      planSession({
+        topics,
+        progress: progress.progress,
+        attempts: progress.attempts,
+        followUps: progress.followUps,
+        now,
+      }),
+    )
+  }
+  if (plan === null) return null
+  const { reviews, followUps, next } = plan
+  const due = [
+    reviews.length > 0 && count(reviews.length, 'review', 'reviews'),
+    followUps.length > 0 &&
+      count(followUps.length, 'mistake coming back', 'mistakes coming back'),
+  ].filter(Boolean)
+  if (due.length === 0 && !next) return null
+  const quick = quickPlan(plan).reviews.length
+
+  let summary: string
+  if (due.length === 0) {
+    summary = `Nothing to review today, so straight to your next topic, ${next?.topic.title}.`
+  } else if (next) {
+    summary = `${due.join(' and ')}, then your next topic, ${next.topic.title}.`
+  } else {
+    summary = `${due.join(' and ')}.`
+  }
+  // Capitalise the first word ("2 reviews" needs nothing; "Nothing" has it).
+  summary = summary.charAt(0).toUpperCase() + summary.slice(1)
+  const whereInModule =
+    next && progress.status === 'ready'
+      ? moduleLine(next.topic.id, progress.progress)
+      : null
+
+  return (
+    <section
+      aria-labelledby="session"
+      className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+    >
+      <h2 id="session" className="text-xl font-semibold">
+        Today's session
+      </h2>
+      <p>{summary}</p>
+      {whereInModule && (
+        <p className="text-slate-600 dark:text-slate-400">{whereInModule}</p>
+      )}
+      <Link to={SESSION_PATH} className={PRIMARY_BUTTON}>
+        Start today's session
+      </Link>
+      {quick > 0 && (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Short on time or energy?{' '}
+          <Link to={QUICK_SESSION_PATH} className="underline">
+            Just 5 minutes
+          </Link>
+          :{' '}
+          {quick === 1
+            ? 'the one review closest to fading'
+            : `the ${quick} reviews closest to fading`}
+          , counted in full.
+        </p>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Where the learner stands in the next topic's module (progress/modules.ts):
+ * "6 of 8 topics proven in Module 2, …", or a fresh start. Null for a
+ * capstone, which stands outside its module.
+ */
+function moduleLine(
+  topicId: string,
+  progress: Map<string, TopicProgress>,
+): string | null {
+  const place = placeOf(topicId)
+  if (!place || place.role === 'capstone') return null
+  const count = countModule(place.module, progress, canOpen)
+  return describeModule(place.number, place.module, count)
+}
+
+/** Whether a topic, by ID, is bundled and can be opened. */
+function canOpen(topicId: string): boolean {
+  const topic = getTopic(topicId)
+  return topic !== undefined && isOpen(topic)
 }
 
 /** Says what couldn't load, with a button to try again. */
@@ -146,6 +268,7 @@ function PracticeHours({
     tracks().map((track) => track.id),
     (topicId) => placeOf(topicId)?.track.id,
   )
+  const weeks = weeksPractised(progress.attempts, dayOf(now))
   const recent =
     all.recentMs === 0
       ? 'none of it in the last 7 days'
@@ -156,6 +279,7 @@ function PracticeHours({
       <h2 id="practice-hours" className="text-xl font-semibold">
         Practice hours
       </h2>
+      {weeks && <Weeks weeks={weeks} />}
       {all.attempts === 0 ? (
         <p className="text-slate-600 dark:text-slate-400">
           Nothing counted yet. Every answer, Check and review you finish adds
@@ -181,6 +305,43 @@ function PracticeHours({
         </>
       )}
     </section>
+  )
+}
+
+/**
+ * Consistency, in weeks rather than a daily streak (progress/weeks.ts): a
+ * sentence, and a row of marks for the weeks, oldest first.
+ */
+function Weeks({ weeks }: { weeks: WeeksPractised }) {
+  const { summary, note } = describeWeeks(weeks)
+  const oldestFirst = [...weeks.byWeek].reverse()
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* The sentence beside it says the same, so readers skip the marks. */}
+        <span
+          aria-hidden="true"
+          data-testid="week-marks"
+          className="flex gap-1"
+        >
+          {oldestFirst.map((practised, index) => (
+            <span
+              key={index}
+              data-practised={practised}
+              className={`h-3 w-5 rounded-sm border ${
+                practised
+                  ? 'border-lime-600 bg-lime-400'
+                  : 'border-slate-300 dark:border-slate-700'
+              }`}
+            />
+          ))}
+        </span>
+        <span>{summary}</span>
+      </div>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        A week here is seven days up to today.{note ? ` ${note}` : ''}
+      </p>
+    </div>
   )
 }
 
@@ -479,50 +640,6 @@ function PlacementNote({
   )
 }
 
-/** A question to ask today, with the follow-ups it answers. */
-type Card = PlannedCard & { key: string }
-
-const keyOf = (followUp: FollowUp) => `${followUp.topicId}/${followUp.skillId}`
-
-function dueCards(
-  due: FollowUp[],
-  contents: Map<string, TopicContent>,
-  attempts: Attempt[],
-): Card[] {
-  return planCards(due, contents, attempts).map((card) => ({
-    ...card,
-    key: `${card.topicId}/${card.itemId}`,
-  }))
-}
-
-/** What happened to a follow-up after today's answer, if anything yet. */
-function progressOf(live: FollowUp | undefined, today: Day): string {
-  if (!live) {
-    return `Relearned: you've got this right on ${CORRECT_DAYS_NEEDED} different days.`
-  }
-  if (live.due <= today) return ''
-  return live.missedOn === today
-    ? `Not quite. It comes back ${whenDue(live.due, today)}.`
-    : `Right! It comes back ${whenDue(live.due, today)}, to make sure it sticks.`
-}
-
-/** "today", "tomorrow", or "on Mon, Nov 9". */
-function whenDue(day: Day, today: Day): string {
-  if (day <= today) return 'today'
-  if (day === addDays(today, 1)) return 'tomorrow'
-  const [year = 0, month = 1, date = 1] = day.split('-').map(Number)
-  const noon = new Date(year, month - 1, date, 12)
-  return `on ${noon.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
-}
-
-/** A skill's description, from its topic's outline (always bundled in). */
-function skillName(followUp: FollowUp) {
-  const skill = getTopic(followUp.topicId)?.skills.find(
-    (candidate) => candidate.id === followUp.skillId,
-  )
-  return skill?.description ?? followUp.skillId
-}
-
 /**
  * The mistakes coming back today (ADR-0011), and those coming back later.
  * The follow-ups come with the progress; only the topics of today's cards
@@ -619,56 +736,5 @@ function Revisit({ progress }: { progress: ProgressState }) {
         </section>
       )}
     </>
-  )
-}
-
-function FollowUpCard({
-  card,
-  live,
-  today,
-}: {
-  card: Card
-  /** Every open follow-up as it stands now; a relearned one is missing. */
-  live: Map<string, FollowUp>
-  today: Day
-}) {
-  const { content, followUps } = card
-  const names = followUps.map((followUp) => skillName(followUp))
-  const results = followUps.map((followUp) =>
-    progressOf(live.get(keyOf(followUp)), today),
-  )
-  // One line, unless the skills on this card ended up in different places
-  // (say, one relearned and the other due again in 3 days).
-  const progress =
-    new Set(results).size <= 1
-      ? (results[0] ?? '')
-      : results
-          .map((result, index) => (result ? `${names[index]}: ${result}` : ''))
-          .filter(Boolean)
-          .join(' ')
-
-  return (
-    <div className="space-y-2">
-      <p
-        className={`text-sm text-slate-600 dark:text-slate-400 ${INLINE_CODE}`}
-      >
-        <span className="font-medium">
-          {names.length === 1 ? 'Skill:' : 'Skills:'}
-        </span>{' '}
-        {names.map((name, index) => (
-          <span key={name}>
-            {index > 0 && '; '}
-            <Markdown inline>{name}</Markdown>
-          </span>
-        ))}
-        {' · from '}
-        <Link to={`/topic/${content.topic.id}`} className="underline">
-          {content.topic.title}
-        </Link>
-      </p>
-      <PracticeItem itemId={card.itemId} content={content} context="review" />
-      {/* <output> is announced by screen readers when its text changes. */}
-      <output className="block font-medium">{progress}</output>
-    </div>
   )
 }
