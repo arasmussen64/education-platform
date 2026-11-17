@@ -152,15 +152,17 @@ describe('nextNewTopic', () => {
 
 describe('planSession', () => {
   it('puts the most faded review first', () => {
-    // Both are due; the one learned longer ago has faded further.
+    // Both are due; the one learned longer ago has faded further. (Two
+    // topics that don't build on each other: proving SECOND would give
+    // FIRST implicit review credit, ADR-0009 amended 2026-11-16.)
     const attempts = [
       ...proved(FIRST, daysBefore(30)),
-      ...proved(SECOND, daysBefore(10)),
+      ...proved(CLOUD, daysBefore(10)),
     ]
     const { reviews } = plan(attempts)
     expect(reviews.map((review) => review.topic.id)).toEqual([
       FIRST.id,
-      SECOND.id,
+      CLOUD.id,
     ])
     expect(reviews[0].retrievability).toBeLessThan(reviews[1].retrievability)
   })
@@ -171,7 +173,7 @@ describe('planSession', () => {
     )
     const attempts = [
       ...proved(FIRST, daysBefore(30)),
-      ...proved(SECOND, daysBefore(10)),
+      ...proved(CLOUD, daysBefore(10)),
       ...doneToday,
     ]
     expect(plan(attempts).reviews.map((review) => review.topic.id)).toEqual([
