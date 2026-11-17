@@ -24,6 +24,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - "Add to my calendar (.ics)" downloads a calendar file made in the browser: one weekly event on the chosen days at the chosen time (a "floating" local time, so it shows at that time wherever the learner is), 30 minutes long, with the place and a link to today's session. No calendar service is involved. `web/src/studyplan/calendarFile.ts`.
 - The plan is kept on this device only, in `localStorage`, and every read and write is guarded, so the pages work the same without it. It is not saved with the learner's account: that would need a new table or event type, a database change for the owner to decide.
 
+### Added (topic page: "Check what you know", before the practice)
+
+- A topic's first practice part offers "Check what you know": three to five of the topic's own quick questions, one per skill where it can ([ADR-0025](docs/decisions/0025-topics-in-parts.md), amended). Every practice item whose skills you got right on the first try is then marked optional: folded, dashed in the outline, and not holding its part's tick back. The proofs stay required. The answers are saved as ordinary practice answers with `quick_check: true` in their data, so no new event type or database change was needed.
+
 ### Changed (reviews: implicit repetition)
 
 - Practising a topic now counts as part of a review for the topics it builds on, as Math Academy's "FIRe" does ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). A review rated Good, or a passed build or debug, moves each direct prerequisite's next review half way toward where a real Good review would have put it; a Hard review a quarter of the way; topics further down get half as much at each step. A credit only counts once a topic is half way to due, at most once a day, never while it's relearning, and at most twice between its own reviews. It never makes a review come sooner and never counts toward Mastered. In a simulated year of cloud Modules 1 to 3 it removes about a third of the reviews; `npm run sim:reviews` in `web/` runs the simulation.

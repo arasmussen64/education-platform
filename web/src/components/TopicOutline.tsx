@@ -33,6 +33,8 @@ type Props = {
   items: LadderItem[]
   /** Each attempted item's state, or null while unknown (signed out, loading). */
   states: Map<string, ItemState> | null
+  /** Practice the quick check made optional, by itemKey (ADR-0025, amended). */
+  optional?: Set<string>
   /** When each proof check passed, or null while unknown. */
   passed: Partial<Record<Proof, string>> | null
   /** The place the learner is looking at, if the page can tell. */
@@ -75,6 +77,7 @@ export function TopicOutline({
   done,
   items,
   states,
+  optional = new Set(),
   passed,
   current,
   lessonParts,
@@ -83,10 +86,13 @@ export function TopicOutline({
 }: Props) {
   const stateOf = (item: LadderItem) =>
     states?.get(itemKey(item.content.topic.id, item.itemId))
+  const isOptional = (item: LadderItem) =>
+    optional.has(itemKey(item.content.topic.id, item.itemId))
   const practiceShown = parts.some((part) => part.kind === 'practice')
+  // Optional practice isn't "not done": the quick check showed it's known.
   const nextNotDone =
     states && practiceShown
-      ? items.findIndex((item) => stateOf(item) !== 'done')
+      ? items.findIndex((item) => stateOf(item) !== 'done' && !isOptional(item))
       : -1
   const lessonPart = current?.startsWith(LESSON_PLACE_PREFIX)
     ? Number(current.slice(LESSON_PLACE_PREFIX.length))
@@ -197,6 +203,7 @@ export function TopicOutline({
                 <PracticeSquares
                   part={part}
                   stateOf={stateOf}
+                  isOptional={isOptional}
                   current={isCurrent ? current : null}
                   follow={follow}
                 />
@@ -221,11 +228,13 @@ export function TopicOutline({
 function PracticeSquares({
   part,
   stateOf,
+  isOptional,
   current,
   follow,
 }: {
   part: Extract<TopicPart, { kind: 'practice' }>
   stateOf: (item: LadderItem) => ItemState | undefined
+  isOptional: (item: LadderItem) => boolean
   current: string | null
   follow: (anchor: string) => (event: MouseEvent) => void
 }) {
@@ -238,6 +247,8 @@ function PracticeSquares({
         const number = part.start + offset + 1
         const id = itemPlace(item.content.topic.id, item.itemId)
         const state = stateOf(item)
+        // Optional once the quick check showed its skills, unless done.
+        const optional = state !== 'done' && isOptional(item)
         const isCurrent = current === id
         return (
           <li key={id}>
@@ -245,21 +256,29 @@ function PracticeSquares({
               href={`#${id}`}
               onClick={follow(id)}
               aria-label={`Practice ${number}: ${
-                state ? ITEM_STATE_LABELS[state] : 'not done yet'
+                optional
+                  ? 'optional, from your quick check'
+                  : state
+                    ? ITEM_STATE_LABELS[state]
+                    : 'not done yet'
               }`}
               aria-current={isCurrent ? 'location' : undefined}
               className={`flex h-8 items-center justify-center gap-0.5 rounded border text-xs font-medium ${
                 state === 'done'
                   ? 'border-lime-600 bg-lime-100 text-lime-900 dark:border-lime-500 dark:bg-lime-950 dark:text-lime-200'
-                  : state === 'tried'
-                    ? 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
-                    : 'border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300'
+                  : optional
+                    ? 'border-dashed border-slate-300 text-slate-400 dark:border-slate-700 dark:text-slate-500'
+                    : state === 'tried'
+                      ? 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
+                      : 'border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300'
               } ${isCurrent ? 'ring-2 ring-slate-900 ring-offset-1 dark:ring-white dark:ring-offset-slate-900' : ''}`}
             >
               {number}
               {/* A mark as well as a color, never color alone (F9). */}
               {state === 'done' && <span aria-hidden="true">✓</span>}
-              {state === 'tried' && <span aria-hidden="true">◐</span>}
+              {state === 'tried' && !optional && (
+                <span aria-hidden="true">◐</span>
+              )}
             </a>
           </li>
         )
