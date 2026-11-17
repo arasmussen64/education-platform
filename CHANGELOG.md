@@ -23,6 +23,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A topic can name `review_labs` in its `topic.yaml`: one or two of its own labs short enough to be a 10 to 15 minute refresher ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). When a topic's review checks a gap of two weeks or more and none of its last two reviews had a lab, the review asks one in place of a quick question; the learner runs it and pastes the checker's result as on the topic page. "Do the lab another time" swaps in a question with no penalty, and the lab comes back at the next review. The validator checks each review lab is one of the topic's labs and not a worked example.
 - All 38 ready topics of cloud Modules 1 to 3 name their review labs (54 labs in all, debug and write labs first).
 
+### Added (cloud Module 3, first half: puzzles, questions in the lesson, real incidents)
+
+- The first eight networking topics (layers, CIDR, IPv6, TCP and UDP, routing, NAT, DNS, troubleshooting) each open with a puzzle, ask 3 or 4 of their own practice questions inside the lesson, right after the part each one tests (31 in all), and tell a real incident from its public write-up: Cloudflare's misdelivered ICMP (2015), the borrowed 1.1.1.1 (2018), rogue IPv6 router advertisements in IPv4-only Kubernetes clusters (2020), Expedia's idle connections behind a load balancer (2021), Datadog's vanished routing rules (2023), XING's NAT port race (2017), AWS's empty DynamoDB record (2025) and Slack's first working day of 2021.
+- Five "which one is this?" questions for ideas that are easy to mix up: a refused connection or a timed-out one, longest prefix or administrative distance, source or destination NAT, a recursive resolver or an authoritative server, and the IP header's TTL or a DNS record's.
+
 ### Added (lessons: a glossary, with definitions where a word is used)
 
 - A topic can list the terms it teaches in `glossary.yaml` beside its lesson ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed). Where another topic's lesson first uses one, the word has a dotted underline; pressing it, or hovering with a mouse, shows its definition and "Taught in: <topic>", linking to that topic. It works with a keyboard and on a phone, and is never added to headings, links, code, a puzzle or a question.
