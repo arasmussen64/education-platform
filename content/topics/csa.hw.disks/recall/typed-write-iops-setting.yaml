@@ -1,0 +1,20 @@
+id: typed-write-iops-setting
+type: typed
+rev: 1
+prompt: |
+  In a systemd unit or drop-in, which setting holds a service to at most so many writes a second on one disk, the way a cloud caps a disk's write operations? Type the setting's name, without its value.
+kind: text
+case: sensitive
+answers:
+  - IOWriteIOPSMax
+  - IOWriteIOPSMax=
+mistakes:
+  - id: bandwidth
+    answers: [IOWriteBandwidthMax, IOWriteBandwidthMax=]
+    why: "`IOWriteBandwidthMax=` caps the bytes written a second, the throughput, not the number of writes."
+  - id: reads
+    answers: [IOReadIOPSMax, IOReadIOPSMax=]
+    why: "`IOReadIOPSMax=` caps reads. Writes are capped by `IOWriteIOPSMax=`."
+explanation: |
+  `IOWriteIOPSMax=/dev/lab/data 500` caps the service at 500 writes a second to that disk; systemd writes it into the cgroup's `io.max` as `wiops=500`. Its partners are `IOWriteBandwidthMax=` for bytes a second (given in bytes) and the `IORead...` pair for reads. systemd's settings are spelled with their capitals, so they're typed that way here.
+skills: [disk-caps]

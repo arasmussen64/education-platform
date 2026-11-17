@@ -18,6 +18,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (cloud Module 2: glossaries and typed questions)
+
+- Every topic of the cloud track's Module 2 now lists the terms it teaches in `glossary.yaml`, 60 terms in all (such as SR-IOV, cross-compile, NUMA, local disk, VRAM, domain controller, Group Policy object and Software Assurance). Where a later lesson uses one, the word shows its definition and links back.
+- Sixteen typed questions, two per topic: a command (`systemd-detect-virt --vm`, `uname -m`, `numactl --hardware`, `nvidia-smi`, `klist`, `realm permit -g`, `gpupdate`), a term (instance store, MIG, Product Terms, Azure Hybrid Benefit), a file or setting name (`cpu.stat`, `IOWriteIOPSMax`), a record name or a number, each with the mistakes learners are likely to type.
+
 ### Added (cloud Module 3, first half: glossaries and typed questions)
 
 - Glossaries for the first eight networking topics, 75 terms in all (layers 11, CIDR 9, IPv6 9, TCP and UDP 8, routing 9, NAT 4 more beside its first 5, DNS 9, troubleshooting 7): the networking basics later topics lean on, such as packet, port, TTL, MTU, subnet, router, TCP, UDP and DNS.

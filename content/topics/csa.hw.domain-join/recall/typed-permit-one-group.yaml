@@ -1,0 +1,21 @@
+id: typed-permit-one-group
+type: typed
+rev: 1
+prompt: |
+  A Linux server has joined `ad.shop.test`, and by default every account in the domain may log in. Type the command that lets in only the members of the domain group `linux-admins@ad.shop.test`, and nobody else from the domain.
+kind: command
+answers:
+  - sudo realm permit -g linux-admins@ad.shop.test
+  - realm permit -g linux-admins@ad.shop.test
+  - sudo realm permit --groups linux-admins@ad.shop.test
+  - realm permit --groups linux-admins@ad.shop.test
+mistakes:
+  - id: everyone
+    answers: [sudo realm permit --all, realm permit --all]
+    why: "`--all` lets every account in the domain log in, which is what the join already did."
+  - id: as-a-person
+    answers: [sudo realm permit linux-admins@ad.shop.test, realm permit linux-admins@ad.shop.test]
+    why: "Without `-g`, `realm permit` reads the name as one person's login, and no person is called linux-admins. A group needs `-g`."
+explanation: |
+  `sudo realm permit -g linux-admins@ad.shop.test` sets SSSD's access rule to that group and nobody else, and every way into the machine (SSH, the console, `su`) asks it. Permit a group, never people by name: who may log in to forty servers is then changed in one place, the group's members in the directory. `realm list` shows the rule afterwards.
+skills: [domain-join]

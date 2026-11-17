@@ -1,0 +1,20 @@
+id: typed-kernel-arch-name
+type: typed
+rev: 1
+prompt: |
+  Type the command that prints only the kernel's name for this machine's architecture: `x86_64` on an Intel or AMD server, `aarch64` on an Arm one.
+kind: command
+answers:
+  - uname -m
+  - uname --machine
+  - arch
+mistakes:
+  - id: debian-name
+    answers: [dpkg --print-architecture]
+    why: "That prints Debian's and Ubuntu's name for it, `amd64` or `arm64`: the same architecture under its other name. The kernel's name comes from `uname -m`."
+  - id: everything
+    answers: [uname -a, uname --all]
+    why: "`-a` prints the whole line, kernel name, host name, version and more; the architecture is in there, but not only it. `-m` prints just the machine's architecture."
+explanation: |
+  `uname -m` prints the kernel's name for the architecture: `x86_64` or `aarch64`. (`arch` prints the same.) Debian, Ubuntu, Docker and Go use the other names for the same two architectures, `amd64` and `arm64`, which `dpkg --print-architecture` prints. Each pair is one architecture with two names.
+skills: [read-arch]

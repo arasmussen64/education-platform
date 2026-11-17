@@ -1,0 +1,19 @@
+id: typed-numa-layout-command
+type: typed
+rev: 1
+prompt: |
+  Type the command that prints a machine's NUMA nodes: each node's CPUs, its memory and how much of it is free, and the table of distances between nodes.
+kind: command
+answers:
+  - numactl --hardware
+  - numactl -H
+mistakes:
+  - id: lscpu
+    answers: [lscpu]
+    why: "`lscpu` lists which CPUs belong to each node, in its `NUMA node0 CPU(s)` lines, but not the nodes' memory or the distances between them."
+  - id: numastat
+    answers: [numastat, numastat -p]
+    why: "`numastat` shows where memory has been given out, node by node (with `-p`, for one process), not the machine's layout and distances."
+explanation: |
+  `numactl --hardware` (or `-H`) prints each node's CPUs, its memory and what is free, then the distances: 10 for local, 21 for roughly twice as far. The same program runs a command on one node's CPUs and memory with `--cpunodebind` and `--membind`.
+skills: [numa]

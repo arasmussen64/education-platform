@@ -2,6 +2,25 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, cloud Module 2 content: glossaries and typed questions
+
+The second content pass over the cloud track's Module 2, now that the glossary (#310) and typed answers (#298, [ADR-0027](decisions/0027-typed-answers.md)) are on main.
+
+**What changed.**
+
+- **A `glossary.yaml` for each of the eight topics,** 60 terms in all, 6 to 8 a topic: the words each lesson puts in bold and explains and that later topics lean on (SR-IOV, live migration, cross-compile, `x86-64`/`amd64`, vCPU, NUMA, CPU credit, local disk, network-attached disk, VRAM, MIG, domain controller, Kerberos, keytab, computer account, Group Policy object, Entra ID, Software Assurance, License Mobility, Listed Provider and the rest). Each definition is one line in our own words; the validator confirms each lesson uses its terms.
+- **Sixteen typed questions,** two per topic, in each practice ladder after the question on the same idea: `typed-detect-vm` and `typed-paravirtual-nic-driver` (Hypervisors); `typed-kernel-arch-name` and `typed-illegal-instruction-status` (CPU architectures); `typed-numa-layout-command` and `typed-throttle-counter-file` (Cores and memory); `typed-aws-local-disk-name` and `typed-write-iops-setting` (Disks); `typed-gpu-report-command` and `typed-partition-feature` (GPUs); `typed-list-tickets` and `typed-ldap-srv-name` (Active Directory); `typed-permit-one-group` and `typed-apply-policy-now` (Domain join); `typed-final-word` and `typed-azure-byol-benefit` (Windows licensing). Seven ask for a command, the rest for a term, a file or setting name, a record name or a number, and each lists the mistakes learners are likely to type with why they're wrong.
+- Each topic's `estimated_minutes` grows by 3 for its two questions.
+
+**Author notes:**
+
+- _Terms left to the topics that teach them first._ "Hypervisor" is in bold in Module 1's CPU and containers lessons, IOPS and throughput in its storage lesson, and DNS's words (resolver, zone, SRV record) belong to Module 3's DNS topic, so Module 2 defines none of them. Every term was checked, ignoring case, against every `glossary.yaml` on main and in the open PRs #313 and #315: no clashes.
+- _Words left out because they'd be marked in the wrong sense elsewhere:_ "inference" (the ML track's Bayes lesson means statistical inference), and plain words like "directory", "guest" and "tenant" (Entra's tenant is another thing).
+- _`IOWriteIOPSMax` is typed with its capitals_ (`case: sensitive`): systemd's setting names are case-sensitive, and the question says to type the name.
+- _`gpupdate` is case-insensitive_ (`case: insensitive`), as Windows commands are. `Invoke-GPUpdate` isn't listed as a mistake, because it can also refresh the machine it runs on.
+
+**Next:** Module 2 has every building block. Its checkpoint has no lesson, so nothing there to add.
+
 ## 2026-11-16, cloud Module 3 content (first half): glossaries and typed questions
 
 The second of two pull requests for cloud Module 3's first eight topics (`csa.net.layers`, `cidr`, `ipv6`, `transport`, `routing`, `nat`, `dns`, `troubleshooting`), now that the glossary (#310) and typed answers (#298) are on main.

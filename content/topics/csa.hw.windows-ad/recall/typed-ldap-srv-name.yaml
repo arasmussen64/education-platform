@@ -1,0 +1,21 @@
+id: typed-ldap-srv-name
+type: typed
+rev: 1
+prompt: |
+  A new server knows only the domain's name, `ad.shop.test`, and must find a domain controller that offers LDAP over TCP. Type the full name of the DNS record it asks for.
+kind: text
+answers:
+  - _ldap._tcp.ad.shop.test
+mistakes:
+  - id: kerberos-record
+    answers: [_kerberos._tcp.ad.shop.test]
+    why: "That record lists the domain's Kerberos servers, the KDCs, on port 88. The one for LDAP starts `_ldap._tcp`."
+  - id: plain-name
+    answers: [ad.shop.test]
+    why: "The domain's own name says nothing about which host offers which service. The SRV record that answers that is `_ldap._tcp.ad.shop.test`."
+  - id: udp
+    answers: [_ldap._udp.ad.shop.test]
+    why: "The question was LDAP over TCP: the record's second label names the transport, `_tcp`."
+explanation: |
+  The member asks for the SRV record `_ldap._tcp.ad.shop.test`: the service, then the transport, then the domain. The answer is a line like `0 100 389 dc1.ad.shop.test.`, a priority, a weight, the port and the host. That only works through a resolver that knows the domain; an ordinary one answers `NXDOMAIN`.
+skills: [dc-discovery]

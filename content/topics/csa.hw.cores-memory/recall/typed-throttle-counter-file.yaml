@@ -1,0 +1,21 @@
+id: typed-throttle-counter-file
+type: typed
+rev: 1
+prompt: |
+  An API is slow in bursts on a VM with `st` at 0. You suspect its own CPU quota. Which file in the service's control group folder holds `nr_throttled`, the count that rises each time the quota stops it? Type the file's name.
+kind: text
+answers:
+  - cpu.stat
+mistakes:
+  - id: the-quota-itself
+    answers: [cpu.max]
+    why: "`cpu.max` holds the quota itself, how much CPU time the group may use in each period, not the count of times it was stopped."
+  - id: memory-throttle
+    answers: [memory.events]
+    why: "`memory.events` counts the memory throttle (its `high` line), a different cap. The CPU quota's count is in `cpu.stat`."
+  - id: pressure
+    answers: [cpu.pressure]
+    why: "`cpu.pressure` says what share of the time work waited for CPU, which a quota raises, but it doesn't count the quota's stops. `nr_throttled` is in `cpu.stat`."
+explanation: |
+  `cpu.stat` holds the CPU counters of a control group, among them `nr_throttled`, the number of periods in which the quota stopped it. Read it twice, a few seconds apart: if it rises while `st` is 0 and CPUs sit idle, the service's own quota is the cap, and raising or removing it helps where a bigger VM wouldn't.
+skills: [stolen-or-capped]
