@@ -25,6 +25,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A lesson can tell a real public incident with `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>`, in the platform's own words, linking the postmortem it's drawn from.
 - The validator checks every tag in a lesson: only the six the app can draw, each written as `content/README.md` says, with the lesson's line in every problem.
 
+### Added (Today page: weeks with practice, and progress through the module)
+
+- Practice hours on the Today page opens with consistency counted in weeks, never as a daily streak: "You practised in 4 of the last 5 weeks.", with a row of five marks, oldest first. A week is the seven days up to today, in the learner's own calendar days (each event's recorded day), and a learner newer than five weeks is counted over the weeks since they began. When this week has nothing in it yet, one line says a session today counts for it; there are no warnings. `web/src/progress/weeks.ts`.
+- "Today's session" says where the next topic sits in its module: "6 of 8 topics proven in Module 2, Linux: 2 to go.", or, when nothing in the module is proven yet, "A fresh start: Module 2, Linux, begins here, with 8 topics." The map shows each module's count beside its heading ("1 of 14 proven"). `web/src/progress/modules.ts`. No points, badges or confetti.
+
 ### Added (Today page: one button for today's session, and a five-minute version)
 
 - The Today page opens with "Today's session": one sentence saying what is waiting ("1 review and 1 mistake coming back, then your next topic, Values and types.") and a lime "Start today's session" button. It opens a new page, `/session`, that goes through the day's work one step at a time: the due reviews, the most faded first, then the mistakes coming back today, then the next new topic, in the track the learner worked in most recently. Every section below stays for browsing.
