@@ -1,0 +1,16 @@
+id: contrast-alpn-or-alt-svc
+type: mcq
+rev: 1
+prompt: |
+  A browser opens its first connection to the shop, over TCP. In the TLS handshake it offers `h2,http/1.1` and the server accepts `h2`. The answer to its first request carries `alt-svc: h3=":443"; ma=86400`. What has each of the two mechanisms decided?
+choices:
+  - "ALPN chose HTTP/2 for this connection; Alt-Svc says HTTP/3 may be tried on a later one"
+  - "ALPN chose HTTP/2 for this connection; Alt-Svc moves this same connection onto HTTP/3"
+  - "Alt-Svc chose HTTP/2 for this connection; ALPN says to try HTTP/3 over UDP port 443 later"
+  - "Both chose HTTP/3, and the browser must keep HTTP/2 until the 86,400 seconds are up"
+answer: 0
+explanation: |
+  The two answer different questions at different times. **ALPN** works inside the TLS handshake of the connection being made: the client lists the protocols it speaks over this connection and the server picks one, here `h2`, so this TCP connection carries HTTP/2. It can only choose among protocols that run over TCP and TLS, because the connection already exists.
+
+  **Alt-Svc** is an HTTP header, so it arrives only after the connection is up and a request has been answered. It advertises an *alternative*: HTTP/3, which runs over QUIC on UDP, at port 443 of the same site, worth remembering for 86,400 seconds (a day). The browser tries it next time; the current TCP connection can't turn into a QUIC one, since QUIC is a different transport. Nothing waits for `ma` to run out: it is how long the advertisement stays good, not a delay. When the browser does connect over QUIC, ALPN is used again inside QUIC's own handshake, and that time it settles on `h3`.
+skills: [http-versions]

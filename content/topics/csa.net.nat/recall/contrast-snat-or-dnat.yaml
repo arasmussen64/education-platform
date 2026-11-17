@@ -1,0 +1,16 @@
+id: contrast-snat-or-dnat
+type: mcq
+rev: 1
+prompt: |
+  The shop's gateway, gw, has two jobs. Job A: let the office laptops (10.1.0.0/24) browse the internet from gw's public address, 198.51.100.2. Job B: send customers who connect to 198.51.100.2, port 443, on to the app at 10.1.0.20. Which kind of NAT does each job, and which address in the first packet does it rewrite?
+choices:
+  - "A is source NAT, rewriting the laptop's address; B is destination NAT, rewriting gw's address"
+  - "A is destination NAT, rewriting the website's address; B is source NAT, rewriting the customer's"
+  - "A is source NAT, rewriting the website's address; B is destination NAT, rewriting the customer's"
+  - "A is destination NAT, rewriting the laptop's address; B is source NAT, rewriting gw's address"
+answer: 0
+explanation: |
+  Name the kind by the field it rewrites. In job A the laptop's packet leaves with its own private address as the **source**, `10.1.0.10`, which nobody on the internet can answer, so gw rewrites the source to `198.51.100.2`: source NAT (masquerade, in `postrouting`). The website's address is the destination and must stay as it is, or the packet goes somewhere else. In job B the customer's packet arrives with gw's public address as its **destination**, so gw rewrites the destination to `10.1.0.20`: destination NAT (in `prerouting`, before the routing decision). The customer's address is the source, and stays, so the app's logs see the real customer.
+
+  Swapping the two kinds gets each job backwards: destination NAT on the way out would send the laptops' packets to a different server, and source NAT on the way in would hide every customer behind one address. Rewriting the website's or the customer's address breaks the one field each connection has to keep.
+skills: [snat-and-dnat]
