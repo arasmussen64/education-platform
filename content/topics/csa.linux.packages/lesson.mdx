@@ -1,14 +1,36 @@
 <Intro>
 
+<Puzzle question="A script has run `apt update` on a server every night for a year, and succeeded every time. The server still has a year-old, well-known security hole in a library it uses. How?">
+
+`apt update` installs nothing. It only downloads the latest list of what's available, so the server has known about the fix for a year without applying it. Installing the newer versions is a second command, `apt upgrade`, and some fixes need a restart or a reboot on top before the running programs use them. The two commands are this lesson's first trap.
+
+</Puzzle>
+
 Software on a Linux server arrives in **packages**: one file per program or library, holding the files to install, a version number, and a list of other packages it needs, its **dependencies**. A **package manager** downloads packages from **repositories** (servers run by the distribution, signed so they can't be tampered with), works out the dependencies, installs everything in the right order, and keeps a database of what's installed. Debian and Ubuntu use `apt` (with `dpkg` underneath); Red Hat, Fedora and their relatives use `dnf` (with `rpm` underneath). The ideas are the same; the spelling differs.
 
 **The everyday commands.** `apt install nginx`, `apt remove nginx` (keeps its config files) or `apt purge nginx` (removes those too), `apt search text`, `apt show nginx`. `dpkg -l` lists every installed package with a two-letter state: `ii` means installed, `rc` means removed but its config files are still there. `apt policy nginx` shows the version installed and the version available (the **candidate**). On the dnf side: `dnf install`, `dnf remove`, `dnf search`, `dnf info`, `rpm -qa` to list, `dnf history` to see what changed when.
+
+<Check item="pkg-dpkg-states" />
 
 **Two different commands people confuse.** `apt update` downloads the *list* of available packages from the repositories. It installs nothing; it just refreshes what `apt` knows. `apt upgrade` installs the newer versions of what's already installed. So the ritual is `apt update` first, then `apt list --upgradable` to see what would change, then `apt upgrade`. (`dnf check-update` and `dnf upgrade` are the pair there.) `apt full-upgrade` may also remove packages to untangle dependencies, so read what it proposes.
 
 **Where packages come from.** The files in `/etc/apt/sources.list.d/` (and the older `/etc/apt/sources.list`) name the repositories. Ubuntu 24.04 keeps its own in `ubuntu.sources`, one block with `URIs:`, `Suites:` and `Components:` lines; older one-line entries, `deb URL suite components`, still work and you'll meet both. Each entry names a **suite**: `noble` is the release as shipped, `noble-updates` its bug fixes, `noble-security` its security fixes. The security suite is how you tell a security update from the rest: `apt list --upgradable` names the suite on each line. Adding a third-party repository means adding its signing key, and that means trusting its owner with root on your server, because packages run scripts as root when they install. Prefer the distribution's own repositories, and read a third party's instructions with that in mind.
 
+<Check item="pkg-security-updates" />
+
 **Patching without breaking things.** Security updates first, and regularly: `unattended-upgrades` on Ubuntu and `dnf-automatic` on Fedora and RHEL can install them for you every night. A package you can't afford to have change under you, a database you've tested at one version, say, can be **held** (`apt-mark hold postgresql`; `apt-mark showhold` lists the holds, `unhold` releases one) or **version-locked** (`dnf versionlock add`), so it stays put while everything else updates; release the hold when you're ready to upgrade it deliberately. To upgrade a chosen few and nothing else, `apt install --only-upgrade pkg1 pkg2`. In a script nobody is watching, `apt`'s "Do you want to continue?" needs `-y`, and `dpkg-query -W -f='${Version}' pkg` prints just a package's installed version. Some updates only take effect after a restart. A new kernel or a new C library needs a **reboot**; Ubuntu writes `/var/run/reboot-required` (and lists the packages in `reboot-required.pkgs`) to tell you, and RHEL's `needs-restarting -r` answers the same question. Other services need restarting because a library they loaded has changed: `needs-restarting` lists them, and `checkrestart` does on Debian. On a fleet, patch one server and watch it before the rest.
+
+<Check item="pkg-reboot-required" />
+
+<Story title="Datadog's automatic update, 2023" source="https://www.datadoghq.com/blog/2023-03-08-multiregion-infrastructure-connectivity-issue/" sourceTitle="2023-03-08 Incident: Infrastructure connectivity issue affecting multiple regions" license="linked, not copied">
+
+On 8 March 2023, customers of Datadog, a company whose service watches other companies' servers, found its website and API unreachable in five regions at once, and its alerts silent. Some services were back that afternoon; all of them took until the next morning, and filling in the missing data took until 10 March.
+
+At 06:00 UTC, a security update to systemd installed itself on tens of thousands of Datadog's Ubuntu 22.04 servers. The disk image the servers were all built from still had an old automatic security-update channel turned on, and every server used the operating system's default update window, 06:00 to 07:00 UTC, so they all patched in the same hour. The update restarted systemd's network service, and on that version the restart deleted network routes that the containers' networking software had added. The servers dropped off the network.
+
+Datadog turned that update channel off everywhere (its own tooling installs security updates instead), set the network service to leave the routes alone when it restarts, and audited its fleet for other forgotten update channels. The lesson: automatic updates are good, and patching a whole fleet in the same hour is not.
+
+</Story>
 
 **Mutable or immutable.** A server you patch in place is **mutable**: it changes over time, and after two years of hand-applied fixes no two servers are quite the same, which is why nobody dares touch the old one. The cloud makes the other approach cheap: build a new **image** with the updates baked in, test it once, and **replace** the running servers from it a few at a time behind the load balancer. Nothing is patched in place, every server is identical and known, and rolling back means redeploying the previous image. Martin Fowler's short *Immutable Server* and *Phoenix Server* notes are the classic statement of the idea; later modules build it with Packer and autoscaling groups.
 

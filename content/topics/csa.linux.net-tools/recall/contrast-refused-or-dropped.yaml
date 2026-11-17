@@ -1,0 +1,16 @@
+id: contrast-refused-or-dropped
+type: mcq
+rev: 1
+prompt: |
+  From the office you test port 5432 on two database servers with `nc -zv`. Server A's attempt fails at once with "Connection refused". Server B's prints nothing for ten seconds and then gives up with "Connection timed out". What does each result tell you?
+choices:
+  - "A was reached, but nothing there accepted the port; B's packets got no answer at all"
+  - "A has a firewall dropping the port; B's database is running but too busy to answer"
+  - "A is too far away to reply in time; B's port is open and the database is starting up"
+  - "Both mean a firewall blocks the port; the timeout only means the firewall is busier"
+answer: 0
+explanation: |
+  "Refused" is an answer: the server's kernel sent a reset back in reply to the opening SYN, at once. So the machine is up and reachable, and nothing accepts connections on that address and port: the database is stopped, it listens only on `127.0.0.1`, or a firewall rule with `reject` answers on its behalf. The next step is on server A itself: `ss -ltnp`.
+
+  A timeout is silence: the SYN went out, was sent again, and nothing ever came back. Something swallowed it, which is what a firewall's `drop` policy or a cloud security group does, or the packets had no route, or the machine is gone. The next step is the path: the firewall rules, the security group, and `tcpdump` on each side to see how far the SYN gets. A slow or busy database almost always still answers the handshake, because the kernel completes it for any port that is listening, before the program does anything.
+skills: [test-tools, firewall-path]

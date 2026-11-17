@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="A web server writes one line per request, ending with a status code (500 means the server failed) and the number of bytes it sent. You search the log for `500` to find the failures. Why does the list include requests that worked perfectly?">
+
+Because the search looks at the whole line, not at the status. A request that sent back 1500 bytes, or asked for `/items/500`, contains `500` too. The shell does exactly what you typed, so you learn to say precisely what you mean: search for ` 500 ` with a space on each side, or test just the status column. This topic is about saying it precisely.
+
+</Puzzle>
+
 Most cloud servers run **Linux**: an operating system, the software that runs a machine and every program on it, as Windows does on a PC. A server has no screen of its own, so you work on it through a **shell**: a program that reads a line of text you type, runs it as a command, and prints the result. No windows, no mouse. It feels bare at first, and then it becomes the fastest way there is to ask a machine a question. This topic is about reading and writing those commands.
 
 **Open a terminal and type along.** A **terminal** is the window a shell runs in. On Windows, open **Git Bash**, which comes with Git for Windows (if you don't have it yet, git-scm.com has the installer): it runs `bash`, the shell most Linux servers use, and nearly every command in this topic works in it. (PowerShell is a different shell with different commands. WSL, if you have it, is a real Linux and works too.) On a Mac, open Terminal. The shell shows a **prompt**, a short line that ends in `$`, and waits. Type a command after it and press Enter. Start with a scratch folder and a small file to practise on, so nothing you try touches your real files:
@@ -18,7 +24,11 @@ echo "error: retrying" >> app.log
 
 **Where you are.** Files live in a tree of folders (the readings call them **directories**) that starts at `/`, the root. `/var/log/app.log` is an *absolute* path: it starts from the root. `logs/app.log` is *relative*: it starts from where you are now, which `pwd` prints. `cd logs` moves into a folder, `cd ..` moves up one, `cd` on its own goes to your home folder, which the shell also calls `~`, and `ls` lists what's here. `cat` prints a whole file, `head -n 20` and `tail -n 20` print its first or last twenty lines, and `find . -name '*.log'` walks every folder below you looking for names that end in `.log`: the `.` means "here", `*` stands for any run of characters, and the quotes hand the `*` to `find` untouched, where the shell would otherwise fill it in itself. If you tried the `cd` commands, go back to your practice folder before you carry on, because the next examples need `app.log`: `cd ~/scratch` does it, as long as you made `scratch` in your home folder, which is where a new terminal usually starts.
 
+<Check item="shell-find-logs" />
+
 **Everything is text, flowing.** This is the idea that makes the shell powerful. Every program reads from an input stream, **stdin**, and writes to an output stream, **stdout**, plus a second output stream, **stderr**, for complaints. The pipe, `|`, connects one program's output to the next program's input. So `grep -i error app.log | wc -l` runs `grep` to keep only the lines that mention an error, in capitals or not, and `wc -l` counts the lines it was handed: `2`, for your file. Small tools, each doing one thing well, joined into a **pipeline** that answers your question. `>` sends output into a file instead of the screen (replacing the file), `>>` adds to the end of a file, and `<` goes the other way, feeding a file into a program's input: `wc -l < app.log`. `2>/dev/null` throws the complaints away (`2` is stderr's number, and `/dev/null` is a special file that discards whatever is written to it), and `2>&1` folds them into the main output so you can see or search them. Every command also leaves an **exit status**, a number that says how it went: `0` means it worked, anything else means it didn't. `echo $?` prints the last one.
+
+<Check item="shell-redirect-overwrite" />
 
 **The question-answering tools.** The readings show most of them at work, and the practice below exercises every one. Two kinds of file come up again and again. A web server, the program that sends a site's pages to the browsers that ask for them, keeps an **access log**: one line for each **request**, each time a browser asked it for something, like `GET /cart 200 512`: the method (`GET` asks for a page, `POST` sends something in), the path (which page), the **status code** (three digits for how it went: `200` is fine, the 400s mean the request was wrong, as in `404` for a page that isn't there, and the 500s mean the server itself failed) and the number of bytes sent back. A **CSV** file (comma-separated values) is a table as text: one row per line, commas between the columns, and often a **header**, a first line that names the columns. You have neither kind in your scratch folder, so read the examples that use them; the first lab's machine has both.
 
@@ -30,6 +40,8 @@ echo "error: retrying" >> app.log
 - To change text: `sed 's/old/new/g'`. Without the `g`, only the first match on each line changes.
 - To test one column or add one up: `awk '$4 > 1000' access.log` keeps the requests that sent back more than 1,000 bytes (`>=` means "at least" and `==` means "exactly"); `awk -F, '$3 > 100 {print $1}'` splits on commas and prints the first field of every row whose third is over 100; `awk -F, '{total += $3} END {print total}'` adds the third field up. A header's words aren't numbers, so skip the header, or it can slip through a test like these: `tail -n +2` first, or `NR > 1 &&` in front of the test (`NR` is the number of the line `awk` is on).
 - The same for **JSON**, a text format that cloud tools print constantly: names and values inside braces, like `{"name": "web-1", "port": 8080}`, with lists in square brackets. Its tool is `jq`, which the next paragraph is about.
+
+<Check item="shell-grep-count-case" />
 
 **JSON, and `jq`.** More and more programs write their logs as **JSON lines**: one JSON object on each line, every value with its name in front of it. Here are two lines of a shop's API log, `api.jsonl`:
 
@@ -48,6 +60,16 @@ Both have the same six fields (`ms` is how long the request took, in millisecond
 Once `jq` has pulled the values out, they are ordinary lines, and everything above applies. `jq '.status' api.jsonl | sort | uniq -c | sort -rn` counts the requests by status. `jq -c 'select(.ms > 1000)' api.jsonl | wc -l` counts the slow ones; the `-c` matters there, because without it each object is spread over eight rows or more and `wc -l` counts rows. A filter can also walk into a bigger document: `jq '.servers[0].name'` reads as "the `name` of the first item, counting from 0, in the list called `servers`". Git Bash has no `jq`, so you can't type these along here; the last lab of the practice has it, and this log.
 
 **Build pipelines one stage at a time.** Run the first command and look at what it prints. Add the next stage, look again. The up-arrow key brings back the line you typed last, ready to add to. A pipeline you can't predict is one you can't trust, which is why the practice here asks you to predict a command's output before anything runs.
+
+<Story title="Amazon S3's typo, 2017" source="https://aws.amazon.com/message/41926/" sourceTitle="Summary of the Amazon S3 Service Disruption in the Northern Virginia (US-EAST-1) Region" license="linked, not copied">
+
+On the morning of 28 February 2017, Amazon S3, Amazon's service for storing files, stopped answering in its Northern Virginia region for about four hours. Other Amazon services that depend on it failed too, among them launching new servers, and even Amazon's own status page couldn't be updated, because it relied on S3 as well.
+
+Underneath was one command. An engineer, following the team's written procedure, typed a command to take a few servers out of a billing system. One of its inputs was typed wrong, and the command took out far more servers than intended, including ones that two core parts of S3 needed. Those parts had to be restarted from cold, which nobody had done in years, and it took hours.
+
+Amazon changed the tool so that it removes servers slowly and refuses to go below the minimum a system needs. The lesson is the shell's own: a command does exactly what you typed, not what you meant. Read it before you press Enter, and build tools that refuse the dangerous mistakes.
+
+</Story>
 
 **Your first script.** A pipeline worth keeping goes in a file. A **script** is a text file of commands that the shell runs from top to bottom, exactly as if you had typed them. The labs hand you scripts to finish and to fix, and ask you to write one, so make one now. You need an **editor**, a program for changing text files. The simplest one, installed in Git Bash and in every lab, is `nano`:
 
@@ -102,6 +124,8 @@ echo "$file has $(wc -l < "$file") lines"
 Saved as `count-lines` and made executable, `./count-lines app.log` prints `app.log has 3 lines`. Read its last line from the inside out: `wc -l < "$file"` counts the lines of the file named by the first argument, `$(...)` drops that number into the sentence, and `echo` prints the sentence. The quotes inside `$(...)` are a pair of their own and don't end the pair outside. Scripts get a whole topic later in this module; this much is enough to save a pipeline and run it again.
 
 **When a program misbehaves,** the shell has tools that look *at the program* rather than at files. A running program is called a **process**. It can't reach a file, the disk or the network by itself: it has to ask the **kernel**, the core of the operating system, and each of those requests is a **system call**. `strace` shows the system calls a process is making right now, so you can see what it's stuck waiting for. `lsof` shows which files and network ports a process has open (a **port** is a numbered door on a machine, where one program listens for connections), so you can see who is holding port 8080. `iostat` shows whether a disk is saturated: busy all the time, with work queuing up for it. `vmstat` shows whether the machine is **swapping**: so short of memory that it keeps moving data out to the much slower disk and back, which makes everything crawl. Don't try the four in Git Bash: it has no `lsof`, `iostat` or `vmstat`, and its `strace` is a different program with the same name, made for Windows. You'll use them properly in the performance-triage topic; for now, learn which question each one answers.
+
+<Check item="mcq-lsof-port" />
 
 **Read lecture 1 now,** the main resource below, starting at its heading *Topic 1: The Shell* (what comes before is about the course it was written for). It's the written version of an hour's lecture, and it covers the shell, paths and redirection with examples you can type along with. Its last section uses `sudo`, the command for acting as the machine's administrator, which this track reaches in the permissions topic: read that section for the idea, since its examples only run on a Linux laptop. Then read the *Shell Tools* half of lecture 2 (`find`, `grep` and friends; its *Shell Scripting* half goes well past the first script above, and the scripting topic comes back to it) and the first half of lecture 4, *Data wrangling*, up to and including `awk`. Lecture 7 is the reference for `strace` and `lsof`: skim what it says about those two. For `vmstat` and `iostat`, skim the two sections named after them in the last resource, the Netflix checklist, to see what each one prints; the performance-triage topic studies that page properly.
 

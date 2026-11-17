@@ -2,6 +2,41 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, cloud Module 1 content: puzzles, questions in the lesson, real incidents and "which one is this?"
+
+The first content pass with the new lesson building blocks ([ADR-0026](decisions/0026-lesson-building-blocks.md), Proposed), over the 14 ready topics of the cloud track's Linux module. Three other writers are doing Modules 2 and 3 at the same time; nothing outside `csa.linux.*` changed.
+
+**What changed.**
+
+- **A puzzle opens every lesson**, a real question the lesson answers, such as why `free` says 300 MB on a healthy 16 GB server, why a nice-19 backup still takes a whole CPU, or why a script's `rm -rf *` deletes the wrong folder when a `cd` fails.
+- **54 quick questions placed in the lessons**, three or four a topic, each straight after the paragraph it tests. Most are typed answers (`predict_shell` and `estimate`); a few multiple choice. Each still counts in its topic's practice, and the ladder leaves it out.
+- **12 stories**, each from a public source opened and read for this pass, told in our own words:
+  - Shell essentials: Amazon S3's typo, 2017 ([AWS's summary](https://aws.amazon.com/message/41926/)).
+  - Users, permissions and SSH: Baron Samedit, the sudo flaw, 2021 ([Qualys](https://blog.qualys.com/vulnerabilities-threat-research/2021/01/26/cve-2021-3156-heap-based-buffer-overflow-in-sudo-baron-samedit)).
+  - Package management and patching: Datadog's automatic systemd update, 2023 ([Datadog's postmortem](https://www.datadoghq.com/blog/2023-03-08-multiregion-infrastructure-connectivity-issue/)).
+  - Disks and filesystems: Netlify's database fills its disk, 2016 ([Netlify's learning review](https://www.netlify.com/blog/2016/12/01/learning-review-for-our-22-november-api-and-origin-outage/)).
+  - Memory and the OOM killer: Redpanda's brokers killed at their own container limit, 2022 ([Redpanda's engineering blog](https://redpanda.com/blog/solve-out-of-memory-killer-events)).
+  - CPU scheduling and cgroups: Indeed's throttled services, 2018 to 2019 ([Indeed Engineering](https://engineering.indeedblog.com/blog/2019/12/unthrottled-fixing-cpu-limits-in-the-cloud/)).
+  - How containers work: the runc breakout, CVE-2019-5736 ([the oss-security announcement](https://www.openwall.com/lists/oss-security/2019/02/11/2)).
+  - Networking from the host: a Kubernetes connection reset caused by conntrack, 2019 ([Kubernetes blog](https://kubernetes.io/blog/2019/03/29/kube-proxy-subtleties-debugging-an-intermittent-connection-reset/), CC BY 4.0).
+  - Boot, cloud-init and metadata: Capital One's metadata credentials, 2019 ([Krebs on Security](https://krebsonsecurity.com/2019/08/what-we-can-learn-from-the-capital-one-hack/)). The lesson's IMDSv2 paragraph told the same case in one sentence; it now defines the attack and points at the story.
+  - Shell scripting: Steam for Linux empties a home folder, 2015 ([the bug report](https://github.com/ValveSoftware/steam-for-linux/issues/3671)).
+  - Performance triage: Cloudflare's one-second latency spikes, 2015 ([Cloudflare's blog](https://blog.cloudflare.com/the-story-of-one-latency-spike/)).
+  - Hardening: regreSSHion, CVE-2024-6387 ([Qualys](https://blog.qualys.com/vulnerabilities-threat-research/2024/07/01/regresshion-remote-unauthenticated-code-execution-vulnerability-in-openssh-server)).
+- **No story for Processes and signals, or for Services and logs.** I searched for public postmortems about signals, zombies, PID 1, `Restart=` and systemd's start limit, and found forum threads and how-to pages but no incident a reputable source documents. A missing story is better than a vague one.
+- **Five "which one is this?" questions** (`contrast-*`), each in the later of the two topics, in its practice list and review pool: exit status 143 or 137 (Memory: `TERM` from Processes against `KILL` from the OOM killer); a memory limit or a CPU limit (CPU: killed against throttled); a namespace or a cgroup (Containers: what it can see against how much it may use); refused or dropped (Networking from the host: a reset against silence); and `wa` or `st` (Performance triage: a slow disk against a busy host).
+
+**Author notes:**
+
+- _Every story says only what its source says._ Where a source left something out, the story leaves it out too: Steam's bug report never confirms why the variable was empty, so the story says one commenter suggested it; Indeed's first post doesn't describe its kernel fix, so the story only says they sent one; the Krebs report attributes the firewall misconfiguration to a source close to the investigation, and the story says so.
+- _Steam's story teaches a limit of `set -u`._ The variable was set, to nothing, which `set -u` doesn't catch. The story names the guard ShellCheck suggests for that very line (SC2115, `"${STEAMROOT:?}"`), which the lesson doesn't otherwise teach. It's one sentence, and the right lesson to draw.
+- _Puzzles aim at the lesson's first big idea where one is puzzling enough,_ and at a later one otherwise (Storage asks about inodes, Boot about where credentials come from), because the README asks for genuine curiosity first.
+- _Placed questions avoid the item a puzzle gives away._ Where the puzzle's answer is an existing multiple-choice item (Services' `mcq-daemon-reload`, Networking's `mcq-bind-localhost`, Triage's `mcq-saturation-vs-utilization`), that item stays in the ladder, where it comes later as retrieval.
+- _The contrast questions also went into the review pools,_ since telling two ideas apart is what a delayed review should test.
+- _No glossaries or typed questions yet:_ they wait for the glossary (#310) and typed answers (#298) to reach `main`.
+
+**Next:** a glossary for each of the 14 topics and two typed questions each, once #310 and #298 are merged.
+
 ## 2026-11-16, lessons: questions inside the lesson, an opening puzzle, and a real incident
 
 Part of a larger plan to improve how the platform teaches. This stream adds new building blocks for lessons ([ADR-0026](decisions/0026-lesson-building-blocks.md), Proposed); content writers fill the cloud track's ready topics with them afterwards. This first pull request brings the three that go in `lesson.mdx`; the glossary follows.
