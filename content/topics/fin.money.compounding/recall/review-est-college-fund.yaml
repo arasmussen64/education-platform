@@ -1,0 +1,23 @@
+id: review-est-college-fund
+type: estimate
+rev: 1
+prompt: |
+  $4,000 is saved at 5% a year, compounded once a year, and left for 15 years. How much is there at the end? Within 1%.
+unit: dollars
+answer: 8315.71
+tolerance: { percent: 1 }
+given: { present: 4000, rate: 5, years: 15 }
+working: present * (1 + rate / 100) ** years
+mistakes:
+  - id: simple
+    value: 7000
+    working: present + present * rate / 100 * years
+    why: "That's simple interest, $200 a year. Compounding adds interest on the interest."
+  - id: one-year-short
+    value: 7919.73
+    working: present * (1 + rate / 100) ** (years - 1)
+    why: "That's 14 years of growth. Fifteen years is multiplying by 1.05 fifteen times."
+explanation: |
+  4,000 × 1.05 ** 15 = 4,000 × 2.079 = $8,315.71. A rule-of-72 check: at 5% money doubles in about 14.4 years, so 15 years gives a little over double.
+skills: [grow-by-formula]
+amounts: made-up

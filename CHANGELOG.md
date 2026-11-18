@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Added (Finance Module 1 topics)
 
 - Estimate questions can say `amounts: made-up` in place of `prices_as_of` and `prices_source` when their money is invented for the question (a savings balance, a loan), so the page no longer claims made-up amounts were "read" from a provider's price page ([ADR-0024's amendment](docs/decisions/0024-estimate-questions.md#amendment-2026-11-17-money-made-up-for-the-question)).
+- Finance Module 1, topic 1: Compound interest (`fin.money.compounding`), the first topic of the Finance and Markets track. Simple against compound interest, growing money in a loop and by the future-value formula, the rule of 72 and exact doubling time, and the module's money conventions (rates as decimals, money rounded only for printing).
 - `fin.money.rates`, Rates, inflation and real returns: APR to the effective annual rate for any compounding frequency, nominal against real returns, and prices deflated with real CPI-U yearly averages from the Bureau of Labor Statistics (series CUUR0000SA0, read 2026-11-17).
 - `fin.money.diversification`, Diversification: covariance and correlation from two return lists, a two-fund mix's volatility and the lowest-risk mix, volatility falling with more holdings until it levels off at the risk they share, and Enron's 401(k) as the story (from the Congressional Research Service's report RS21115).
 

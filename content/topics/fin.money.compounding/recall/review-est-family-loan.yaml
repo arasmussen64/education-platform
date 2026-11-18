@@ -1,0 +1,23 @@
+id: review-est-family-loan
+type: estimate
+rev: 1
+prompt: |
+  You borrow $600 from a relative at 5% a year simple interest, and pay it all back in one go after 4 years. How much do you pay back? Exactly.
+unit: dollars
+answer: 720
+tolerance: { absolute: 0 }
+given: { principal: 600, rate: 5, years: 4 }
+working: principal + principal * rate / 100 * years
+mistakes:
+  - id: compounded
+    value: 729.3
+    working: principal * (1 + rate / 100) ** years
+    why: "That compounds the interest. Simple interest is 5% of the $600 borrowed, $30, each year."
+  - id: interest-only
+    value: 120
+    working: principal * rate / 100 * years
+    why: "That's the interest alone. You pay back the $600 as well."
+explanation: |
+  Simple interest is $30 a year (5% of $600), so 4 years add $120 and you pay back $720. Compounded once a year it would be 600 × 1.05 ** 4 = $729.30.
+skills: [simple-vs-compound]
+amounts: made-up
