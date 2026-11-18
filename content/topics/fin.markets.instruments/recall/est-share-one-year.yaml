@@ -1,0 +1,23 @@
+id: est-share-one-year
+type: estimate
+rev: 1
+prompt: |
+  Investors expect a made-up company's share to pay a $2 dividend a year from now, and expect to be able to sell it then for $40. For the risk, they want 5% a year. What would they pay for it today, in dollars? Within 0.5%.
+unit: "US dollars"
+answer: 40
+tolerance: { percent: 0.5 }
+amounts: made-up
+given: { dividend: 2, sale: 40, rate: 5 }
+working: (dividend + sale) / (1 + rate / 100)
+mistakes:
+  - id: undiscounted
+    value: 42
+    working: dividend + sale
+    why: "That's what they expect to receive a year from now. Today it's worth that divided by 1.05."
+  - id: dividend-forgotten
+    value: 38.1
+    working: sale / (1 + rate / 100)
+    why: "The $2 dividend is part of what owning the share brings. Discount the $42 together."
+explanation: |
+  A share's price is the present value of what its owners expect to receive. Here that's $2 + $40 = $42 a year from now, worth $42 / 1.05 = $40 today. Nothing is promised: if investors' expectations or the rate they want change, so does the price.
+skills: [price-drivers]
