@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { Link, NavLink, useParams } from 'react-router'
+import { Link, NavLink, useLocation, useParams } from 'react-router'
+import { FoundationsList } from '../components/FoundationsList.tsx'
 import { SECONDARY_BUTTON } from '../components/styles.ts'
 import {
   getTopic,
@@ -11,6 +12,10 @@ import {
   tracks,
   trackTopicsLoaded,
 } from '../content/content.ts'
+import {
+  type ModuleFoundations,
+  trackFoundations,
+} from '../content/foundations.ts'
 import type { Module, Topic, Track } from '../content/types.ts'
 import {
   furtherParts,
@@ -124,18 +129,16 @@ function LoadedTrackMap({ track }: { track: Track }) {
         .filter((topic) => topic !== undefined),
     [track],
   )
-  // A topic may build on another track's topic (the ML track's math on
-  // Python Foundations). Its state needs that topic's progress too.
-  const withPrerequisites = useMemo(() => {
-    const own = new Set(topics.map((topic) => topic.id))
-    const borrowed = topics
-      .flatMap((topic) => topic.prerequisites)
-      .filter((id) => !own.has(id))
-      .map((id) => getTopic(id))
-      .filter((topic) => topic !== undefined)
-    return [...topics, ...borrowed]
-  }, [topics])
+  // A topic may build on another track's topics (the ML track's math on
+  // Python Foundations). Each module lists the ones it needs, all the way
+  // down, and their states need their progress too.
+  const foundations = useMemo(() => trackFoundations(track), [track])
+  const withPrerequisites = useMemo(
+    () => [...topics, ...foundations.flatMap((each) => each.topics)],
+    [topics, foundations],
+  )
   const progress = useProgress(withPrerequisites)
+  useScrollToHash()
   // Drafts count as "still being written": the dev server can open them,
   // but the note is about what a learner can do.
   const anythingReady = topics.some((topic) => topic.status === 'ready')
@@ -157,8 +160,10 @@ function LoadedTrackMap({ track }: { track: Track }) {
         {track.modules.map((module, index) => (
           <ModuleSection
             key={module.id}
+            track={track}
             module={module}
             number={index + 1}
+            foundations={foundations[index]}
             progress={progress}
             now={now}
           />
@@ -166,6 +171,20 @@ function LoadedTrackMap({ track }: { track: Track }) {
       </ol>
     </section>
   )
+}
+
+/**
+ * Scrolls to the part of the map a link names (/map/finance#foundations-…),
+ * as a browser does for a page it loads, since moving within the app doesn't.
+ */
+function useScrollToHash() {
+  const { hash } = useLocation()
+  useEffect(() => {
+    if (!hash) return
+    document
+      .getElementById(decodeURIComponent(hash.slice(1)))
+      ?.scrollIntoView?.()
+  }, [hash])
 }
 
 /** Links to the other tracks, once there's more than one. */
@@ -199,13 +218,18 @@ function TrackSwitcher({ current }: { current: Track }) {
 
 /** A module's topics and checkpoint, then its capstone if it has one. */
 function ModuleSection({
+  track,
   module,
   number,
+  foundations,
   progress,
   now,
 }: {
+  track: Track
   module: Module
   number: number
+  /** The other tracks' topics this module builds on. */
+  foundations?: ModuleFoundations
   progress: ProgressState
   now: string
 }) {
@@ -249,6 +273,17 @@ function ModuleSection({
             </p>
           )}
         </div>
+        {foundations && foundations.topics.length > 0 && (
+          <FoundationsList
+            track={track}
+            module={module}
+            number={number}
+            topics={foundations.topics}
+            progress={
+              progress.status === 'ready' ? progress.progress : undefined
+            }
+          />
+        )}
         <ol className="space-y-2">
           {rows([...module.topics, module.checkpoint])}
         </ol>

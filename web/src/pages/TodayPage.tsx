@@ -12,6 +12,12 @@ import {
   topicIdsOf,
   tracks,
 } from '../content/content.ts'
+import {
+  foundationLink,
+  foundationsAnchor,
+  prerequisitesInOrder,
+  trackFoundations,
+} from '../content/foundations.ts'
 import type { Topic, Track } from '../content/types.ts'
 import { dayOf } from '../days.ts'
 import {
@@ -682,6 +688,41 @@ function LockedNext({
 }) {
   const first = topics.find((topic) => stateOf(topic, progress) === 'locked')
   if (!first) return null
+  // Where to start on the way to it, which may be deep in another track,
+  // and how far that is, so "once you've learned X" isn't a dead end.
+  const toGo = prerequisitesInOrder([first.id]).filter(
+    (topic) => !progress.get(topic.id)?.learnedAt,
+  )
+  const start = nextUp(toGo.filter(isOpen), progress)
+  const startTrack = start ? placeOf(start.topic.id)?.track : undefined
+  const listing = trackFoundations(track).find((each) =>
+    each.topics.some((topic) => topic.id === start?.topic.id),
+  )
+  if (start && startTrack && startTrack.id !== track.id && listing) {
+    const number = track.modules.indexOf(listing.module) + 1
+    return (
+      <p>
+        <span className="font-medium">
+          {start.state === 'in-progress' ? 'Continue' : 'Start'}:
+        </span>{' '}
+        <Link to={foundationLink(start.topic.id, track)} className="underline">
+          {start.topic.title}
+        </Link>
+        <span className="text-slate-600 dark:text-slate-400">
+          {' '}
+          ({startTrack.title}), on the way to {first.title}: {toGo.length}{' '}
+          {toGo.length === 1 ? 'topic' : 'topics'} to go.{' '}
+          <Link
+            to={`/map/${track.id}#${foundationsAnchor(listing.module)}`}
+            className="underline"
+          >
+            See what Module {number} needs
+          </Link>
+          .
+        </span>
+      </p>
+    )
+  }
   const missing = first.prerequisites
     .filter((id) => !progress.get(id)?.learnedAt)
     .map((id) => getTopic(id))

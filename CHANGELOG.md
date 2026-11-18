@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- What a track needs from other tracks, said exactly. Each module that builds on another track's topics lists them on the map, above the module, in the order to learn them: how much of each track that is ("Python Foundations: Modules 1 to 4 in full and 3 of the 6 topics in Module 5"), how long it takes, what's learned, and a Start button for the next one. A topic opened from that list says which track sent the learner, how far along the list they are, what's next on it and the way back. A locked topic says how many topics are still to go and where to start, even in another track, and the Today page does the same for a track whose topics are all locked.
+
 ### Added (Finance Module 1 topics)
 
 - A cold review of the whole module, by two reviewers, and its fixes: the risk build now shows how a function returns three values; the payday-loan, GameStop, Enron and flash-crash stories now match their sources exactly; the fee calculator's debug prints two decimals so each fix shows; the dividend adjustment is described as roughly a reinvestment; Investor.gov's license is worded one way everywhere; and several smaller wording fixes.
