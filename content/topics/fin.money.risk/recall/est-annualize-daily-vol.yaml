@@ -1,0 +1,22 @@
+id: est-annualize-daily-vol
+type: estimate
+rev: 1
+prompt: |
+  A share's daily returns have a volatility of 1%. Taking a year as 252 trading days, what is its annual volatility, as a percentage? Within 0.1 of a percentage point.
+unit: "%"
+answer: 15.87
+tolerance: { absolute: 0.1 }
+given: { daily: 1, days: 252 }
+working: daily * days ** 0.5
+mistakes:
+  - id: times-days
+    value: 252
+    working: daily * days
+    why: "Volatility scales with the square root of time, not with time: √252 ≈ 15.87."
+  - id: calendar-days
+    value: 19.1
+    working: daily * 365 ** 0.5
+    why: "That uses 365 days. Markets are closed at weekends and on holidays, so a year of daily returns is about 252 days."
+explanation: |
+  √252 ≈ 15.87, so 1% a day is about 15.9% a year. A handy shortcut: daily volatility times 16 is roughly the annual figure.
+skills: [volatility]

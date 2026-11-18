@@ -10,6 +10,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - `fin.money.rates`, Rates, inflation and real returns: APR to the effective annual rate for any compounding frequency, nominal against real returns, and prices deflated with real CPI-U yearly averages from the Bureau of Labor Statistics (series CUUR0000SA0, read 2026-11-17).
 - `fin.money.returns`, Measuring returns: simple and log returns from a price list, chaining growth factors (why +50% then −50% loses 25%), annualizing from a total, from prices and from monthly returns, and the arithmetic against the geometric mean. Its build writes `simple_returns(prices)` and `annualized_return(prices, periods_per_year)`, which the checkpoint reuses.
+- `fin.money.risk`, Risk: volatility as the sample standard deviation of returns (`volatility(returns)` in its fill-in), annualized by the square root of the periods; the running peak and the maximum drawdown, `max_drawdown(prices)` returning the fall as a positive decimal and its two positions; and reading risk and return together.
 
 ### Added (Finance and Markets on the map)
 

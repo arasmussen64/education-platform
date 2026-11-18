@@ -1,15 +1,88 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.money.risk
 kind: topic
-status: planned
+status: ready
 title: "Risk"
-summary: "Volatility, drawdown, and reading risk and return together."
+summary: "Volatility and how to annualize it, the maximum drawdown, and reading risk and return together."
 prerequisites:
-- fin.money.returns
-estimated_minutes: 60
+  - fin.money.returns
+estimated_minutes: 75
 rev: 1
 objectives:
-- "Compute volatility and annualize it."
-- "Find the maximum drawdown of a price history."
-- "Read two investments' risk and return together."
+  - "Compute volatility as the sample standard deviation of returns, and annualize it by the square root of the periods."
+  - "Find the maximum drawdown of a price list, and where it started and ended."
+  - "Read two investments' average return and volatility together."
+  - "Say why a higher expected return comes with a wider range of outcomes."
+# Every price in this topic is made up. OpenStax books are CC BY-NC-SA 4.0
+# by their own preface and footer, read 2026-11-17. The Python docs are
+# under the PSF License Version 2.
+resources:
+  - title: "OpenStax Principles of Finance: section 15.1, Risk and Return to an Individual Asset (read from \"Measuring Risk\" to the end)"
+    url: https://openstax.org/books/principles-finance/pages/15-1-risk-and-return-to-an-individual-asset
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0 (linked, not copied)
+  - title: "The Python Standard Library: statistics (Python Software Foundation): stdev and pstdev"
+    url: https://docs.python.org/3/library/statistics.html
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-volatility
+  - parsons-running-peak
+  - predict-stdev
+  - est-sample-sd
+  - est-annualize-monthly-vol
+  - est-annualize-daily-vol
+  - est-annualize-weekly-vol
+  - typed-stdev-function
+  - mcq-drawdown-meaning
+  - est-drawdown-peak-trough
+  - est-drawdown-list
+  - est-recover-drawdown
+  - typed-drawdown-name
+  - contrast-volatility-or-drawdown
+  - mcq-dominated
+  - est-bad-year
+  - est-bad-year-steady
+  - est-bad-year-gap
+  - fill-annual-volatility
+  - write-drawdown-series
+prove:
+  build: build-max-drawdown
+  debug: debug-risk-report
+  explain:
+    prompt: |
+      A fund's factsheet says its volatility is 16% a year. Over the last five years it also fell 50% from a high, and took four years to get back. In your own words: what does the 16% measure, and what does it leave out? What does the 50% fall measure that the 16% doesn't, and what gain did the fund need to get back to its high? Why does "volatility" understate what it feels like to own something that falls 50%?
+    rubric:
+      - id: volatility
+        required: true
+        description: "Volatility is the standard deviation of returns: how much each period's return typically differs from the average, with ups and downs counted alike."
+      - id: leaves-out
+        required: true
+        description: "It leaves out the order of the returns: whether the falls came one after another, how deep the money went below a high, and how long it stayed there."
+      - id: drawdown
+        required: true
+        description: "The maximum drawdown is the fall from a running peak to the lowest point after it; a 50% drawdown needs a 100% gain to recover (1 / 0.5 − 1)."
+      - id: feeling
+        required: true
+        description: "An owner lives through the path, not the statistic: a deep, long fall is when people sell at the bottom or can't wait for the recovery, which drawdown shows and volatility doesn't."
+      - id: annualizing
+        required: false
+        description: "Notes that the 16% is annualized from shorter periods by a square root, and says nothing about the worst stretch."
+    model_answer: |
+      The 16% is the fund's volatility: the standard deviation of its returns, annualized. It says how far a typical period's return lands from the average, up or down. What it leaves out is the order of those returns. A dozen bad months spread across five years and a dozen bad months in a row give the same volatility, but the second is a steep, long fall. The 50% fall is the maximum drawdown: the drop from the fund's highest point to its lowest point after that. It measures what someone who bought at the high actually lived through. And it's worse than it sounds: after falling 50% the fund holds half its value, so it needs a 100% gain, 1 ÷ 0.5 − 1, to get back to the high, which here took four years. That's why volatility understates the experience. An owner doesn't feel a standard deviation; they feel watching half the money go and waiting years for it to return, and that's when people give up and sell at the bottom, locking the loss in. Drawdown puts a number on the path: how deep and, with the dates, how long. Volatility and drawdown together say much more than either alone.
+review_pool:
+  - est-annualize-daily-vol
+  - typed-stdev-function
+  - est-drawdown-list
+  - typed-drawdown-name
+  - contrast-volatility-or-drawdown
+  - est-bad-year-steady
+  - mcq-dominated
+skills:
+  - id: volatility
+    description: "Volatility as the sample standard deviation of returns, and annualizing it by the square root of the periods"
+  - id: drawdown
+    description: "The running peak, the drawdown from it, and the maximum drawdown with where it started and ended"
+  - id: risk-return
+    description: "Reading two investments' average return and volatility together, and why more expected return comes with a wider range"

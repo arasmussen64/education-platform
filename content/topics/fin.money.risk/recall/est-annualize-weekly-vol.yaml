@@ -1,0 +1,22 @@
+id: est-annualize-weekly-vol
+type: estimate
+rev: 1
+prompt: |
+  A currency's weekly returns have a volatility of 2%. With 52 weeks in a year, what is its annual volatility, as a percentage? Within 0.1 of a percentage point.
+unit: "%"
+answer: 14.42
+tolerance: { absolute: 0.1 }
+given: { weekly: 2, weeks: 52 }
+working: weekly * weeks ** 0.5
+mistakes:
+  - id: times-weeks
+    value: 104
+    working: weekly * weeks
+    why: "That scales the volatility by the number of weeks. It's the variance that scales that way; volatility grows with the square root, √52 ≈ 7.21."
+  - id: divided
+    value: 0.28
+    working: weekly / weeks ** 0.5
+    why: "That divides by √52, which would turn a yearly figure into a weekly one. Going from weekly to yearly, multiply."
+explanation: |
+  √52 ≈ 7.21, so 2% a week is 2 × 7.21 = 14.42% a year.
+skills: [volatility]
