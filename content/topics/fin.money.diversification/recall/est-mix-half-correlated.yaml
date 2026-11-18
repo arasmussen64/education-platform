@@ -1,0 +1,22 @@
+id: est-mix-half-correlated
+type: estimate
+rev: 1
+prompt: |
+  A mix holds 70% of its money in a fund with a volatility of 10% a year and 30% in one with 20%. Their correlation is 0.5. What is the mix's volatility, in percent? Within 2%.
+unit: "%"
+answer: 11.27
+tolerance: { percent: 2 }
+given: { w_a: 70, vol_a: 10, w_b: 30, vol_b: 20, corr: 0.5 }
+working: ((w_a / 100) ** 2 * vol_a ** 2 + (w_b / 100) ** 2 * vol_b ** 2 + 2 * (w_a / 100) * (w_b / 100) * corr * vol_a * vol_b) ** 0.5
+mistakes:
+  - id: weighted-average
+    value: 13
+    working: (w_a * vol_a + w_b * vol_b) / 100
+    why: "A weighted average of the volatilities is the answer only at a correlation of 1. At 0.5 the cross term is half as big, and the mix is less risky."
+  - id: no-cross-term
+    value: 9.22
+    working: ((w_a / 100) ** 2 * vol_a ** 2 + (w_b / 100) ** 2 * vol_b ** 2) ** 0.5
+    why: "That leaves out the cross term, 2 × 0.7 × 0.3 × 0.5 × 10 × 20 = 42, which is what a correlation above 0 adds."
+explanation: |
+  In percent squared: 0.7² × 10² = 49, 0.3² × 20² = 36, and the cross term 2 × 0.7 × 0.3 × 0.5 × 10 × 20 = 42, a variance of 127. Its square root is about 11.27%. That's above the safer fund's 10% (30% of the money is in something twice as risky) but well below the 13% a straight weighted average would give.
+skills: [portfolio-volatility]

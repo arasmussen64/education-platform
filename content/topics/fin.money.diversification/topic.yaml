@@ -1,15 +1,94 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.money.diversification
 kind: topic
-status: planned
+status: ready
 title: "Diversification"
 summary: "Correlation, a portfolio's volatility, and why spreading money out lowers risk until it doesn't."
-prerequisites:
-- fin.money.risk
-estimated_minutes: 60
+prerequisites: [fin.money.risk]
+estimated_minutes: 65
 rev: 1
 objectives:
-- "Compute the correlation of two return series."
-- "Work out a two-asset portfolio's volatility."
-- "Show why diversification lowers risk and where it stops."
+  - "Compute the correlation of two return series."
+  - "Work out a two-asset portfolio's volatility, and find the mix with the least risk."
+  - "Show why adding holdings lowers risk, and why it stops at the risk they share."
+  - "Say what an index fund's spread of holdings removes, and what it can't."
+# Linked, never copied. Investor.gov is the US Securities and Exchange
+# Commission's site for investors; the SEC states that information on its
+# sites is public information that may be copied or distributed, and asks
+# that the SEC be cited as the source.
+resources:
+  - title: "Asset Allocation and Diversification (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/introduction-investing/getting-started/asset-allocation
+    type: reading
+    use: link
+    license: "US government work (SEC), public information; linked, not copied"
+  - title: "Index Funds (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/introduction-investing/investing-basics/investment-products/mutual-funds-and-exchange-traded-4
+    type: reading
+    use: link
+    license: "US government work (SEC), public information; linked, not copied"
+# The estimate items are the sums done on sight: a correlation from a
+# covariance, a two-fund mix's volatility at correlations of 0, 0.5 and 1,
+# and an equal-weight portfolio of n holdings with and without a shared
+# part. The fund data in the write exercise was drawn once from a fixed
+# model (a shared market part plus each fund's own part) and is written
+# into the exercise, so no test depends on a random seed.
+practice:
+  - example-correlation-and-a-mix
+  - parsons-two-fund-volatility
+  - mcq-read-correlation
+  - predict-correlation-extremes
+  - est-correlation-from-covariance
+  - est-correlation-negative
+  - est-correlation-from-sum
+  - typed-correlation-name
+  - est-mix-uncorrelated
+  - mcq-correlation-of-one
+  - est-mix-perfectly-correlated
+  - est-mix-half-correlated
+  - est-nine-uncorrelated
+  - mcq-why-it-stops
+  - est-four-with-shared-part
+  - est-floor-many-holdings
+  - mcq-expected-return-of-a-mix
+  - contrast-specific-or-market-risk
+  - typed-risk-that-stays
+  - fill-correlation
+  - write-adding-funds
+prove:
+  build: build-lowest-risk-mix
+  debug: debug-correlation-report
+  explain:
+    prompt: |
+      A friend keeps all their savings in the shares of the company they work for, because "I know it best". They've heard an index fund, which holds hundreds of companies, is "less risky", but they think that just means it earns less. Explain, in your own words and with at least one number: what correlation is and why it decides how much mixing holdings lowers risk; why an index fund lowers risk without lowering the expected return; what kind of risk it still can't remove; and what is especially risky about the friend's choice.
+    rubric:
+      - id: correlation
+        required: true
+        description: "Correlation measures how two holdings move together, from -1 to +1; when it's below 1 their surprises partly cancel, so a mix is less volatile than the weighted average of its parts (with a number, e.g. two 20% holdings, uncorrelated, half each: about 14%)."
+      - id: same-expected-return
+        required: true
+        description: "A mix's expected return is the weighted average of its holdings' expected returns, so spreading out doesn't lower it; only the risk falls."
+      - id: market-risk-remains
+        required: true
+        description: "Company-specific risk averages away across many holdings; market risk, what moves almost everything together, remains, so the index fund still falls in a market-wide fall."
+      - id: concentration
+        required: true
+        description: "The friend's savings and their job depend on the same company, so one bad event can take both at once (Enron's employees are the example); knowing a company doesn't remove its specific risk."
+      - id: square-root
+        required: false
+        description: "Says risk falls roughly as one over the square root of the number of uncorrelated holdings, then levels off at the shared part."
+    model_answer: |
+      Correlation is a number from -1 to +1 that says how two holdings' returns move together: +1 always together, 0 no pattern, -1 always opposite. It's worked out from the covariance, the average product of their distances from their means, divided by both volatilities. It matters because a mix's volatility depends on it. Two holdings that each have 20% volatility, held half and half, give a mix with 20% volatility if their correlation is 1, but only about 14% if it's 0, because one's bad months are often another's good ones and they partly cancel. An index fund holds hundreds of companies, so each company's own surprises, a failed product or a fraud, are a tiny share of it and mostly cancel against others' good news. Its expected return, though, is just the weighted average of its holdings' expected returns: spreading the money out doesn't make that smaller, it only makes the ride smoother. That's why diversification is called a free lunch. What it can't remove is market risk: a recession or a jump in interest rates moves nearly every company the same way, so the fund still falls in a market-wide fall. Adding holdings cuts risk quickly at first, roughly as one over the square root of the count, and then levels off at that shared part. The friend's choice has all of the one company's specific risk and none of the cancelling. Worse, their wages depend on the same company, so a single disaster can take their job and their savings at once. That's what happened to many Enron employees in 2001, whose retirement accounts were mostly Enron shares when the company collapsed. Knowing a company well doesn't make its risks go away.
+review_pool:
+  - predict-correlation-extremes
+  - est-correlation-negative
+  - est-four-with-shared-part
+  - typed-risk-that-stays
+  - mcq-why-it-stops
+  - review-diversified-volatility
+skills:
+  - id: correlation
+    description: "Compute covariance and correlation from two return lists, and read what a correlation says"
+  - id: portfolio-volatility
+    description: "Work out a two-asset mix's volatility with the two-asset formula, and what the correlation does to it"
+  - id: diversify
+    description: "Show how an equal-weight portfolio's volatility falls with more holdings and why it stops at the shared part; specific and market risk"
