@@ -1,0 +1,23 @@
+id: est-fv-birth-gift
+type: estimate
+rev: 1
+prompt: |
+  A grandparent puts $2,500 into an account for a newborn. It earns 6% a year, compounded once a year, and nobody touches it for 18 years. How much does it hold on the 18th birthday? Within 1%.
+unit: dollars
+answer: 7135.85
+tolerance: { percent: 1 }
+given: { present: 2500, rate: 6, years: 18 }
+working: present * (1 + rate / 100) ** years
+mistakes:
+  - id: simple
+    value: 5200
+    working: present + present * rate / 100 * years
+    why: "That's simple interest: 6% of the original $2,500, $150, for each of 18 years. Compounding pays interest on the interest too."
+  - id: times-years
+    value: 47700
+    working: present * (1 + rate / 100) * years
+    why: "That grows the money one year and then multiplies by 18. Eighteen years of growth is multiplying by 1.06 eighteen times: 1.06 ** 18."
+explanation: |
+  Eighteen years of 6% is multiplying by 1.06 eighteen times: 2,500 × 1.06 ** 18 = 2,500 × 2.854 = $7,135.85. A rule-of-72 check: at 6% money doubles in about 12 years, so 18 years is one and a half doublings, a bit under three times the start. Simple interest would have given only $5,200.
+skills: [grow-by-formula]
+amounts: made-up

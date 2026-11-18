@@ -1,15 +1,85 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.money.costs
 kind: topic
-status: planned
+status: ready
 title: "Fees, taxes and compounding"
-summary: "What a yearly fee costs over decades, and taxes in outline."
-prerequisites:
-- fin.money.compounding
+summary: "What a yearly fee costs over decades, taxes in outline, and how to compare two options fairly."
+prerequisites: [fin.money.compounding]
 estimated_minutes: 60
 rev: 1
 objectives:
-- "Show what a yearly percentage fee costs over a long horizon."
-- "Compare a taxed account with a tax-deferred one, in outline."
-- "Compare two options' final amounts."
+  - "Show what a yearly percentage fee takes over a long horizon, and why it grows with time."
+  - "Compare an account taxed every year with a tax-deferred one, in outline."
+  - "Compare two options' final amounts, and give the difference as a share of the better one."
+# Linked, never copied. Investor.gov is the US Securities and Exchange
+# Commission's site for investors; the SEC states that information on its
+# sites is public information that may be copied or distributed, and asks
+# that the SEC be cited as the source. The bulletin's own example ($100,000,
+# 4% a year, 20 years) is reproduced by predict-sec-fee-example, which shows
+# the bulletin takes the fee after each year's growth: the rule this topic
+# uses throughout. Taxes are a made-up flat rate, never any country's rules.
+resources:
+  - title: "How Fees and Expenses Affect Your Investment Portfolio, an Investor Bulletin (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins/updated
+    type: reading
+    use: link
+    license: "US government work (SEC), public information; linked, not copied"
+  - title: "Understanding Fees (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/introduction-investing/getting-started/understanding-fees
+    type: reading
+    use: link
+    license: "US government work (SEC), public information; linked, not copied"
+practice:
+  - example-a-fee-over-thirty-years
+  - parsons-fee-drag
+  - contrast-yearly-or-one-off-fee
+  - est-fee-drag-half-percent
+  - est-fee-drag-forty-years
+  - est-fee-drag-amount
+  - predict-sec-fee-example
+  - typed-expense-ratio
+  - mcq-why-costs-are-chosen
+  - est-compare-share
+  - est-compare-two-fees
+  - est-one-off-or-yearly
+  - est-after-tax-growth
+  - mcq-why-deferral-wins
+  - est-deferred-amount
+  - est-taxed-yearly-amount
+  - typed-tax-deferred
+  - fill-fee-drag
+  - write-taxed-or-deferred
+prove:
+  build: build-what-a-fee-takes
+  debug: debug-fee-calculator
+  explain:
+    prompt: |
+      A friend is choosing between two funds that hold the same things. One charges 0.1% a year and the other 1%. "It's less than one percent," they say, "it can't matter much." Explain, in a paragraph and with at least one number, why a yearly fee matters more the longer the money is invested, and why a fee is different from the return itself when comparing two funds.
+    rubric:
+      - id: compounds
+        required: true
+        description: "A yearly fee is a share of the whole balance, including all earlier growth, so it compounds: each year it leaves (1 - fee) of the balance, and over n years (1 - fee) ** n."
+      - id: number
+        required: true
+        description: "Gives a correct number that grows with time, e.g. a 1% fee takes about 10% over 10 years and about 26% over 30, or the 0.1% fund ends about 16% ahead of the 1% fund after 20 years."
+      - id: known-in-advance
+        required: true
+        description: "For two funds holding the same things the returns before fees are the same, so the fee is the one difference that's known in advance and chosen; future returns aren't."
+      - id: share-of-better
+        required: false
+        description: "Compares the final amounts as a share of the better one, with the same start, growth and years for both."
+    model_answer: |
+      A yearly fee isn't charged once on what you put in: it's a share of the whole balance every year, including everything the earlier years grew, so it compounds against you exactly the way growth compounds for you. Each year a 1% fee leaves 99% of the balance, so after n years it has left 0.99 ** n of what there would have been. That's about 90% after 10 years, so the fee took 10%; about 74% after 30 years, a quarter gone; and about 67% after 40, a third gone. The friend's two funds hold the same things, so before fees they get the same return, whatever the market does. The only difference between them is the fee, and it's known in advance: each year the dear fund keeps 0.990 of its balance and the cheap one 0.999, so after 20 years the dear fund has (0.990 / 0.999) ** 20, about 0.835, of the cheap fund's amount, about 16% less. Nobody can choose what the market returns, but anyone can choose what they pay, which is why costs are the one part of the return you control.
+review_pool:
+  - est-fee-drag-forty-years
+  - est-compare-two-fees
+  - est-taxed-yearly-amount
+  - typed-expense-ratio
+  - mcq-why-deferral-wins
+  - review-two-funds-fees
+skills:
+  - id: fee-drag
+    description: "Show how a yearly percentage fee compounds against you, and work out the share of the no-fee amount it takes"
+  - id: tax-deferral
+    description: "Compare an account taxed every year with a tax-deferred one, in outline, with a flat made-up rate"
+  - id: costs-compare
+    description: "Compare two options' final amounts with the same start, growth and years, and give the difference as a share of the better one"

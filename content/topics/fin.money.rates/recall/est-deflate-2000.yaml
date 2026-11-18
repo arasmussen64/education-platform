@@ -1,0 +1,26 @@
+id: est-deflate-2000
+type: estimate
+rev: 1
+prompt: |
+  A pizza cost $20 in 2000. CPI-U's yearly average was 172.2 in 2000 and 321.943 in 2025. What is $20 of 2000 money in 2025 money, in dollars? To the cent.
+unit: US dollars
+answer: 37.39
+tolerance: { absolute: 0.01 }
+given: { price: 20, cpi_2000: 172.2, cpi_2025: 321.943 }
+working: price * cpi_2025 / cpi_2000
+mistakes:
+  - id: upside-down
+    value: 10.70
+    working: price * cpi_2000 / cpi_2025
+    why: "That turns 2025 money into 2000 money: the ratio is upside down. Prices rose, so $20 of 2000 money is more than $20 in 2025."
+  - id: added-points
+    value: 169.74
+    working: price + cpi_2025 - cpi_2000
+    why: "That adds the index points to the price. An index scales prices: multiply by the later index over the earlier."
+# The $20 price is made up; the CPI-U values are BLS series CUUR0000SA0,
+# annual averages, read from the BLS public data API on 2026-11-17.
+prices_as_of: 2026-11-17
+prices_source: https://www.bls.gov/cpi/
+explanation: |
+  Scale by the ratio of the indexes: 20 × 321.943 ÷ 172.2 = $37.39. If the pizza costs $37 today, it has kept up with prices in general and no more; if it costs $25, it has got cheaper in real terms. (The price here is made up; the CPI numbers are real.)
+skills: [deflate]

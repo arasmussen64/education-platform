@@ -1,0 +1,22 @@
+id: est-compare-two-fees
+type: estimate
+rev: 1
+prompt: |
+  Two funds hold the same things and grow the same before fees. One charges 0.2% of the balance a year and the other 1%, each taken after the year's growth. After 25 years, how far behind is the dearer fund, as a share of the cheaper fund's amount, in percent? Within 2%.
+unit: "%"
+answer: 18.23
+tolerance: { percent: 2 }
+given: { cheap: 0.2, dear: 1, years: 25 }
+working: (1 - ((1 - dear / 100) / (1 - cheap / 100)) ** years) * 100
+mistakes:
+  - id: fee-gap-times-years
+    value: 20
+    working: (dear - cheap) * years
+    why: "That adds the 0.8% gap up 25 times without compounding. The two funds keep 0.99 and 0.998 of their balances each year; compare those, raised to the 25th power."
+  - id: just-the-dear-fee
+    value: 22.22
+    working: (1 - (1 - dear / 100) ** years) * 100
+    why: "That compares the dearer fund with no fee at all. The cheaper fund pays 0.2% a year too, which narrows the gap."
+explanation: |
+  Both funds grow alike, so the growth cancels when you compare them. Each year the dearer fund keeps 0.99 of its balance and the cheaper 0.998, so after 25 years the dearer one has (0.99 / 0.998) ** 25, about 0.8177, of the cheaper one's amount: about 18.2% behind. Choosing the cheaper of two otherwise identical funds is worth almost a fifth of the result.
+skills: [costs-compare]

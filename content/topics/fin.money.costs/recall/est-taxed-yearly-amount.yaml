@@ -1,0 +1,23 @@
+id: est-taxed-yearly-amount
+type: estimate
+rev: 1
+prompt: |
+  $10000 sits in an ordinary account that earns 8% a year. A made-up flat tax of 30% is taken from each year's gain as it happens. What is the balance after 20 years, in dollars? Within 1%.
+unit: "US dollars"
+answer: 29736
+tolerance: { percent: 1 }
+amounts: made-up
+given: { start: 10000, growth: 8, tax: 30, years: 20 }
+working: start * (1 + growth / 100 * (1 - tax / 100)) ** years
+mistakes:
+  - id: untaxed
+    value: 46610
+    working: start * (1 + growth / 100) ** years
+    why: "That's the balance with no tax at all. Taxed every year, it grows at 8% × 0.7 = 5.6% instead."
+  - id: taxed-at-the-end
+    value: 35627
+    working: start + (start * (1 + growth / 100) ** years - start) * (1 - tax / 100)
+    why: "That taxes the gain once, at the end, as a tax-deferred account would. Here the tax is taken every year, so less is left to compound."
+explanation: |
+  Each year the tax takes 30% of the 8% gain, so the balance grows 5.6% a year: $10,000 × 1.056 ** 20 ≈ $29,736. Taxing the same gains once at the end would leave about $35,627; the difference is the growth the yearly tax payments would have earned.
+skills: [tax-deferral]

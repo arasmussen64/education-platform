@@ -1,0 +1,26 @@
+id: est-deflate-to-1995
+type: estimate
+rev: 1
+prompt: |
+  A week's groceries cost $1000 for a large family in 2024. CPI-U's yearly average was 152.4 in 1995 and 313.689 in 2024. What did the same groceries cost in 1995 money, in dollars? Within $1.
+unit: US dollars
+answer: 485.83
+tolerance: { absolute: 1 }
+given: { price: 1000, cpi_1995: 152.4, cpi_2024: 313.689 }
+working: price * cpi_1995 / cpi_2024
+mistakes:
+  - id: upside-down
+    value: 2058.33
+    working: price * cpi_2024 / cpi_1995
+    why: "That turns 1995 money into 2024 money. Prices were lower in 1995, so the answer is less than $1000."
+  - id: subtract-points
+    value: 838.71
+    working: price - (cpi_2024 - cpi_1995)
+    why: "That takes the rise in index points off the price. An index scales prices: multiply by the earlier index over the later."
+# The $1000 bill is made up; the CPI-U values are BLS series CUUR0000SA0,
+# annual averages, read from the BLS public data API on 2026-11-17.
+prices_as_of: 2026-11-17
+prices_source: https://www.bls.gov/cpi/
+explanation: |
+  Going back in time, multiply by the earlier index over the later: 1000 × 152.4 ÷ 313.689 = $485.83. Prices roughly doubled in those 29 years (313.689 ÷ 152.4 is 2.06), so the same basket cost about half as many dollars. (The bill is made up; the CPI numbers are real.)
+skills: [deflate]

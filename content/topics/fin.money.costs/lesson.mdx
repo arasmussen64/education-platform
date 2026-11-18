@@ -1,0 +1,52 @@
+<Intro>
+
+<Puzzle question="You invest for 30 years in something that grows 7% a year, and it charges a fee of 1% of your balance every year. What share of the amount you'd have had without the fee does the fee take?">
+
+About a quarter: 26%. On $10,000 that's about $76,100 without the fee and $56,300 with it. A fee that sounds tiny is charged on the whole balance every year, including on all the growth from earlier years, so it compounds against you exactly as growth compounds for you. Over 30 years, keeping 99% each year leaves 0.99 multiplied by itself 30 times, about 74%.
+
+</Puzzle>
+
+Compound interest showed growth building on itself. Costs do the same thing in reverse. This topic computes what a yearly fee and taxes take over decades, and compares two options fairly. It teaches how these costs work; it isn't advice on what to buy, and the taxes in it are a made-up flat rate, not any country's rules.
+
+**Two kinds of fee.** A **transaction fee** is charged when you buy or sell: a commission, or a charge for getting into a fund. An **ongoing fee** is charged every year whatever you do, as a share of what you hold. A fund's yearly running costs are stated as its **expense ratio**, a percentage of the money in it, and they come out of the fund before you see its return. A 1% charge taken once costs you 1%. A 1% charge taken every year costs you far more, because it's taken again and again on a balance that includes everything earlier years grew.
+
+<Check item="contrast-yearly-or-one-off-fee" />
+
+**How a yearly fee compounds.** This topic uses one rule, the one the US Securities and Exchange Commission's own fee example follows: each year the balance grows, then the fee is taken as a share of the new balance. In code:
+
+```python
+for year in range(years):
+    balance = balance * (1 + growth)
+    balance = balance * (1 - fee)
+```
+
+Without the fee the money is multiplied by `(1 + growth) ** years`; with it, by that times `(1 - fee) ** years`. So the share of the no-fee amount that the fee takes, the **fee drag**, is `1 - (1 - fee) ** years`, and under this rule it doesn't depend on the growth rate at all. It does depend on time: a 1% fee takes about 10% over 10 years, 18% over 20, 26% over 30 and 33% over 40. (Some calculators subtract the fee from the growth rate instead, `(1 + growth - fee) ** years`; the answers differ a little, so a fair comparison uses one rule for both options.)
+
+<Check item="est-fee-drag-half-percent" />
+
+The SEC's investor bulletin on fees shows the same thing with $100,000 growing 4% a year for 20 years: about $208,000 after a 0.25% yearly fee, $198,000 after 0.50% and $179,000 after 1.00%. The predict-the-output question below reproduces those numbers with the loop above.
+
+**Comparing two options.** To compare, work out both final amounts for the same start, growth and years, then give the difference as a share of the better one: `(better - worse) / better`. Dividing by the worse one gives a bigger number that answers a different question ("how much more does the better one have?"). Growth is uncertain and nobody can choose it; a fee is known in advance and is one of the few parts of the return an investor does choose.
+
+<Check item="mcq-why-costs-are-chosen" />
+
+**Taxes, in outline.** Taxes on investment gains compound in the same way as fees. Take a made-up flat tax of 25% on gains. In an ordinary account taxed every year, a 6% gain becomes 4.5% after tax, the **after-tax return**, and the balance compounds at 4.5%. In a **tax-deferred account**, the gains aren't taxed as they happen; in this topic's outline they're taxed once, at the same 25%, when the money comes out at the end. The deferred account ends with more, because the money that would have gone in tax each year stays invested and keeps growing until the end. On $10,000 over 30 years that's about $37,450 against $45,580. Real accounts' rules differ by country and by account: some tax the whole withdrawal, some tax nothing, rates change. The point here is only the shape: paying later lets more money compound for longer.
+
+<Check item="est-after-tax-growth" />
+
+**Read now:** the SEC's investor bulletin *How Fees and Expenses Affect Your Investment Portfolio*, the main resource below; then Investor.gov's *Understanding Fees*. The quick questions ask for a few shares and amounts; use a calculator if you like, because the skill is setting up the sum. The exercises compute fee drag, compare an account taxed every year with a tax-deferred one, build a table of what a fee takes over 10 to 40 years, and fix a fee calculator that makes a fee look harmless.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Transaction fees** are charged when you buy or sell; **ongoing fees** every year, as a share of what you hold. A fund's yearly costs are its **expense ratio**.
+- **The rule used here:** each year the balance grows, then the fee is taken: `balance * (1 + growth) * (1 - fee)`.
+- **Fee drag** is `1 - (1 - fee) ** years` of the no-fee amount: 1% a year takes about 10% over 10 years, 26% over 30, 33% over 40.
+- **Compare** two options with the same start, growth and years, and give the difference as a share of the better one.
+- **Taxes in outline:** taxed every year, gains compound at the **after-tax return** (6% with a 25% tax is 4.5%); in a **tax-deferred account** they compound untaxed and are taxed later, which ends with more.
+- Growth is uncertain; costs are known in advance and chosen.
+
+</Recap>
