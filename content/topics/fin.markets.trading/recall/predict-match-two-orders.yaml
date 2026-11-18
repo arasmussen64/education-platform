@@ -1,0 +1,33 @@
+id: predict-match-two-orders
+type: predict_output
+rev: 1
+prompt: |
+  A market order to buy 250 shares meets three made-up sell orders, listed in the order they arrived. What does the program print?
+code: |
+  asks = [
+      {"id": "X", "price": 5.20, "shares": 300},
+      {"id": "Y", "price": 5.10, "shares": 100},
+      {"id": "Z", "price": 5.10, "shares": 200},
+  ]
+  wanted = 250
+  while wanted > 0:
+      best = asks[0]
+      for order in asks:
+          if order["price"] < best["price"]:
+              best = order
+      taken = min(wanted, best["shares"])
+      print(best["id"], taken)
+      wanted = wanted - taken
+      best["shares"] = best["shares"] - taken
+      if best["shares"] == 0:
+          asks.remove(best)
+  for order in asks:
+      print(order["id"], order["shares"])
+expected_output: |
+  Y 100
+  Z 150
+  X 300
+  Z 50
+explanation: |
+  Y and Z both ask 5.10, the lowest price, and the strict `<` keeps the first of them found, Y, which arrived earlier: price first, then time. Y has only 100 shares, so it's used up and removed. The other 150 come from Z, the next best, which keeps its place with 50 left. X, at 5.20, is never reached. What's left on the book is X with 300 and Z with 50, in their original order.
+skills: [matching]

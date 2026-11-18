@@ -1,0 +1,17 @@
+id: parsons-best-ask
+type: parsons
+rev: 1
+prompt: |
+  Three made-up sell orders are listed in the order they arrived. Put the lines in order so the program finds the one a buyer is matched with first, the lowest price and, on a tie, the earlier order, and prints `A2 10.02`. One line is a decoy that doesn't belong.
+lines:
+  - 'asks = [{"id": "A1", "price": 10.05}, {"id": "A2", "price": 10.02}, {"id": "A3", "price": 10.02}]'
+  - 'best = asks[0]'
+  - 'for order in asks:'
+  - '    if order["price"] < best["price"]:'
+  - '        best = order'
+  - 'print(best["id"], best["price"])'
+distractors:
+  - '    if order["price"] <= best["price"]:'
+explanation: |
+  Start with the first order as the best so far, then look at each order and replace the best only when one is strictly cheaper. A2 and A3 both ask 10.02, and because the list is in arrival order, the strict `<` leaves the earlier one, A2, in place when A3 comes along. That's time priority. The decoy's `<=` would also replace the best on a tie, so the last of the equal orders would win: it prints `A3 10.02`, which punishes the order that waited longest.
+skills: [matching]
