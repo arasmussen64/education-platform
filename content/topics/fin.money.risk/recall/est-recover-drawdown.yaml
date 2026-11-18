@@ -1,0 +1,22 @@
+id: est-recover-drawdown
+type: estimate
+rev: 1
+prompt: |
+  A fund is in a 40% drawdown: it's 40% below its peak. What gain does it need from here to get back to the peak, as a percentage? Within 0.1 of a percentage point.
+unit: "%"
+answer: 66.67
+tolerance: { absolute: 0.1 }
+given: { drawdown: 40 }
+working: (1 / (1 - drawdown / 100) - 1) * 100
+mistakes:
+  - id: same-size
+    value: 40
+    working: drawdown
+    why: "A 40% gain on what's left gets only to 0.60 × 1.40 = 0.84 of the peak. The gain is measured from the lower price."
+  - id: half
+    value: 20
+    working: drawdown / 2
+    why: "Recoveries are bigger than the falls they undo, never smaller: from 0.60 back to 1 is a gain of 1 ÷ 0.60 − 1."
+explanation: |
+  At 40% below the peak the fund holds 0.60 of its peak value, and getting back to 1 means multiplying by 1 ÷ 0.60 = 1.667: a 66.7% gain. That's why deep drawdowns take so long to recover from.
+skills: [drawdown]
