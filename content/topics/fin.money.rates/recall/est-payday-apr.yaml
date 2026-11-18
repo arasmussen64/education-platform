@@ -1,0 +1,27 @@
+id: est-payday-apr
+type: estimate
+rev: 1
+prompt: |
+  A payday lender charges a fee of $15 for every $100 borrowed, and the loan is due in two weeks. A year has 26 two-week periods. Written as an APR, what yearly rate is that fee? Exactly.
+unit: "%"
+answer: 390
+tolerance: { absolute: 0 }
+given: { fee: 15, borrowed: 100, periods: 26 }
+working: fee / borrowed * periods * 100
+mistakes:
+  - id: the-fee
+    value: 15
+    working: fee / borrowed * 100
+    why: "15% is the rate for two weeks. An APR scales the per-period rate up to a year: 26 periods."
+  - id: monthly
+    value: 180
+    working: fee / borrowed * 12 * 100
+    why: "That treats the fee as monthly. The loan lasts two weeks, and a year has 26 of those."
+# $15 per $100 for two weeks is the CFPB's own example of a typical payday
+# loan ("an annual percentage rate (APR) of almost 400 percent"), read from
+# its "What is a payday loan?" page on 2026-11-17.
+prices_as_of: 2026-11-17
+prices_source: https://www.consumerfinance.gov/ask-cfpb/what-is-a-payday-loan-en-1567/
+explanation: |
+  The fee is $15 on $100, 15% for two weeks. An APR is the per-period rate times the periods in a year: 15% × 26 = 390%. That's the CFPB's "almost 400 percent". It counts no compounding: a borrower who rolls the loan over pays a new fee on the same $100 each time, and pays the $15 again and again.
+skills: [effective-rate]

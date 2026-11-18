@@ -1,0 +1,61 @@
+<Intro>
+
+<Puzzle question="Two investments are each risky: in a bad year either one can fall a long way. Can owning both, half your money in each, be less risky than owning either one alone?">
+
+Yes, unless they always move together. When one has a bad month the other often doesn't, so part of each one's ups and downs cancels out in the mix. Two investments with 20% volatility each, which move with no pattern between them, give a half-and-half mix with about 14% volatility, at the same expected return. How much risk the mix sheds depends on one number, the correlation, which this topic teaches you to compute.
+
+</Puzzle>
+
+The Risk topic measured one investment at a time: its volatility, and its worst fall. This topic puts investments together. A **portfolio** is everything an investor holds, taken together, and its risk isn't the average of its parts' risks. That gap is what **diversification** is: spreading money across holdings that don't always move together, so their surprises partly cancel. This module teaches how these things work; it isn't advice on what to buy.
+
+**Covariance and correlation.** Take two funds' monthly returns. For each month, work out how far each fund was from its own average, and multiply the two distances. When both were above average, or both below, the product is positive; when one was up and the other down, it's negative. Add the products up and divide by one less than the number of months, as the sample standard deviation does: that's the **covariance**. A positive covariance means the funds tend to move together, a negative one that they tend to move apart. Its size is hard to read, because it grows with how big the returns are, so divide it by both funds' volatilities. The result is the **correlation**, and it always lands between -1 (always opposite) and +1 (always together), with 0 meaning no pattern. A correlation of a list with itself is exactly 1, which makes a good test of your code.
+
+<Check item="mcq-read-correlation" />
+
+**Two holdings.** Put the share `w` of your money in fund A and `1 - w` in fund B. The mix's expected return is simply the weighted average: `w` times A's plus `1 - w` times B's. Its variance (volatility squared) is
+
+```python
+w**2 * vol_a**2 + (1 - w) ** 2 * vol_b**2 + 2 * w * (1 - w) * corr * vol_a * vol_b
+```
+
+and its volatility is the square root of that. The last part is the cross term, and the correlation sits in it. At a correlation of 1 the whole thing collapses to a weighted average of the two volatilities: no gain at all. Every correlation below 1 makes the mix less volatile than that average, and at -1 a well-chosen mix can cancel out completely. The worked example below checks the formula against the mix's own month-by-month returns, and they agree.
+
+<Check item="est-mix-uncorrelated" />
+
+**Many holdings.** Now split your money equally between `n` holdings, each with the same volatility. If they're uncorrelated, the portfolio's volatility is the single holding's divided by the square root of `n`: four holdings halve it, nine cut it to a third, a hundred to a tenth. Real holdings are never uncorrelated, though. Each one's return is part **specific risk**, its own news (a product that flops, a lawsuit, a good year), and part **market risk**, what moves almost everything together (a recession, a jump in interest rates). Specific risk cancels out as holdings are added; market risk doesn't. With every pair correlated by `corr`, the variance is `vol**2 * (corr + (1 - corr) / n)`: as `n` grows the second part shrinks away and the volatility settles at `vol * sqrt(corr)`. That's where diversification stops. The write exercise shows it with eight made-up funds: the second fund takes a lot off, the later ones much less.
+
+<Check item="est-nine-uncorrelated" />
+
+**What an index fund buys.** A fund that holds hundreds of companies, in the amounts a market index lists them (Stocks, bonds and funds covers how), has almost none of any one company's specific risk left, and its expected return is still the weighted average of what it holds. So it lowers risk without lowering the expected return. What it keeps is market risk: in a market-wide fall it falls with the market.
+
+<Check item="contrast-specific-or-market-risk" />
+
+<Story title="Enron's employees and their retirement savings, 2001" source="https://www.everycrsreport.com/files/20020311_RS21115_393ab0c2b87d7edcff49225eacbde3f8f95b2f88.html" sourceTitle="The Enron Bankruptcy and Employer Stock in Retirement Plans (CRS Report RS21115)" license="US government work (Congressional Research Service); linked, not copied">
+
+Enron, a large US energy company, offered its staff a 401(k): a retirement savings account at work into which employees put part of their pay. One of the things they could buy in it was Enron's own shares, and the company paid its matching contributions mostly in Enron shares too.
+
+By the end of 2000, 62% of everything in the plan was Enron stock, and some employees held even more. The company estimated that most of it, 89%, had been bought by the employees themselves.
+
+Enron shares traded above $80 in January 2001. The company filed for bankruptcy on 2 December 2001, and by January 2002 a share was worth less than 70 cents. Employees whose accounts were mostly Enron shares lost most of their retirement savings in the same months that their employer went bankrupt: their pay and their savings rested on one company.
+
+In this topic's terms: their savings carried all of one company's specific risk, and it was perfectly correlated with their wages. The lesson worth keeping: knowing a company well doesn't diversify it.
+
+</Story>
+
+**Read now:** Investor.gov's *Asset Allocation and Diversification*, the main resource below, especially its section on diversification; then its page on index funds. The quick questions ask you to read correlations and work out a few mixes' volatility; use a calculator if you like, because the skill is setting up the sum. The exercises compute a correlation, show volatility falling as funds are added, find the mix of two funds with the least risk, and fix a correlation report that gets an impossible answer.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Covariance:** multiply each period's two distances from the means, add them up, divide by `n - 1`. Positive: they tend to move together.
+- **Correlation:** covariance divided by both volatilities, always from -1 to +1. A list with itself gives exactly 1.
+- **Two holdings:** variance = `w**2 * vol_a**2 + (1 - w) ** 2 * vol_b**2 + 2 * w * (1 - w) * corr * vol_a * vol_b`; volatility is its square root. At a correlation of 1 it's the weighted average of the volatilities; below 1, less.
+- **Expected return** of a mix is always the weighted average of its holdings' expected returns. Diversification lowers risk, not expected return.
+- **Many holdings:** uncorrelated, volatility falls as one over the square root of `n`; with a shared correlation it levels off at `vol * sqrt(corr)`.
+- **Specific risk** averages away across holdings; **market risk** doesn't. An index fund removes the first and keeps the second.
+- **Concentration:** savings in your employer's shares rest on the same company as your wages. Enron's employees lost both in 2001.
+
+</Recap>

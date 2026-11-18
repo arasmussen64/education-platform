@@ -1,0 +1,30 @@
+id: predict-correlation-extremes
+type: predict_output
+rev: 1
+prompt: |
+  `b` is always `a` doubled plus 0.01, and `c` is always `a` with its sign flipped. What does the program print?
+code: |
+  def correlation(a, b):
+      mean_a = sum(a) / len(a)
+      mean_b = sum(b) / len(b)
+      cov = 0
+      sq_a = 0
+      sq_b = 0
+      for i in range(len(a)):
+          cov = cov + (a[i] - mean_a) * (b[i] - mean_b)
+          sq_a = sq_a + (a[i] - mean_a) ** 2
+          sq_b = sq_b + (b[i] - mean_b) ** 2
+      return cov / (sq_a * sq_b) ** 0.5
+
+
+  a = [0.01, 0.05, -0.02, 0.03]
+  b = [0.03, 0.11, -0.03, 0.07]
+  c = [-0.01, -0.05, 0.02, -0.03]
+  print(round(correlation(a, b), 2))
+  print(round(correlation(a, c), 2))
+expected_output: |
+  1.0
+  -1.0
+explanation: |
+  This version leaves out the `/ (n - 1)` in the covariance and in both variances, because they cancel: the same number divides the top and, after the square root, the bottom. `b` moves exactly in step with `a`, twice as far, so their correlation is `1.0`: doubling and adding 0.01 changes how far and where, never the pattern. `c` always moves the opposite way by the same amount, so its correlation with `a` is `-1.0`. Those are the two ends of the scale; real returns land between them.
+skills: [correlation]

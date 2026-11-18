@@ -1,0 +1,22 @@
+id: est-mix-perfectly-correlated
+type: estimate
+rev: 1
+prompt: |
+  A mix holds 60% of its money in a share fund with a volatility of 25% a year and 40% in a property fund with 15%. The two have a correlation of 1: they always move together. What is the mix's volatility, in percent? Exactly.
+unit: "%"
+answer: 21
+tolerance: { absolute: 0 }
+given: { w_share: 60, vol_share: 25, w_property: 40, vol_property: 15 }
+working: (w_share * vol_share + w_property * vol_property) / 100
+mistakes:
+  - id: uncorrelated
+    value: 16.16
+    working: ((w_share / 100) ** 2 * vol_share ** 2 + (w_property / 100) ** 2 * vol_property ** 2) ** 0.5
+    why: "That leaves out the cross term, as if the correlation were 0. At a correlation of 1 the cross term is as big as it gets."
+  - id: plain-average
+    value: 20
+    working: (vol_share + vol_property) / 2
+    why: "That's the average for a half-and-half mix. This one is 60/40, so weight each volatility by its share."
+explanation: |
+  At a correlation of 1 the formula collapses to a weighted average of the volatilities: 0.6 × 25% + 0.4 × 15% = 15% + 6% = 21%. Things that always move together give no diversification at all: the mix's risk sits in a straight line between its parts. Every correlation below 1 bends that line down.
+skills: [portfolio-volatility]

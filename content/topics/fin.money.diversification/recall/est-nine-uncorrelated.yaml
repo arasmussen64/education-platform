@@ -1,0 +1,22 @@
+id: est-nine-uncorrelated
+type: estimate
+rev: 1
+prompt: |
+  You split your money equally between 9 small companies' shares. Each has a volatility of 30% a year, and (unrealistically) their returns are completely uncorrelated. What is the portfolio's volatility, in percent? Exactly.
+unit: "%"
+answer: 10
+tolerance: { absolute: 0 }
+given: { n: 9, vol: 30 }
+working: vol / n ** 0.5
+mistakes:
+  - id: divided-by-n
+    value: 3.33
+    working: vol / n
+    why: "Risk doesn't fall in proportion to the number of holdings. With no correlation it falls as one over the square root of the count: √9 = 3."
+  - id: no-change
+    value: 30
+    working: "30"
+    why: "Holding nine instead of one only leaves the risk unchanged if they all move together. Uncorrelated holdings partly cancel out."
+explanation: |
+  With equal shares and no correlation, the variance is 9 × (1/9)² × 30² = 30² / 9, so the volatility is 30% / √9 = 10%. Nine holdings cut the risk to a third, not a ninth. Going on to 36 holdings would only halve it again, to 5%, and real shares are never uncorrelated, so in practice it stops falling well before that.
+skills: [diversify]

@@ -1,15 +1,101 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.money.rates
 kind: topic
-status: planned
+status: ready
 title: "Rates, inflation and real returns"
 summary: "APR against the effective rate, nominal against real, and prices deflated with the CPI."
 prerequisites:
-- fin.money.compounding
-estimated_minutes: 60
+  - fin.money.compounding
+estimated_minutes: 75
 rev: 1
 objectives:
-- "Turn an APR into an effective annual rate for any compounding frequency."
-- "Tell a nominal return from a real one."
-- "Deflate a price history with the Consumer Price Index."
+  - "Turn an APR into an effective annual rate for any compounding frequency."
+  - "Tell a nominal return from a real one, with the exact formula and the rough one."
+  - "Measure inflation from the Consumer Price Index and deflate a price history."
+# The CPI-U numbers in this topic are the US Bureau of Labor Statistics'
+# series CUUR0000SA0 (All items in U.S. city average, all urban consumers,
+# not seasonally adjusted), annual averages (period M13), read from the BLS
+# public data API (api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0
+# with annualaverage=true) on 2026-11-17:
+#   1995 152.4, 2000 172.2, 2005 195.3, 2010 218.056, 2015 237.017,
+#   2019 255.657, 2020 258.811, 2021 270.970, 2022 292.655, 2023 304.702,
+#   2024 313.689, 2025 321.943.
+# BLS: "everything that we publish ... is in the public domain" (its
+# copyright page, read 2026-11-17); it asks to be credited as the source.
+# The CFPB pages are US government works.
+resources:
+  - title: "Consumer Price Index Frequently Asked Questions (US Bureau of Labor Statistics): read \"How do I read or interpret an index?\" and \"How is the CPI used?\""
+    url: https://www.bls.gov/cpi/questions-and-answers.htm
+    type: reading
+    use: link
+    license: Public domain (US government work; BLS asks to be credited)
+  - title: "What is a credit card interest rate? What does APR mean? (Consumer Financial Protection Bureau)"
+    url: https://www.consumerfinance.gov/ask-cfpb/what-is-a-credit-card-interest-rate-what-does-apr-mean-en-44/
+    type: reading
+    use: link
+    license: Public domain (US government work), linked
+  - title: "What is a payday loan? (Consumer Financial Protection Bureau)"
+    url: https://www.consumerfinance.gov/ask-cfpb/what-is-a-payday-loan-en-1567/
+    type: reading
+    use: link
+    license: Public domain (US government work), linked
+practice:
+  - example-apr-to-effective
+  - parsons-daily-savings
+  - mcq-apr-to-monthly
+  - est-card-30-apr
+  - est-quarterly-savings
+  - est-one-percent-a-month
+  - contrast-apr-or-apy
+  - typed-effective-rate-name
+  - est-payday-apr
+  - mcq-cpi-change
+  - est-inflation-2021-2025
+  - est-deflate-2000
+  - est-deflate-to-1995
+  - typed-cpi-name
+  - predict-real-return
+  - contrast-nominal-or-real
+  - est-real-savings
+  - est-real-bond
+  - est-real-high-return
+  - fill-real-return
+  - write-deflate-prices
+prove:
+  build: build-effective-rate
+  debug: debug-real-return-report
+  explain:
+    prompt: |
+      A savings account pays 4% a year, and over the same year prices rise 5%. The saver says: "My money grew, so I'm richer than a year ago." In your own words, with numbers for $10,000: what does the balance grow to, what would $10,000 of last year's shopping cost now, and what is the real return, by the exact formula and by the rough one? Did the saver get richer? And what is the difference between a nominal return and a real one?
+    rubric:
+      - id: the-numbers
+        required: true
+        description: "$10,000 grows to $10,400; last year's $10,000 of shopping now costs $10,500; the balance buys less than it did."
+      - id: real-return
+        required: true
+        description: "The real return is (1 + 0.04) / (1 + 0.05) - 1, about -0.95% a year; the rough version, 4% minus 5%, says -1%. Either way it's negative."
+      - id: verdict
+        required: true
+        description: "The saver has more dollars but can buy less: poorer in what the money buys, by about $95 of last year's money (10,400 / 1.05 is about 9,905)."
+      - id: nominal-vs-real
+        required: true
+        description: "A nominal return counts dollars; a real return counts what those dollars buy, after taking inflation out."
+      - id: when-rough-fails
+        required: false
+        description: "Says the rough n - i is close when both rates are small and drifts when they're large."
+    model_answer: |
+      The balance grows from $10,000 to $10,400: that's the nominal return, 4%, counted in dollars. But prices rose 5%, so the shopping that cost $10,000 a year ago now costs $10,500. The saver's $10,400 doesn't cover it. The real return, which counts what the money buys, is (1 + 0.04) / (1 + 0.05) - 1 = -0.0095, about -0.95% a year. The rough rule, nominal minus inflation, gives 4% - 5% = -1%, close because both rates are small. Another way to see it: $10,400 today buys what 10,400 / 1.05 = $9,904.76 bought a year ago, about $95 less than the saver started with. So the saver is not richer. They have more dollars and less buying power. A nominal return is the change in dollars; a real return is the change in what those dollars buy, after inflation is taken out. The rough subtraction is fine for small rates, but with 50% inflation it would be badly off, and the division is the honest one.
+review_pool:
+  - est-quarterly-savings
+  - typed-effective-rate-name
+  - mcq-cpi-change
+  - est-deflate-to-1995
+  - typed-cpi-name
+  - contrast-nominal-or-real
+  - est-real-bond
+skills:
+  - id: effective-rate
+    description: "Turn an APR into the rate charged each period and the effective annual rate, for any compounding frequency"
+  - id: real-vs-nominal
+    description: "Tell a nominal return from a real one, with the exact (1 + n) / (1 + i) - 1 and the rough n - i"
+  - id: deflate
+    description: "Measure inflation from the CPI and turn prices from one year into another year's money"
