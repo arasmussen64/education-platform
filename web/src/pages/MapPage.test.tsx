@@ -197,6 +197,68 @@ describe('a prerequisite in another track', () => {
   })
 })
 
+describe("a module's foundations from other tracks", () => {
+  const LIST = { name: 'Before Module 1: from other tracks' }
+  const PRINT_BUILD = [
+    attempt(PRINT.id, PRINT.prove.build, 'code_check', true),
+    attempt(PRINT.id, PRINT.prove.debug, 'code_check', true),
+    attempt(PRINT.id, 'explain', 'explain_submit', true),
+  ]
+
+  beforeEach(() => {
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  it('lists exactly what the module needs, and how much of each track that is', async () => {
+    renderMap([], { path: '/map/finance' })
+    const list = await screen.findByRole('region', LIST)
+    expect(
+      within(list).getByText(
+        /^Python Foundations: Modules 1 to 4 in full and 3 of the 6 topics in Module 5$/,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(list).getByText(/^Machine Learning Foundations: 5 of the/),
+    ).toBeInTheDocument()
+    expect(
+      within(list).getByText(/You don't need the rest/),
+    ).toBeInTheDocument()
+    // The learner's own track lists nothing of the kind.
+    expect(
+      within(list).queryByRole('link', { name: 'Compound interest' }),
+    ).toBeNull()
+  })
+
+  it('points to the first topic to learn, and keeps the track in the link', async () => {
+    renderMap([], { path: '/map/finance' })
+    const list = await screen.findByRole('region', LIST)
+    const start = await within(list).findByRole('link', {
+      name: 'Start: Programs and print',
+    })
+    expect(start).toHaveAttribute(
+      'href',
+      '/topic/py.programs-and-print?for=finance',
+    )
+    expect(within(list).getByText(/^0 of 32 learned/)).toBeInTheDocument()
+  })
+
+  it('counts what was learned in the other track, and moves on', async () => {
+    renderMap(PRINT_BUILD, { path: '/map/finance' })
+    const list = await screen.findByRole('region', LIST)
+    expect(
+      await within(list).findByRole('link', {
+        name: 'Start: Values and types',
+      }),
+    ).toBeInTheDocument()
+    expect(within(list).getByText(/^1 of 32 learned/)).toBeInTheDocument()
+  })
+
+  it('shows nothing of the kind on a track that builds only on itself', () => {
+    renderMap([])
+    expect(screen.queryByText(/from other tracks/)).toBeNull()
+  })
+})
+
 describe('more than one track', () => {
   beforeEach(() => {
     vi.mocked(fetchAttempts).mockReset()

@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-18, what a track needs from other tracks
+
+**The owner asked:** the first finance topic was Locked, and it wasn't clear whether that meant the whole Python track first or only parts of it. Keep the locks and prerequisites as they are, but point the learner to exactly what's needed, or show it in the track itself, "as a UI/UX expert".
+
+**The problem, in numbers.** Finance Module 1 builds on 32 topics from other tracks, about 24 hours: Python Foundations' Modules 1 to 4 whole, 3 of Module 5's 6 topics, and 5 of the ML track's 8 math topics. The Locked notice named only the two direct prerequisites (`for` and `range`, and exponents and logs), themselves locked, so it was a dead end. The ML track has the same gap (28 Python topics before its Module 1).
+
+**What was built** (no change to prerequisites or gating):
+
+- **The map:** "Before Module 1: from other tracks", above the module. One sentence on how much of each track it is, the time, how many are learned, a Start button for the next, then the list in learning order, one fold per source module (the fold with the next topic open). Once everything is learned it folds to one line. A later module lists only what it adds (`web/src/content/foundations.ts`).
+- **The topic page:** opened from that list (`?for=finance`), a topic says "For Finance and Markets: this is 2 of the 32 topics its Module 1 builds on", the next on the list once it's learned, and the way back to the list. A Locked topic now says how many are left to go, where to start (in whichever track) and links to the list.
+- **Today:** a track whose topics are all locked says where to start, in the other track, instead of "once you've learned X".
+
+**Author notes:**
+
+- _Why the list lives in the track, not a "go do Python first" message:_ the learner stays oriented in the track they chose, sees the exact size of the detour, and can tell they're not being asked for the whole other track. The topics stay in their home track (a topic is learned once, wherever), so nothing is copied and reviews still come from one place.
+- _Order:_ each topic after its own prerequisites, otherwise in course order, so Python comes before the ML math that builds on it.
+- _Not done:_ the placement test can't yet be scoped to one list. It's linked from the list, and each topic's "Prove it now" works as before.
+
+**Next:** back to the build order, cloud Module 4.
+
 ## 2026-11-17, finance Module 1: How a trade happens; Reading market data; Checkpoint 1
 
 Writer D of four wrote topics 10 and 11 of Finance and Markets Module 1 and its checkpoint, from [its plan](plans/finance-module-1/README.md). There was one pull request each (#331, #332 and this one), and all three are `ready`.

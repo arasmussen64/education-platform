@@ -696,18 +696,19 @@ describe('next up on the Today page', () => {
     ).toHaveAttribute('href', '/topic/csa.linux.shell')
   })
 
-  it('says what unlocks a track whose topics are all locked', async () => {
+  it('says where to start on a track whose topics are all locked, even in another track', async () => {
     renderToday([])
     const next = await nextUpSection()
     const ml = trackEntry(next, /^Machine Learning Foundations/)
     expect(ml).toHaveTextContent(
-      "Next: Fractions, decimals and percentages, once you've learned Strings and input (Python Foundations).",
+      /Start: Programs and print \(Python Foundations\), on the way to Fractions, decimals and percentages: \d+ topics to go\./,
     )
     expect(
-      within(ml).getByRole('link', {
-        name: 'Fractions, decimals and percentages',
-      }),
-    ).toHaveAttribute('href', '/topic/ml.math.arithmetic')
+      within(ml).getByRole('link', { name: 'Programs and print' }),
+    ).toHaveAttribute('href', '/topic/py.programs-and-print?for=ml-foundations')
+    expect(
+      within(ml).getByRole('link', { name: 'See what Module 1 needs' }),
+    ).toHaveAttribute('href', '/map/ml-foundations#foundations-ml.m1')
   })
 
   it('continues the topic in progress, in its own track only', async () => {

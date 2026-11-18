@@ -111,10 +111,13 @@ function renderTopic(
       Promise.resolve<Attempt[]>(unlocked(topic)),
     ),
     at,
+    path,
   }: {
     signedIn?: boolean
     loadAttempts?: (topicId: string) => Promise<Attempt[]>
     at?: string
+    /** The page's address, for a test about its query (?for=…). */
+    path?: string
   } = {},
 ) {
   if (at) openAt(at)
@@ -122,7 +125,7 @@ function renderTopic(
   render(
     <AuthProvider auth={fakeAuth(signedIn ? fakeUser() : null)}>
       <EventLogContext value={log}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={path ? [path] : undefined}>
           <TopicView
             topic={topic}
             content={content}
@@ -2129,6 +2132,90 @@ describe('the goals at the top of a topic', () => {
     expect(within(goals()).getByRole('listitem')).toHaveTextContent(
       '(not proven yet)',
     )
+  })
+})
+
+describe('topics from other tracks', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+  const nothingLearned = () =>
+    vi.fn((_topicId: string) => Promise.resolve<Attempt[]>([]))
+  /** Every proof check of a real topic, passed. */
+  const learnedTopic = (id: string) => {
+    const topic = getTopic(id)!
+    return [
+      passedCheck(topic.prove.build ?? '', id),
+      passedCheck(topic.prove.debug ?? '', id),
+      explainPassed(id),
+    ]
+  }
+
+  it('says how far a Locked topic is, where to start, and where the list is', async () => {
+    const topic = getTopic('fin.money.compounding')!
+    renderTopic(topic, fakeContent(topic), { loadAttempts: nothingLearned() })
+    const notice = await screen.findByRole('complementary', { name: 'Locked' })
+    expect(notice).toHaveTextContent(/24 topics to go before this one/)
+    expect(
+      within(notice).getByRole('link', { name: 'Programs and print' }),
+    ).toHaveAttribute('href', '/topic/py.programs-and-print?for=finance')
+    expect(notice).toHaveTextContent('(Python Foundations, Module 1)')
+    expect(
+      within(notice).getByRole('link', {
+        name: 'See everything Module 1 needs from other tracks',
+      }),
+    ).toHaveAttribute('href', '/map/finance#foundations-fin.m1')
+  })
+
+  it('says which track sent the learner, how far along its list they are, and the way back', async () => {
+    const topic = getTopic('py.values-and-types')!
+    renderTopic(topic, fakeContent(topic), {
+      path: '/topic/py.values-and-types?for=finance',
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve(learnedTopic('py.programs-and-print')),
+      ),
+    })
+    const note = await screen.findByRole('complementary', {
+      name: 'For Finance and Markets',
+    })
+    expect(note).toHaveTextContent(
+      /this is 2 of the 32 topics its Module 1 builds on/,
+    )
+    expect(
+      await within(note).findByText(/you've learned 1 of them/),
+    ).toBeInTheDocument()
+    expect(
+      within(note).getByRole('link', {
+        name: 'Back to the list on the Finance and Markets map',
+      }),
+    ).toHaveAttribute('href', '/map/finance#foundations-fin.m1')
+  })
+
+  it('offers the next on the list once this one is learned', async () => {
+    const topic = getTopic('py.programs-and-print')!
+    renderTopic(topic, fakeContent(topic), {
+      path: '/topic/py.programs-and-print?for=finance',
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve(learnedTopic('py.programs-and-print')),
+      ),
+    })
+    const note = await screen.findByRole('complementary', {
+      name: 'For Finance and Markets',
+    })
+    expect(
+      await within(note).findByRole('link', {
+        name: 'Next on the list: Values and types',
+      }),
+    ).toHaveAttribute('href', '/topic/py.values-and-types?for=finance')
+  })
+
+  it('says nothing of the kind without a track, or for one that does not need it', async () => {
+    const topic = getTopic('py.values-and-types')!
+    renderTopic(topic, fakeContent(topic), {
+      path: '/topic/py.values-and-types?for=python-foundations',
+    })
+    await screen.findByTestId('topic-state')
+    expect(screen.queryByRole('complementary', { name: /^For / })).toBeNull()
   })
 })
 

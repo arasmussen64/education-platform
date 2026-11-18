@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import { flushSync } from 'react-dom'
-import { Link, useLoaderData } from 'react-router'
+import { Link, useLoaderData, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { MoreParts } from '../checkpoints/MoreParts.tsx'
 import { stepsOpenedEvent } from '../checkpoints/stepsOpened.ts'
@@ -19,10 +19,25 @@ import {
   Unstuck,
 } from '../checkpoints/Unstuck.tsx'
 import { SUGGEST_STEPS_AFTER } from '../checkpoints/versions.ts'
-import { getTopic, placeOf, tracks } from '../content/content.ts'
+import {
+  getTopic,
+  getTrack,
+  isOpen,
+  placeOf,
+  tracks,
+} from '../content/content.ts'
+import {
+  aboutTime,
+  foundationLink,
+  foundationsAnchor,
+  foundationsListing,
+  type ModuleFoundations,
+  prerequisitesInOrder,
+  trackFoundations,
+} from '../content/foundations.ts'
 import { practiceOutsideLesson } from '../content/lessonChecks.ts'
 import { STAGES } from '../content/stages.ts'
-import type { Explain, Topic, TopicContent } from '../content/types.ts'
+import type { Explain, Topic, TopicContent, Track } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
@@ -63,6 +78,7 @@ import { ReportProblem } from '../reports/ReportProblem.tsx'
 import { type ItemState, itemKey, itemStates } from '../progress/itemStates.ts'
 import {
   furtherParts,
+  nextUp,
   type Proof,
   PROOFS,
   STATE_LABELS,
@@ -105,7 +121,8 @@ export function TopicView({
   loadAttempts?: LoadAttempts
 }) {
   useLessonView(content)
-  const progress = useTopicProgress(topic, loadAttempts)
+  const sentFor = useSentFor(topic)
+  const progress = useTopicProgress(topic, loadAttempts, sentFor)
   const state =
     progress.status === 'ready' ? stateOf(topic, progress.progress) : null
   // Gating applies to a signed-in learner once their progress is known.
@@ -214,6 +231,9 @@ export function TopicView({
     >
       <div className="mb-8 lg:col-span-2">
         <TopicHeader topic={topic} state={state} progress={progress} />
+        {sentFor && (
+          <SentForNote topic={topic} sentFor={sentFor} progress={progress} />
+        )}
       </div>
       {content && showOutline && currentPart && (
         <aside className="mb-8 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-2 lg:mb-0 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto">
@@ -536,16 +556,19 @@ function ladderOf(
 function useTopicProgress(
   topic: Topic,
   loadAttempts?: LoadAttempts,
+  sentFor?: SentFor | null,
 ): ProgressState {
-  const topics = useMemo(
-    () => [
+  // Everything it builds on, all the way down, so a Locked topic can say
+  // where to start; and the list the learner was sent from, so the page
+  // can say what's next on it.
+  const topics = useMemo(() => {
+    const all = [
       topic,
-      ...topic.prerequisites
-        .map((id) => getTopic(id))
-        .filter((found) => found !== undefined),
-    ],
-    [topic],
-  )
+      ...prerequisitesInOrder([topic.id]),
+      ...(sentFor?.listing.topics ?? []),
+    ]
+    return [...new Map(all.map((each) => [each.id, each])).values()]
+  }, [topic, sentFor])
   const load = useCallback(async () => {
     if (!loadAttempts) return fetchAttempts()
     const lists = await Promise.all(topics.map((each) => loadAttempts(each.id)))
@@ -568,6 +591,23 @@ function LockedNotice({
     .filter((id) => !learned(id))
     .map((id) => getTopic(id))
     .filter((found) => found !== undefined)
+  // Those may wait on others in turn: how many in all, and where to start.
+  const toGo = prerequisitesInOrder([topic.id]).filter(
+    (each) => !learned(each.id),
+  )
+  const start =
+    progress.status === 'ready'
+      ? nextUp(toGo.filter(isOpen), progress.progress)
+      : null
+  const deeper = toGo.length > waitingOn.length
+  const place = placeOf(topic.id)
+  const startPlace = start ? placeOf(start.topic.id) : undefined
+  // The list on the map, when this topic's module builds on other tracks.
+  const listing = place
+    ? trackFoundations(place.track).find(
+        (each) => each.module.id === place.module.id,
+      )
+    : undefined
   return (
     <aside aria-labelledby="locked" className={`${CARD} space-y-2`}>
       <p id="locked" className="font-medium">
@@ -587,6 +627,120 @@ function LockedNotice({
         ))}
         . Until then you can read the lesson, but the practice and the proof
         checks wait.
+      </p>
+      {deeper && (
+        <p>
+          Those build on others you haven't learned yet: {toGo.length} topics to
+          go before this one, {aboutTime(toGo)}.
+        </p>
+      )}
+      {start && deeper && (
+        <p>
+          <span className="font-medium">
+            {start.state === 'in-progress' ? 'Continue with' : 'Start with'}:
+          </span>{' '}
+          <Link
+            to={
+              place && startPlace && startPlace.track.id !== place.track.id
+                ? foundationLink(start.topic.id, place.track)
+                : `/topic/${start.topic.id}`
+            }
+            className="underline"
+          >
+            {start.topic.title}
+          </Link>
+          {startPlace && (
+            <span className="text-sm text-slate-500 dark:text-slate-400">
+              {' '}
+              ({startPlace.track.title}, Module {startPlace.number})
+            </span>
+          )}
+        </p>
+      )}
+      {place && listing && listing.topics.length > 0 && (
+        <p className="text-sm">
+          <Link
+            to={`/map/${place.track.id}#${foundationsAnchor(listing.module)}`}
+            className="underline"
+          >
+            See everything Module {place.number} needs from other tracks
+          </Link>
+          , in order, on the {place.track.title} map.
+        </p>
+      )}
+    </aside>
+  )
+}
+
+/**
+ * A track that sent the learner here from its list of foundations
+ * (?for=finance), when this topic is on that list.
+ */
+type SentFor = { track: Track; listing: ModuleFoundations }
+
+function useSentFor(topic: Topic): SentFor | null {
+  const [params] = useSearchParams()
+  const trackId = params.get('for')
+  return useMemo(() => {
+    const track = trackId ? getTrack(trackId) : undefined
+    if (!track) return null
+    const listing = foundationsListing(track, topic.id)
+    return listing ? { track, listing } : null
+  }, [trackId, topic.id])
+}
+
+/**
+ * On a topic another track builds on, reached from that track's list:
+ * which list, how far along it the learner is, and the way back. Without
+ * it, a learner sent from Finance lands in Python Foundations with no sign
+ * of how much of it they came for.
+ */
+function SentForNote({
+  topic,
+  sentFor,
+  progress,
+}: {
+  topic: Topic
+  sentFor: SentFor
+  progress: ProgressState
+}) {
+  const { track, listing } = sentFor
+  const number = track.modules.indexOf(listing.module) + 1
+  const list = listing.topics
+  const position = list.findIndex((each) => each.id === topic.id) + 1
+  const ready = progress.status === 'ready' ? progress.progress : null
+  const learned = ready
+    ? list.filter((each) => ready.get(each.id)?.learnedAt).length
+    : null
+  // What's next on the list, once this one is learned.
+  const next =
+    ready && ready.get(topic.id)?.learnedAt
+      ? nextUp(list.filter(isOpen), ready)
+      : null
+  return (
+    <aside
+      aria-label={`For ${track.title}`}
+      className="mt-4 space-y-1 rounded-lg border-2 border-dashed border-slate-300 p-3 text-sm dark:border-slate-700"
+    >
+      <p>
+        <span className="font-medium">For {track.title}:</span> this is{' '}
+        {position} of the {list.length} topics its Module {number} builds on
+        from other tracks
+        {learned !== null && `, and you've learned ${learned} of them`}. You
+        don't need the rest of this track for it.
+      </p>
+      <p className="flex flex-wrap gap-x-4">
+        {next && (
+          <Link to={foundationLink(next.topic.id, track)} className="underline">
+            Next on the list: {next.topic.title}
+          </Link>
+        )}
+        <Link
+          to={`/map/${track.id}#${foundationsAnchor(listing.module)}`}
+          className="underline"
+        >
+          Back to the list on the {track.title} map
+        </Link>
       </p>
     </aside>
   )
