@@ -1,0 +1,23 @@
+id: est-true-return-after-split
+type: estimate
+rev: 1
+prompt: |
+  You bought shares of a made-up company at $120 each. Later it split 2-for-1, and now each share is $66. What is your true return, in percent? Exactly.
+unit: "%"
+answer: 10
+tolerance: { absolute: 0 }
+given: { bought: 120, ratio: 2, now: 66 }
+working: (now / (bought / ratio) - 1) * 100
+amounts: made-up
+mistakes:
+  - id: raw
+    value: -45
+    working: (now / bought - 1) * 100
+    why: "That compares $66 with $120 as if nothing had happened. Each share you bought is now two shares, worth $132 together."
+  - id: doubled-the-wrong-way
+    value: -72.5
+    working: (now / (bought * ratio) - 1) * 100
+    why: "That doubles the old price instead of halving it. In today's shares, $120 for one old share is $60 a share."
+explanation: |
+  Each share bought at $120 became two shares, so in today's shares you paid $60 each. They're now $66: 66 ÷ 60 − 1 = 10%. Another way to see it: one old share is now two shares worth $66 each, $132 in all, and $132 against $120 is 10% up. A price list that isn't adjusted for the split shows a 45% fall that never happened.
+skills: [adjust]

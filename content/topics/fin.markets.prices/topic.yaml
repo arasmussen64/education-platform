@@ -1,16 +1,95 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.markets.prices
 kind: topic
-status: planned
+status: ready
 title: "Reading market data"
-summary: "Open, high, low and close; prices adjusted for splits and dividends; price- and cap-weighted indexes."
+summary: "Open, high, low, close and volume; past prices adjusted for splits and dividends so returns come out right; and a price-weighted and a cap-weighted index built from three companies."
 prerequisites:
-- fin.markets.trading
-- fin.money.returns
-estimated_minutes: 60
+  - fin.markets.trading
+  - fin.money.returns
+estimated_minutes: 80
 rev: 1
 objectives:
-- "Read open, high, low, close and volume."
-- "Adjust a price history for a split and a dividend."
-- "Build a price-weighted and a cap-weighted index and say why they differ."
+  - "Read a price bar's open, high, low, close and volume, and build a longer bar from shorter ones."
+  - "Adjust a price history for a split and a dividend, and say why returns must come from adjusted prices."
+  - "Build a price-weighted and a cap-weighted index from three companies, and say why they give different returns."
+# Investor.gov is the US Securities and Exchange Commission's site for
+# investors, a US government work; its disclaimer page states no licence, so
+# it's recorded as a government work and linked, never copied (read
+# 2026-11-17). Every price in the topic is made up: vendors' price histories
+# and index levels are licensed and aren't shipped (the track's data rule).
+resources:
+  - title: "Ex-Dividend Dates: When Are You Entitled to Stock and Cash Dividends (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/introduction-investing/investing-basics/glossary/ex-dividend-dates-when-are-you-entitled-stock-and-cash-dividends
+    type: reading
+    use: link
+    license: "US government work (SEC); linked, not copied"
+  - title: "Stock Split (Investor.gov glossary)"
+    url: https://www.investor.gov/introduction-investing/investing-basics/glossary/stock-split
+    type: reading
+    use: link
+    license: "US government work (SEC); linked, not copied"
+  - title: "Market Index (Investor.gov glossary)"
+    url: https://www.investor.gov/introduction-investing/investing-basics/glossary/market-index
+    type: reading
+    use: link
+    license: "US government work (SEC); linked, not copied"
+# Adjustment convention (the module plan): a split divides every close before
+# the split day by the ratio; a dividend multiplies every close before the
+# ex-date by 1 - dividend / (the last close before the ex-date). The latest
+# prices stay real.
+practice:
+  - example-a-week-of-bars
+  - parsons-split-adjust
+  - mcq-read-a-bar
+  - predict-week-bar
+  - typed-close
+  - est-split-adjusted-price
+  - mcq-why-adjust
+  - est-true-return-after-split
+  - typed-ex-dividend-date
+  - est-dividend-factor
+  - contrast-price-or-cap
+  - est-price-weighted-move
+  - est-cap-weight
+  - est-cap-weighted-return
+  - fill-two-indexes
+  - write-dividend-adjustment
+prove:
+  build: build-split-adjusted-return
+  debug: debug-index-calculator
+  explain:
+    prompt: |
+      Two made-up companies make up an index. Tall Co's shares cost $300 and there are 2 million of them. Wide Co's shares cost $15 and there are 200 million of them. Over a year Tall Co's price rises 20% and Wide Co's falls 10%. In your own words: what does a price-weighted index of the two do over the year, and what does a cap-weighted one do, with the numbers? Why do the same two companies give two different answers? Which one better tells you how the money invested in these two companies did, and why?
+    rubric:
+      - id: price-weighted
+        required: true
+        description: "The price-weighted index follows the sum of prices: 300 + 15 = 315 goes to 360 + 13.50 = 373.50, about +18.6%; Tall Co dominates because its price is high."
+      - id: cap-weighted
+        required: true
+        description: "The cap-weighted index follows market values: $600 million + $3,000 million = $3,600 million goes to $720 million + $2,700 million = $3,420 million, a fall of 5%; Wide Co dominates because it's worth five times as much."
+      - id: why
+        required: true
+        description: "Price weighting counts a share's price, which says nothing about a company's size (a split would change it); cap weighting counts what each company is worth, price times shares."
+      - id: money
+        required: true
+        description: "The cap-weighted index matches what happened to the total money invested in the two companies (it's what owning all their shares would have returned)."
+      - id: weighted-returns
+        required: false
+        description: "Shows the cap-weighted return as the returns weighted by each company's share of the total: 1/6 × 20% + 5/6 × (−10%) = −5%."
+    model_answer: |
+      A price-weighted index adds up the share prices. At the start that's $300 + $15 = $315; at the end Tall Co is $360 and Wide Co $13.50, $373.50 in all, so the index is up about 18.6%. Tall Co's $300 price makes it count twenty times as much as Wide Co, so its 20% rise decides the answer. A cap-weighted index adds up market values, price times shares. Tall Co is worth $300 × 2 million = $600 million and Wide Co $15 × 200 million = $3,000 million, $3,600 million in all. At the end Tall Co is worth $720 million and Wide Co $2,700 million, $3,420 million, so the index is down 5%. That's the two returns weighted by size: one sixth of 20% plus five sixths of −10% is −5%. The answers differ because the two indexes listen to different things: a share's price says nothing about how big a company is (Tall Co could split 20-for-1 tomorrow and become a $15 share), while market value is what the whole company is worth. The cap-weighted index tells you how the money invested in these companies did: someone who owned all the shares of both had $3,600 million and ended with $3,420 million, 5% less, even though the price-weighted index says +18.6%.
+review_pool:
+  - typed-close
+  - typed-ex-dividend-date
+  - predict-week-bar
+  - est-true-return-after-split
+  - est-cap-weighted-return
+  - contrast-price-or-cap
+  - mcq-why-adjust
+skills:
+  - id: ohlc
+    description: "Read open, high, low, close and volume, and build a longer bar from shorter ones"
+  - id: adjust
+    description: "Adjust a price history for a split and a dividend so that returns come out right"
+  - id: indexes
+    description: "Build a price-weighted and a cap-weighted index and say why they give different returns"
