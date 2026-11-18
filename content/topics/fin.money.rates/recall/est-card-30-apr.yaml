@@ -1,0 +1,22 @@
+id: est-card-30-apr
+type: estimate
+rev: 1
+prompt: |
+  A credit card charges 30% APR, compounded monthly (12 times a year). If nothing is paid for a year, by what percentage does the balance grow? Within 0.1 of a percentage point.
+unit: "%"
+answer: 34.49
+tolerance: { absolute: 0.1 }
+given: { apr: 30, per_year: 12 }
+working: ((1 + apr / 100 / per_year) ** per_year - 1) * 100
+mistakes:
+  - id: the-apr
+    value: 30
+    working: apr
+    why: "That's the APR, the rate as stated. Each month's 2.5% is charged on the last month's interest too, so a year adds more."
+  - id: one-month
+    value: 2.5
+    working: apr / per_year
+    why: "That's what one month adds, 30% ÷ 12. A year is twelve of those months, each growing the balance the last one left."
+explanation: |
+  The card charges 30% ÷ 12 = 2.5% a month. Twelve months of that multiply: 1.025 to the power 12 is 1.3449, so the balance grows by 34.49% in a year, not 30%. The gap between the APR and the effective rate widens as the rate rises: at 24% it's under 3 points, at 30% it's nearly 4.5.
+skills: [effective-rate]

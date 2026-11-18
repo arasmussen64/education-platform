@@ -1,0 +1,22 @@
+id: est-one-percent-a-month
+type: estimate
+rev: 1
+prompt: |
+  A lender charges 1.25% interest a month on what's owed, so its APR is 15%. Over 12 months with nothing paid, by what percentage does the debt grow? Within 0.1 of a percentage point.
+unit: "%"
+answer: 16.08
+tolerance: { absolute: 0.1 }
+given: { monthly: 1.25, apr: 15, months: 12 }
+working: ((1 + monthly / 100) ** months - 1) * 100
+mistakes:
+  - id: the-apr
+    value: 15
+    working: apr
+    why: "15% is the APR, 1.25% times 12, with no compounding counted. Each month's interest is owed on the interest before it."
+  - id: one-month
+    value: 1.25
+    working: monthly
+    why: "That's one month. A year is twelve months, each multiplying the debt by 1.0125."
+explanation: |
+  Each month multiplies the debt by 1.0125. Twelve months: 1.0125 to the power 12 is 1.1608, so the debt grows 16.08% in a year, against an APR of 15%. Lenders' APRs are the per-period rate times the periods; the effective rate is what the borrower actually feels.
+skills: [effective-rate]

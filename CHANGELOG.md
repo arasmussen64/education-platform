@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Finance Module 1 topics)
+
+- `fin.money.rates`, Rates, inflation and real returns: APR to the effective annual rate for any compounding frequency, nominal against real returns, and prices deflated with real CPI-U yearly averages from the Bureau of Labor Statistics (series CUUR0000SA0, read 2026-11-17).
+
 ### Added (Finance and Markets on the map)
 
 - A fourth track, Finance and Markets (`content/tracks/finance.yaml`), with Module 1, "Money, time and risk", as twelve outlines: eleven topics and Checkpoint 1. Its writing plan is `docs/plans/finance-module-1/README.md`.
