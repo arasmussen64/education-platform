@@ -2,6 +2,19 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-17: Finance Module 1 on the map, and its writing plan
+
+**The owner said** "Go ahead with finance Module 1 first", so the track's Module 1 now comes before the cloud track's Module 4.
+
+**What changed.** `content/tracks/finance.yaml` puts the track on the map, with Module 1's eleven topics and its checkpoint as `planned` outlines. [docs/plans/finance-module-1/README.md](plans/finance-module-1/README.md) is the writing plan: the rules every topic shares (a rate is a decimal, money is rounded only for printing, one set of function names, only public-domain real data, a "not advice" line), and for each topic its skills, puzzle, proofs, story and what to watch for. Every number in its puzzles was worked out in Python. The roadmap, CLAUDE.md and the spec record the new order.
+
+**Author notes:**
+
+- _Modules 2 to 6 aren't on the map yet._ Their topics have no ids until their plans name them; the spec says so.
+- _Four writers in parallel_ will write the topics, three each, one pull request a topic, then a cold review of the whole module.
+
+**Next:** the twelve topics, from the plan.
+
 ## 2026-11-17: A plan for a Finance and Markets track
 
 **The owner asked** for a review of their document _Zero to Wall Street Expert: Complete Roadmap_, then for a plan for a new track, written first as a financial expert and then as an education expert: "We'll start one module at a time."

@@ -32,6 +32,7 @@ describe('the content the app loads', () => {
       'python-foundations',
       'cloud-solutions-architect',
       'ml-foundations',
+      'finance',
     ])
     for (const id of everyTopicId) {
       expect(getTopic(id), id).toBeDefined()
