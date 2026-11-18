@@ -143,12 +143,12 @@ def test_another_loan_and_prices():
     """Works for another loan and another price list too."""
     printed = run_with(
         {
-            "principal": 6000,
-            "annual_rate": 0.09,
+            "principal": 7500,
+            "annual_rate": 0.084,
             "quarters": 6,
             "prices": [30.0, 30.4, 29.9, 30.8, 31.0, 30.2, 31.3],
         }
     )
-    assert schedule_is_consistent(printed, 6000, 0.09, 6)
+    assert schedule_is_consistent(printed, 7500, 0.084, 6)
     portfolio = [numbers(line) for line in printed.splitlines()[-3:]]
     assert portfolio == [[44.4], [17.9], [2.6, 4, 5]]
