@@ -1,17 +1,97 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.markets.trading
 kind: topic
-status: planned
+status: ready
 title: "How a trade happens"
-summary: "An order's journey from broker to settlement, order types, the spread, and a tiny order book."
+summary: "An order's journey from a broker to an exchange, a clearing house and settlement; market, limit and stop orders; the bid, the ask and the spread; and a small order book that matches orders, built in Python."
 prerequisites:
-- fin.markets.instruments
-- py.dictionaries
-estimated_minutes: 60
+  - fin.markets.instruments
+  - py.dictionaries
+estimated_minutes: 85
 rev: 1
 objectives:
-- "Follow an order from a broker to settlement."
-- "Tell market, limit and stop orders apart."
-- "Read a bid, an ask and the spread."
-- "Match orders in a small order book."
+  - "Follow an order from a broker to an exchange, a clearing house and settlement, and say what T+1 means in the US."
+  - "Tell market, limit and stop orders apart: which is sure to trade and which is sure of its price."
+  - "Read a bid, an ask and the spread, and work out what a market order really pays."
+  - "Match orders in a small order book of your own: best price first, then earliest."
+# Investor.gov is the US Securities and Exchange Commission's site for
+# investors, a US government work; its disclaimer page states no licence, so
+# it's recorded as a government work and linked, never copied (read
+# 2026-11-17). The SEC staff report the Story tells is linked from the lesson.
+resources:
+  - title: "Types of Orders (Investor.gov, US Securities and Exchange Commission): market, limit and stop orders"
+    url: https://www.investor.gov/introduction-investing/investing-basics/how-stock-markets-work/types-orders
+    type: reading
+    use: link
+    license: "US government work (SEC); linked, not copied"
+  - title: "Executing an Order (Investor.gov): where your broker sends an order, and why the price can differ from the quote"
+    url: https://www.investor.gov/introduction-investing/investing-basics/how-stock-markets-work/executing-order
+    type: reading
+    use: link
+    license: "US government work (SEC); linked, not copied"
+  - title: "New \"T+1\" Settlement Cycle: What Investors Need To Know (Investor.gov Investor Bulletin, 27 March 2024)"
+    url: https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins/new-t1-settlement-cycle-what-investors-need-know-investor-bulletin
+    type: reading
+    use: link
+    license: "US government work (SEC); linked, not copied"
+# Every price is made up and every book is written into the exercise. The
+# books are lists of dictionaries in arrival order, so "earliest first" is a
+# strict < in the loop that finds the best price (the Parsons item and the
+# build both rest on it).
+practice:
+  - example-quotes-and-a-market-buy
+  - parsons-best-ask
+  - mcq-clearing-house
+  - mcq-settlement-day
+  - typed-settlement-cycle
+  - est-round-trip
+  - typed-best-bid
+  - est-spread-percent
+  - mcq-limit-order
+  - mcq-stop-order
+  - contrast-market-or-limit
+  - predict-match-two-orders
+  - est-walk-the-book
+  - est-thin-book
+  - fill-spread-report
+  - write-limit-buy
+prove:
+  build: build-match-a-market-order
+  debug: debug-market-sell
+  explain:
+    prompt: |
+      A friend sees that a small company's shares last traded at $4.00 and sends a market order to buy 5,000 of them. The order fills at an average of $4.30. They think the app cheated them. In your own words: what is a market order, and what does it trade against? Why can it pay much more than the last price shown, especially for a thinly traded stock? Make up a small order book that would give a result like theirs, with numbers. And what could they have done differently?
+    rubric:
+      - id: market-order
+        required: true
+        description: "A market order trades at once against the limit orders resting on the book: a buy takes the best (lowest) ask first, then the next best, until it's filled."
+      - id: last-price
+        required: true
+        description: "The last price is where someone traded before, not a price anyone is offering now; the order pays the asks that are on the book when it arrives."
+      - id: thin-book
+        required: true
+        description: "A thinly traded stock has a wide spread and few shares at each price, so a big market order walks the book to higher and higher asks; gives a made-up book whose average fill is well above the last price, with the arithmetic."
+      - id: alternative
+        required: true
+        description: "A limit order caps the price (at the cost of maybe not filling), or a smaller order, or looking at the spread and the book's size before trading."
+      - id: spread
+        required: false
+        description: "Names the bid-ask spread as the gap between the best bid and best ask, and notes that even a small order pays the ask, above the middle."
+    model_answer: |
+      A market order says "buy now, at whatever price it takes". It trades against the limit orders other people have left resting on the order book: a buy is matched with the lowest ask first, and if that order doesn't have enough shares, with the next lowest, and so on until all 5,000 shares are bought. The $4.00 on the screen was the last price, where someone happened to trade earlier; nobody was promising to sell 5,000 shares at it. A thinly traded stock has few people offering shares, so the spread between bid and ask is wide and there are only a few hundred shares at each price. Say the book held 1,000 shares at $4.10, 1,500 at $4.20, 1,500 at $4.40 and 1,000 at $4.50. The order takes all of them: $4,100 + $6,300 + $6,600 + $4,500 = $21,500 for 5,000 shares, an average of $4.30, 7.5% above the last price. The app didn't cheat; the order walked the book. They could have used a limit order, say to buy at up to $4.15, which would have bought what was offered at that price or below and left the rest waiting as a bid, at the risk of not getting all the shares; or bought in smaller pieces over time; or simply looked at the bid, the ask and how many shares sat at each price before pressing buy.
+review_pool:
+  - typed-settlement-cycle
+  - typed-best-bid
+  - est-thin-book
+  - predict-match-two-orders
+  - mcq-stop-order
+  - contrast-market-or-limit
+  - mcq-clearing-house
+skills:
+  - id: order-journey
+    description: "Follow an order from a broker to an exchange, a clearing house and settlement; T+1 in the US"
+  - id: order-types
+    description: "Tell market, limit and stop orders apart: what each promises and what it risks"
+  - id: spread
+    description: "Read a bid, an ask and the spread, and work out what a market order pays"
+  - id: matching
+    description: "Match orders in a small order book: best price first, then the earliest order at that price"

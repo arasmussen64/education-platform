@@ -1,0 +1,52 @@
+<Intro>
+
+<Puzzle question='You press "buy" in your broker app at 10:00 on a Tuesday, and a second later it says your order filled. When are the shares officially yours?'>
+
+On Wednesday. The trade, the agreement on price and number of shares, happens in that second. Moving the shares and the money between the firms' accounts, through a clearing house, is **settlement**, and in the US it happens one business day after the trade (T+1) since 28 May 2024. Before that it took two.
+
+</Puzzle>
+
+Stocks, bonds and funds, from *Stocks, bonds and funds*, are things you can own. This topic is about how they change hands: the path an order takes, the kinds of order you can send, the prices you see on a screen, and the small machine at the heart of every exchange that matches buyers with sellers. You'll build one of those machines in Python. As everywhere in this module, it's about how things work, not advice on what to buy or sell, and every price is made up.
+
+**The journey of an order.** You don't trade with an exchange directly. You send an order to a **broker**, a firm licensed to trade on your behalf; your app is its front door. The broker chooses where to send the order: an **exchange**, a marketplace where buyers' and sellers' orders meet, or a firm that fills orders itself (in the US most small investors' orders are filled that way, by firms called wholesalers). When your order meets one going the other way, that's the trade: the price and the number of shares are fixed. Then the trade goes to a **clearing house**, which steps into the middle: it becomes the seller to the buyer's broker and the buyer to the seller's broker, and promises that the trade completes even if one broker fails before it's done. To keep that promise safely, it asks every member broker for deposits that rise with the risk of what the broker's customers have traded. Last comes **settlement**: the shares move to the buyer's broker and the money to the seller's. In the US, for stocks, the clearing house is the National Securities Clearing Corporation (NSCC), and settlement happens one business day after the trade date, **T+1**, since 28 May 2024; from 2017 until then it was T+2.
+
+<Check item="mcq-clearing-house" />
+
+<Story title="GameStop and the clearing house's deposits, January 2021" source="https://www.sec.gov/files/staff-report-equity-options-market-struction-conditions-early-2021.pdf" sourceTitle="Staff Report on Equity and Options Market Structure Conditions in Early 2021" license="US government work (SEC staff report); linked, not copied">
+
+In January 2021 GameStop's share price rose from about $20 to a close of $347.51 on 27 January, and traded as high as $483 the next morning. On 28 January several brokers that serve small investors stopped their customers from buying GameStop and a handful of other "meme stocks": they could only sell.
+
+Several of those brokers said why: the clearing house's deposit demands. Wild prices raise the risk that one side of a trade fails before settlement, so on 27 January the NSCC called for $6.9 billion more from 36 member firms. One broker's requirement on 28 January was $1.4 billion, and an extra charge of more than double that was waived. The NSCC can't order a broker to stop trading a stock, but a broker short of cash can stop taking the trades that push its deposits up.
+
+The report's first lesson: one way to cut that risk is to shorten the time until settlement. The SEC moved US stocks from T+2 to T+1 in 2024.
+
+</Story>
+
+**Bids, asks and the spread.** Look up any stock and you see two prices, not one. The **bid** is the highest price any buyer is offering right now; the **ask** (also called the offer) is the lowest price any seller will take. The ask is always higher, and the gap between them is the **bid-ask spread**. A market order to buy pays the ask and one to sell gets the bid, so buying and selling straight away loses the spread: it's the price of trading at once. The **last price**, the one most apps show biggest, is only where someone traded before; it isn't a price anyone is offering now. Busy stocks have spreads of a cent or two; thinly traded ones, where few people trade, can have spreads of a percent or more.
+
+<Check item="est-round-trip" />
+
+**Three kinds of order.** A **market order** says "now, at whatever price": it is sure to trade, but not sure of its price. A **limit order** says "at this price or better": a buy limit at $20.00 pays $20.00 or less and never more, so it is sure of its price but may never trade; whatever can't trade at once waits on the book. A **stop order** sleeps until the price reaches a level you set, then becomes a market order; a sell stop below today's price is used to limit a loss, but when the price jumps past the stop, as it can overnight, it sells at whatever the next price is.
+
+<Check item="mcq-limit-order" />
+
+**The order book and matching.** Every limit order that can't trade at once rests in the **order book**: the bids on one side, highest first, and the asks on the other, lowest first. When a market order to buy arrives, the exchange's matching engine pairs it with the best ask. If that order is too small, it takes all of it and moves on to the next best, and so on until the market order is filled: it "walks the book". Two resting orders at the same price are taken in the order they arrived, earliest first. That rule, best price first and then earliest, is called price-time priority, and it rewards whoever offered the best price, and then whoever offered it first. A resting order that's used up leaves the book; one that's partly used stays in its place with fewer shares. In Python, a book is a list of dictionaries in arrival order, and finding the best ask is a loop that keeps the cheapest order so far and replaces it only with a strictly cheaper one, so that on a tie the earlier order stays.
+
+<Check item="predict-match-two-orders" />
+
+**Read now:** Investor.gov's *Types of Orders*, the main resource below, a short page from the US Securities and Exchange Commission. Then its *Executing an Order*, on where your broker sends an order and why the price you saw may not be the price you get, and its bulletin on the T+1 settlement cycle. The worked example reads a quote and walks a market order through a book; the build asks you to write the matching engine for a market order yourself.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **The journey:** you → **broker** → an **exchange** (or a firm that fills orders itself) → the trade → the **clearing house**, which stands between the two sides and asks brokers for deposits → **settlement**, when shares and money move. US stocks settle **T+1**, one business day after the trade, since 28 May 2024 (T+2 before).
+- **Quotes:** the **bid** is the best a buyer will pay, the **ask** the least a seller will take; the **bid-ask spread** is the gap, and trading at once costs it. The last price is history, not an offer.
+- **Orders:** a **market order** is sure to trade, not sure of its price; a **limit order** is sure of its price, not sure to trade; a **stop order** becomes a market order when the price reaches its stop, and can sell well below it when prices jump.
+- **Matching:** the **order book** holds the resting limit orders. A market order takes the best price first, then the earliest order at that price, walking the book until it's filled. Used-up orders leave; partly used ones keep their place with fewer shares.
+- **Why it matters:** on a thin book a market order can walk far past the last price shown. Look at the spread and the book's size, or use a limit order.
+- How things work, not advice: every price here is made up.
+
+</Recap>

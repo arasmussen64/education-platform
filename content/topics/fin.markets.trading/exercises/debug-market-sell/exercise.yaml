@@ -1,0 +1,21 @@
+id: debug-market-sell
+stage: debug
+rev: 1
+title: "A market sell order"
+prompt: |
+  This program matches a market order to sell 400 shares of a made-up stock against the buy orders resting on its book (listed in the order they arrived). A market sell should go to the highest bid first, and to the earlier order when two bids have the same price; an order it uses up leaves the book, and one it uses only part of stays with fewer shares. It should print:
+
+  ```
+  sold 200 at 49.95 to B2
+  sold 100 at 49.95 to B4
+  sold 100 at 49.90 to B1
+  left on the book:
+  B1 200 at 49.90
+  B3 500 at 49.80
+  ```
+
+  Instead it sells all 400 shares at 49.80 to B3, and the book it prints afterwards still holds all four orders with the shares they started with. It has two bugs. Run it, fix what you find, and run it again, then run the checks, which also try another book.
+hints:
+  - "Which bid should a seller want first: the highest or the lowest? Read the comparison in `best_bid` with that in mind."
+  - "When a fill uses only part of a resting order, what should happen to that order's `shares`? Follow `match_market_sell` through the case where `taken` is smaller than `order[\"shares\"]`."
+skills: [matching, spread]
