@@ -1,0 +1,56 @@
+id: build-equipment-loan
+stage: build
+rev: 1
+title: "The equipment loan and weeks of prices"
+prompt: |
+  The same two reports with other periods, from a blank editor. Begin with these four lines (the prices are made up):
+
+  ```python
+  principal = 24000
+  annual_rate = 0.08
+  quarters = 8
+  prices = [40.0, 40.5, 39.8, 40.9, 41.2, 40.1, 41.5, 42.0, 41.6]
+  ```
+
+  **The equipment loan.** A firm borrows 24,000 at 8% a year and repays it in 8 equal payments, one every quarter (three months), so the rate per period is the yearly rate divided by 4. Write `payment(principal, rate, periods)`, the level payment for a rate per period (`principal * rate / (1 - (1 + rate) ** -periods)`), and `print_schedule(principal, annual_rate, quarters)`, which prints each quarter's interest (the balance owed times the quarterly rate), the part of the payment that repays the loan, and the balance left; then the payment, the total paid and the total interest.
+
+  **The portfolio.** `prices` holds a made-up stock's closing price at the end of each week, eight weeks of returns, and a year has 52 weeks. Write `simple_returns(prices)` (each price over the one before, minus 1), `annualized_return(prices, periods_per_year)` (`(last / first) ** (1 / years) - 1`, with `years` the number of periods divided by `periods_per_year`), `volatility(returns)` (the sample standard deviation, dividing by one less than the number of returns; the report annualizes weekly volatility by multiplying by the square root of 52) and `max_drawdown(prices)` (the largest fall from the highest price so far, as a decimal).
+
+  Round only when printing: money to the cent with commas, percentages to one decimal place. The program prints:
+
+  ```
+  quarter 1: interest 480.00, principal 2,796.24, balance 21,203.76
+  quarter 2: interest 424.08, principal 2,852.16, balance 18,351.60
+  quarter 3: interest 367.03, principal 2,909.20, balance 15,442.40
+  quarter 4: interest 308.85, principal 2,967.39, balance 12,475.01
+  quarter 5: interest 249.50, principal 3,026.73, balance 9,448.28
+  quarter 6: interest 188.97, principal 3,087.27, balance 6,361.01
+  quarter 7: interest 127.22, principal 3,149.01, balance 3,212.00
+  quarter 8: interest 64.24, principal 3,212.00, balance 0.00
+  payment 3,276.24
+  total paid 26,209.88
+  total interest 2,209.88
+  annualized return 29.0%
+  volatility 15.5%
+  max drawdown 2.7%
+  ```
+
+  The last balance may print as `-0.00` instead, and either is right. The checks run your program with another loan and price list too, and call your functions directly.
+# A fresh version is the only proof left once the steps are open (ADR-0012),
+# so this one changes the periods: quarterly payments (rate / 4) and weekly
+# prices (annualized by 52 and the square root of 52). The build's solution
+# with only the inputs changed fails it (wrong/steps-pasted.py).
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_payment: [fin.money.annuities/payment]
+  test_the_schedule: [fin.money.annuities/amortization]
+  test_the_totals: [fin.money.annuities/payment, fin.money.annuities/amortization]
+  test_money_format: [fin.money.annuities/amortization]
+  test_layout: [fin.money.annuities/amortization]
+  test_simple_returns: [fin.money.returns/simple-returns]
+  test_annualized_return: [fin.money.returns/annualize]
+  test_volatility: [fin.money.risk/volatility]
+  test_max_drawdown: [fin.money.risk/drawdown]
+  test_the_portfolio_report: [fin.money.returns/annualize, fin.money.risk/volatility, fin.money.risk/drawdown]
+  test_another_loan_and_prices: [fin.money.annuities/amortization, fin.money.returns/annualize, fin.money.risk/volatility, fin.money.risk/drawdown]

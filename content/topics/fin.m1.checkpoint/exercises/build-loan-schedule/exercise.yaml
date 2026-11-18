@@ -1,0 +1,70 @@
+id: build-loan-schedule
+stage: build
+rev: 1
+title: "The loan and the portfolio"
+prompt: |
+  Two reports in one program, from a blank editor. Begin with these four lines (the prices are made up):
+
+  ```python
+  principal = 15000
+  annual_rate = 0.072
+  months = 18
+  prices = [100.0, 104.0, 99.0, 106.0, 97.0, 103.0, 112.0]
+  ```
+
+  **The loan.** A loan of 15,000 at 7.2% a year, repaid in 18 equal monthly payments. The monthly rate is the yearly rate divided by 12. Write:
+
+  - `payment(principal, rate, periods)`, the level payment for a rate per period: `principal * rate / (1 - (1 + rate) ** -periods)`.
+  - `print_schedule(principal, annual_rate, months)`, which prints one line per month: the interest that month (the balance owed times the monthly rate), the part of the payment that repays the loan (the payment minus the interest), and the balance left. Then the payment, the total paid over the loan and the total interest.
+
+  **The portfolio.** `prices` is a made-up stock's closing price at the end of each month, so six months of returns. Write:
+
+  - `simple_returns(prices)`, each price divided by the one before, minus 1.
+  - `annualized_return(prices, periods_per_year)`, the growth from the first price to the last turned into a yearly rate: `(last / first) ** (1 / years) - 1`, where `years` is the number of periods divided by `periods_per_year`.
+  - `volatility(returns)`, the sample standard deviation of the returns (the squared distances from their mean, added up, divided by one less than the number of returns, then the square root). The report annualizes it by multiplying by the square root of 12.
+  - `max_drawdown(prices)`, the largest fall from the highest price so far, as a decimal (0.25 for a fall of 25%).
+
+  Keep every number as it comes out and round only when printing, money to the cent with commas and percentages to one decimal place. The program prints:
+
+  ```
+  month 1: interest 90.00, principal 791.64, balance 14,208.36
+  month 2: interest 85.25, principal 796.39, balance 13,411.97
+  month 3: interest 80.47, principal 801.17, balance 12,610.81
+  month 4: interest 75.66, principal 805.97, balance 11,804.83
+  month 5: interest 70.83, principal 810.81, balance 10,994.02
+  month 6: interest 65.96, principal 815.67, balance 10,178.35
+  month 7: interest 61.07, principal 820.57, balance 9,357.78
+  month 8: interest 56.15, principal 825.49, balance 8,532.29
+  month 9: interest 51.19, principal 830.44, balance 7,701.85
+  month 10: interest 46.21, principal 835.43, balance 6,866.42
+  month 11: interest 41.20, principal 840.44, balance 6,025.98
+  month 12: interest 36.16, principal 845.48, balance 5,180.50
+  month 13: interest 31.08, principal 850.56, balance 4,329.94
+  month 14: interest 25.98, principal 855.66, balance 3,474.28
+  month 15: interest 20.85, principal 860.79, balance 2,613.49
+  month 16: interest 15.68, principal 865.96, balance 1,747.53
+  month 17: interest 10.49, principal 871.15, balance 876.38
+  month 18: interest 5.26, principal 876.38, balance 0.00
+  payment 881.64
+  total paid 15,869.49
+  total interest 869.49
+  annualized return 25.4%
+  volatility 24.4%
+  max drawdown 8.5%
+  ```
+
+  The last balance may print as `-0.00` instead: a float can land a hair below zero, and either is right. The checks run your program with another loan and another price list too, and call your functions directly.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_payment: [fin.money.annuities/payment]
+  test_the_schedule: [fin.money.annuities/amortization]
+  test_the_totals: [fin.money.annuities/payment, fin.money.annuities/amortization]
+  test_money_format: [fin.money.annuities/amortization]
+  test_layout: [fin.money.annuities/amortization]
+  test_simple_returns: [fin.money.returns/simple-returns]
+  test_annualized_return: [fin.money.returns/annualize]
+  test_volatility: [fin.money.risk/volatility]
+  test_max_drawdown: [fin.money.risk/drawdown]
+  test_the_portfolio_report: [fin.money.returns/annualize, fin.money.risk/volatility, fin.money.risk/drawdown]
+  test_another_loan_and_prices: [fin.money.annuities/amortization, fin.money.returns/annualize, fin.money.risk/volatility, fin.money.risk/drawdown]
