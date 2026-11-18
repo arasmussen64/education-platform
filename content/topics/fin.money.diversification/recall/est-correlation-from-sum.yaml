@@ -1,0 +1,22 @@
+id: est-correlation-from-sum
+type: estimate
+rev: 1
+prompt: |
+  You have 5 months of returns for two funds. Multiplying each month's two distances from their means and adding the 5 products up gives 0.0024. The funds' volatilities, worked out the same sample way, are 0.02 and 0.04. What is their correlation? Exactly.
+unit: "(a correlation, from -1 to 1)"
+answer: 0.75
+tolerance: { absolute: 0 }
+given: { months: 5, total: 0.0024, vol_a: 0.02, vol_b: 0.04 }
+working: total / (months - 1) / (vol_a * vol_b)
+mistakes:
+  - id: divided-by-count
+    value: 0.6
+    working: total / months / (vol_a * vol_b)
+    why: "That divides the total by 5. The sample covariance divides by one less than the count, 4, to match the sample volatilities."
+  - id: no-division
+    value: 3
+    working: total / (vol_a * vol_b)
+    why: "The total is not yet the covariance: divide it by 5 - 1 = 4 first. A correlation can never be above 1, which is the sign something was missed."
+explanation: |
+  First the covariance: 0.0024 ÷ (5 - 1) = 0.0006. Then divide by both volatilities: 0.0006 ÷ (0.02 × 0.04) = 0.0006 ÷ 0.0008 = 0.75. Dividing by n - 1 in the covariance and in both volatilities keeps them on the same footing, so the correlation of a list with itself comes out at exactly 1.
+skills: [correlation]

@@ -1,0 +1,22 @@
+id: est-correlation-negative
+type: estimate
+rev: 1
+prompt: |
+  A share's monthly returns have a volatility of 0.03, a bond fund's 0.04, and their covariance is -0.0006. What is their correlation? Exactly, with its sign.
+unit: "(a correlation, from -1 to 1)"
+answer: -0.5
+tolerance: { absolute: 0 }
+given: { vol_share: 0.03, vol_bond: 0.04, cov: -0.0006 }
+working: cov / (vol_share * vol_bond)
+mistakes:
+  - id: lost-the-sign
+    value: 0.5
+    working: abs(cov) / (vol_share * vol_bond)
+    why: "The size is right, but the covariance is negative, so the correlation is too: they tend to move in opposite directions."
+  - id: one-volatility
+    value: -0.02
+    working: cov / vol_share
+    why: "That divides by one volatility only. Correlation divides by both, multiplied: 0.03 × 0.04 = 0.0012."
+explanation: |
+  -0.0006 ÷ (0.03 × 0.04) = -0.0006 ÷ 0.0012 = -0.5. The minus sign is the news: these two tended to move in opposite directions, so holding both smooths the ride more than holding two things that move together.
+skills: [correlation]

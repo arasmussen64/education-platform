@@ -86,3 +86,7 @@ skills: [core-counting]
 - Writing an estimate costs more than a multiple-choice item: the working and one to three named mistakes, each proved.
 - A typed number can be memorised. Three items per skill is the first defence, variants the second.
 - The given-number rule only checks that each number appears somewhere in the prompt, not that it means what the name says; a writer still reads the prompt against the working.
+
+## Amendment (2026-11-17): money made up for the question
+
+The Finance and Markets track's estimates are full of money that is nobody's price: $1,000 saved at 7%, a $300,000 mortgage. The money rule above made each one carry `prices_as_of` and `prices_source`, and the page then told the learner the "prices were read" on a day and linked "the provider's price page", which is untrue for an invented balance. An estimate may now say `amounts: made-up` instead of the two price fields (never beside them). It satisfies the money rule and the page shows no note about prices. The currency sign stays in the prompt, so the learner reads money as money. Real prices (a cloud's hourly rate, a fund's fee taken from its page) still carry their date and source.

@@ -410,6 +410,10 @@ class EstimateItem(Strict):
     # shows today's. Both or neither.
     prices_as_of: date | None = None
     prices_source: Annotated[str, Field(pattern=r"^https://")] | None = None
+    # For a prompt whose money is made up for the question (a savings
+    # balance, a loan), not a price anyone charges: "made-up" stands in for
+    # the two price fields, and the page shows no note about prices.
+    amounts: Literal["made-up"] | None = None
 
     @model_validator(mode="after")
     def fits_together(self) -> EstimateItem:
@@ -418,6 +422,11 @@ class EstimateItem(Strict):
             raise ValueError("mistake ids must all be different")
         if (self.prices_as_of is None) != (self.prices_source is None):
             raise ValueError("give both prices_as_of and prices_source, or neither")
+        if self.amounts is not None and self.prices_as_of is not None:
+            raise ValueError(
+                "amounts: made-up says the money is invented, so it can't "
+                "also have prices_as_of and prices_source"
+            )
         if self.tolerance.percent is not None and self.answer == 0:
             raise ValueError(
                 "a percentage of 0 is 0, so a percent tolerance needs an "
