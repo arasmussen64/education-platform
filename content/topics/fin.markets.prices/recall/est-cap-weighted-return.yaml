@@ -1,0 +1,23 @@
+id: est-cap-weighted-return
+type: estimate
+rev: 1
+prompt: |
+  A made-up cap-weighted index holds three companies worth $600 million, $300 million and $100 million at the start of a year. Over the year their shares return +10%, −20% and +50%. What is the index's return for the year, in percent? Exactly.
+unit: "%"
+answer: 5
+tolerance: { absolute: 0 }
+given: { big: 600, middle: 300, small: 100, big_return: 10, middle_return: 20, small_return: 50 }
+working: (big * big_return - middle * middle_return + small * small_return) / (big + middle + small)
+amounts: made-up
+mistakes:
+  - id: plain-average
+    value: 13.33
+    working: (big_return - middle_return + small_return) / 3
+    why: "That averages the three returns as if the companies were the same size. Weight each return by the company's share of the index: 60%, 30% and 10%."
+  - id: sign-dropped
+    value: 17
+    working: (big * big_return + middle * middle_return + small * small_return) / (big + middle + small)
+    why: "That counts the −20% as a gain. The middle company lost a fifth of its value."
+explanation: |
+  The companies are 60%, 30% and 10% of the index. So the return is 0.6 × 10% + 0.3 × (−20%) + 0.1 × 50% = 6% − 6% + 5% = 5%. In money: $660 million + $240 million + $150 million = $1,050 million at the end against $1,000 million at the start, 5% up. The small company's 50% jump moved the index only 5 points; the big one's 10% moved it 6.
+skills: [indexes]

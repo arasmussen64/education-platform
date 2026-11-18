@@ -1,0 +1,23 @@
+id: est-two-year-bond
+type: estimate
+rev: 1
+prompt: |
+  A made-up bond has a face value of $1000, pays a 5% coupon once a year, and has two years left: a coupon a year from now, then a coupon and the face value two years from now. The market now wants 6%. What is the bond's price today, in dollars? Within 0.5%.
+unit: "US dollars"
+answer: 981.67
+tolerance: { percent: 0.5 }
+amounts: made-up
+given: { face: 1000, coupon: 5, market: 6 }
+working: face * coupon / 100 / (1 + market / 100) + (face + face * coupon / 100) / (1 + market / 100) ** 2
+mistakes:
+  - id: one-year-discount
+    value: 1037.74
+    working: (face * coupon / 100 + face + face * coupon / 100) / (1 + market / 100)
+    why: "That discounts everything by one year. The second coupon and the face value are two years away, so divide them by 1.06 ** 2."
+  - id: face-only
+    value: 890
+    working: face / (1 + market / 100) ** 2
+    why: "That's only the face value, discounted. The two $50 coupons are part of the price too."
+explanation: |
+  The cash flows are $50 in a year and $1,050 in two years. Discounted at 6%: 50 / 1.06 + 1050 / 1.06 ** 2 ≈ 47.17 + 934.50 = $981.67. A coupon one point below the market's rate makes the bond about 1.8% cheaper than its face value.
+skills: [bond-value]

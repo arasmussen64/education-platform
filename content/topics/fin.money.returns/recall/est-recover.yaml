@@ -1,0 +1,22 @@
+id: est-recover
+type: estimate
+rev: 1
+prompt: |
+  An investment fell 20% in a year. What return does it need the next year to get back exactly to where it started, as a percentage? Exactly.
+unit: "%"
+answer: 25
+tolerance: { absolute: 0 }
+given: { fall: 20 }
+working: (1 / (1 - fall / 100) - 1) * 100
+mistakes:
+  - id: same-size
+    value: 20
+    working: fall
+    why: "A 20% rise is taken on the smaller amount left after the fall: 0.80 × 1.20 = 0.96, still 4% short."
+  - id: doubled
+    value: 40
+    working: fall * 2
+    why: "Twice the fall overshoots: 0.80 × 1.40 = 1.12. What's needed is the rise that turns 0.80 back into 1."
+explanation: |
+  After the fall you hold 0.80 of what you started with. To get back to 1, multiply by 1 ÷ 0.80 = 1.25: a 25% rise. Bigger falls need much bigger recoveries: after −50% it takes +100%.
+skills: [simple-returns, compound-returns]

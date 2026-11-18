@@ -195,6 +195,8 @@ export type EstimateItem = {
   prices_as_of?: string
   /** The page that shows today's prices. */
   prices_source?: string
+  /** "made-up": the prompt's money is invented for the question, not a price. */
+  amounts?: 'made-up'
 }
 
 /**

@@ -1,0 +1,22 @@
+id: est-correlation-from-covariance
+type: estimate
+rev: 1
+prompt: |
+  Two funds' monthly returns have a covariance of 0.0012. One fund's volatility is 0.04 a month and the other's is 0.05. What is their correlation? Exactly.
+unit: "(a correlation, from -1 to 1)"
+answer: 0.6
+tolerance: { absolute: 0 }
+given: { cov: 0.0012, vol_a: 0.04, vol_b: 0.05 }
+working: cov / (vol_a * vol_b)
+mistakes:
+  - id: added-volatilities
+    value: 0.0133
+    working: cov / (vol_a + vol_b)
+    why: "That divides by the volatilities added together. Correlation divides by them multiplied: 0.04 × 0.05 = 0.002."
+  - id: one-volatility
+    value: 0.03
+    working: cov / vol_a
+    why: "That divides by one volatility only. Correlation divides the covariance by both, multiplied together."
+explanation: |
+  Correlation is covariance divided by the product of the two volatilities: 0.0012 ÷ (0.04 × 0.05) = 0.0012 ÷ 0.002 = 0.6. A covariance on its own is hard to read, because it grows with how big the returns are; dividing by both volatilities puts it on the scale from -1 to +1. 0.6 is a fairly strong tendency to move together.
+skills: [correlation]

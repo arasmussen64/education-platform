@@ -1,0 +1,22 @@
+id: est-fee-drag-forty-years
+type: estimate
+rev: 1
+prompt: |
+  Someone saves for 40 years in a fund that charges 2% of the balance a year, taken after each year's growth. What share of the no-fee amount does the fee take, in percent? Within 2%.
+unit: "%"
+answer: 55.43
+tolerance: { percent: 2 }
+given: { fee: 2, years: 40 }
+working: (1 - (1 - fee / 100) ** years) * 100
+mistakes:
+  - id: simple
+    value: 80
+    working: fee * years
+    why: "That's 2% of the starting amount forty times. The fee is a share of a balance it keeps shrinking, so it compounds to 1 - 0.98 ** 40, not 40 × 2%."
+  - id: one-year
+    value: 2
+    working: fee
+    why: "That's one year's fee. Over 40 years it compounds."
+explanation: |
+  0.98 ** 40 is about 0.4457, so the fee leaves under half: it takes about 55.4% of what there would have been. A 2% fee over a working life costs more than half the result, which is why long horizons make small-sounding fees large.
+skills: [fee-drag]

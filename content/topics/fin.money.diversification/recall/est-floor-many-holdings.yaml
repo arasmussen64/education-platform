@@ -1,0 +1,22 @@
+id: est-floor-many-holdings
+type: estimate
+rev: 1
+prompt: |
+  Every share in a market has a volatility of 25% a year, and every pair of shares has a correlation of 0.36. You hold thousands of them in equal amounts, so many that the part each company adds on its own has averaged away. What volatility is left, in percent? Within 2%.
+unit: "%"
+answer: 15
+tolerance: { percent: 2 }
+given: { vol: 25, corr: 0.36 }
+working: vol * corr ** 0.5
+mistakes:
+  - id: times-corr
+    value: 9
+    working: vol * corr
+    why: "The floor is the volatility times the square root of the correlation: the shared variance is 0.36 × 25², and its square root is 0.6 × 25 = 15."
+  - id: to-zero
+    value: 0
+    working: "0"
+    why: "Only the part each company adds on its own averages away. The shared part, what moves every share together, stays however many you hold."
+explanation: |
+  With n holdings the variance is vol² × (corr + (1 - corr) / n). As n grows the second part shrinks towards nothing and the variance settles at 0.36 × 25² = 225, so the volatility settles at √225 = 15%. That's where diversification stops: the market moving everything together is risk no number of holdings removes.
+skills: [diversify]

@@ -1,0 +1,71 @@
+<Intro>
+
+<Puzzle question="A fund gains 50% one year and loses 50% the next. Its average return is 0%. If you put $1,000 in at the start, how much do you have after the two years?">
+
+$750: you've lost a quarter. The 50% gain turns $1,000 into $1,500, and the 50% loss takes half of that, $750. A loss is a share of a bigger amount than the gain was. Returns don't add; they multiply: 1.5 × 0.5 = 0.75. The 0% "average" describes no year and no outcome.
+
+</Puzzle>
+
+How did an investment do? The question sounds simple and has several honest answers, and some that mislead. This topic computes them from a list of prices, in plain Python. It builds on **Rates, inflation and real returns**, where rates became growth over a year, and on the mean from the ML track's **Probability and statistics**.
+
+The conventions of this module, in case you arrive here first: a rate or a return is a decimal in code, so 5% is `0.05`, printed with `f"{r:.2%}"`; money is a float, rounded only when printed, with `f"{amount:,.2f}"`. The prices in this topic are made up; the module ships no real market prices, because those belong to the companies that sell them.
+
+**A simple return.** The **simple return** from one price to the next is the new price over the old, minus 1. A share bought at $40 and worth $44 a year later returned `44 / 40 - 1`, 0.10, or 10%. From a list of prices, each price after the first gives one return, so a list of `n` prices gives `n - 1` returns:
+
+```python
+prices = [40.0, 44.0, 39.6, 43.56]
+returns = []
+for i in range(1, len(prices)):
+    returns.append(prices[i] / prices[i - 1] - 1)
+# returns is about [0.10, -0.10, 0.10]
+```
+
+Divide the later price by the earlier, never the other way round. (Dividends, the cash a company pays its owners, also count towards a share's return; Reading market data folds them into the prices. Here, the price is everything.)
+
+<Check item="mcq-simple-return" />
+
+**Returns chain by multiplying.** A return of `r` multiplies what you have by `1 + r`, its **growth factor**: +10% is 1.10, −10% is 0.90. Several periods in a row multiply their growth factors, so the three returns above make `1.10 * 0.90 * 1.10`, 1.089: 8.9% over the three years, the same as `43.56 / 40 - 1`. That's why +10% then −10% isn't zero (0.99, a 1% loss), and why a fall needs a bigger rise to get back: after −20% you hold 0.80 of what you had, and `1 / 0.80` is 1.25, so it takes +25%.
+
+<Check item="est-recover" />
+
+A **log return** is `math.log(new / old)`, the natural log of the growth factor. Log returns have a convenient property: they add, because the log of a product is the sum of the logs. Two years of `math.log(1.5)` and `math.log(0.5)` sum to `math.log(0.75)`. Analysts use them for that reason; in this module, multiply the growth factors and you'll get the same answers.
+
+**Annualizing.** Returns over different lengths of time can't be compared until they're put on the same footing, usually a year. The **annualized return** is the steady yearly rate that would give the same total. Over `years` years with a total return `total`:
+
+```python
+annualized = (1 + total) ** (1 / years) - 1   # 60% over 5 years: 9.86% a year
+```
+
+Not 60 ÷ 5 = 12%: steady growth of 12% a year compounds to 76% in five years. From a list of prices taken `periods_per_year` times a year, there are `len(prices) - 1` periods, so `years = (len(prices) - 1) / periods_per_year`, and the total is `prices[-1] / prices[0] - 1`. From monthly returns, chain them, then raise the growth factor to `12 / months`. Be careful annualizing a short stretch: one good month of +5% "annualizes" to 79.6% a year, which says more about the arithmetic than the investment.
+
+<Check item="est-total-60-in-5" />
+
+**Two averages.** The **arithmetic mean** of some returns is the one you know, their sum over their count. It's the right number for a question about one period: if each year is drawn from the same spread of outcomes, it's your best guess for next year's return. The **geometric mean** is the steady rate that gives the same growth: multiply the growth factors, take the `n`th root, subtract 1.
+
+```python
+returns = [0.50, -0.50]
+growth = 1.0
+for r in returns:
+    growth = growth * (1 + r)
+geometric = growth ** (1 / len(returns)) - 1   # -13.4% a year
+```
+
+For the puzzle's fund the arithmetic mean is 0% and the geometric mean −13.4%: the money shrank by 13.4% a year, on the yearly average. The geometric mean is never more than the arithmetic, and the more the returns swing, the bigger the gap. So when a report says "average return", ask which average: for growth over many years, only the geometric mean, which is the annualized return, tells you what happened to the money.
+
+<Check item="contrast-arithmetic-or-geometric" />
+
+**Read now:** OpenStax's *Principles of Finance*, section 15.1, the main resource below, as far as "Measuring Risk": realized returns, and the arithmetic and geometric averages. Aswath Damodaran's table of historical US returns, linked after it, shows the growth of $100 since 1928 for stocks, bonds and bills: a good place to try annualizing on real numbers. The exercises turn prices into returns, chain them, annualize them and average them both ways. This module teaches how these measures work; it isn't advice on what to invest in.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Simple return:** `new / old - 1`. A list of `n` prices gives `n - 1` returns.
+- **Growth factor:** `1 + r`. Returns chain by multiplying growth factors; +50% then −50% is 0.75, a 25% loss. After a fall of `f`, getting back takes `1 / (1 - f) - 1`.
+- **Log return:** `math.log(new / old)`; log returns add.
+- **Annualized return:** `(1 + total) ** (1 / years) - 1`; from prices, `years = (len(prices) - 1) / periods_per_year`.
+- **Arithmetic mean** for one period's expectation; **geometric mean**, the annualized return, for growth over many. The geometric is never larger.
+
+</Recap>

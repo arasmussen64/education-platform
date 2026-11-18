@@ -1,0 +1,28 @@
+id: write-limit-buy
+stage: write
+rev: 1
+title: "A limit order to buy"
+prompt: |
+  A limit order to buy says "up to this many shares, at this price or lower". Whatever can be bought from the asks at or below the limit is bought at once; the rest waits on the book as a new bid at the limit price.
+
+  Starting from this made-up book, cheapest ask first:
+
+  ```python
+  asks = [
+      {"price": 50.05, "shares": 100},
+      {"price": 50.10, "shares": 200},
+      {"price": 50.20, "shares": 400},
+  ]
+  ```
+
+  write a function `limit_buy(asks, shares, limit)` that returns how many shares fill at once: the shares of every ask priced at or below `limit`, but never more than `shares` in all. (It only counts; it doesn't change the book.) Then, for a limit order to buy 500 shares at 50.10, print:
+
+  ```
+  filled 300 now
+  200 wait on the book as a bid at 50.10
+  ```
+hints:
+  - "Go through the asks with a `for` loop and keep a running total, `filled`, starting at 0."
+  - "Only an ask whose price is at or below the limit counts: `<=`, because a price equal to the limit is allowed."
+  - "From each ask take the smaller of what it offers and what is still wanted, `shares - filled`: `min(...)` does that."
+skills: [order-types, matching]

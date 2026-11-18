@@ -1,0 +1,22 @@
+id: est-four-with-shared-part
+type: estimate
+rev: 1
+prompt: |
+  You hold 4 funds in equal amounts. Each has a volatility of 20% a year and every pair has a correlation of 0.2. The portfolio's variance is vol² × (corr + (1 - corr) / n). What is the portfolio's volatility, in percent? Within 2%.
+unit: "%"
+answer: 12.65
+tolerance: { percent: 2 }
+given: { n: 4, vol: 20, corr: 0.2 }
+working: (vol ** 2 * (corr + (1 - corr) / n)) ** 0.5
+mistakes:
+  - id: ignored-correlation
+    value: 10
+    working: vol / n ** 0.5
+    why: "That's the answer for uncorrelated funds. A correlation of 0.2 adds a shared part that doesn't average away."
+  - id: forgot-the-root
+    value: 160
+    working: vol ** 2 * (corr + (1 - corr) / n)
+    why: "That's the variance, in percent squared. The volatility is its square root."
+explanation: |
+  0.2 + 0.8 / 4 = 0.4, and 20² × 0.4 = 160, so the volatility is √160 ≈ 12.65%. Uncorrelated funds would have given 10%. Of what's left, most is the shared part: with a hundred funds it would still be 20% × √(0.2 + 0.8 / 100) ≈ 9.1%, and with any number at all never below 20% × √0.2 ≈ 8.9%.
+skills: [diversify]

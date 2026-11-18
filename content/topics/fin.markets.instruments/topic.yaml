@@ -1,16 +1,95 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.markets.instruments
 kind: topic
-status: planned
+status: ready
 title: "Stocks, bonds and funds"
-summary: "What a share and a bond are claims on, a bond priced as cash flows, and funds, ETFs and indexes."
-prerequisites:
-- fin.money.time-value
-estimated_minutes: 60
+summary: "What a share and a bond are claims on, a bond priced as cash flows, and mutual funds, ETFs and index funds."
+prerequisites: [fin.money.time-value]
+estimated_minutes: 65
 rev: 1
 objectives:
-- "Say what a share and a bond are claims on."
-- "Price a simple bond as a set of cash flows."
-- "Tell a mutual fund, an ETF and an index apart."
-- "Say what drives a stock price."
+  - "Say what a share and a bond are claims on, and who is paid first."
+  - "Price a simple annual-coupon bond as a set of cash flows, and say why its price falls when market rates rise."
+  - "Tell a mutual fund, an ETF and an index apart."
+  - "Say what drives a share's price: what owners expect to receive, and the rate they want."
+# Linked, never copied. Investor.gov is the US Securities and Exchange
+# Commission's site for investors; the SEC states that information on its
+# sites is public information that may be copied or distributed, and asks
+# that the SEC be cited as the source. This topic previews Module 8: annual
+# coupons only, and no yield calculation.
+resources:
+  - title: "Bonds - FAQs (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/introduction-investing/investing-basics/investment-products/bonds-or-fixed-income-products/bonds
+    type: reading
+    use: link
+    license: "US government work (SEC), public information; linked, not copied"
+  - title: "Stocks - FAQs (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks
+    type: reading
+    use: link
+    license: "US government work (SEC), public information; linked, not copied"
+  - title: "Characteristics of Mutual Funds and Exchange-Traded Funds (ETFs), an Investor Bulletin (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/characteristics-mutual-funds-exchange-traded-funds
+    type: reading
+    use: link
+    license: "US government work (SEC), public information; linked, not copied"
+  - title: "Index Funds (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/introduction-investing/investing-basics/investment-products/mutual-funds-and-exchange-traded-4
+    type: reading
+    use: link
+    license: "US government work (SEC), public information; linked, not copied"
+practice:
+  - example-a-bond-as-cash-flows
+  - parsons-bond-price
+  - mcq-what-a-share-is
+  - contrast-share-or-bond
+  - typed-face-value
+  - predict-bond-at-three-rates
+  - est-one-year-bond
+  - est-two-year-bond
+  - est-zero-coupon-bond
+  - mcq-etf-or-mutual-fund
+  - mcq-index-or-fund
+  - typed-net-asset-value
+  - mcq-why-a-price-moved
+  - est-share-one-year
+  - est-share-rates-rise
+  - est-share-expectations-fall
+  - fill-bond-flows
+  - write-share-value
+prove:
+  build: build-bond-price
+  debug: debug-bond-pricer
+  explain:
+    prompt: |
+      A friend bought a bond for $1,000 when it was issued. It pays a 4% coupon once a year, $40, for 5 more years, then repays the $1,000. Market rates for similar bonds have since risen to 6%, and the friend is upset that the bond's price is now well below $1,000 "although nothing about it changed". Explain, in your own words and with numbers: what the friend owns a claim on; why the price fell when market rates rose; and what happens if they simply keep the bond to the end.
+    rubric:
+      - id: claim
+        required: true
+        description: "A bond is a loan: the friend is owed fixed coupons and the face value at maturity, paid before shareholders if the issuer fails."
+      - id: present-value
+        required: true
+        description: "The price is the present value of the remaining cash flows ($40 a year for 5 years and $1,000 at the end) at the rate the market wants now."
+      - id: why-it-fell
+        required: true
+        description: "At 6% a new bond pays $60 a year, so nobody pays $1,000 for $40 a year; discounted at 6% the friend's flows are worth about $916, below face value. The payments didn't change, the rate they're discounted at did."
+      - id: hold-to-maturity
+        required: true
+        description: "If they hold it to the end and the issuer pays, they still get every $40 and the $1,000 back; the lower price matters if they sell before, and the cost is the higher interest they're missing."
+    model_answer: |
+      A bond is a loan the friend made to the issuer, cut into a piece they can trade. It's a claim on fixed payments: $40 a year for the next 5 years and the $1,000 face value at the end, and as a lender the friend is paid before the shareholders if the issuer gets into trouble. A bond's price is the present value of those remaining payments at the rate the market wants today. When it was issued the market wanted 4%, and $40 a year plus $1,000 at the end, discounted at 4%, is exactly $1,000. Now similar new bonds pay 6%, $60 a year on $1,000, so no buyer will pay $1,000 for the friend's $40 a year. Discounted at 6%, the same payments are worth 40 / 1.06 + 40 / 1.06 ** 2 + 40 / 1.06 ** 3 + 40 / 1.06 ** 4 + 1040 / 1.06 ** 5, about $916. The payments didn't change; the rate they're compared against did, and a fixed payment is worth less today when money can earn more elsewhere. If the friend keeps the bond to the end and the issuer pays, they still receive every $40 and their $1,000 back, so the lower price only becomes a loss if they sell before then. The real cost of rising rates is that they're earning 4% while new lenders earn 6%.
+review_pool:
+  - contrast-share-or-bond
+  - est-two-year-bond
+  - est-share-rates-rise
+  - typed-net-asset-value
+  - mcq-index-or-fund
+  - review-short-and-long-bonds
+skills:
+  - id: claims
+    description: "Say what a share and a bond are claims on: ownership of what's left against a fixed promise, and who is paid first"
+  - id: bond-value
+    description: "Write an annual-coupon bond as cash flows and price it with present_value_of_flows; why its price falls when rates rise"
+  - id: funds
+    description: "Tell a mutual fund, an ETF and an index fund apart, and say what a market index is"
+  - id: price-drivers
+    description: "A share's price as the present value of what owners expect to receive, moved by expectations and by the rate investors want"

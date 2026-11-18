@@ -1,0 +1,23 @@
+id: est-round-trip
+type: estimate
+rev: 1
+prompt: |
+  A made-up stock is quoted at a bid of $19.96 and an ask of $20.04. You buy 500 shares with a market order and, a moment later, change your mind and sell all 500 with a market order. The quote hasn't moved. How many dollars did the round trip cost you? Exactly.
+unit: dollars
+answer: 40
+tolerance: { absolute: 0 }
+given: { bid: 19.96, ask: 20.04, shares: 500 }
+working: (ask - bid) * shares
+amounts: made-up
+mistakes:
+  - id: half-spread
+    value: 20
+    working: (ask - bid) / 2 * shares
+    why: "That's half the spread on each share, what one trade costs measured from the middle price. A round trip pays the half twice: in at the ask, out at the bid."
+  - id: per-share
+    value: 0.08
+    working: ask - bid
+    why: "That's the spread on one share. You traded 500 of them."
+explanation: |
+  A market buy pays the ask, $20.04, and a market sell gets the bid, $19.96, so every share loses the spread, $0.08, and 500 shares lose $40. Nothing about the company changed: that $40 is the price of trading at once rather than waiting. It's why the spread matters most to someone who trades often, and why it's worth looking at the spread, not just the last price, before sending a market order.
+skills: [spread]

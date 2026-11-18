@@ -1,0 +1,29 @@
+id: write-dividend-adjustment
+stage: write
+rev: 1
+title: "Adjust for a dividend"
+prompt: |
+  A made-up stock paid a dividend of 1.00 a share. Its ex-dividend date was day 3, so its price dropped by about the dividend that morning, though nobody lost money: holders got the 1.00 in cash. Start from these lines:
+
+  ```python
+  closes = [40.00, 40.80, 41.00, 40.20, 40.60]
+  ex_day = 3
+  dividend = 1.00
+  ```
+
+  Write a function `adjust_for_dividend(closes, ex_day, dividend)` that returns a new list: every close before `ex_day` multiplied by the factor `1 - dividend / close`, where `close` is the last close before the ex-date (`closes[ex_day - 1]`), and every close from `ex_day` on unchanged. It leaves the list it was given as it was. Then print the adjusted closes to two decimal places, and the return from first to last close, raw and adjusted, as percentages to two decimal places:
+
+  ```
+  day 0: 39.02
+  day 1: 39.80
+  day 2: 40.00
+  day 3: 40.20
+  day 4: 40.60
+  return from the raw closes: 1.50%
+  return with the dividend: 4.04%
+  ```
+hints:
+  - "Work out the factor once, before the loop: `1 - dividend / closes[ex_day - 1]` is 1 - 1.00 / 41.00, about 0.9756."
+  - "Build the new list as the split-adjusting program in the quick questions does: an empty list, a loop over `range(len(closes))`, and `append` either the close times the factor or the close itself."
+  - "A return is the last price over the first, minus 1; times 100 for a percentage."
+skills: [adjust]

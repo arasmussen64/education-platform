@@ -1,0 +1,22 @@
+id: est-fee-drag-half-percent
+type: estimate
+rev: 1
+prompt: |
+  A fund charges 0.5% of the balance every year, taken after each year's growth. Over 20 years, what share of the amount you'd have had with no fee does it take, in percent? Within 2%.
+unit: "%"
+answer: 9.54
+tolerance: { percent: 2 }
+given: { fee: 0.5, years: 20 }
+working: (1 - (1 - fee / 100) ** years) * 100
+mistakes:
+  - id: simple
+    value: 10
+    working: fee * years
+    why: "That charges 0.5% of the starting amount twenty times. Each year's fee is a share of a balance the earlier fees have already shrunk, so the total is a little less: 1 - 0.995 ** 20."
+  - id: one-year
+    value: 0.5
+    working: fee
+    why: "That's one year's fee. Over 20 years it's taken twenty times, compounding."
+explanation: |
+  Each year the fee leaves 99.5% of the balance, so after 20 years it has left 0.995 ** 20, about 0.9046, of what there would have been. One minus that is about 9.54%. Under this topic's rule (grow, then take the fee) the answer doesn't depend on the growth rate at all: only on the fee and the years.
+skills: [fee-drag]

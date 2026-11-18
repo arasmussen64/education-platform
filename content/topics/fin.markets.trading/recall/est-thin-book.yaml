@@ -1,0 +1,23 @@
+id: est-thin-book
+type: estimate
+rev: 1
+prompt: |
+  A thinly traded made-up stock last traded at $7.95. Its book has these sell orders: 200 shares at $8.00, 300 shares at $8.10 and 500 shares at $8.40. You send a market order to buy 1000 shares. How many dollars more do you pay than 1000 shares at the last price would have cost? Exactly.
+unit: dollars
+answer: 280
+tolerance: { absolute: 0 }
+given: { last: 7.95, first_shares: 200, first_price: 8.00, second_shares: 300, second_price: 8.10, third_shares: 500, third_price: 8.40, wanted: 1000 }
+working: first_shares * first_price + second_shares * second_price + third_shares * third_price - wanted * last
+amounts: made-up
+mistakes:
+  - id: best-ask-only
+    value: 50
+    working: wanted * (first_price - last)
+    why: "That prices all 1,000 shares at the best ask, $8.00. Only 200 are offered there; the rest come from $8.10 and $8.40."
+  - id: from-best-ask
+    value: 230
+    working: first_shares * first_price + second_shares * second_price + third_shares * third_price - wanted * first_price
+    why: "That measures from the best ask, $8.00. The question compares with the last price shown, $7.95."
+explanation: |
+  The order takes 200 shares at $8.00 ($1,600), 300 at $8.10 ($2,430) and 500 at $8.40 ($4,200): $8,230 in all, $8.23 a share. At the last price, $7.95, 1,000 shares would have been $7,950, so the order paid $280 more, about 3.5%. The last price is only where someone traded before; what a market order pays depends on what's resting on the book now. On a thin book, a limit order, or a smaller order, keeps that cost in check.
+skills: [matching, spread]

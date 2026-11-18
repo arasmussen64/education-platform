@@ -1,0 +1,22 @@
+id: predict-flows-today
+type: predict_output
+rev: 1
+prompt: |
+  Three payments of $100: today, in one year and in two. Money can earn 10% a year. What does the program print?
+code: |
+  flows = [100, 100, 100]
+  rate = 0.10
+  total = 0
+  for t in range(len(flows)):
+      today = flows[t] / (1 + rate) ** t
+      print(f"Year {t}: {today:,.2f}")
+      total = total + today
+  print(f"Worth today: {total:,.2f}")
+expected_output: |
+  Year 0: 100.00
+  Year 1: 90.91
+  Year 2: 82.64
+  Worth today: 273.55
+explanation: |
+  The payment today has `t` of 0, and `1.1 ** 0` is 1, so it stays 100.00. The one in a year is divided by 1.1 once (90.91), the one in two years twice (100 / 1.21 = 82.64). The three together are worth 273.55 today, less than the 300 they add up to, because the later ones could have been earning meanwhile.
+skills: [uneven-flows]

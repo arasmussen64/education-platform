@@ -1,0 +1,23 @@
+id: est-cap-weight
+type: estimate
+rev: 1
+prompt: |
+  A made-up cap-weighted index holds three companies. Ash has 300 million shares at $10, Birch 20 million shares at $50, and Cedar 150 million shares at $40. What share of the index is Ash, in percent? Exactly.
+unit: "%"
+answer: 30
+tolerance: { absolute: 0 }
+given: { ash_shares: 300, ash_price: 10, birch_shares: 20, birch_price: 50, cedar_shares: 150, cedar_price: 40 }
+working: ash_shares * ash_price / (ash_shares * ash_price + birch_shares * birch_price + cedar_shares * cedar_price) * 100
+amounts: made-up
+mistakes:
+  - id: by-price
+    value: 10
+    working: ash_price / (ash_price + birch_price + cedar_price) * 100
+    why: "That weights by share price, as a price-weighted index would. A cap-weighted index weights by market value, price times shares."
+  - id: by-shares
+    value: 63.83
+    working: ash_shares / (ash_shares + birch_shares + cedar_shares) * 100
+    why: "That counts shares alone. A share of Ash is worth less than one of the others, so weight by price times shares."
+explanation: |
+  Market values: Ash 300 million × $10 = $3 billion, Birch 20 million × $50 = $1 billion, Cedar 150 million × $40 = $6 billion, $10 billion in all. Ash is 3 ÷ 10 = 30% of the index. Weighted by price instead, Ash, with the cheapest share, would count for only 10%. A cap-weighted index gives each company the weight of its whole market value, which is why the biggest companies move it most.
+skills: [indexes]
