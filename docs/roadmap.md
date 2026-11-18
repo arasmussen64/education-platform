@@ -4,15 +4,16 @@
 
 _Last updated 2026-11-16._ This is the one place the project's status is written down. Other documents link here instead of repeating it.
 
-**Current phase: Phases 1 and 2 are built (2026-11-09 and 2026-11-10). Phase 3's content is under way, and the build is on the Cloud Solutions Architect track until that track is finished.**
+**Current phase: Phases 1 and 2 are built (2026-11-09 and 2026-11-10). Phase 3's content is under way. Finance and Markets Module 1 was written on 2026-11-17, and the build returns to the Cloud Solutions Architect track until that track is finished.**
 
-**Content.** 141 topics are `ready`, meaning written, machine-checked and shown to learners. Another 346 are outlines: a title, a summary and prerequisites, shown on the map with nothing to learn yet.
+**Content.** 153 topics are `ready`, meaning written, machine-checked and shown to learners. Another 346 are outlines: a title, a summary and prerequisites, shown on the map with nothing to learn yet.
 
 | Track                                                           | Ready               | Outlines            |
 | --------------------------------------------------------------- | ------------------- | ------------------- |
 | [Python Foundations](specs/python-foundations.md)               | 36, the whole track | 0                   |
 | [Machine Learning Foundations](specs/ml-foundations.md)         | 64, Modules 1 to 8  | 8, Module 9         |
 | [Cloud Solutions Architect](specs/cloud-solutions-architect.md) | 41, Modules 1 to 3 | 338, the rest of it |
+| [Finance and Markets](specs/finance-markets.md)                 | 12, Module 1        | 0                   |
 
 **Since the audit** (2026-11-11, details in the [devlog](devlog.md)):
 
@@ -26,12 +27,12 @@ _Last updated 2026-11-16._ This is the one place the project's status is written
 
 **The app was improved from four experts' plans** (2026-11-16, #292 to #318): an education expert's, a memory expert's, a neuroscientist's and a behavioural scientist's, all built. Topics are shown in parts of about 30 minutes with breaks, goals and a "Check what you know"; lessons gain questions inside them, an opening puzzle, real incident stories and a glossary; there are typed answers and a "how sure are you?" on every quick question; reviews give partial credit to the topics a later topic uses, count a slow right answer as Hard, fit the learner's own forgetting rate and include review labs; and the Today page has one Start button, a 5-minute version, practice counted in weeks, a welcome-back plan, module progress, honest times and a study plan. All 38 ready cloud topics carry the new content. The methods and their sources are in [learning-science.md](learning-science.md); the six decisions behind them wait in the [owner queue](owner-queue.md).
 
-**Build order.** Since 2026-11-17, Finance and Markets Module 1 comes first (the owner: "Go ahead with finance Module 1 first"); after it, the order the owner set on 2026-11-10: "I'm going to just go at my own pace and bounce around from track to track so your job is to just build. Let's focus the build on the cloud track until it's completely finished and then start working on the ML track again." So:
+**Build order.** On 2026-11-17 the owner put Finance and Markets Module 1 first ("Go ahead with finance Module 1 first"), and it is written. After it, the order the owner set on 2026-11-10: "I'm going to just go at my own pace and bounce around from track to track so your job is to just build. Let's focus the build on the cloud track until it's completely finished and then start working on the ML track again." So:
 
 1. **The Cloud Solutions Architect track, to its end.** Modules 1 to 3 are written (Module 3 from [its plan](plans/cloud-module-3/README.md), 2026-11-12 and 13). Module 4, security and identity foundations, is being designed (begun 2026-11-12, paused), then the rest in the order of [its spec](specs/cloud-solutions-architect.md), along with the tools its later proofs need. The steps are listed under [Cloud Solutions Architect](#cloud-solutions-architect-the-track-being-built), below.
 2. **Then the Machine Learning Foundations track again,** from Module 9, transformers, which is outlined, to Module 10, ML systems, which is still prose in [its spec](specs/ml-foundations.md).
 
-What comes after those two isn't decided. The unbuilt items of Phases 3 and 4 are listed below. A fourth track, [Finance and Markets](specs/finance-markets.md), was planned on 2026-11-17 from the owner's Wall Street roadmap, to be built one module at a time. The owner put its Module 1 ahead of cloud Module 4 the same day ("Go ahead with finance Module 1 first"); it's being written from [its plan](plans/finance-module-1/README.md).
+What comes after those two isn't decided. The unbuilt items of Phases 3 and 4 are listed below. A fourth track, [Finance and Markets](specs/finance-markets.md), was planned on 2026-11-17 from the owner's Wall Street roadmap, to be built one module at a time. The owner put its Module 1 ahead of cloud Module 4 the same day ("Go ahead with finance Module 1 first"); it was written from [its plan](plans/finance-module-1/README.md) the same day: eleven topics and Checkpoint 1, "the loan and the portfolio" (#322 to #335), then a cold review by two reviewers whose findings were fixed. Module 2, financial data in Python, is next on this track when the owner calls for it.
 
 Content is no longer held to one module ahead of the owner's own learning, which was the rule until 2026-11-10. The owner learns at their own pace, on any track, and the build doesn't wait for it.
 

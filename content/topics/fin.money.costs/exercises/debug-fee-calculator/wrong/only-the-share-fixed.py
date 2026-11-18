@@ -14,4 +14,4 @@ for year in range(years):
 lost = (without - with_fee) / without
 print(f"Without the fee: ${without:,.2f}")
 print(f"With the fee: ${with_fee:,.2f}")
-print(f"The fee takes {lost:.1%} of what you'd have had")
+print(f"The fee takes {lost:.2%} of what you'd have had")
