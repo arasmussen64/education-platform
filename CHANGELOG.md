@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Added (Finance Module 1 topics)
 
 - `fin.money.rates`, Rates, inflation and real returns: APR to the effective annual rate for any compounding frequency, nominal against real returns, and prices deflated with real CPI-U yearly averages from the Bureau of Labor Statistics (series CUUR0000SA0, read 2026-11-17).
+- `fin.money.diversification`, Diversification: covariance and correlation from two return lists, a two-fund mix's volatility and the lowest-risk mix, volatility falling with more holdings until it levels off at the risk they share, and Enron's 401(k) as the story (from the Congressional Research Service's report RS21115).
 
 ### Added (Finance and Markets on the map)
 

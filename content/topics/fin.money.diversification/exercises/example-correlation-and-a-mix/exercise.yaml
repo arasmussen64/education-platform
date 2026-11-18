@@ -1,0 +1,28 @@
+id: example-correlation-and-a-mix
+stage: worked_example
+rev: 1
+title: "Correlation, and a mix of two funds"
+prompt: |
+  Two made-up funds, six months of returns each. This program measures how closely they move together, then works out how risky a half-and-half mix of them is, two ways. Press **Run**, then read how each part works.
+steps:
+  - label: "The data, as decimals"
+    lines: "3-5"
+    note: "Each number is one month's return: `0.04` is +4%, `-0.02` is -2%. The rule of this module: a rate or a return is a decimal in code."
+  - label: "Volatility, as in Risk"
+    lines: "8-13"
+    note: "The sample standard deviation from the Risk topic: the squared distances from the mean, added up, divided by one less than the count, then the square root. In this topic it's each fund's (and each mix's) volatility."
+  - label: "Covariance: do they move together?"
+    lines: "16-22"
+    note: "For each month, multiply fund A's distance from its mean by fund B's distance from its mean. When both are above their means (or both below) the product is positive; when one is up and the other down, it's negative. Add those up and divide by one less than the count, as for volatility: that's the **covariance**."
+  - label: "Correlation: covariance on a fixed scale"
+    lines: "23"
+    note: "Covariance depends on how big the returns are, so it's hard to read. Dividing by both volatilities puts it on a scale from -1 (always opposite) through 0 (no pattern) to +1 (always together). These two funds' 0.22 is a weak tendency to move together."
+  - label: "Print as a percentage"
+    lines: "29-30"
+    note: "`:.2f` prints two decimal places. `:.2%` multiplies by 100, prints two decimal places and adds a `%` sign, so `0.0341` prints as `3.41%`."
+  - label: "The two-fund formula"
+    lines: "32-34"
+    note: "`w` is the share of the money in fund A, so `1 - w` is in fund B. The mix's variance is each fund's variance times its share squared, plus a cross term, `2 * w * (1 - w) * corr * vol_a * vol_b`, that grows with the correlation. The square root turns variance back into volatility."
+  - label: "The same answer, month by month"
+    lines: "36-39"
+    note: "Build the mix's own return for each month, half of A's plus half of B's, then take its volatility directly. It matches the formula: 2.11%. That's less than the average of the two funds' volatilities, (3.41% + 1.86%) / 2 = 2.64%, because they don't always move together."
