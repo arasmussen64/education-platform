@@ -1,25 +1,54 @@
-# A planned outline for the Finance and Markets track.
 id: fin.m1.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 1: the loan and the portfolio"
 summary: "Build a loan schedule and a portfolio report from a blank editor, and fix a retirement calculator that promises too much."
 prerequisites:
-- fin.money.compounding
-- fin.money.time-value
-- fin.money.annuities
-- fin.money.rates
-- fin.money.returns
-- fin.money.risk
-- fin.money.diversification
-- fin.money.costs
-- fin.markets.instruments
-- fin.markets.trading
-- fin.markets.prices
-estimated_minutes: 90
+  - fin.money.compounding
+  - fin.money.time-value
+  - fin.money.annuities
+  - fin.money.rates
+  - fin.money.returns
+  - fin.money.risk
+  - fin.money.diversification
+  - fin.money.costs
+  - fin.markets.instruments
+  - fin.markets.trading
+  - fin.markets.prices
+estimated_minutes: 120
 rev: 1
 objectives:
-- "Build a monthly amortization schedule to the cent."
-- "Report a price history's annualized return, volatility and maximum drawdown."
-- "Find and fix the mistakes in a retirement calculator."
-- "Explain why +50% then -50% is not breaking even."
+  - "Build a monthly amortization schedule whose totals are right to the cent."
+  - "Report a price history's annualized return, volatility and maximum drawdown."
+  - "Find and fix the mistakes in a retirement calculator: its growth rate, inflation, monthly rate and number of months."
+  - "Explain why +50% then -50% is not breaking even."
+prove:
+  build: build-loan-schedule
+  debug: debug-retirement-calculator
+  explain:
+    prompt: |
+      A friend says their fund "returned +50% one year and -50% the next, so I broke even". They put 10,000 in at the start. In your own words, with numbers: what is their money worth after the two years, and why? Why does the average of the two returns, 0%, mislead about how the money grew? And what single yearly figure would describe the two years honestly, and how is it worked out?
+    rubric:
+      - id: chained
+        required: true
+        description: "Returns chain by multiplying growth factors: 1.5 × 0.5 = 0.75, so 10,000 becomes 15,000 and then 7,500."
+      - id: loss
+        required: true
+        description: "The friend lost 25%, 2,500: the 50% fall was taken from a bigger amount than the 50% rise was added to."
+      - id: arithmetic-mean
+        required: true
+        description: "The arithmetic mean, (50% + (-50%)) / 2 = 0%, is the expected return of one year picked at random, not the growth over several years; it ignores that each year's return applies to a different amount."
+      - id: geometric-mean
+        required: true
+        description: "The geometric mean, the square root of 0.75 minus 1, about -13.4% a year, is the steady yearly rate that gives the same result over two years: the honest figure for growth."
+      - id: generalises
+        required: false
+        description: "Notes that the more the returns vary, the further the geometric mean falls below the arithmetic one (volatility drag), or that a fall of x% needs a rise of more than x% to recover."
+    model_answer: |
+      The returns multiply, they don't add. After the first year the 10,000 is 1.5 times bigger, 15,000. The second year takes away half of that, so it's 15,000 × 0.5 = 7,500. Over the two years the money was multiplied by 1.5 × 0.5 = 0.75: the friend lost a quarter of it, 2,500. The fall hurt more than the rise helped because it was applied to a bigger amount, 15,000 rather than 10,000; to recover from a 50% fall, a fund has to double. The average of the two returns, (50% − 50%) ÷ 2 = 0%, is the arithmetic mean. It's the right number for "what return should I expect in one year picked at random", but it says nothing about the growth of money held through both years, because it treats each year's return as if it applied to the same amount. The honest yearly figure is the geometric mean: the one steady rate that, compounded for two years, gives the same total. Here that's the square root of 0.75, minus 1, which is about 0.866 − 1 = −13.4% a year. Check: 10,000 × 0.866 × 0.866 ≈ 7,500. The more the returns jump around, the further the geometric mean falls below the arithmetic one, which is why a fund's "average return" can look fine while its investors lose money.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-savings-plan
+  steps: [step-payment, step-one-row, step-the-schedule, step-the-portfolio]
+  versions: [build-car-loan, build-equipment-loan]

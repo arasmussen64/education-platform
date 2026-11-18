@@ -1,0 +1,34 @@
+id: debug-retirement-calculator
+stage: debug
+rev: 1
+title: "A retirement calculator"
+prompt: |
+  A friend wrote this calculator to see what saving 400 a month from their 35th birthday to their 65th grows to, in today's money. It should work like this:
+
+  - Take a made-up fund's five past yearly returns and find its growth per year: the one steady yearly rate that, compounded for five years, gives the same total growth.
+  - Take inflation, 3% a year, out of that rate exactly, so the result is in today's money.
+  - Turn the yearly rate into a monthly one by dividing it by 12.
+  - Count the months of saving, then go month by month: the balance grows by the monthly rate, then the month's saving is added.
+
+  It should print:
+
+  ```
+  growth per year: 5.61%
+  after inflation: 2.53%
+  months of saving: 360
+  saved in all: 144,000.00
+  at 65, in today's money: 215,252.79
+  ```
+
+  Instead it promises far too much: over 128 trillion at 65. It has four bugs. Run it, fix what you find, and run it again, then run the checks, which also try another fund and saver. You're done when every check passes.
+hints:
+  - "Check each printed line against the description, one at a time, starting from the top."
+  - "Work out by hand what +50% one year and -50% the next leaves you with, then what steady yearly rate gives the same."
+  - "From a 35th birthday to a 65th is how many years?"
+test_skills:
+  test_growth_per_year: [fin.money.returns/means, fin.money.returns/compound-returns]
+  test_after_inflation: [fin.money.rates/real-vs-nominal]
+  test_monthly_rate: [fin.money.rates/effective-rate]
+  test_months_of_saving: [fin.money.compounding/grow-by-loop]
+  test_the_report: [fin.money.compounding/grow-by-loop, fin.money.rates/real-vs-nominal, fin.money.returns/means]
+  test_another_saver: [fin.money.compounding/grow-by-loop, fin.money.rates/real-vs-nominal, fin.money.returns/means]
