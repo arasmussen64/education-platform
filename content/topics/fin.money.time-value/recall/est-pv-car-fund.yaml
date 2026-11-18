@@ -1,0 +1,23 @@
+id: est-pv-car-fund
+type: estimate
+rev: 1
+prompt: |
+  You'll need $15,000 for a car in 3 years. An account pays 4% a year, compounded once a year. How much must you put in today to have exactly that? Within 1%.
+unit: dollars
+answer: 13334.95
+tolerance: { percent: 1 }
+given: { future: 15000, rate: 4, years: 3 }
+working: future / (1 + rate / 100) ** years
+mistakes:
+  - id: minus-simple
+    value: 13200
+    working: future - future * rate / 100 * years
+    why: "That takes 4% of $15,000 off for each year. Discounting divides by 1.04 once per year, which takes off a little less."
+  - id: grown
+    value: 16872.96
+    working: future * (1 + rate / 100) ** years
+    why: "That grows the $15,000 for 3 more years. To find what to put in today, go back in time: divide by 1.04 ** 3."
+explanation: |
+  Present value divides by the growth it undoes: 15,000 / 1.04 ** 3 = 15,000 / 1.124864 = $13,334.95. Check it forwards: 13,334.95 × 1.04 ** 3 = 15,000.
+skills: [discount]
+amounts: made-up
