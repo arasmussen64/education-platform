@@ -1,0 +1,22 @@
+id: est-real-high-return
+type: estimate
+rev: 1
+prompt: |
+  In a country with high inflation, a fund returned 30% in a year when prices rose 25%. What was its real return, as a percentage, by the exact formula? Within 0.1 of a percentage point.
+unit: "%"
+answer: 4
+tolerance: { absolute: 0.1 }
+given: { nominal: 30, inflation: 25 }
+working: ((1 + nominal / 100) / (1 + inflation / 100) - 1) * 100
+mistakes:
+  - id: rough
+    value: 5
+    working: nominal - inflation
+    why: "That's the rough rule, 30 − 25. With rates this big it's a whole point off: 1.30 ÷ 1.25 − 1 is 4%."
+  - id: ratio-of-rates
+    value: 20
+    working: (nominal / inflation - 1) * 100
+    why: "That divides the rates themselves. Divide the growth factors, 1.30 by 1.25."
+explanation: |
+  1.30 ÷ 1.25 = 1.04, a real return of exactly 4%. The rough rule says 5%, a quarter too much. The subtraction is fine for small rates; when inflation is high, only the division is right.
+skills: [real-vs-nominal]
