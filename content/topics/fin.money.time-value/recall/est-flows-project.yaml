@@ -1,0 +1,23 @@
+id: est-flows-project
+type: estimate
+rev: 1
+prompt: |
+  A project costs $2,000 today and pays back $1,000 in a year and $1,200 in two years. Money can earn 8% a year. What is the whole project worth today, counting the cost as negative? Within $1.
+unit: dollars
+answer: -45.27
+tolerance: { absolute: 1 }
+given: { cost: 2000, one: 1000, two: 1200, rate: 8 }
+working: -cost + one / (1 + rate / 100) + two / (1 + rate / 100) ** 2
+mistakes:
+  - id: not-discounted
+    value: 200
+    working: -cost + one + two
+    why: "That adds money paid at different dates. Discounted, the two payments back are worth less than the $2,000 cost."
+  - id: cost-discounted
+    value: -41.91
+    working: -cost / (1 + rate / 100) + one / (1 + rate / 100) ** 2 + two / (1 + rate / 100) ** 3
+    why: "That treats the cost as a year away and each payment one year later than it is. The cost is paid today, at power 0."
+explanation: |
+  1,000 / 1.08 = 925.93 and 1,200 / 1.08 ** 2 = 1,028.81, together $1,954.73 today, against a cost of $2,000: the project is worth -$45.27. It pays back $200 more than it costs, and it still loses money, because the money could have earned 8% elsewhere. Module 5 calls this number the project's net present value.
+skills: [uneven-flows]
+amounts: made-up
