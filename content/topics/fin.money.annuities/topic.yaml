@@ -1,16 +1,92 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.money.annuities
 kind: topic
-status: planned
+status: ready
 title: "Loans and annuities"
-summary: "Equal payments over time: a loan's monthly payment and its amortization schedule."
+summary: "Equal payments over time: what a stream of them is worth, a loan's monthly payment, and its amortization schedule."
 prerequisites:
-- fin.money.time-value
-- py.lists
-estimated_minutes: 60
+  - fin.money.time-value
+  - py.lists
+# The lesson (about 9 minutes), the reading (about 12), 12 practice quick
+# questions at a minute and a half, the worked example, fill-in and write
+# (about 20), and the build, debug and explain (about 25).
+estimated_minutes: 85
 rev: 1
 objectives:
-- "Value a stream of equal payments."
-- "Work out a loan's monthly payment."
-- "Build an amortization schedule and say why early payments are mostly interest."
+  - "Value a stream of equal payments, by loop and by formula."
+  - "Work out a loan's payment from its principal, rate and number of payments, with the rate and periods matched to the payments."
+  - "Build an amortization schedule and say why early payments are mostly interest."
+  - "Say what paying a little extra early does to a long loan."
+# OpenStax Principles of Finance is CC BY-NC-SA 4.0 by its preface, read on
+# 2026-11-17 with both sections' pages; linked, never copied.
+resources:
+  - title: "OpenStax Principles of Finance, section 8.2: Annuities (the present value of an annuity, ordinary and due)"
+    url: https://openstax.org/books/principles-finance/pages/8-2-annuities
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0 (linked, not copied)
+  - title: "OpenStax Principles of Finance, section 8.3: Loan Amortization (how amortization works, and an amortization schedule)"
+    url: https://openstax.org/books/principles-finance/pages/8-3-loan-amortization
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0 (linked, not copied)
+# Every amount of money here is made up for the sums (estimate items say
+# amounts: made-up). Schedules keep the payment unrounded and round only
+# for printing, so they end at zero to the cent; the checks read a last
+# balance of -0.00 (a float a trillionth of a cent below zero) as 0.00.
+practice:
+  - example-mortgage
+  - parsons-annuity-value
+  - est-pv-pension
+  - est-pv-prize-stream
+  - contrast-now-or-in-a-year
+  - est-car-payment
+  - est-yearly-payment
+  - typed-monthly-rate
+  - mcq-early-interest
+  - est-first-month-interest
+  - est-car-total-interest
+  - predict-loan-schedule
+  - typed-schedule-name
+  - fill-annuity-two-ways
+  - write-months-to-repay
+prove:
+  build: build-amortization-schedule
+  debug: debug-loan-schedule
+  explain:
+    prompt: |
+      A friend has just taken out a 25-year mortgage and is upset: after a year of payments, the balance has barely moved. In your own words, explain why the early payments of a long loan are mostly interest, using a number of your own (a loan, a rate and its first month), and what paying a little extra in the early years does, and why it helps more then than the same extra near the end.
+    rubric:
+      - id: interest-on-balance
+        required: true
+        description: "Each month's interest is charged on the balance still owed; early on the balance is nearly the whole loan, so the interest takes most of the fixed payment and little is left to pay the loan down."
+      - id: a-number
+        required: true
+        description: "A correct first-month split, using the monthly rate (yearly rate / 12): for example $200,000 at 6% a year has $1,000 of interest in the first month, and the rest of the payment pays the loan down."
+      - id: shifts
+        required: true
+        description: "As the balance falls, the interest falls and more of the same payment pays the loan down, so the balance moves slowly at first and fast near the end."
+      - id: extra-early
+        required: true
+        description: "Extra paid goes straight to the balance, so every later month's interest is charged on less; early extra saves interest for all the years left, so it saves more than the same extra near the end, and the loan ends sooner."
+      - id: payment-fixed
+        required: false
+        description: "Says the payment itself stays the same (it was set by the payment formula), so the saving shows as an earlier end and less interest, or mentions the amortization schedule."
+    model_answer: |
+      A mortgage payment is fixed, but what it's made of isn't. Each month the lender charges a month's interest on the balance still owed, and only what's left of the payment pays the loan down. At the start the balance is nearly the whole loan, so the interest is at its biggest. On a $200,000 loan at 6% a year, the monthly rate is 0.5%, so the first month's interest is $1,000; the payment on a 25-year loan is about $1,288.60, so only about $289 pays the loan down. The next month the balance is $289 smaller, so the interest is about $1.45 smaller and a little more of the payment goes to the loan, and so on. That's why the balance barely moves in the first years and falls fast near the end. Paying extra goes straight to the balance. Every later month's interest is then charged on less, for every month left, so an extra $100 in year one saves interest for 24 more years, while the same $100 in the last year saves almost nothing. The payment stays the same, so the saving shows up as a loan that ends sooner and less interest paid in all.
+review_pool:
+  - review-est-rent-stream
+  - review-est-van-payment
+  - review-est-first-paid-down
+  - review-mcq-extra-early
+  - typed-monthly-rate
+  - typed-schedule-name
+  - contrast-now-or-in-a-year
+  - est-car-total-interest
+  - parsons-annuity-value
+skills:
+  - id: annuity-value
+    description: "The present value of equal payments, the first one period away, by loop and by formula"
+  - id: payment
+    description: "A loan's payment from the payment formula, with the rate and periods matched to the payments"
+  - id: amortization
+    description: "An amortization schedule: interest on the balance, the part paid down, the balance left, ending at zero"

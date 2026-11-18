@@ -1,0 +1,71 @@
+<Intro>
+
+<Puzzle question="A $300,000 mortgage at 6% a year is repaid over 30 years with a monthly payment of $1,798.65. How much of the first payment pays down the $300,000?">
+
+Only about $298.65. The other $1,500 is interest: a month of 6% a year is 0.5%, and 0.5% of the $300,000 still owed is $1,500. Each month the interest is charged on what's still owed, so at the start it takes most of the payment.
+
+</Puzzle>
+
+*Present and future value* valued a list of cash flows, one at a time. Loans, pensions and rents are a special list: the same payment, at regular intervals. A stream like that is an **annuity**, and its equal payments give it two tidy formulas: what the stream is worth today, and the payment that repays a loan. This topic builds both and then follows a loan month by month. As in the rest of the module, the loans and rates are made up for the sums, and nothing here is advice on which loan to take.
+
+**What equal payments are worth today.** In this topic the first payment comes one period from now, the way loan payments do: you borrow today and pay at the end of the first month. So payment `t` is discounted by `(1 + rate) ** t` for `t` from 1 to the number of periods. A loop adds them up:
+
+```python
+total = 0
+for t in range(1, periods + 1):
+    total = total + payment / (1 + rate) ** t
+```
+
+Because the payments are equal, the sum has a closed form, the same total in one line:
+
+```python
+value = payment * (1 - (1 + rate) ** -periods) / rate
+```
+
+`(1 + rate) ** -periods` is one over the growth over all the periods (a negative power means "one over", as in *Exponents and logarithms*). Check one against the other, as you checked the future-value formula against its loop in *Compound interest*.
+
+<Check item="est-pv-pension" />
+
+**The loan payment.** A lender who hands you $300,000 today wants payments whose value today is $300,000. Turn the annuity formula round to find the payment:
+
+```python
+def payment(principal, rate, periods):
+    return principal * rate / (1 - (1 + rate) ** -periods)
+```
+
+The rate and the periods must match the payments. A loan quoted at 6% a year with monthly payments uses a monthly rate of `0.06 / 12`, 0.005, and 30 years of months, 360. `payment(300000, 0.005, 360)` is $1,798.65. Using the yearly rate every month is the classic slip: it charges twelve times the interest.
+
+<Check item="est-car-payment" />
+
+**Following the loan: amortization.** Paying a loan off this way is **amortization**. Each month, two things happen in order: the lender charges a month's interest on the balance, and your payment covers that interest first and pays the loan down with the rest.
+
+```python
+interest = balance * rate
+paid_down = monthly - interest
+balance = balance - paid_down
+```
+
+On the **mortgage** in the puzzle, the first month's interest is $1,500, so only $298.65 pays the loan down. Next month the balance is a little smaller, so the interest is a little smaller ($1,498.51), and a little more of the same payment goes to the loan. The split shifts every month, until near the end almost the whole payment is loan. A table of it, one row per payment with the interest, the part paid down and the balance left, is an **amortization schedule**, and its last balance is zero.
+
+<Check item="mcq-early-interest" />
+
+**Paying a little extra.** Money paid on top of the normal payment goes straight to the balance, and every later month's interest is then charged on less. Early in a long loan that matters a lot, because each dollar removed would otherwise have been charged interest for decades. This topic's write exercise counts how many months a loan takes at different payments, and the explain asks you to say why.
+
+**Rounding the last payment.** Real lenders charge a payment rounded to the cent, $1,798.65 here, not the formula's $1,798.6515…. Over 360 payments those fractions of a cent add up, so the lender adjusts the last payment by whatever clears the balance exactly. This module keeps the payment unrounded and rounds only when printing, so its schedules end at zero to the cent. A float can end a trillionth of a cent below zero, which prints as `-0.00`; it means zero.
+
+<Check item="predict-loan-schedule" />
+
+**Read now:** section 8.2 of *OpenStax Principles of Finance*, *Annuities*, below, as far as the present value of an annuity. Section 8.3, *Loan Amortization*, listed after the lesson, builds a schedule like this topic's. Both work their sums on a financial calculator and in a spreadsheet; the formulas are the ones above, and here Python does them. A few quick questions ask for a number you work out and type in; use a calculator if you like, because the skill is setting up the sum.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- An **annuity** is equal payments at regular intervals. With the first one period away, it's worth `payment * (1 - (1 + rate) ** -periods) / rate` today, the same as the loop over `t` from 1 to `periods`.
+- **The loan payment** turns that round: `principal * rate / (1 - (1 + rate) ** -periods)`. Rate and periods must match the payments: monthly payments use `yearly_rate / 12` and the number of months.
+- **Amortization:** each period, interest on the balance first (`balance * rate`), then the rest of the payment pays the loan down. Early payments are mostly interest because the balance is at its largest; extra payments early save the most.
+- An **amortization schedule** lists every payment's interest, the part paid down and the balance; it ends at zero. Real lenders round the payment to the cent and adjust the last one; this module rounds only for printing.
+
+</Recap>

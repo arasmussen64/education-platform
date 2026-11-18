@@ -1,0 +1,23 @@
+id: est-pv-pension
+type: estimate
+rev: 1
+prompt: |
+  A pension pays $2,000 at the end of each year for 5 years. Money earns 6% a year. What is it worth today? Within 1%.
+unit: dollars
+answer: 8424.73
+tolerance: { percent: 1 }
+given: { payment: 2000, years: 5, rate: 6 }
+working: payment * (1 - (1 + rate / 100) ** -years) / (rate / 100)
+mistakes:
+  - id: not-discounted
+    value: 10000
+    working: payment * years
+    why: "That adds payments made at different times. Each one is worth less today the later it comes."
+  - id: first-paid-today
+    value: 8930.21
+    working: payment * (1 - (1 + rate / 100) ** -years) / (rate / 100) * (1 + rate / 100)
+    why: "That treats the first payment as paid today. The pension pays at the end of each year, so the first is a year away."
+explanation: |
+  Each payment is discounted by its own number of years, or all at once with the formula: 2,000 × (1 − 1.06 ** −5) / 0.06 = 2,000 × 4.212 = $8,424.73. That's $1,575 less than the $10,000 paid, the earnings that waiting gives up.
+skills: [annuity-value]
+amounts: made-up

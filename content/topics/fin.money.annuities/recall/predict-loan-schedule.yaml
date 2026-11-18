@@ -1,0 +1,22 @@
+id: predict-loan-schedule
+type: predict_output
+rev: 1
+prompt: |
+  $3,000 is borrowed at 1% a month and repaid in 3 equal monthly payments. What does the program print?
+code: |
+  balance = 3000
+  rate = 0.01
+  monthly = balance * rate / (1 - (1 + rate) ** -3)
+  print(f"Payment: {monthly:,.2f}")
+  for month in range(1, 4):
+      interest = balance * rate
+      balance = balance + interest - monthly
+      print(f"Month {month}: interest {interest:,.2f}, balance {balance:,.2f}")
+expected_output: |
+  Payment: 1,020.07
+  Month 1: interest 30.00, balance 2,009.93
+  Month 2: interest 20.10, balance 1,009.97
+  Month 3: interest 10.10, balance 0.00
+explanation: |
+  The payment formula gives 1,020.07. Month 1: 1% of 3,000 is 30.00 interest, so 990.07 of the payment pays the loan down, leaving 2,009.93. Month 2's interest is 1% of that, 20.10, and so on: the interest falls each month because it's charged on a smaller balance, so more of the same payment goes to the loan. After the third payment nothing is owed.
+skills: [amortization]
