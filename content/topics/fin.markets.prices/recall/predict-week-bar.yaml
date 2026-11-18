@@ -1,0 +1,22 @@
+id: predict-week-bar
+type: predict_output
+rev: 1
+prompt: |
+  Three made-up daily bars are combined into one bar for the three days. What does the program print?
+code: |
+  days = [
+      {"open": 12.0, "high": 12.6, "low": 11.8, "close": 12.4},
+      {"open": 12.5, "high": 13.1, "low": 12.2, "close": 12.3},
+      {"open": 12.1, "high": 12.4, "low": 11.5, "close": 11.9},
+  ]
+  high = days[0]["high"]
+  low = days[0]["low"]
+  for bar in days:
+      high = max(high, bar["high"])
+      low = min(low, bar["low"])
+  print(days[0]["open"], high, low, days[-1]["close"])
+expected_output: |
+  12.0 13.1 11.5 11.9
+explanation: |
+  A bar for several days takes the first day's open (12.0), the highest of the highs (13.1, on the second day), the lowest of the lows (11.5, on the third) and the last day's close (11.9). It isn't the average of anything: the three-day bar says the price started at 12.0, traded as high as 13.1 and as low as 11.5, and ended at 11.9. Weekly and monthly bars on a chart are built exactly this way from daily ones.
+skills: [ohlc]

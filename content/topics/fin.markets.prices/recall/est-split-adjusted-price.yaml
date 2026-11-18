@@ -1,0 +1,23 @@
+id: est-split-adjusted-price
+type: estimate
+rev: 1
+prompt: |
+  A made-up stock closed at $90 on the last day before a 3-for-1 split. On a chart adjusted for the split, what does that day's close show, in dollars? Exactly.
+unit: dollars
+answer: 30
+tolerance: { absolute: 0 }
+given: { close: 90, ratio: 3 }
+working: close / ratio
+amounts: made-up
+mistakes:
+  - id: multiplied
+    value: 270
+    working: close * ratio
+    why: "That multiplies by 3. After the split each share is a third of an old one, so an old price in today's shares is a third as big."
+  - id: unchanged
+    value: 90
+    working: close
+    why: "That's the raw close. An adjusted chart restates every price before the split in today's shares, so the chart doesn't show a cliff on the split day."
+explanation: |
+  Each old share became three new ones, so one old share at $90 is the same money as three new shares at $30. An adjusted chart divides every close before the split by 3, so the history runs smoothly into the prices after it, and returns measured on it are right.
+skills: [adjust]
