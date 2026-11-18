@@ -2,7 +2,7 @@
 
 This track takes a learner from no finance at all to the work done on Wall Street: reading a company from its filings, valuing it, pricing what trades in markets, managing risk, and then going deep in one path (banking and private equity, trading, buy-side investing, quant research, or financial technology). It aims at the same six levels as every other track ("one bar for every track", decided by the owner on 2026-11-15).
 
-**Status: planned (2026-11-17).** Nothing is on the map yet. Module 1 is designed in full below; every other module is a line in the [module map](#module-map). Per the owner, the track is built **one module at a time**: each module gets a writing plan (`docs/plans/finance-module-<n>/`), then its topics, before the next one is designed in detail.
+**Status: Module 1 is being written (2026-11-17)** from [its plan](../plans/finance-module-1/README.md), ahead of the cloud track's Module 4 at the owner's request. Its topics are on the map as outlines until each is written. Module 1 is designed in full below; every other module is a line in the [module map](#module-map). Per the owner, the track is built **one module at a time**: each module gets a writing plan (`docs/plans/finance-module-<n>/`), then its topics, before the next one is designed in detail.
 
 **Where it came from.** The owner's document _Zero to Wall Street Expert: Complete Roadmap_ (2026-11-17): a 24-month self-study plan in six phases, with resources, build projects and checkpoints. It was reviewed twice for this spec: by a finance expert, for what's right, missing or out of date, and by an education expert, for how to turn a reading list into a track the platform can teach and prove. Both reviews are below; the [module map](#module-map) is what came out of them. The document itself stays on the owner's machine and is not in the repository.
 
@@ -284,7 +284,7 @@ The source document's resources stay as each topic's optional "go deeper" links.
 One module at a time, as the owner asked on 2026-11-17.
 
 1. **Module 1's writing plan,** then its eleven topics and checkpoint, in the same way the cloud modules were written: capture outputs from CPython, a perturbation check on every exercise, cold review after each batch, `time:content` under 40%.
-2. **The track file and Module 1 on the map,** with Modules 2 to 6 as outlines, so the learner sees where Stage 1 goes.
+2. **The track file and Module 1 on the map** (done 2026-11-17, as outlines first). Modules 2 to 6 join the map as outlines when each one's topics are named in its plan.
 3. **Then Module 2's plan,** and so on. The spreadsheet ADR is written while Module 3 is being built, so it's settled before Module 4.
 
-Where this track sits in the overall build order is the owner's call; the build order set on 2026-11-10 was the cloud track to its end, then the ML track.
+The owner put Module 1 first on 2026-11-17, ahead of the cloud track's Module 4. Where later modules go is the owner's call.

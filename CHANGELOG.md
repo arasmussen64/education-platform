@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Finance and Markets on the map)
+
+- A fourth track, Finance and Markets (`content/tracks/finance.yaml`), with Module 1, "Money, time and risk", as twelve outlines: eleven topics and Checkpoint 1. Its writing plan is `docs/plans/finance-module-1/README.md`.
+
+### Decided
+
+- The owner put Finance and Markets Module 1 ahead of the cloud track's Module 4 (2026-11-17).
+
 ### Added (a plan for a Finance and Markets track)
 
 - `docs/specs/finance-markets.md`: a plan for a fourth track, from the owner's _Zero to Wall Street Expert_ roadmap, reviewed by a finance expert and an education expert. Six levels, 31 modules in five stages, five paths, and Module 1 ("Money, time and risk") in full. Nothing is on the map yet.
