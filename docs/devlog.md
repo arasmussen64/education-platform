@@ -2,6 +2,22 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-17, finance Module 1: compound interest, present and future value, loans and annuities
+
+**What changed.** Writer A of four wrote the first three topics of Finance Module 1, each `ready`, each its own pull request: _Compound interest_ (`fin.money.compounding`), _Present and future value_ (`fin.money.time-value`) and _Loans and annuities_ (`fin.money.annuities`). Each has a puzzle, four in-lesson questions, a glossary, a worked example, a Parsons problem, six or seven estimate questions, two typed questions, a contrast question, a fill-in, a write, a build, a debug and an explain. The functions the checkpoint reuses are named as the plan says: `future_value(present, rate, periods)`, `present_value(future, rate, periods)` (in topic 2's fill-in and write), `present_value_of_flows(flows, rate)` and `payment(principal, rate, periods)`. Before them, a small platform change (#322): an estimate question can say `amounts: made-up` instead of `prices_as_of` and `prices_source`, with an amendment to ADR-0024.
+
+**Author notes:**
+
+- _Made-up money in estimates._ Every finance estimate with a `$` amount had to carry a price date and source, and the page would then have said the amounts were "read" from a provider's price page. `amounts: made-up` fixes it for every writer of the module; the coordinator approved it and it landed first, on its own.
+- _Resources._ The first topic's main reading is Investor.gov's _What is compound interest?_ (an SEC page; the site states no license, so it's recorded as a US government work, linked only), with its compound interest calculator. Khan Academy's pages answered with a bot check and weren't cited. Topics 2 and 3 use _OpenStax Principles of Finance_ sections 7.1, 9.1, 8.2 and 8.3, which the book's preface licenses CC BY-NC-SA 4.0; section 7.2 is a further reading for topic 1.
+- _Plan correction, topic 1's explain._ The plan says the two friends "save the same total". Saving the same amount a year from 25 to 34 and from 35 to 64 means the later saver puts in three times as much, which is the point of the question; the prompt says so ($50,000 against $150,000, ending at about $563,000 against $505,000 at 7%).
+- _No story in topics 1 to 3._ The plan suggests none for them and none fitted that could be checked against a primary source.
+- _A last balance of `-0.00`._ A schedule kept unrounded can end a trillionth of a cent below zero, which prints as `-0.00`, and whether it does depends on the order of the learner's arithmetic. Topic 3's build and debug checks read `-0.00` as `0.00`, and the prompts say so; the lesson explains it beside how real lenders adjust the last payment.
+- _Estimate powers are limited to 100._ The validator refuses `** -360`, so no estimate works a 30-year monthly mortgage payment; the mortgage appears in the lesson, the worked example and an estimate that gives the payment.
+- _For the cold review:_ the first-year interest of the puzzle's mortgage ($1,500 of $1,798.65), the friends' totals, and the extra-$1,200 claim in `review-mcq-extra-early` (three months sooner, about $5,700 less paid on $300,000 at 6%) were all computed in CPython; worth a second look are the Investor.gov license wording and whether 85 minutes is right for topic 3.
+
+**Next:** writers B, C and D's topics, then the checkpoint and a cold review of the whole module.
+
 ## 2026-11-17: Finance Module 1 on the map, and its writing plan
 
 **The owner said** "Go ahead with finance Module 1 first", so the track's Module 1 now comes before the cloud track's Module 4.

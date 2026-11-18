@@ -1,0 +1,23 @@
+id: est-pv-prize-stream
+type: estimate
+rev: 1
+prompt: |
+  A prize pays $50,000 at the end of each year for 20 years, and is advertised as "a million-dollar prize". Money earns 5% a year. What is it worth today? Within 1%.
+unit: dollars
+answer: 623110.52
+tolerance: { percent: 1 }
+given: { payment: 50000, years: 20, rate: 5 }
+working: payment * (1 - (1 + rate / 100) ** -years) / (rate / 100)
+mistakes:
+  - id: not-discounted
+    value: 1000000
+    working: payment * years
+    why: "That's the advertised million: the payments added up as if they all came today. The later ones are worth much less now."
+  - id: discounted-once
+    value: 952380.95
+    working: payment * years / (1 + rate / 100)
+    why: "That discounts everything by one year. The last payment is 20 years away and is divided by 1.05 ** 20."
+explanation: |
+  50,000 × (1 − 1.05 ** −20) / 0.05 = 50,000 × 12.46 = $623,110.52. The "million" is the sum of payments spread over twenty years; in today's money the prize is worth about 62% of that.
+skills: [annuity-value]
+amounts: made-up

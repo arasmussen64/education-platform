@@ -1,0 +1,23 @@
+id: est-yearly-payment
+type: estimate
+rev: 1
+prompt: |
+  A small business borrows $10,000 and repays it in 5 equal payments, one at the end of each year, at 8% a year. What is each payment? Within 1%.
+unit: dollars
+answer: 2504.56
+tolerance: { percent: 1 }
+given: { principal: 10000, years: 5, rate: 8 }
+working: principal * (rate / 100) / (1 - (1 + rate / 100) ** -years)
+mistakes:
+  - id: no-interest
+    value: 2000
+    working: principal / years
+    why: "That repays the loan with no interest. Each year also pays 8% on what's still owed."
+  - id: interest-on-all
+    value: 2800
+    working: principal / years + principal * rate / 100
+    why: "That charges 8% on the whole $10,000 every year. Interest is charged on what's still owed, which falls each year."
+explanation: |
+  10,000 × 0.08 / (1 − 1.08 ** −5) = $2,504.56. Five of them total $12,522.82: $2,522.82 of interest, less than the $4,000 that 8% of the whole loan for five years would be, because the balance shrinks each year.
+skills: [payment]
+amounts: made-up
