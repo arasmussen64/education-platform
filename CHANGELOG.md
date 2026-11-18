@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Finance Module 1 topics)
+
+- Estimate questions can say `amounts: made-up` in place of `prices_as_of` and `prices_source` when their money is invented for the question (a savings balance, a loan), so the page no longer claims made-up amounts were "read" from a provider's price page ([ADR-0024's amendment](docs/decisions/0024-estimate-questions.md#amendment-2026-11-17-money-made-up-for-the-question)).
+
 ### Added (Finance and Markets on the map)
 
 - A fourth track, Finance and Markets (`content/tracks/finance.yaml`), with Module 1, "Money, time and risk", as twelve outlines: eleven topics and Checkpoint 1. Its writing plan is `docs/plans/finance-module-1/README.md`.

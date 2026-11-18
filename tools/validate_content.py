@@ -1328,12 +1328,17 @@ def check_estimate(path: Path, item: EstimateItem, report: Report) -> None:
     check_given(path, item, given, report)
     check_working(path, item, given, answer, report)
     check_mistakes(path, item, given, answer, report)
-    if mentions_money(item.prompt) and item.prices_as_of is None:
+    if (
+        mentions_money(item.prompt)
+        and item.prices_as_of is None
+        and item.amounts is None
+    ):
         report.add(
             path,
             "the prompt holds an amount of money, so it needs prices_as_of and "
             "prices_source: the day the prices were read, and the page that "
-            "shows today's",
+            "shows today's (or amounts: made-up, when the money is invented "
+            "for the question and isn't anyone's price)",
         )
 
 
