@@ -1,0 +1,23 @@
+id: est-car-payment
+type: estimate
+rev: 1
+prompt: |
+  A $20,000 car loan is repaid in 48 equal monthly payments, at 6% a year charged monthly. What is the monthly payment? Within 1%.
+unit: dollars
+answer: 469.7
+tolerance: { percent: 1 }
+given: { principal: 20000, months: 48, rate: 6 }
+working: principal * (rate / 100 / 12) / (1 - (1 + rate / 100 / 12) ** -months)
+mistakes:
+  - id: no-interest
+    value: 416.67
+    working: principal / months
+    why: "That repays the $20,000 with no interest at all. Each month also pays interest on what's still owed."
+  - id: yearly-rate
+    value: 1277.95
+    working: principal * (rate / 100) / (1 - (1 + rate / 100) ** -months)
+    why: "That charges the yearly 6% every month. The monthly rate is 0.06 / 12 = 0.005."
+explanation: |
+  The monthly rate is 0.06 / 12 = 0.005, and the payment is 20,000 × 0.005 / (1 − 1.005 ** −48) = $469.70. Of that, the first month's interest is 0.5% of $20,000, $100, and the rest pays the loan down.
+skills: [payment]
+amounts: made-up

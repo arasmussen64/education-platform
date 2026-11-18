@@ -1,0 +1,23 @@
+id: review-est-rent-stream
+type: estimate
+rev: 1
+prompt: |
+  A tenant will pay $1,200 at the end of each month for 12 months. Money earns 1% a month. What are the twelve payments worth today? Within 1%.
+unit: dollars
+answer: 13506.09
+tolerance: { percent: 1 }
+given: { payment: 1200, months: 12, rate: 1 }
+working: payment * (1 - (1 + rate / 100) ** -months) / (rate / 100)
+mistakes:
+  - id: not-discounted
+    value: 14400
+    working: payment * months
+    why: "That adds payments made at different times. Each is worth a little less today the later it comes."
+  - id: whole-year-discount
+    value: 12779.27
+    working: payment * months / (1 + rate / 100) ** months
+    why: "That discounts every payment by twelve months. Only the last one is a year away; the first is one month away."
+explanation: |
+  1,200 × (1 − 1.01 ** −12) / 0.01 = 1,200 × 11.255 = $13,506.09, about $894 less than the $14,400 paid.
+skills: [annuity-value]
+amounts: made-up
