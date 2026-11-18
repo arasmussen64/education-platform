@@ -51,4 +51,4 @@ total paid 15,869.49
 total interest 869.49
 annualized return 25.4%
 volatility 24.4%
-max drawdown 8.5%""")
+max drawdown 8.5%, from position 3 to position 4""")

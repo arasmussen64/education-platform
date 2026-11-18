@@ -24,7 +24,7 @@ EXPECTED = (
     "total interest 869.49\n"
     "annualized return 25.4%\n"
     "volatility 24.4%\n"
-    "max drawdown 8.5%\n"
+    "max drawdown 8.5%, from position 3 to position 4\n"
 )
 
 
@@ -35,7 +35,7 @@ def test_the_report():
 
 
 def test_the_functions():
-    """The four functions work on other prices: max_drawdown([100.0, 120.0, 90.0, 130.0]) is 0.25."""
+    """The four functions work on other prices: max_drawdown([100.0, 120.0, 90.0, 130.0]) is (0.25, 1, 2)."""
     simple_returns = function("simple_returns")
     annualized_return = function("annualized_return")
     volatility = function("volatility")
@@ -48,4 +48,4 @@ def test_the_functions():
     got = volatility([0.02, 0.04])
     assert got is not None and abs(got - 0.0141421356) < 1e-8, f"volatility([0.02, 0.04]) returned {got}"
     got = max_drawdown([100.0, 120.0, 90.0, 130.0])
-    assert got is not None and abs(got - 0.25) < 1e-9, f"max_drawdown([100.0, 120.0, 90.0, 130.0]) returned {got}"
+    assert got is not None and tuple(got) == (0.25, 1, 2), f"max_drawdown([100.0, 120.0, 90.0, 130.0]) returned {got}"

@@ -21,7 +21,7 @@ def volatility(returns):
 
 
 def max_drawdown(prices):
-    return 0
+    return 0, 0, 0
 
 
 print("""quarter 1: interest 480.00, principal 2,796.24, balance 21,203.76
@@ -37,4 +37,4 @@ total paid 26,209.88
 total interest 2,209.88
 annualized return 29.0%
 volatility 15.5%
-max drawdown 2.7%""")
+max drawdown 2.7%, from position 4 to position 5""")

@@ -43,12 +43,14 @@ def volatility(returns):
 
 
 def max_drawdown(prices):
-    # Walk the prices keeping the highest so far (the peak) and the largest
-    # fall from it, 1 - price / peak; return that largest fall.
+    # Walk the positions keeping the position of the highest price so far
+    # (the peak) and the largest fall from it, 1 - price / peak price, with
+    # the positions of that peak and of the low; return all three.
     ...
 
 
 print_schedule(principal, annual_rate, months)
 print(f"annualized return {annualized_return(prices, 12) * 100:.1f}%")
 print(f"volatility {volatility(simple_returns(prices)) * 12 ** 0.5 * 100:.1f}%")
-print(f"max drawdown {max_drawdown(prices) * 100:.1f}%")
+drop = max_drawdown(prices)
+print(f"max drawdown {drop[0] * 100:.1f}%, from position {drop[1]} to position {drop[2]}")

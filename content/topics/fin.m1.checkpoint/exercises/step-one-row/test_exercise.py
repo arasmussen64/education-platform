@@ -24,7 +24,7 @@ EXPECTED = (
     "total interest 869.49\n"
     "annualized return 25.4%\n"
     "volatility 24.4%\n"
-    "max drawdown 8.5%\n"
+    "max drawdown 8.5%, from position 3 to position 4\n"
 )
 
 

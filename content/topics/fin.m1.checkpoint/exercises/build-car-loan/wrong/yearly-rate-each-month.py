@@ -45,15 +45,23 @@ def volatility(returns):
 
 
 def max_drawdown(prices):
-    peak = prices[0]
+    peak = 0
     worst = 0
-    for price in prices:
-        peak = max(peak, price)
-        worst = max(worst, 1 - price / peak)
-    return worst
+    worst_peak = 0
+    worst_trough = 0
+    for i in range(len(prices)):
+        if prices[i] > prices[peak]:
+            peak = i
+        fall = 1 - prices[i] / prices[peak]
+        if fall > worst:
+            worst = fall
+            worst_peak = peak
+            worst_trough = i
+    return worst, worst_peak, worst_trough
 
 
 print_schedule(principal, annual_rate, months)
 print(f"annualized return {annualized_return(prices, 12) * 100:.1f}%")
 print(f"volatility {volatility(simple_returns(prices)) * 12 ** 0.5 * 100:.1f}%")
-print(f"max drawdown {max_drawdown(prices) * 100:.1f}%")
+drop = max_drawdown(prices)
+print(f"max drawdown {drop[0] * 100:.1f}%, from position {drop[1]} to position {drop[2]}")

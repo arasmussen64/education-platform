@@ -85,7 +85,7 @@ def test_layout():
     shape = [NUMBER.sub("N", line) for line in printed.splitlines()]
     expected = (
         ["month N: interest N, principal N, balance N"] * 18
-        + ["payment N", "total paid N", "total interest N", "annualized return N%", "volatility N%", "max drawdown N%"]
+        + ["payment N", "total paid N", "total interest N", "annualized return N%", "volatility N%", "max drawdown N%, from position N to position N"]
     )
     assert shape == expected
 
@@ -112,12 +112,22 @@ def test_volatility():
     assert close(volatility([0.02, 0.04]), 0.0141421356, 1e-8)
 
 
+def drawdown_matches(got, fall, peak, trough):
+    return (
+        isinstance(got, (tuple, list))
+        and len(got) == 3
+        and close(got[0], fall, 1e-9)
+        and got[1] == peak
+        and got[2] == trough
+    )
+
+
 def test_max_drawdown():
-    """max_drawdown is the largest fall from a running peak, as a decimal."""
+    """max_drawdown gives the largest fall from a running peak, as a decimal, and the positions of that peak and of the low."""
     max_drawdown = function("max_drawdown")
-    assert close(max_drawdown([100.0, 120.0, 90.0, 130.0, 104.0, 125.0]), 0.25, 1e-9)
-    assert close(max_drawdown([10.0, 11.0, 12.0]), 0.0, 1e-9)
-    assert close(max_drawdown([80.0, 60.0, 70.0, 50.0, 90.0]), 0.375, 1e-9)
+    assert drawdown_matches(max_drawdown([100.0, 120.0, 90.0, 130.0, 104.0, 125.0]), 0.25, 1, 2)
+    assert drawdown_matches(max_drawdown([10.0, 11.0, 12.0]), 0.0, 0, 0)
+    assert drawdown_matches(max_drawdown([80.0, 60.0, 70.0, 50.0, 90.0]), 0.375, 0, 3)
 
 
 def test_the_portfolio_report():
@@ -125,7 +135,7 @@ def test_the_portfolio_report():
     printed = run()
     found = [lines_starting(printed, start) for start in ("annualized return ", "volatility ", "max drawdown ")]
     assert all(len(lines) == 1 for lines in found)
-    assert [numbers(lines[0]) for lines in found] == [[25.4], [24.4], [8.5]]
+    assert [numbers(lines[0]) for lines in found] == [[25.4], [24.4], [8.5, 3, 4]]
 
 
 def test_another_loan_and_prices():
@@ -140,4 +150,4 @@ def test_another_loan_and_prices():
     )
     assert schedule_is_consistent(printed, 6000, 0.09, 6)
     portfolio = [numbers(line) for line in printed.splitlines()[-3:]]
-    assert portfolio == [[24.0], [26.2], [14.5]]
+    assert portfolio == [[24.0], [26.2], [14.5, 3, 5]]
