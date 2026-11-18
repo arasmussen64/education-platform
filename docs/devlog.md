@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-17, finance Module 1: How a trade happens; Reading market data; Checkpoint 1
+
+Writer D of four wrote topics 10 and 11 of Finance and Markets Module 1 and its checkpoint, from [its plan](plans/finance-module-1/README.md). There was one pull request each (#331, #332 and this one), and all three are `ready`.
+
+**What changed**
+
+- **How a trade happens** (`fin.markets.trading`). The lesson follows an order from broker to exchange (or wholesaler) to clearing house to settlement: T+1 in the US since 28 May 2024, checked against the SEC's press release 2023-29 and Investor.gov's T+1 bulletin. Then market, limit and stop orders, the bid-ask spread, and what a market order pays when it walks the book. The build is a matching engine for a market buy, a list of dicts in arrival order: best price first, then the earlier order. In the debug, a market sell takes the lowest bid first and never shrinks a partly filled order. The story is GameStop in January 2021, from the SEC staff report of 14 October 2021.
+- **Reading market data** (`fin.markets.prices`). The lesson covers OHLC bars and volume, and building a week's bar from its days. It adjusts prices for a split (divide the earlier closes by the ratio) and for a dividend (multiply the earlier closes by `1 - dividend / close` before the ex-date, as the plan says). Then a price-weighted and a cap-weighted index from three made-up companies. The build is a split-adjusted return. In the debug, an index calculator weights by price and never divides by its start. The story is the flash crash of 6 May 2010, from the CFTC and SEC staffs' report of 30 September 2010.
+- **Checkpoint 1** (`fin.m1.checkpoint`):
+  - **Build.** A loan schedule to the cent, then annualized return, volatility and maximum drawdown. The tests check each month against the month before, and money is printed with a tolerance of half a cent, so `-0.00` on the last balance passes; the prompt says so. Each test names its skills.
+  - **Debug.** Four bugs, each `wrong/*.py` fixing three of them: a yearly rate applied monthly, nominal growth where real was needed, one year too many, and an arithmetic mean used for growth.
+  - **Explain.** "+50% then −50%", with the plan's rubric.
+  - **Way through.** A savings-plan sibling, four steps, a car loan, and an equipment loan with quarterly payments and weekly prices.
+
+**Author notes**
+
+- **Checked against the merged topics.** I read topics 1 to 9 on `main` before opening the checkpoint's pull request. The function names and skill ids match the plan. Topic 6's `max_drawdown` returns `(fall, peak position, low position)`, so the checkpoint's does too: its report prints "from position 3 to position 4". Topic 3's build used a loan of 6,000 at 9% over 6 months, so the checkpoint's hidden "other loan" was moved to 7,500 at 8.4%.
+- **Plan correction, the checkpoint's steps.** The plan named four steps for the loan alone: `step-monthly-rate`, `step-payment`, `step-one-row` and `step-the-schedule`. The build also has a portfolio half, so the monthly rate and the payment became one step (`step-payment`), and the fourth step is `step-the-portfolio`: the four portfolio functions as an outline in comments.
+- **The equipment loan is a different shape on purpose.** It has quarterly payments (rate ÷ 4) and weekly prices (annualized by 52 and √52), so pasting the steps' code doesn't pass it. `wrong/steps-pasted.py` proves that.
+- **The retirement debug divides the yearly rate by 12**, the convention topic 3 uses for loans, and the prompt says so. The "yearly rate applied monthly" bug is the missing `/ 12`.
+- **Investor.gov licences** are recorded as "US government work (SEC); linked, not copied". Its disclaimer page names no licence.
+- **The Dow and the S&P 500** are named in topic 11 as facts about how each is weighted (from S&P Dow Jones Indices' own literacy page, via search, because spglobal.com refused a direct fetch). No index levels are shipped.
+- **For the cold review.** Please check the GameStop story's wording on the $1.4 billion broker requirement and the waived charge "of more than double", taken from section 3.5 of the report. Please also check the flash crash figures (over 20,000 trades in more than 300 securities, 60% away; a penny to $100,000), taken from the report's executive summary.
+
+**What's next:** the cold review of the whole module.
+
 ## 2026-11-17, finance Module 1: compound interest, present and future value, loans and annuities
 
 **What changed.** Writer A of four wrote the first three topics of Finance Module 1, each `ready`, each its own pull request: _Compound interest_ (`fin.money.compounding`), _Present and future value_ (`fin.money.time-value`) and _Loans and annuities_ (`fin.money.annuities`). Each has a puzzle, four in-lesson questions, a glossary, a worked example, a Parsons problem, six or seven estimate questions, two typed questions, a contrast question, a fill-in, a write, a build, a debug and an explain. The functions the checkpoint reuses are named as the plan says: `future_value(present, rate, periods)`, `present_value(future, rate, periods)` (in topic 2's fill-in and write), `present_value_of_flows(flows, rate)` and `payment(principal, rate, periods)`. Before them, a small platform change (#322): an estimate question can say `amounts: made-up` instead of `prices_as_of` and `prices_source`, with an amendment to ADR-0024.
