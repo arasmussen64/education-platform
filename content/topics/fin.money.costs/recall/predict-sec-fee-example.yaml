@@ -1,0 +1,18 @@
+id: predict-sec-fee-example
+type: predict_output
+rev: 1
+prompt: |
+  The SEC's investor bulletin on fees shows $100,000 growing 4% a year for 20 years under three yearly fees. This program follows the same example, growing the balance and then taking the fee each year. What does it print?
+code: |
+  for fee in [0.0025, 0.005, 0.01]:
+      balance = 100000
+      for year in range(20):
+          balance = balance * 1.04 * (1 - fee)
+      print(f"{fee:.2%}: ${balance:,.0f}")
+expected_output: |
+  0.25%: $208,413
+  0.50%: $198,211
+  1.00%: $179,213
+explanation: |
+  Each fee leaves `1 - fee` of the balance every year, on top of 4% growth: 1.04 × 0.9975 for the cheapest, 1.04 × 0.99 for the dearest. After 20 years that's about $208,000, $198,000 and $179,000, the bulletin's own rounded figures. Going from a 0.25% fee to 1.00%, three quarters of a percent a year, costs about $29,000 of the $208,000. `:,.0f` prints money with commas and no decimals.
+skills: [fee-drag]

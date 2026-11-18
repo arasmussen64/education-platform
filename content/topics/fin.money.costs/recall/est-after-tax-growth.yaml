@@ -1,0 +1,22 @@
+id: est-after-tax-growth
+type: estimate
+rev: 1
+prompt: |
+  An ordinary account earns 6% a year, and a made-up flat tax of 25% is taken from each year's gain as it happens. What does the balance grow by each year after the tax, in percent? Exactly.
+unit: "% a year"
+answer: 4.5
+tolerance: { absolute: 0 }
+given: { growth: 6, tax: 25 }
+working: growth * (1 - tax / 100)
+mistakes:
+  - id: subtracted
+    value: -19
+    working: growth - tax
+    why: "The tax is 25% of the gain, not 25 points off the rate. A quarter of 6% is 1.5%, which leaves 4.5%."
+  - id: the-tax-part
+    value: 1.5
+    working: growth * tax / 100
+    why: "That's the part the tax takes. What the balance grows by is what's left: 6% - 1.5%."
+explanation: |
+  The tax takes a quarter of each year's 6% gain, 1.5%, leaving 4.5%: the after-tax return. The balance then compounds at 4.5% a year instead of 6%, which over decades is a big difference: over 30 years 1.045 ** 30 is about 3.7, against 1.06 ** 30, about 5.7.
+skills: [tax-deferral]
