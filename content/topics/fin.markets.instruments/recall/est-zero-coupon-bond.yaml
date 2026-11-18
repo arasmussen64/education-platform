@@ -1,0 +1,23 @@
+id: est-zero-coupon-bond
+type: estimate
+rev: 1
+prompt: |
+  A made-up bond pays no coupon at all: it repays its face value of $1000 in 8 years and nothing before. The market wants 6% a year. What is it worth today, in dollars? Within 1%.
+unit: "US dollars"
+answer: 627.41
+tolerance: { percent: 1 }
+amounts: made-up
+given: { face: 1000, years: 8, market: 6 }
+working: face / (1 + market / 100) ** years
+mistakes:
+  - id: simple-discount
+    value: 520
+    working: face * (1 - market / 100 * years)
+    why: "That takes 6% of the face value off for each year. Discounting compounds: divide by 1.06 eight times."
+  - id: one-year
+    value: 943.4
+    working: face / (1 + market / 100)
+    why: "That discounts by one year. The $1,000 is 8 years away, so divide by 1.06 ** 8."
+explanation: |
+  The bond's only cash flow is $1,000 in 8 years, and its price is that flow's present value: $1,000 / 1.06 ** 8 ≈ $627.41. Buying it at that price and holding it to the end earns exactly 6% a year. Such a zero-coupon bond is just the Present and future value topic's discounting, with a name.
+skills: [bond-value]

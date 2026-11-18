@@ -1,0 +1,15 @@
+id: parsons-bond-price
+type: parsons
+rev: 1
+prompt: |
+  A made-up 2-year bond with a face value of $1,000 pays a 6% coupon once a year, and the market wants 4%. Put the lines in order so the program builds its cash flows (nothing today, a coupon each year, the face value repaid with the last coupon) and prints its price, `1037.72`. One line is a decoy that doesn't belong.
+lines:
+  - 'face, coupon_rate, market_rate = 1000, 0.06, 0.04'
+  - 'flows = [0, face * coupon_rate, face * coupon_rate + face]'
+  - 'price = flows[1] / (1 + market_rate) + flows[2] / (1 + market_rate) ** 2'
+  - 'print(round(price, 2))'
+distractors:
+  - 'flows = [0, face * market_rate, face * market_rate + face]'
+explanation: |
+  The coupon is the face value times the coupon rate, $60, fixed when the bond was issued. The face value comes back with the second coupon, so the flows are `[0, 60.0, 1060.0]`. Each flow is discounted by the market rate for the years until it arrives: 60 / 1.04 + 1060 / 1.04 ** 2 ≈ 57.69 + 980.03 = 1037.72. The bond pays more than the market wants, so it's worth more than its face value. The decoy pays the coupon at the market rate, which would always give exactly $1,000.
+skills: [bond-value]

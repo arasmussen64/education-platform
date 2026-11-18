@@ -1,0 +1,35 @@
+id: build-match-a-market-order
+stage: build
+rev: 1
+title: "Match a market order"
+prompt: |
+  A made-up stock has four sell orders resting on its order book, listed in the order they arrived, earliest first. Starting from a blank editor, begin with this list:
+
+  ```python
+  asks = [
+      {"id": "S1", "price": 20.10, "shares": 300},
+      {"id": "S2", "price": 20.05, "shares": 100},
+      {"id": "S3", "price": 20.10, "shares": 200},
+      {"id": "S4", "price": 20.25, "shares": 500},
+  ]
+  ```
+
+  Write two functions:
+
+  - `best_ask(asks)` returns the resting order that a buyer is matched with first: the lowest price, and on a tie the one that arrived earlier (nearer the start of the list). It returns `None` for an empty list.
+  - `match_market_buy(asks, shares)` matches a market order to buy `shares` shares against the book, best order first, and returns the fills as a list of dictionaries with the keys `"id"`, `"price"` and `"shares"`, in the order they happened. It changes the book as an exchange would: an order that is used up is removed from `asks`, and an order that is partly used keeps its place with fewer shares. If the book runs out first, it returns the fills it managed.
+
+  Then match a market order for 500 shares and print each fill, the average price paid to two decimal places, and what is left on the book:
+
+  ```
+  100 at 20.05 from S2
+  300 at 20.10 from S1
+  100 at 20.10 from S3
+  average price 20.09
+  left on the book:
+  S3 100 at 20.10
+  S4 500 at 20.25
+  ```
+
+  The checks call your functions with other books and order sizes too, including a tie on price and an order bigger than the whole book.
+skills: [matching, spread]

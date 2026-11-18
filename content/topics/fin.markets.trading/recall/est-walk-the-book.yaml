@@ -1,0 +1,23 @@
+id: est-walk-the-book
+type: estimate
+rev: 1
+prompt: |
+  A made-up stock's book has these sell orders: 100 shares at $50.00, 200 shares at $50.30 and 500 shares at $50.60. You send a market order to buy 300 shares. What average price per share do you pay, in dollars? Exactly, to the cent.
+unit: dollars a share
+answer: 50.20
+tolerance: { absolute: 0 }
+given: { first_shares: 100, first_price: 50.00, second_shares: 200, second_price: 50.30, third_shares: 500, third_price: 50.60, wanted: 300 }
+working: (first_shares * first_price + second_shares * second_price) / wanted
+amounts: made-up
+mistakes:
+  - id: best-price
+    value: 50.00
+    working: first_price
+    why: "That's the best ask, but only 100 shares are offered there. The other 200 come from the next price up, $50.30."
+  - id: average-of-prices
+    value: 50.15
+    working: (first_price + second_price) / 2
+    why: "That averages the two prices as if you bought the same number at each. You bought twice as many at $50.30, so the average leans towards it."
+explanation: |
+  A market order takes the cheapest asks first: all 100 shares at $50.00 ($5,000), then 200 of the 500 offered at $50.30 ($10,060). That's $15,060 for 300 shares, $50.20 a share. The order "walked the book": it paid more than the best ask because there weren't enough shares at that price. The fewer shares rest at each price, the further a market order walks.
+skills: [spread, matching]
