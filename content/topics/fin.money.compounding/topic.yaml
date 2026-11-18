@@ -1,17 +1,99 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.money.compounding
 kind: topic
-status: planned
+status: ready
 title: "Compound interest"
 summary: "Grow money period by period, by loop and by formula; doubling time and the rule of 72."
 prerequisites:
-- ml.math.exponents-and-logs
-- py.for-and-range
-estimated_minutes: 60
+  - ml.math.exponents-and-logs
+  - py.for-and-range
+# The lesson (about 8 minutes), the reading and the calculator (about 8),
+# 13 practice quick questions at a minute and a half, the worked example,
+# fill-in and write (about 20), and the build, debug and explain (about 25).
+estimated_minutes: 75
 rev: 1
 objectives:
-- "Grow an amount period by period with a loop."
-- "Use the compound-growth formula and check it against the loop."
-- "Estimate doubling time with the rule of 72."
-- "Say why compounding favours starting early."
+  - "Grow an amount period by period with a loop, starting the table at year 0."
+  - "Use the compound-growth formula and check it against the loop."
+  - "Estimate doubling time with the rule of 72, and work it out exactly with logarithms."
+  - "Tell simple interest from compound interest, and say why compounding favours starting early."
+# Investor.gov is the US Securities and Exchange Commission's site for
+# investors, a US government work; it states no license of its own (its
+# disclaimer page says the SEC paid for it), so it's linked, never copied.
+# Both pages were read on 2026-11-17.
+resources:
+  - title: "What is compound interest? (Investor.gov, US Securities and Exchange Commission): compound interest and the rule of 72"
+    url: https://www.investor.gov/additional-resources/information/youth/teachers-classroom-resources/what-compound-interest
+    type: reading
+    use: link
+    license: "US government work (SEC); no license stated; linked, not copied"
+  - title: "Compound Interest Calculator (Investor.gov, US Securities and Exchange Commission)"
+    url: https://www.investor.gov/financial-tools-calculators/calculators/compound-interest-calculator
+    type: interactive
+    use: link
+    license: "US government work (SEC); no license stated; linked, not copied"
+# Every amount of money in this topic is made up for the sums (estimate
+# items say amounts: made-up). Rates are decimals in code and money is
+# rounded only for printing: the module's conventions, taught here once.
+practice:
+  - example-savings-table
+  - parsons-compound-table
+  - mcq-simple-or-compound
+  - predict-three-years
+  - mcq-loop-equals-formula
+  - est-fv-birth-gift
+  - est-rule-of-72
+  - est-doubling-rate
+  - est-four-doublings
+  - est-simple-interest
+  - est-compound-extra
+  - contrast-simple-or-compound
+  - typed-rate-as-decimal
+  - typed-interest-on-interest
+  - fill-growth-table
+  - write-doubling-table
+prove:
+  build: build-future-value
+  debug: debug-savings-projector
+  explain:
+    prompt: |
+      Two friends each save $5,000 a year at 7% a year, compounded once a year. Ana saves from 25 to 34 (ten deposits) and then stops, leaving the money in. Ben starts at 35 and saves every year until 64 (thirty deposits). At 65, Ana has about $563,000 and Ben about $505,000, though Ben put in three times as much. In your own words: how can Ana end up with more? Use simple interest against compound interest, the rule of 72, and at least one number of your own to explain it.
+    rubric:
+      - id: compounding
+        required: true
+        description: "Compound interest pays interest on earlier interest, so growth is a power of the years: money left longer grows by far more, not just a little more."
+      - id: ana-time
+        required: true
+        description: "Ana's deposits compound for 31 to 40 years, Ben's for 1 to 30: her money has more years of growth, and the last years add the most."
+      - id: doubling
+        required: true
+        description: "Uses doubling: at 7% money doubles about every 72 / 7 ≈ 10 years, so Ana's money gets about three extra doublings, roughly 8 times, which outweighs Ben's extra deposits."
+      - id: a-number
+        required: true
+        description: "Gives a correct number, such as Ana's balance at 35 (about $74,000) growing about 7.6 times (1.07 ** 30) by 65, or one deposit's growth over 40 years against 30."
+      - id: simple-contrast
+        required: false
+        description: "Says that with simple interest Ben would end with more, since each dollar would earn the same amount a year however long it was in."
+    model_answer: |
+      With compound interest each year's interest is added to the balance and earns interest itself, so money grows by a power of the years: a dollar left 40 years at 7% becomes 1.07 ** 40, about $15, while a dollar left 30 years becomes about $7.60. So the years matter more than the amount. By the rule of 72, money at 7% doubles roughly every 72 / 7, about 10 years. Ana's ten deposits are all made by 35, and by then they've grown to about $74,000. That sum then compounds for another 30 years, three more doublings, multiplying by 1.07 ** 30, about 7.6, to around $563,000. Ben puts in $150,000, three times as much, but each of his deposits has at most 30 years to grow, and his last ones barely grow at all, so he ends with about $505,000. With simple interest it would be the other way round: each dollar would earn the same 7 cents a year however long it sat, and Ben's extra $100,000 of deposits would win. Compounding rewards time, which is why starting early beats saving more later.
+review_pool:
+  - review-predict-loop-and-formula
+  - review-mcq-round-at-the-end
+  - review-est-family-loan
+  - review-est-college-fund
+  - review-est-prices-double
+  - typed-rate-as-decimal
+  - typed-interest-on-interest
+  - est-four-doublings
+  - contrast-simple-or-compound
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: grow-by-loop
+    description: "Grow an amount period by period in a loop, with a table that starts at year 0"
+  - id: grow-by-formula
+    description: "The future-value formula `present * (1 + rate) ** periods`, and that it matches the loop"
+  - id: doubling
+    description: "Doubling time: the rule of 72, and its exact form with logarithms"
+  - id: simple-vs-compound
+    description: "Tell simple interest from compound interest, and work out each"

@@ -1,0 +1,67 @@
+<Intro>
+
+<Puzzle question="You put $1,000 in an account paying 7% a year and leave it for 30 years. If it paid 7% of the original $1,000 each year, you'd end with $3,100. It adds each year's interest to the balance instead. Guess what it holds after 30 years.">
+
+About $7,612, nearly two and a half times as much. Each year's 7% is worked out on a bigger balance, because last year's interest is in it and earns interest too. That is compound interest. In the first year the account earns $70; in the thirtieth it earns about $498.
+
+</Puzzle>
+
+This is the first topic of a module about money: savings, loans, fees, and how markets work. Every idea in it is computed in Python, where a wrong idea shows up as a wrong number. This module teaches how these things work; it isn't advice on what to do with your money, and the rates in it are made up for the sums, not promises any account makes.
+
+**How this module writes money in code.** Three conventions, used in every topic from here on:
+
+- **A rate is a decimal.** 7% is `0.07`. A question says "7% a year" and the code holds `rate = 0.07`. Growing by 7% is multiplying by `1 + rate`, which is `1.07`.
+- **Money is a float, rounded only for printing.** `f"{balance:,.2f}"` prints `7612.255042662042` as `7,612.26`: the comma puts commas between thousands, and `.2f` keeps two decimal places. Don't round along the way. Each rounding throws away up to half a cent, and the next year's interest is then worked out on the rounded number, so the errors are carried forward: rounding the puzzle's balance to the cent every year ends at $7,612.25, a cent short. Real banks keep exact whole cents (or use Python's `decimal` module) and have rules for when to round; this module's sums are short, so a float rounded at the end is right to the cent.
+- **Checks compare money to the cent.**
+
+**Simple and compound.** The amount you start with is the **principal**. **Simple interest** pays the rate on the principal only: 7% of $1,000 is $70, every year, so after 30 years you have $1,000 + 30 × $70 = $3,100. The balance grows in a straight line. **Compound interest** adds each year's interest to the balance, and the next year's rate is paid on the whole balance. Year 1: $1,000 × 1.07 = $1,070. Year 2: $1,070 × 1.07 = $1,144.90, which is $4.90 more than simple interest's $1,140: the interest on the first year's $70. That $4.90 is small, but it grows every year, and by year 30 it's most of the money.
+
+<Check item="mcq-simple-or-compound" />
+
+**Growing money in a loop.** A loop does exactly what the bank does, one year at a time:
+
+```python
+balance = 1000
+rate = 0.07
+print(f"Year 0: {balance:,.2f}")
+for year in range(1, 4):
+    balance = balance * (1 + rate)
+    print(f"Year {year}: {balance:,.2f}")
+```
+
+It prints `Year 0: 1,000.00`, then `1,070.00`, `1,144.90` and `1,225.04`. Notice the **year 0** row: the table starts with what you put in, before any interest, so three years of growth make four rows. Leaving it out, or counting from the wrong year, is the most common slip in a table like this.
+
+<Check item="predict-three-years" />
+
+**The formula.** Multiplying by `1.07` once a year for `n` years is multiplying by it `n` times, which is a power: `1.07 ** n`. So the **future value** of an amount, what it grows to, is
+
+```python
+future = present * (1 + rate) ** years
+```
+
+The topic *Exponents and logarithms* used this once, for one balance. Here it becomes a tool: `1000 * 1.07 ** 30` is the puzzle's $7,612.26 in one line, and the loop and the formula agree to the cent. Use the loop when you need every year's row, and the formula when you need one answer; use each to check the other.
+
+<Check item="est-fv-birth-gift" />
+
+**How long to double.** The **rule of 72** estimates the **doubling time** in your head: divide 72 by the rate in percent. At 6%, money doubles in about 72 / 6 = 12 years; at 9%, about 8. The exact answer solves `(1 + rate) ** n == 2` for `n`, and a logarithm undoes the power: `n = math.log(2) / math.log(1 + rate)`, which is 11.9 years at 6%. The rule is close for rates between about 4% and 12%; at 2% it says 36 years against the exact 35.0, and at 24% it says 3 against 3.2. Doublings multiply, which is the real power of the rule: money that doubles every 12 years is 2 times the start after 12 years, 4 times after 24, 8 times after 36 and 16 times after 48.
+
+<Check item="est-rule-of-72" />
+
+**Why starting early wins.** Because the growth is a power, the last years add the most. $1,000 left at 7% for 30 years becomes $7,612; left for 40 years it becomes $14,974. The extra ten years are about one more doubling, and they add more than the first thirty years did. Time does more than the amount you put in, which is the question in this topic's explain.
+
+**Read now:** *What is compound interest?* on Investor.gov, the US Securities and Exchange Commission's site for investors, below. It's a short page: compound interest with $100 at 5%, and the rule of 72. Then try the same site's compound interest calculator, listed after the lesson: put in $1,000, 30 years and 7% compounded annually, and check that it agrees with the puzzle. The quick questions include a few numbers to work out and type in; use a calculator if you like, because the skill is setting up the sum.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Conventions:** a rate is a decimal (`0.07` for 7%); money is a float, rounded only for printing with `f"{amount:,.2f}"`, because rounding along the way carries its errors forward.
+- **Simple interest** pays the rate on the **principal** only: the same amount each year, a straight line. **Compound interest** pays it on the balance, earlier interest included.
+- **In a loop:** `balance = balance * (1 + rate)` once per year. A table starts at **year 0**, the starting amount, so `n` years make `n + 1` rows.
+- **The formula:** future value = `present * (1 + rate) ** years`. It matches the loop to the cent; use each to check the other.
+- **Doubling time:** about `72 / percent` years by the rule of 72 (good from about 4% to 12%); exactly `math.log(2) / math.log(1 + rate)`.
+- **Time matters most:** the last years of compounding add the most money, which is why starting early wins.
+
+</Recap>

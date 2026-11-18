@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Added (Finance Module 1 topics)
 
 - Estimate questions can say `amounts: made-up` in place of `prices_as_of` and `prices_source` when their money is invented for the question (a savings balance, a loan), so the page no longer claims made-up amounts were "read" from a provider's price page ([ADR-0024's amendment](docs/decisions/0024-estimate-questions.md#amendment-2026-11-17-money-made-up-for-the-question)).
+- Finance Module 1, topic 1: Compound interest (`fin.money.compounding`), the first topic of the Finance and Markets track. Simple against compound interest, growing money in a loop and by the future-value formula, the rule of 72 and exact doubling time, and the module's money conventions (rates as decimals, money rounded only for printing).
 
 ### Added (Finance and Markets on the map)
 

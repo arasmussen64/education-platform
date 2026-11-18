@@ -1,0 +1,22 @@
+id: review-est-prices-double
+type: estimate
+rev: 1
+prompt: |
+  Prices in a shop rise 3% a year, every year, compounding as interest does. By the rule of 72, about how many years until they double? Within 5%.
+unit: years
+answer: 24
+tolerance: { percent: 5 }
+given: { rate: 3 }
+working: 72 / rate
+mistakes:
+  - id: simple-doubling
+    value: 33.33
+    working: 100 / rate
+    why: "That's a straight 3% of today's price added every year. Each year's rise is 3% of a higher price, which is faster."
+  - id: decimal-rate
+    value: 2400
+    working: 72 / (rate / 100)
+    why: "The rule divides 72 by the rate in percent, 3, not by 0.03."
+explanation: |
+  72 / 3 = 24 years; the exact answer, `math.log(2) / math.log(1.03)`, is 23.4. The rule of 72 works for anything that grows by a steady percentage: money, prices, a population.
+skills: [doubling]
