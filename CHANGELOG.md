@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (a plan for a Finance and Markets track)
+
+- `docs/specs/finance-markets.md`: a plan for a fourth track, from the owner's _Zero to Wall Street Expert_ roadmap, reviewed by a finance expert and an education expert. Six levels, 31 modules in five stages, five paths, and Module 1 ("Money, time and risk") in full. Nothing is on the map yet.
+
 ### Decided
 
 - [ADR-0023](docs/decisions/0023-packages-in-both-runtimes.md), NumPy in both Python runtimes, is accepted by the owner (2026-11-10). 39 ready topics of the ML track already rest on it.

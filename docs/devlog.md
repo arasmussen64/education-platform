@@ -2,6 +2,25 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-17: A plan for a Finance and Markets track
+
+**The owner asked** for a review of their document _Zero to Wall Street Expert: Complete Roadmap_, then for a plan for a new track, written first as a financial expert and then as an education expert: "We'll start one module at a time."
+
+**What changed.** [docs/specs/finance-markets.md](specs/finance-markets.md) holds both reviews, the track's six levels, a 31-module map in five stages with five paths (banking and private equity, trading, buy-side, quant, and financial technology), and Module 1, "Money, time and risk", in full: eleven topics and a checkpoint. Nothing is on the map yet and no code changed.
+
+**What the reviews decided.**
+
+- _Finance:_ add credit, risk management, ethics and regulation, the plumbing of payments and settlement, private markets and IFRS, which the document left out or mentioned in passing. Add a fifth path, financial technology, where the cloud and ML tracks meet this one. Teach models in Python first and add a spreadsheet exercise type before Module 4, because Excel matters for banking but the platform has to check every answer. Replace three months of paper trading with "blind history": a hidden past period, a thesis and a confidence first, then the reveal, scored on process and calibration.
+- _Education:_ lessons teach and books become optional depth; one fictional company runs through Stage 1 so accounting is about something; the four proofs fit finance well (debugging a broken model is the job); estimate questions and confidence are part of the skill; a small piece of every path's work comes before the path is chosen; Python and the math are reused from the existing tracks, never taught twice.
+
+**Author notes:**
+
+- _The document stays out of the repository._ It sits untracked in the repository's root on the owner's machine and carries the owner's name in its byline; the repository is public. The spec summarises what it took from it.
+- _Licensed market data is linked, never shipped._ Index levels and vendors' price histories aren't copied in; Module 1 uses generated series and US government data, which is public domain.
+- _Track order 4 is the order on the map only._ Where the track sits in the build order is the owner's call.
+
+**Next:** the owner says where this track goes in the build order. Then Module 1's writing plan in `docs/plans/finance-module-1/`, then its topics.
+
 ## 2026-11-16, end: The four-expert plan is built
 
 **The owner asked** for a plan to improve the app from four points of view (an education expert, a memory expert, a neuroscientist and a behavioural scientist), then: "Build everything on this list." It is built: 26 pull requests (#293 to #318, after #292's back-to-top button), each with its own entry below this one.

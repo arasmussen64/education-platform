@@ -31,7 +31,7 @@ _Last updated 2026-11-16._ This is the one place the project's status is written
 1. **The Cloud Solutions Architect track, to its end.** Modules 1 to 3 are written (Module 3 from [its plan](plans/cloud-module-3/README.md), 2026-11-12 and 13). Module 4, security and identity foundations, is being designed (begun 2026-11-12, paused), then the rest in the order of [its spec](specs/cloud-solutions-architect.md), along with the tools its later proofs need. The steps are listed under [Cloud Solutions Architect](#cloud-solutions-architect-the-track-being-built), below.
 2. **Then the Machine Learning Foundations track again,** from Module 9, transformers, which is outlined, to Module 10, ML systems, which is still prose in [its spec](specs/ml-foundations.md).
 
-What comes after those two isn't decided. The unbuilt items of Phases 3 and 4 are listed below.
+What comes after those two isn't decided. The unbuilt items of Phases 3 and 4 are listed below. A fourth track, [Finance and Markets](specs/finance-markets.md), was planned on 2026-11-17 from the owner's Wall Street roadmap, to be built one module at a time; where it goes in this order is the owner's call.
 
 Content is no longer held to one module ahead of the owner's own learning, which was the rule until 2026-11-10. The owner learns at their own pace, on any track, and the build doesn't wait for it.
 
