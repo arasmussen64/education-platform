@@ -1,0 +1,59 @@
+<Intro>
+
+<Puzzle question="Someone offers you $10,000 today or $11,000 in two years. Money can earn 6% a year meanwhile. Which offer is worth more, and by about how much?">
+
+The $10,000 today, by about $210. Put away at 6%, it grows to $11,236 in two years, more than the $11,000 offered then. The other way round, $11,000 in two years is worth only about $9,790 today. The bigger number loses because it comes later.
+
+</Puzzle>
+
+*Compound interest* moved money forward in time: `present * (1 + rate) ** years` is what an amount grows to. This topic moves money back, and that's what lets you compare amounts paid at different times. As in the rest of the module, the amounts and rates here are made up for the sums; the topic teaches how to compare money over time, and isn't advice on what to choose.
+
+**Present value.** If $9,789.96 put away today at 6% grows to $11,000 in two years, then $11,000 in two years is worth $9,789.96 today: you could have one as easily as the other. That's the **present value** of the $11,000. Finding it undoes the growth, so where future value multiplies by `(1 + rate) ** years`, present value divides by it:
+
+```python
+def present_value(future, rate, periods):
+    return future / (1 + rate) ** periods
+```
+
+`present_value(11000, 0.06, 2)` is 11,000 / 1.1236 = 9,789.96. Moving money back like this is called **discounting**, and the rate you use is the **discount rate**: usually what the money could earn meanwhile. Notice that the further away an amount is, and the higher the rate, the less it's worth today.
+
+<Check item="mcq-what-pv-means" />
+
+**Why later money is worth less.** Three reasons, which this topic's explain asks you to give in your own words. Money today can be put to work and earn. Prices tend to rise, so the same dollars buy less later. And a promise of money later might not be kept. The discount rate rolls all three into one number.
+
+<Check item="est-pv-car-fund" />
+
+**Comparing offers.** Money paid at different times can't be compared as it stands: $10,000 now and $11,000 in two years are like amounts in two currencies. Move both to the **same date** first. Today is the usual choice (discount the later one), but any date works: in two years, $10,000 grows to $11,236, which beats $11,000 by $236, and $236 is the same $210.04 gap grown for two years. The winner can't change with the date, because moving both amounts to one date multiplies or divides them by the same factor.
+
+<Check item="contrast-today-or-later" />
+
+**A list of cash flows.** Real choices are rarely one payment. A project might cost money now and pay some back each year; a job might pay a bonus now and more later. Each payment in or out is a **cash flow**, and a list of them has one per year, the first at **time 0**, today, with money paid out written as negative. The list is worth, today, the sum of each flow discounted by its own number of years:
+
+```python
+flows = [-1000, 600, 600]
+rate = 0.10
+total = 0
+for t in range(len(flows)):
+    total = total + flows[t] / (1 + rate) ** t
+print(f"{total:,.2f}")
+```
+
+It prints `41.32`. The flow at time 0 is divided by `1.1 ** 0`, which is 1, so today's money stays as it is; the 600 in a year is divided by 1.1, and the 600 in two years by 1.21. Getting that first power wrong, starting at 1 instead of 0, treats today's payment as if it came a year later, and it's the most common slip in this kind of program. Module 5 calls the total for a project like this its net present value: positive means the project earns more than the discount rate, negative means the money would do better elsewhere.
+
+<Check item="predict-flows-today" />
+
+**Read now:** section 7.1 of the free textbook *OpenStax Principles of Finance*, *Now versus Later Concepts*, below, on why time changes the value of money and what present and future value mean. Section 9.1, *Timing of Cash Flows*, listed after the lesson, works through the present value of a mixed list of payments. Both use a financial calculator and spreadsheets in places; the sums are the ones above, and Python does them for you here. A few quick questions ask for a number you work out and type in; use a calculator if you like, because the skill is setting up the sum.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Present value** is future value run backwards: `future / (1 + rate) ** periods`. Moving money back is **discounting**, at a **discount rate**, usually what the money could earn meanwhile.
+- Later money is worth less today because money now can earn, prices rise, and promises can fail. Further away, or a higher rate, means a smaller present value.
+- **To compare offers,** move every amount to the same date. Any date gives the same winner; only the gap's size changes.
+- **A list of cash flows,** the first at time 0, is worth the sum of `flows[t] / (1 + rate) ** t`. The flow today has power 0 and isn't changed. Money paid out is negative.
+- A total that's negative means the money would do better earning the discount rate. Module 5 calls the total net present value.
+
+</Recap>

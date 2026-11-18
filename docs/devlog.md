@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-17, finance Module 1: Diversification; Fees, taxes and compounding; Stocks, bonds and funds
+
+Writer C of four wrote topics 7 to 9 of Finance and Markets Module 1 from [its plan](plans/finance-module-1/README.md), one pull request each, all `ready`.
+
+**What changed**
+
+- **Diversification** (`fin.money.diversification`): covariance and correlation from two return lists (sample, `n - 1`), the two-asset volatility formula checked against a mix's own monthly returns, an equal-weight portfolio's volatility falling as one over the square root of the count and levelling off at `vol * sqrt(corr)`, specific and market risk, and what an index fund removes. Build: the lowest-risk mix of two funds; debug: a correlation report with population volatilities and pairs shifted by a month. Story: Enron's 401(k), told from the Congressional Research Service's report RS21115 (62% of the plan in Enron stock at the end of 2000, 89% of it bought by employees, shares from over $80 to under 70 cents).
+- **Fees, taxes and compounding** (`fin.money.costs`): transaction and ongoing fees, the expense ratio, fee drag `1 - (1 - fee) ** years`, comparing two options as a share of the better one, and an account taxed every year against a tax-deferred one with a made-up flat rate. Build: what a fee takes over 10 to 40 years; debug: a fee calculator that charges the fee once and divides the gap by the wrong amount.
+- **Stocks, bonds and funds** (`fin.markets.instruments`): what a share and a bond are claims on and who's paid first, an annual-coupon bond as a list of cash flows priced with `present_value_of_flows`, mutual funds, ETFs, net asset value, indexes and index funds, and a share's price as the present value of what owners expect. Build: `bond_price`; debug: a pricer that counts the face value at year 0 and pays the coupon at the market rate.
+
+**Author notes**
+
+- **One fee rule for the module.** The SEC bulletin's own figures ($100,000 at 4% for 20 years: about $208,000, $198,000 and $179,000 after fees of 0.25%, 0.50% and 1.00%) come out only when the fee is taken after each year's growth (`* 1.04 * (1 - fee)`); subtracting the fee from the rate gives $180,611 for 1.00%. The topic uses the bulletin's rule throughout, says so, and a predict item reproduces the bulletin. Under that rule the fee's share doesn't depend on the growth rate, which the lesson teaches as a point in itself.
+- **Plan correction, topic 8's debug.** The plan's second bug ("applies growth after the fee in one year and before it in others") changes nothing when the fee is a share of the balance, because the two multiplications commute. The second bug is instead the share lost divided by the smaller amount, a `costs-compare` mistake.
+- **No `<Story>` in topic 8.** The plan listed the SEC fee bulletin as topic 8's incident, but its example is hypothetical, not something that happened, so it's in the lesson's prose and in a predict item rather than a story box.
+- **Topic 9 owns `index fund`.** Diversification uses the words but leaves the glossary entry to Stocks, bonds and funds, where funds are taught. Topic 11's writer should define index terms as phrases (`price-weighted index`, `cap-weighted index`) rather than `market index` or `index fund`.
+- **Estimates use `amounts: made-up`** (#322) for every invented balance and price.
+- **Licences.** Investor.gov pages are recorded as "US government work (SEC), public information; linked, not copied", from the SEC's statement that its sites' information is public and may be copied with the SEC cited. The Enron story cites the CRS report as a US government work. Both are worth a look in the cold review.
+- Diversification's write exercise uses eight funds' returns drawn once from a fixed model (a shared market part plus each fund's own part, searched for a draw where adding a fund always lowers volatility) and written into the exercise; nothing depends on a seed.
+
+**What's next:** the cold review of the whole module once all twelve are merged.
+
 ## 2026-11-17: Finance Module 1 on the map, and its writing plan
 
 **The owner said** "Go ahead with finance Module 1 first", so the track's Module 1 now comes before the cloud track's Module 4.

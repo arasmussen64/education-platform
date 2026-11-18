@@ -1,0 +1,23 @@
+id: est-compare-prize
+type: estimate
+rev: 1
+prompt: |
+  A prize can be taken as $1,000,000 now or $1,200,000 in 4 years. Money can earn 5% a year, compounded once a year. What is the later prize worth today? Within 0.5%.
+unit: dollars
+answer: 987242.97
+tolerance: { percent: 0.5 }
+given: { later: 1200000, rate: 5, years: 4 }
+working: later / (1 + rate / 100) ** years
+mistakes:
+  - id: simple-discount
+    value: 1000000
+    working: later / (1 + rate / 100 * years)
+    why: "That discounts with simple interest, 5% a year of the start. Over 4 years compounding takes off more, so the later prize is worth less than $1,000,000."
+  - id: not-discounted
+    value: 1200000
+    working: later
+    why: "That's the later prize as paid. Money in 4 years has to be moved back to today before it can be compared with money now."
+explanation: |
+  1,200,000 / 1.05 ** 4 = 1,200,000 / 1.21550625 = $987,242.97, so the $1,000,000 now is worth $12,757.03 more. The bigger number on the later prize hides that waiting four years costs more than the extra $200,000 makes up for.
+skills: [compare-offers, discount]
+amounts: made-up
