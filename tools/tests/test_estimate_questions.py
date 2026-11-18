@@ -234,6 +234,23 @@ def test_price_fields_come_together(tree: Path) -> None:
     assert_refused(found, "give both prices_as_of and prices_source, or neither")
 
 
+def test_made_up_amounts_need_no_prices(tree: Path) -> None:
+    found = estimate_with(
+        tree,
+        ("prices_as_of: 2026-11-10\n", "amounts: made-up\n"),
+        ("prices_source: https://example.com/prices\n", ""),
+    )
+    assert found == []
+
+
+def test_made_up_amounts_have_no_price_date(tree: Path) -> None:
+    found = estimate_with(
+        tree,
+        ("prices_as_of: 2026-11-10\n", "prices_as_of: 2026-11-10\namounts: made-up\n"),
+    )
+    assert_refused(found, "amounts: made-up says the money is invented")
+
+
 def test_a_dollar_sign_in_code_is_not_money(tree: Path) -> None:
     found = estimate_with(
         tree,
