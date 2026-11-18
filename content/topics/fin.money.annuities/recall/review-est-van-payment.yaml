@@ -1,0 +1,23 @@
+id: review-est-van-payment
+type: estimate
+rev: 1
+prompt: |
+  A plumber buys a $30,000 van with a loan repaid monthly over 5 years (60 months) at 7.2% a year, charged monthly. What is the monthly payment? Within 1%.
+unit: dollars
+answer: 596.87
+tolerance: { percent: 1 }
+given: { principal: 30000, months: 60, rate: 7.2 }
+working: principal * (rate / 100 / 12) / (1 - (1 + rate / 100 / 12) ** -months)
+mistakes:
+  - id: no-interest
+    value: 500
+    working: principal / months
+    why: "That repays the loan with no interest at all."
+  - id: interest-only
+    value: 180
+    working: principal * rate / 100 / 12
+    why: "That's the first month's interest alone. A payment that small would never pay the loan down."
+explanation: |
+  The monthly rate is 0.072 / 12 = 0.006, and 30,000 × 0.006 / (1 − 1.006 ** −60) = $596.87. The first month's interest is $180 of it, so $416.87 pays the loan down at first.
+skills: [payment]
+amounts: made-up

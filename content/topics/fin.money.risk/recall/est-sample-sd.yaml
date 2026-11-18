@@ -1,0 +1,22 @@
+id: est-sample-sd
+type: estimate
+rev: 1
+prompt: |
+  A fund's returns in three years were +10%, −10% and 0%, so their mean is 0%. What is their sample standard deviation (dividing by one less than the count), in percentage points? Within 0.01.
+unit: percentage points
+answer: 10
+tolerance: { absolute: 0.01 }
+given: { up: 10, down: 10, flat: 0 }
+working: ((up ** 2 + down ** 2 + flat ** 2) / (3 - 1)) ** 0.5
+mistakes:
+  - id: population
+    value: 8.16
+    working: ((up ** 2 + down ** 2 + flat ** 2) / 3) ** 0.5
+    why: "That divides by the count, 3: the population standard deviation. The sample one divides by 3 − 1 = 2."
+  - id: no-root
+    value: 100
+    working: (up ** 2 + down ** 2 + flat ** 2) / (3 - 1)
+    why: "That's the variance, the average squared distance. The standard deviation is its square root."
+explanation: |
+  The distances from the mean are 10, −10 and 0; their squares sum to 200. Divided by n − 1 = 2 that's 100, the sample variance, and its square root is 10. So the volatility is 10 percentage points a year. Dividing by 3 instead gives 8.16, the population version, which understates the spread of a short sample.
+skills: [volatility]

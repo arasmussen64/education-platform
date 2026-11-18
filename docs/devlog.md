@@ -2,6 +2,42 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-17, finance Module 1: compound interest, present and future value, loans and annuities
+
+**What changed.** Writer A of four wrote the first three topics of Finance Module 1, each `ready`, each its own pull request: _Compound interest_ (`fin.money.compounding`), _Present and future value_ (`fin.money.time-value`) and _Loans and annuities_ (`fin.money.annuities`). Each has a puzzle, four in-lesson questions, a glossary, a worked example, a Parsons problem, six or seven estimate questions, two typed questions, a contrast question, a fill-in, a write, a build, a debug and an explain. The functions the checkpoint reuses are named as the plan says: `future_value(present, rate, periods)`, `present_value(future, rate, periods)` (in topic 2's fill-in and write), `present_value_of_flows(flows, rate)` and `payment(principal, rate, periods)`. Before them, a small platform change (#322): an estimate question can say `amounts: made-up` instead of `prices_as_of` and `prices_source`, with an amendment to ADR-0024.
+
+**Author notes:**
+
+- _Made-up money in estimates._ Every finance estimate with a `$` amount had to carry a price date and source, and the page would then have said the amounts were "read" from a provider's price page. `amounts: made-up` fixes it for every writer of the module; the coordinator approved it and it landed first, on its own.
+- _Resources._ The first topic's main reading is Investor.gov's _What is compound interest?_ (an SEC page; the site states no license, so it's recorded as a US government work, linked only), with its compound interest calculator. Khan Academy's pages answered with a bot check and weren't cited. Topics 2 and 3 use _OpenStax Principles of Finance_ sections 7.1, 9.1, 8.2 and 8.3, which the book's preface licenses CC BY-NC-SA 4.0; section 7.2 is a further reading for topic 1.
+- _Plan correction, topic 1's explain._ The plan says the two friends "save the same total". Saving the same amount a year from 25 to 34 and from 35 to 64 means the later saver puts in three times as much, which is the point of the question; the prompt says so ($50,000 against $150,000, ending at about $563,000 against $505,000 at 7%).
+- _No story in topics 1 to 3._ The plan suggests none for them and none fitted that could be checked against a primary source.
+- _A last balance of `-0.00`._ A schedule kept unrounded can end a trillionth of a cent below zero, which prints as `-0.00`, and whether it does depends on the order of the learner's arithmetic. Topic 3's build and debug checks read `-0.00` as `0.00`, and the prompts say so; the lesson explains it beside how real lenders adjust the last payment.
+- _Estimate powers are limited to 100._ The validator refuses `** -360`, so no estimate works a 30-year monthly mortgage payment; the mortgage appears in the lesson, the worked example and an estimate that gives the payment.
+- _For the cold review:_ the first-year interest of the puzzle's mortgage ($1,500 of $1,798.65), the friends' totals, and the extra-$1,200 claim in `review-mcq-extra-early` (three months sooner, about $5,700 less paid on $300,000 at 6%) were all computed in CPython; worth a second look are the Investor.gov license wording and whether 85 minutes is right for topic 3.
+
+**Next:** writers B, C and D's topics, then the checkpoint and a cold review of the whole module.
+## 2026-11-17, finance Module 1: rates, returns and risk
+
+**What was written.** Three topics of Finance and Markets Module 1, one pull request each, to the plan in [docs/plans/finance-module-1/README.md](plans/finance-module-1/README.md):
+
+- `fin.money.rates` (#323), Rates, inflation and real returns: APR to the effective annual rate for any compounding frequency (`effective_annual_rate(apr, per_year)`), nominal against real returns, and deflating prices with real CPI-U yearly averages. Its story is the CFPB's 2014 study of 12 million payday loans and the "almost 400%" APR.
+- `fin.money.returns` (#325), Measuring returns: simple and log returns, chained growth factors, annualizing from a total, from prices and from monthly returns, and the arithmetic against the geometric mean (`simple_returns(prices)`, `annualized_return(prices, periods_per_year)`).
+- `fin.money.risk` (this pull request), Risk: volatility as the sample standard deviation and annualized by the square root of the periods, the running peak and the maximum drawdown (`max_drawdown(prices)`), and reading risk and return together.
+
+Each has a puzzle, four in-lesson checks, a glossary, a worked example, a Parsons problem, 17 or 18 quick questions (at least three estimates for every calculation skill, two typed, one or two contrasts), a fill-in, a write, a build with hidden tests, a two-bug debug, the explain and a review pool of seven.
+
+**Author notes:**
+
+- _The CPI numbers are real._ CPI-U, BLS series `CUUR0000SA0`, annual averages (period M13), read from the BLS public data API on 2026-11-17 (1995 to 2025 in the topic). www.bls.gov refuses scripted downloads (403), so the data came from `api.bls.gov`; the CPI pages and the BLS copyright page ("everything that we publish ... is in the public domain") were read through a fetch tool.
+- _`max_drawdown(prices)` returns `(fall, peak_index, trough_index)`, the fall as a positive decimal_ (0.2571 for a fall from 70 to 52), and `(0.0, 0, 0)` when the price never falls. The plan said "the fall as a decimal and the two positions" without a sign; positive matches how drawdowns are quoted. The checkpoint should call it the same way.
+- _`volatility(returns)` is in Risk's fill-in_, not its build (the build is `max_drawdown`, as the plan says): the sample standard deviation of a list of returns, unannualized. The checkpoint can ask for it by that name.
+- _Sample standard deviation, said once._ The ML track's Probability and statistics divides by n; Risk says why it switches to n − 1 and points at `statistics.stdev` and `pstdev`. Its fill-in and predict item test the difference.
+- _The CPI estimates with an invented price ($20 pizza, $1000 of groceries) keep `prices_as_of` and the BLS link_, because the index numbers in them were read on that date; the estimates whose money is wholly invented use `amounts: made-up` (#322).
+- _"Fastest rise since 1981":_ the 2022 CPI-U yearly average rose 8.0%, the most since 1981's 10.3%, checked against the same API.
+- _Plan correction:_ the plan's Risk debug "resets the running peak every month"; written as a peak that looks back only one month (`max(prices[i - 1], prices[i])`), which is what that bug looks like in code.
+
+**Next:** the checkpoint (Writer D) reuses `effective_annual_rate`, `simple_returns`, `annualized_return` and `max_drawdown`; then the module's cold review.
 ## 2026-11-17, finance Module 1: Diversification; Fees, taxes and compounding; Stocks, bonds and funds
 
 Writer C of four wrote topics 7 to 9 of Finance and Markets Module 1 from [its plan](plans/finance-module-1/README.md), one pull request each, all `ready`.

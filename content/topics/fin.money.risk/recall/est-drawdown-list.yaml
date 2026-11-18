@@ -1,0 +1,27 @@
+id: est-drawdown-list
+type: estimate
+rev: 1
+prompt: |
+  A fund's quarter-end prices were $60, $75, $69, $81, $90, $72, $63, $77 and $88. What is its maximum drawdown, as a positive percentage? Exactly.
+unit: "%"
+answer: 30
+tolerance: { absolute: 0 }
+given: { p1: 60, p2: 75, p3: 69, p4: 81, p5: 90, p6: 72, p7: 63, p8: 77, p9: 88 }
+working: (1 - p7 / p5) * 100
+mistakes:
+  - id: from-lower-peak
+    value: 22.22
+    working: (1 - p7 / p4) * 100
+    why: "$81 was a high once, but $90 came after it. Measure from the running peak, the highest so far: $90."
+  - id: first-fall
+    value: 8
+    working: (1 - p3 / p2) * 100
+    why: "That's the first dip, from $75 to $69. A later fall, from $90 to $63, went deeper."
+  - id: one-quarter
+    value: 20
+    working: (1 - p6 / p5) * 100
+    why: "That's one quarter's fall, from $90 to $72. The fall continued the next quarter, to $63, before any new high."
+amounts: made-up
+explanation: |
+  The running peak climbs to $90 in the fifth quarter. The prices after it fall to $72 and then $63 before rising; $63 is 30% below $90 (63 ÷ 90 = 0.70). No later price beats $90, so 30% is the maximum drawdown, and it ran from the fifth quarter to the seventh.
+skills: [drawdown]

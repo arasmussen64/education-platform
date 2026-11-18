@@ -1,0 +1,22 @@
+id: est-annualize-monthly-vol
+type: estimate
+rev: 1
+prompt: |
+  A fund's monthly returns have a volatility of 4%. What is its volatility for a year, as a percentage, if one month's return doesn't tell you the next? Within 0.1 of a percentage point.
+unit: "%"
+answer: 13.86
+tolerance: { absolute: 0.1 }
+given: { monthly: 4 }
+working: monthly * 12 ** 0.5
+mistakes:
+  - id: times-twelve
+    value: 48
+    working: monthly * 12
+    why: "Volatility doesn't scale with time; its square, the variance, does. A year's volatility is the month's times the square root of 12."
+  - id: unchanged
+    value: 4
+    working: monthly
+    why: "A year holds twelve months of swings, so its returns spread wider than one month's: multiply by the square root of 12."
+explanation: |
+  The variances of independent months add, so a year's variance is 12 times a month's, and its standard deviation is √12 ≈ 3.46 times a month's: 4% × 3.46 = 13.86%. Multiplying by 12 would claim 48%, more than three times too much.
+skills: [volatility]
