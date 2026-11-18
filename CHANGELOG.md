@@ -18,6 +18,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `fin.money.costs`, Fees, taxes and compounding: transaction and ongoing fees, what a yearly fee takes over decades (`1 - (1 - fee) ** years`, the rule the SEC's fee bulletin follows, which a predict question reproduces), comparing two options as a share of the better one, and an account taxed every year against a tax-deferred one with a made-up flat rate.
 - `fin.markets.instruments`, Stocks, bonds and funds: what a share and a bond are claims on and who is paid first, an annual-coupon bond priced as a list of cash flows with `present_value_of_flows`, mutual funds, ETFs, net asset value and index funds, and a share's price as the present value of what its owners expect.
 - `fin.money.returns`, Measuring returns: simple and log returns from a price list, chaining growth factors (why +50% then −50% loses 25%), annualizing from a total, from prices and from monthly returns, and the arithmetic against the geometric mean. Its build writes `simple_returns(prices)` and `annualized_return(prices, periods_per_year)`, which the checkpoint reuses.
+- `fin.money.risk`, Risk: volatility as the sample standard deviation of returns (`volatility(returns)` in its fill-in), annualized by the square root of the periods; the running peak and the maximum drawdown, `max_drawdown(prices)` returning the fall as a positive decimal and its two positions; and reading risk and return together.
 
 ### Added (Finance and Markets on the map)
 

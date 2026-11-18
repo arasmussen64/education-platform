@@ -1,0 +1,68 @@
+<Intro>
+
+<Puzzle question="Two funds both grew by an average of 8% a year over the same ten years, and both ended with the same money. Could one of them have lost you half your money along the way?">
+
+Yes. Two funds can start and end at the same place by very different paths. One climbs steadily. The other falls 50% in its third year, then spends years climbing back: getting back from half takes a 100% gain. The average says nothing about the path, and it's the path you live through.
+
+</Puzzle>
+
+**Measuring returns** reduced an investment to one number, its annualized return. This topic adds the other half: how bumpy the ride was. Two measures do it. Volatility says how much the returns swing from period to period. Drawdown says how far you could have fallen from a high point before getting back.
+
+The conventions of this module, in case you arrive here first: a return is a decimal in code (5% is `0.05`) printed with `f"{r:.2%}"`, and money is rounded only when printed. The prices here are made up.
+
+**Volatility.** In finance, **volatility** is the standard deviation of an investment's returns: the typical distance of a period's return from the average. You met standard deviation in the ML track's **Probability and statistics**, where it divided by the count. Here we use the **sample standard deviation**, which divides by one less than the count, `n - 1`, because a list of past returns is a sample of what the investment could have done, and dividing by `n` would understate the spread a little. Python's `statistics.stdev` is the sample version; `statistics.pstdev` is the one that divides by `n`.
+
+```python
+import math
+
+returns = [0.04, -0.02, 0.03, -0.05]
+mean = sum(returns) / len(returns)
+total = 0.0
+for r in returns:
+    total = total + (r - mean) ** 2
+volatility = math.sqrt(total / (len(returns) - 1))   # 0.0424, 4.24% a month
+```
+
+<Check item="predict-stdev" />
+
+**Annualizing volatility.** Volatility measured on monthly returns is a monthly figure; to compare it with others, it's quoted for a year. It does not scale by 12. If one month's return doesn't tell you the next, the months' variances (the squares of the standard deviations) add up, so a year's variance is 12 times a month's, and a year's standard deviation is `math.sqrt(12)` times a month's. A monthly volatility of 4% is `0.04 * math.sqrt(12)`, about 13.9% a year, not 48%. Daily volatility scales by the square root of the number of trading days in a year, usually taken as 252.
+
+<Check item="est-annualize-monthly-vol" />
+
+**Drawdown.** Volatility treats a jump up and a fall down alike, and it doesn't say whether the falls came one after another. **Drawdown** does. Keep a **running peak**, the highest price so far. At each price, the drawdown is how far it sits below that peak: `price / peak - 1`, 0 at a new high and negative below it. The **maximum drawdown** is the deepest of them, the worst loss anyone who bought at a high and sold at a low inside the period would have taken.
+
+```python
+prices = [100, 120, 90, 110, 130, 104]
+peak = prices[0]
+worst = 0.0
+for price in prices:
+    peak = max(peak, price)
+    worst = min(worst, price / peak - 1)
+# worst is -0.25: from the peak of 120 down to 90
+```
+
+The later fall from 130 to 104 is only 20%, so the maximum is the earlier one. Reported as a positive share, it's a maximum drawdown of 25%. And recall from **Measuring returns** what a fall costs: after a 25% drawdown it takes +33% to get back, and after 50% it takes +100%.
+
+<Check item="mcq-drawdown-meaning" />
+
+**Risk and return together.** An investment is described by a pair: its average return and its volatility. Read them together. If returns are roughly bell-shaped, about two years in three land within one volatility of the average, and about one year in six falls more than one volatility below it. A fund averaging 7% with a volatility of 20% has a one-in-six bad year of 7% − 20% = −13%; a fund averaging 4% with a volatility of 5% has one of −1%. Real returns aren't quite bell-shaped: very bad years come more often than the bell curve says, which is one more reason to look at drawdown.
+
+Why does a higher average return come with a wider range of outcomes? Because people prefer a steady ride. An investment that swings more has to offer more on average, or nobody would hold it rather than a steadier one; that extra is the reward for risk. It's offered, not promised: over any few years the bumpier investment can easily do worse. And a choice with more volatility *and* a lower average is simply worse than one with less of the first and more of the second.
+
+<Check item="contrast-volatility-or-drawdown" />
+
+**Read now:** OpenStax's *Principles of Finance*, section 15.1, the main resource below, from "Measuring Risk" to the end of the section. Python's `statistics` documentation, linked after it, has `stdev` and `pstdev` side by side. The exercises compute volatility and annualize it, track a running peak, find the maximum drawdown and where it happened, and read two investments' risk and return. This module teaches how risk is measured; it isn't advice on what to invest in.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Volatility:** the sample standard deviation of returns (divide by `n - 1`; `statistics.stdev`).
+- **Annualize** by the square root of the periods: monthly × `math.sqrt(12)`, daily × `math.sqrt(252)`. Never × 12.
+- **Drawdown:** `price / peak - 1` against the **running peak**; the **maximum drawdown** is the deepest, reported as a positive share. A fall of `f` needs `1 / (1 - f) - 1` to recover.
+- **Risk and return:** read the average and the volatility together; about one year in six falls more than one volatility below the average, if returns are bell-shaped, and real ones have more bad surprises than that.
+- Higher expected return comes with a wider range of outcomes: the extra is a reward for bearing the swings, not a promise.
+
+</Recap>
