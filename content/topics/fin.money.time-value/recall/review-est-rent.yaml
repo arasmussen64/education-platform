@@ -1,0 +1,23 @@
+id: review-est-rent
+type: estimate
+rev: 1
+prompt: |
+  A landlord offers two ways to pay a year's rent: $12,000 today, or $12,400 at the end of the year. Money can earn 3% a year. In today's money, how much cheaper is the cheaper way? Within $0.50.
+unit: dollars
+answer: 38.83
+tolerance: { absolute: 0.5 }
+given: { now: 12000, later: 12400, rate: 3 }
+working: later / (1 + rate / 100) - now
+mistakes:
+  - id: not-discounted
+    value: 400
+    working: later - now
+    why: "That compares money paid at different dates. $12,400 at the end of the year is worth $12,038.83 today."
+  - id: gap-at-year-end
+    value: 40
+    working: later - now * (1 + rate / 100)
+    why: "That's the gap at the end of the year ($12,400 against $12,360). In today's money, divide it by 1.03."
+explanation: |
+  Paying later costs 12,400 / 1.03 = $12,038.83 in today's money, against $12,000 now, so paying today is cheaper by $38.83. At the end of the year the same gap is $40.00. With money earning 3%, the extra $400 is a cost of about 3.3% for waiting, a little more than the money earns.
+skills: [compare-offers]
+amounts: made-up

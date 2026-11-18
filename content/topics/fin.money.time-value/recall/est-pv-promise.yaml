@@ -1,0 +1,23 @@
+id: est-pv-promise
+type: estimate
+rev: 1
+prompt: |
+  A company promises to pay you $1,000 in 10 years. Money can earn 7% a year meanwhile. What is the promise worth today? Within 2%.
+unit: dollars
+answer: 508.35
+tolerance: { percent: 2 }
+given: { future: 1000, rate: 7, years: 10 }
+working: future / (1 + rate / 100) ** years
+mistakes:
+  - id: simple-discount
+    value: 588.24
+    working: future / (1 + rate / 100 * years)
+    why: "That discounts with simple interest, 7% of the start for 10 years. Money left 10 years compounds, so divide by 1.07 ten times."
+  - id: one-year
+    value: 934.58
+    working: future / (1 + rate / 100)
+    why: "That discounts one year only. The money is 10 years away: divide by 1.07 ** 10."
+explanation: |
+  1,000 / 1.07 ** 10 = 1,000 / 1.967 = $508.35. A rule-of-72 check: at 7% money doubles in about 10 years, so $1,000 in 10 years is worth about half of it today.
+skills: [discount]
+amounts: made-up

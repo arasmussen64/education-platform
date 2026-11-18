@@ -1,0 +1,23 @@
+id: est-compare-bonus
+type: estimate
+rev: 1
+prompt: |
+  A job offers a signing bonus of $5,000 now, or $5,500 a year from now. Money can earn 8% a year. In today's money, how much more is the better choice worth? Within 2%.
+unit: dollars
+answer: 92.59
+tolerance: { percent: 2 }
+given: { now: 5000, later: 5500, rate: 8 }
+working: later / (1 + rate / 100) - now
+mistakes:
+  - id: not-discounted
+    value: 500
+    working: later - now
+    why: "That compares amounts paid at different dates. Move the $5,500 back a year first: it's worth $5,092.59 today."
+  - id: compared-later
+    value: 100
+    working: later - now * (1 + rate / 100)
+    why: "That's the gap a year from now ($5,500 against $5,400). The question asks in today's money: divide it by 1.08."
+explanation: |
+  The later bonus is worth 5,500 / 1.08 = $5,092.59 today, which beats $5,000 by $92.59. Compared a year from now instead, $5,000 grows to $5,400 and the later bonus wins by $100: the same verdict, and $100 is $92.59 grown for a year.
+skills: [compare-offers]
+amounts: made-up
