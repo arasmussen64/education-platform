@@ -53,6 +53,11 @@ Five design decisions were made under your message of 2026-11-11 and built on. E
 - [ADR-0013's amendment of 2026-11-16](decisions/0013-explain-grading.md#amendment-2026-11-16-how-its-marked-shown-before-writing): an explain-back shows how it is marked (the number of points, how many a pass needs, and the grader's rules) before you write, without the rubric's wording.
 - **Recommendation:** accept all six.
 
+**Added 2026-11-17,** from Finance Module 1:
+
+- [ADR-0024's amendment of 2026-11-17](decisions/0024-estimate-questions.md#amendment-2026-11-17-money-made-up-for-the-question): an estimate whose money is invented for the question (a savings balance, a loan) says `amounts: made-up` instead of a price date and source, so the page doesn't claim the amounts were read from a price page. Built and used across the module.
+- **Recommendation:** accept.
+
 ### 4. Confirm three design decisions marked accepted without your explicit yes
 
 ADR-0020, 0021 and 0022 (backups, the placement test, step-through) were marked _Accepted_ because you asked for Phase 2 to be built, not because you read them. In a sentence each: backups are a nightly encrypted copy of the database committed to a private repository of yours; the placement test finds a starting point by probing topics with their own review questions and never ticks a topic off; step-through records each line's effect under Python's own trace hook and plays it back.

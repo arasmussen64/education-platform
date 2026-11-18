@@ -28,6 +28,22 @@ Writer D of four wrote topics 10 and 11 of Finance and Markets Module 1 and its 
 
 **What's next:** the cold review of the whole module.
 
+## 2026-11-17, end: Finance Module 1 is written and reviewed
+
+**The owner asked** for finance Module 1 before the cloud track's Module 4. It's done: eleven topics and Checkpoint 1, all `ready` (#322 to #335), each merged after every check passed, then a cold review.
+
+**How it was built.** Four writers in parallel, three topics each, from [the plan](plans/finance-module-1/README.md); the writers' own entries are below. One platform change came out of it: estimates with invented money say `amounts: made-up` ([ADR-0024's amendment](decisions/0024-estimate-questions.md#amendment-2026-11-17-money-made-up-for-the-question), #322), now in the owner queue. Two writers stopped with work unmerged; the coordinator landed it (topics 2, 3, 5 and 6, the stacked ones by re-applying each topic's own commit onto `main`).
+
+**The cold review.** Two reviewers read the module as a beginner would, re-ran every number and checked the stories against their sources. They found two must-fixes and about sixteen smaller things. The must-fixes: the risk build asked for a tuple, which nothing earlier teaches (the prompt now shows `return fall, peak, low` and unpacking, and the lesson shows tracking the peak's position); and the GameStop story said a waived charge was "more than double" a $1.4 billion requirement, when the charge would have more than doubled it. Also fixed: the payday story's "within two weeks", the mortgage total from the unrounded payment, the compounding explain's deposit timing and rubric, "one in 44", the rates debug's dates, the deflating glossary entry, the Enron "perfectly correlated" wording, the flash crash's stub quotes on both sides, the dividend factor as "roughly" a reinvestment, the SEC fee example's method, the checkpoint debug's divide-by-12 convention, the risk build's tie rule, the fee debug's two decimals, and one license wording for Investor.gov.
+
+**Author notes:**
+
+- _Left as they are:_ estimate prompts write money as plain digits (`$200000`), because the validator needs the numbers in the prompt as written; and the rates debug's unit bug that also needs the exact formula, which its prompt asks for.
+- _Not re-read by a reviewer:_ sec.gov refused automated fetches, so the GameStop and flash-crash figures rest on the writer's reading of the SEC reports and the reviewer's knowledge of the public record. The GameStop margin call's date was softened to "late January" for that reason.
+- _Each topic's pull request carried a CHANGELOG line_, so every merge made the next one conflict and re-run CI. Next module: one CHANGELOG line per writer, in its last pull request.
+
+**Next:** back to the cloud track, Module 4, as the build order says. Finance Module 2 when the owner asks for it.
+
 ## 2026-11-17, finance Module 1: compound interest, present and future value, loans and annuities
 
 **What changed.** Writer A of four wrote the first three topics of Finance Module 1, each `ready`, each its own pull request: _Compound interest_ (`fin.money.compounding`), _Present and future value_ (`fin.money.time-value`) and _Loans and annuities_ (`fin.money.annuities`). Each has a puzzle, four in-lesson questions, a glossary, a worked example, a Parsons problem, six or seven estimate questions, two typed questions, a contrast question, a fill-in, a write, a build, a debug and an explain. The functions the checkpoint reuses are named as the plan says: `future_value(present, rate, periods)`, `present_value(future, rate, periods)` (in topic 2's fill-in and write), `present_value_of_flows(flows, rate)` and `payment(principal, rate, periods)`. Before them, a small platform change (#322): an estimate question can say `amounts: made-up` instead of `prices_as_of` and `prices_source`, with an amendment to ADR-0024.
