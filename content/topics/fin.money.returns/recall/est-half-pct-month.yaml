@@ -1,0 +1,22 @@
+id: est-half-pct-month
+type: estimate
+rev: 1
+prompt: |
+  A bond fund returned exactly 0.5% every month for 12 months. What was its return for the year, as a percentage? Within 0.01 of a percentage point.
+unit: "%"
+answer: 6.17
+tolerance: { absolute: 0.01 }
+given: { monthly: 0.5, months: 12 }
+working: ((1 + monthly / 100) ** months - 1) * 100
+mistakes:
+  - id: times-twelve
+    value: 6
+    working: monthly * months
+    why: "That adds twelve months of 0.5%. Each month grows what the months before left: 1.005 to the power 12."
+  - id: one-month
+    value: 0.5
+    working: monthly
+    why: "That's one month's return. A year chains twelve of them."
+explanation: |
+  Chain twelve growth factors of 1.005: 1.005 to the power 12 is 1.0617, a return of 6.17% for the year. Annualizing monthly returns is chaining them, then scaling to twelve months.
+skills: [annualize]
