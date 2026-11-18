@@ -1,16 +1,93 @@
-# A planned outline for the Finance and Markets track
-# (docs/specs/finance-markets.md, docs/plans/finance-module-1/).
 id: fin.money.returns
 kind: topic
-status: planned
+status: ready
 title: "Measuring returns"
-summary: "Simple, compounded and annualized returns from prices, and which average to use for growth."
+summary: "Simple, log and annualized returns from a price list, why +50% then −50% loses money, and the two averages."
 prerequisites:
-- fin.money.rates
-- ml.math.probability-and-statistics
-estimated_minutes: 60
+  - fin.money.rates
+  - ml.math.probability-and-statistics
+estimated_minutes: 75
 rev: 1
 objectives:
-- "Compute simple and annualized returns from a list of prices."
-- "Chain returns by multiplying growth factors."
-- "Use the geometric mean for growth and the arithmetic mean for one period."
+  - "Compute simple returns from a list of prices, and say what a log return is."
+  - "Chain returns by multiplying growth factors, and say why +50% then −50% loses money."
+  - "Annualize a return from a total over years, from prices and from monthly returns."
+  - "Use the arithmetic mean for one period and the geometric mean for growth over many."
+# Every price in this topic is made up (the module ships no vendor price
+# histories). OpenStax books are CC BY-NC-SA 4.0 by their own preface and
+# footer, read 2026-11-17. Damodaran's page states no terms; it is linked
+# only, and its index-based figures are not copied here.
+resources:
+  - title: "OpenStax Principles of Finance: section 15.1, Risk and Return to an Individual Asset (read \"Measuring Historical Returns\")"
+    url: https://openstax.org/books/principles-finance/pages/15-1-risk-and-return-to-an-individual-asset
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0 (linked, not copied)
+  - title: "Historical Returns on Stocks, Bonds and Bills, by Aswath Damodaran (NYU Stern): the growth of $100 invested in 1928"
+    url: https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html
+    type: reading
+    use: link
+    license: "No terms stated on the page; linked, not copied"
+practice:
+  - example-returns-from-prices
+  - parsons-chain-returns
+  - mcq-simple-return
+  - est-share-gain
+  - est-share-fall
+  - est-recover
+  - est-chain-three
+  - est-up-down-30
+  - predict-log-returns
+  - typed-growth-factor
+  - est-total-60-in-5
+  - est-double-in-10
+  - est-half-pct-month
+  - mcq-annualize-short
+  - contrast-arithmetic-or-geometric
+  - est-arith-mean
+  - est-geo-mean
+  - est-geo-two
+  - typed-geometric-name
+  - fill-two-means
+  - write-annualize-monthly
+prove:
+  build: build-returns-and-annualized
+  debug: debug-performance-report
+  explain:
+    prompt: |
+      A fund's report says: "Average annual return over the last two years: +10%." The fund returned +60% in the first year and −40% in the second. In your own words, with numbers for $10,000 invested at the start: what is the money worth after two years, how did the report get +10%, and what yearly figure honestly describes what happened to the money? When is the report's kind of average the right number to use?
+    rubric:
+      - id: chain
+        required: true
+        description: "$10,000 becomes $16,000, then $9,600: the growth factors multiply, 1.6 × 0.6 = 0.96, a 4% loss over two years."
+      - id: arithmetic
+        required: true
+        description: "The +10% is the arithmetic mean, (60% − 40%) / 2, which adds returns as if they didn't compound."
+      - id: geometric
+        required: true
+        description: "The honest yearly figure is the geometric mean (the annualized return): 0.96 to the power 1/2, minus 1, about −2.0% a year."
+      - id: when-arithmetic
+        required: true
+        description: "The arithmetic mean is the right number for one period ahead (an expectation for a single year); the geometric mean for growth over many years."
+      - id: swings
+        required: false
+        description: "Says the bigger the swings, the bigger the gap between the two averages."
+    model_answer: |
+      The first year turns $10,000 into $16,000, a 60% gain. The second year takes 40% of that: $16,000 × 0.6 = $9,600. So after two years the investor has lost $400, 4%. Returns multiply: the growth factors are 1.6 and 0.6, and 1.6 × 0.6 = 0.96. The report got +10% by taking the arithmetic mean, (60% + (−40%)) ÷ 2, which treats the returns as if they added. But a 40% loss is taken from a bigger amount than the 60% gain was, so adding them overstates what happened. The honest yearly figure is the geometric mean, the annualized return: the steady rate that gives the same end. 0.96 to the power 1/2 is 0.9798, so it's about −2.0% a year: $10,000 × 0.9798 × 0.9798 is $9,600. The arithmetic mean still has a use: if every year is drawn from the same spread of outcomes, it's the best guess for one year's return. For what happens to money over several years, the geometric mean is the one to report, and the more the returns swing, the further apart the two averages are.
+review_pool:
+  - est-recover
+  - typed-growth-factor
+  - est-total-60-in-5
+  - contrast-arithmetic-or-geometric
+  - typed-geometric-name
+  - est-geo-two
+  - mcq-simple-return
+skills:
+  - id: simple-returns
+    description: "Compute simple returns from a list of prices: the new price over the old, minus 1"
+  - id: compound-returns
+    description: "Chain returns by multiplying growth factors; why +50% then −50% loses 25%, and log returns add"
+  - id: annualize
+    description: "Annualize a return from a total over years, from a price list, and from monthly returns"
+  - id: means
+    description: "The arithmetic mean for one period's expectation, the geometric mean for growth over many"
