@@ -1,0 +1,22 @@
+id: est-one-off-or-yearly
+type: estimate
+rev: 1
+prompt: |
+  Option A takes a one-off 3% of your money when you invest and nothing after. Option B takes 0.5% of the balance every year, after each year's growth. Both grow the same before costs. After 20 years, how far behind is B, as a share of A's amount, in percent? Within 2%.
+unit: "%"
+answer: 6.74
+tolerance: { percent: 2 }
+given: { once: 3, yearly: 0.5, years: 20 }
+working: ((1 - once / 100) - (1 - yearly / 100) ** years) / (1 - once / 100) * 100
+mistakes:
+  - id: points
+    value: 6.54
+    working: ((1 - once / 100) - (1 - yearly / 100) ** years) * 100
+    why: "That's the gap in percentage points of the no-cost amount. As a share of A's amount, divide by A's 0.97."
+  - id: simple-yearly
+    value: 7
+    working: yearly * years - once
+    why: "That adds up B's fee twenty times without compounding. B keeps 0.995 ** 20 of the no-cost amount, about 0.905, and A keeps 0.97."
+explanation: |
+  A keeps 0.97 of what there would have been with no costs; B keeps 0.995 ** 20, about 0.9046. B is behind by 0.97 - 0.9046 = 0.0654, and as a share of A's 0.97 that's about 6.74%. A bigger charge up front can cost less than a small yearly one, if you stay invested long enough.
+skills: [costs-compare, fee-drag]

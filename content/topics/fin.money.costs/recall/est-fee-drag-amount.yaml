@@ -1,0 +1,23 @@
+id: est-fee-drag-amount
+type: estimate
+rev: 1
+prompt: |
+  With no fee, an investment would be worth $80000 after 15 years. The fund actually charges 1% of the balance every year, after each year's growth. What is it worth after the 15 years, in dollars? Within 1%.
+unit: "US dollars"
+answer: 68805
+tolerance: { percent: 1 }
+amounts: made-up
+given: { without: 80000, fee: 1, years: 15 }
+working: without * (1 - fee / 100) ** years
+mistakes:
+  - id: simple
+    value: 68000
+    working: without * (1 - fee / 100 * years)
+    why: "That takes 1% of the final amount fifteen times. The fee compounds: what's left is 0.99 multiplied by itself 15 times, about 0.86."
+  - id: once
+    value: 79200
+    working: without * (1 - fee / 100)
+    why: "That charges the fee once. It's taken every year for 15 years."
+explanation: |
+  Each year's fee leaves 99%, so 15 years leave 0.99 ** 15, about 0.8601, of the no-fee amount: $80,000 × 0.8601 ≈ $68,805. The fee took about $11,200. You don't need the growth rate: under the grow-then-take-the-fee rule, the fee's share depends only on the fee and the years.
+skills: [fee-drag]
