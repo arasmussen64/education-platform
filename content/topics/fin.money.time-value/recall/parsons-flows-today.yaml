@@ -1,0 +1,23 @@
+id: parsons-flows-today
+type: parsons
+rev: 1
+prompt: |
+  Someone will pay you $500 today, $200 in a year and $300 in two years, and money can earn 5% a year. Put the lines in order so the program adds up what the three payments are worth today and prints:
+
+  ```
+  Worth today: 962.59
+  ```
+
+  Two lines are decoys that don't belong. (`flows[0]` is the first item of the list, the payment today.)
+lines:
+  - 'flows = [500, 200, 300]'
+  - 'total = flows[0]'
+  - 'for t in range(1, len(flows)):'
+  - '    total = total + flows[t] / 1.05 ** t'
+  - 'print(f"Worth today: {total:,.2f}")'
+distractors:
+  - '    total = total + flows[t] / 1.05 * t'
+  - 'total = 0'
+explanation: |
+  The payment today is worth exactly what it says, so the total starts at `flows[0]`, and the loop starts at position 1. Each later payment `t` years away is divided by `1.05 ** t`, the growth it would have had: 200 / 1.05 = 190.48 and 300 / 1.05 ** 2 = 272.11, for 962.59 in all. The decoy `/ 1.05 * t` divides once and multiplies by the years, which isn't discounting. Starting `total` at 0 would leave out the payment today, because the loop starts at position 1.
+skills: [uneven-flows]
