@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `fin.money.rates`, Rates, inflation and real returns: APR to the effective annual rate for any compounding frequency, nominal against real returns, and prices deflated with real CPI-U yearly averages from the Bureau of Labor Statistics (series CUUR0000SA0, read 2026-11-17).
 - `fin.money.diversification`, Diversification: covariance and correlation from two return lists, a two-fund mix's volatility and the lowest-risk mix, volatility falling with more holdings until it levels off at the risk they share, and Enron's 401(k) as the story (from the Congressional Research Service's report RS21115).
 - `fin.money.costs`, Fees, taxes and compounding: transaction and ongoing fees, what a yearly fee takes over decades (`1 - (1 - fee) ** years`, the rule the SEC's fee bulletin follows, which a predict question reproduces), comparing two options as a share of the better one, and an account taxed every year against a tax-deferred one with a made-up flat rate.
+- `fin.markets.instruments`, Stocks, bonds and funds: what a share and a bond are claims on and who is paid first, an annual-coupon bond priced as a list of cash flows with `present_value_of_flows`, mutual funds, ETFs, net asset value and index funds, and a share's price as the present value of what its owners expect.
 
 ### Added (Finance and Markets on the map)
 

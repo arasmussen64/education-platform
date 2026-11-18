@@ -1,0 +1,54 @@
+<Intro>
+
+<Puzzle question="A bond pays 5% a year on $1,000 for 3 years, then repays the $1,000. Since you bought it, market rates for similar bonds have risen to 7%. Is it still worth $1,000?">
+
+No: about $947.51. Its payments are fixed at $50, $50 and $1,050, but a buyer can now get 7% elsewhere, so they'll only pay a price at which those payments earn them 7%. That price is the payments' present value at 7%. When market rates rise, the price of a bond you already hold falls.
+
+</Puzzle>
+
+This topic names the things people invest in, and prices one of them with a tool you already have: `present_value_of_flows` from Present and future value. It teaches how these things work; it isn't advice on what to buy, and the companies, bonds and funds in it are made up.
+
+**What a share is a claim on.** A share (also called a stock, or equity) is a slice of ownership of a company. With a million shares in issue, one share owns a millionth of it. That's a claim on what's left after everyone with a prior claim has been paid: staff, suppliers, lenders, the tax collector. The company may pay some of it out as dividends or keep it to grow, and shareholders usually get a vote. Nothing is promised: in a bad year what's left can be nothing, and in a good one it can be a lot.
+
+**What a bond is a claim on.** A **bond** is a loan, cut into pieces investors can buy. The borrower, a company or a government, promises a fixed interest payment, the **coupon**, each year until the bond's end date, its **maturity**, and then repays its **face value**. A 5% bond with a $1,000 face value pays $50 a year. Lenders are paid before owners, so a bond is the safer claim, but its upside is capped at what it promised.
+
+<Check item="contrast-share-or-bond" />
+
+**A bond as cash flows.** Write the bond as a list, from the holder's side: nothing today, a coupon each year, and the face value added to the last coupon. The puzzle's bond is `[0, 50, 50, 1050]`. Its price is the present value of that list at the rate the market wants now:
+
+```python
+def present_value_of_flows(flows, rate):
+    total = 0
+    for t in range(len(flows)):
+        total = total + flows[t] / (1 + rate) ** t
+    return total
+```
+
+The flow at position `t` is `t` years away, so it's divided by `(1 + rate) ** t`; the first flow, today's, isn't discounted at all. At 5%, the bond's own coupon rate, the price comes out at exactly $1,000. At 7% it's $947.51; at 3%, $1,056.57. The bond's payments never change; the rate they're compared against does. A longer bond has more payments further away, so its price moves more when rates move. Module 8 goes further with bonds; here, coupons are paid once a year.
+
+<Check item="predict-bond-at-three-rates" />
+
+**Funds.** A fund pools many people's money to buy many investments, which spreads the risk as the Diversification topic showed. A **mutual fund** is bought from and sold back to the fund itself, once a day, at its **net asset value** per share: what its holdings were worth at that day's close, less what it owes, divided by its shares. An **ETF** (exchange-traded fund) pools money the same way, but its shares trade on an exchange all day like a company's, at a market price that stays close to its net asset value. A market index is something else: a number worked out from a list of securities that measures how their prices move together. Nobody can buy a number, so an **index fund**, a mutual fund or an ETF, buys what's on the list in the index's proportions, and its return follows the index's, less its fees. Reading market data covers how an index is built.
+
+<Check item="mcq-etf-or-mutual-fund" />
+
+**What moves a share's price.** A share has no face value and no promised payments, but the same idea prices it: it's worth roughly the present value of what its owners expect to receive from it, dividends and what they could sell it for. Two things move that. One is expectations: news that changes what investors expect the company to earn moves the price at once, by how much it changes the expectation, so a company with record profits can fall if investors expected more. The other is the rate investors want: when interest rates rise, money can earn more elsewhere, so the same expected cash is worth less today, for shares as for bonds.
+
+<Check item="est-share-rates-rise" />
+
+**Read now:** Investor.gov's *Bonds - FAQs*, the main resource below; then its *Stocks - FAQs*, the SEC's bulletin on the characteristics of mutual funds and ETFs, and its page on index funds. The exercises price bonds as lists of cash flows, value a share from expected dividends, show long bonds moving more than short ones, and fix a bond pricer that's far too generous.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A share** is part ownership: a claim on what's left after everyone else is paid, and usually a vote. Nothing is promised.
+- **A bond** is a loan: fixed **coupons** each year and the **face value** back at **maturity**, paid before shareholders.
+- **A bond's price** is the present value of its cash flows at today's market rate: `[0, coupon, ..., coupon + face]` through `present_value_of_flows`. Coupon rate = market rate gives the face value; market rates up, price down; longer bonds move more.
+- **A mutual fund** trades with the fund once a day at its **net asset value**; **an ETF** trades on an exchange all day at a market price close to it.
+- **A market index** is a measurement of a list of securities; **an index fund** (mutual fund or ETF) holds the list so its return follows the index, less fees.
+- **A share's price** is roughly the present value of what owners expect to receive. It moves when expectations change and when the rate investors want changes.
+
+</Recap>

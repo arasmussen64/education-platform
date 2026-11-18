@@ -1,0 +1,23 @@
+id: est-share-expectations-fall
+type: estimate
+rev: 1
+prompt: |
+  Investors wanted 5% a year from a made-up share and expected a $2 dividend a year from now plus a sale price of $40. Bad news arrives: they now expect the dividend to stay $2 but the sale price to be only $34. What is the share worth today, in dollars? Within 0.5%.
+unit: "US dollars"
+answer: 34.29
+tolerance: { percent: 0.5 }
+amounts: made-up
+given: { dividend: 2, old_sale: 40, new_sale: 34, rate: 5 }
+working: (dividend + new_sale) / (1 + rate / 100)
+mistakes:
+  - id: old-expectation
+    value: 40
+    working: (dividend + old_sale) / (1 + rate / 100)
+    why: "That's the value before the news. The price moves the moment expectations change, not when the lower sale price arrives."
+  - id: undiscounted
+    value: 36
+    working: dividend + new_sale
+    why: "That's what they now expect to receive in a year. Discount it at 5%."
+explanation: |
+  The new expectation is $2 + $34 = $36 a year from now, worth $36 / 1.05 ≈ $34.29 today, down from $40. Nothing has been paid or lost yet: the price fell because what investors expect changed. That's the second thing that moves a share's price, beside the rate they want.
+skills: [price-drivers]
