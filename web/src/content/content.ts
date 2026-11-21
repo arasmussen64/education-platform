@@ -297,6 +297,7 @@ export async function loadTopicContent(
   const lesson = lessonLoader ? await lessonLoader() : null
   const Lesson = lesson?.default ?? null
   const lessonChecks = lesson?.checks ?? []
+  const lessonShape = lesson?.shape
 
   const recall: Record<string, RecallItem> = {}
   const recallLoads = Object.entries(recallFiles)
@@ -343,5 +344,5 @@ export async function loadTopicContent(
     })
 
   await Promise.all([...recallLoads, ...exerciseLoads])
-  return { topic, Lesson, lessonChecks, recall, exercises }
+  return { topic, Lesson, lessonChecks, lessonShape, recall, exercises }
 }

@@ -1,5 +1,6 @@
 // A topic in parts (ADR-0025): the lesson, then the practice ladder cut into
-// parts of about half an hour, then the proof checks. The page shows one
+// parts of about half an hour, then the proof checks. A long lesson is cut
+// too, at the questions it asks (amended 2026-11-21). The page shows one
 // part at a time, so a topic of four or five hours reads as a few sittings
 // rather than one endless page. Parts never gate anything: a learner can
 // open any part at any time, and nothing about the proofs or mastery
@@ -15,13 +16,44 @@ import {
 } from '../place/useCurrentPlace.ts'
 import { type ItemState, itemKey } from '../progress/itemStates.ts'
 import { type Proof, PROOFS } from '../progress/progress.ts'
-import { itemMinutes, proofMinutes } from './estimates.ts'
+import {
+  itemMinutes,
+  proofMinutes,
+  QUESTION_MINUTES,
+  READING_WORDS_A_MINUTE,
+} from './estimates.ts'
 
 /** One rung of the practice ladder, in page order. */
 export type LadderItem = { itemId: string; content: TopicContent }
 
+/**
+ * One part of the lesson. A short lesson is one part, "learn". A long one is
+ * cut at the questions it asks into "learn", "learn-2" and so on.
+ */
+export type LearnPart = {
+  id: string
+  kind: 'learn'
+  title: string
+  minutes: number
+  /**
+   * Which of the intro's sections it shows: from this one up to, but not
+   * including, that one (a section ends at a question; see
+   * src/tooling/remarkLessonShape.ts). The whole intro is 0 to Infinity.
+   */
+  sections: { from: number; to: number }
+  /**
+   * The numbers of the first and last places it holds ("place-lesson-7"),
+   * so a link to a place opens the right part.
+   */
+  places: { first: number; last: number }
+  /** The questions it asks, by item id. */
+  checks: string[]
+  /** Whether it holds the main resource and the recap, which end a lesson. */
+  tail: boolean
+}
+
 export type TopicPart =
-  | { id: 'learn'; kind: 'learn'; title: string; minutes: number }
+  | LearnPart
   | {
       id: string
       kind: 'practice'
@@ -38,6 +70,12 @@ export type TopicPart =
 const TARGET_MINUTES = 30
 /** …and at most about this many, where the items allow it. */
 const LONGEST_MINUTES = 40
+/**
+ * The main resource and the recap get a part of their own when they take at
+ * least this long, and the text before them does too. Shorter than that, a
+ * part wouldn't be worth a stop.
+ */
+const SHORTEST_OWN_PART = 15
 /**
  * The lesson is at least this share of the topic's total. Where the guesses
  * for the practice and the proofs leave less than that (short Python topics,
@@ -61,15 +99,28 @@ const CUT_IN_QUESTIONS = 25
 export function topicParts(
   content: TopicContent,
   items: LadderItem[],
-  { locked = false }: { locked?: boolean } = {},
+  {
+    locked = false,
+    pace = 1,
+  }: {
+    locked?: boolean
+    /**
+     * How many times longer than the estimates this learner's proven topics
+     * took (progress/pace.ts). Every time is stretched by it before the
+     * cuts are made, so a part stays about half an hour of their time.
+     */
+    pace?: number
+  } = {},
 ): TopicPart[] {
-  const total = content.topic.estimated_minutes
-  const practiceRaw = items.map((item) =>
-    itemMinutes(item.content, item.itemId),
+  // Only ever stretched: the measure behind the pace is a floor (pace.ts).
+  const stretch = Math.max(pace, 1)
+  const total = content.topic.estimated_minutes * stretch
+  const practiceRaw = items.map(
+    (item) => itemMinutes(item.content, item.itemId) * stretch,
   )
   const practiceTotal = sum(practiceRaw)
   const hasProofs = PROOFS.some((proof) => content.topic.prove[proof])
-  const proveRaw = hasProofs ? proofMinutes(content) : 0
+  const proveRaw = hasProofs ? proofMinutes(content) * stretch : 0
   // Scale the guesses so the parts add up to the topic's own total.
   const rest = practiceTotal + proveRaw
   const lessonFloor = total * LESSON_SHARE
@@ -79,9 +130,7 @@ export function topicParts(
       : Math.max(total - lessonFloor, 0) / rest
   const lesson = total - rest * scale
 
-  const parts: TopicPart[] = [
-    { id: 'learn', kind: 'learn', title: 'Learn', minutes: lesson },
-  ]
+  const parts: TopicPart[] = learnParts(content, lesson, stretch)
   if (locked) return parts
 
   const minutes = practiceRaw.map((each) => each * scale)
@@ -110,6 +159,113 @@ export function topicParts(
       kind: 'prove',
       title: 'Prove it',
       minutes: proveRaw * scale,
+    })
+  }
+  return parts
+}
+
+/** The lesson as one part, as a short lesson is shown. */
+function wholeLesson(content: TopicContent, minutes: number): LearnPart {
+  return {
+    id: 'learn',
+    kind: 'learn',
+    title: 'Learn',
+    minutes,
+    sections: { from: 0, to: Infinity },
+    places: { first: 1, last: Infinity },
+    checks: content.lessonChecks ?? [],
+    tail: true,
+  }
+}
+
+/** "the video", "the reading": what to call a topic's main resource. */
+function resourceName(content: TopicContent): string {
+  const type = content.topic.resources[0]?.type
+  if (type === 'video') return 'the video'
+  if (type === 'reading') return 'the reading'
+  return 'the main resource'
+}
+
+/**
+ * The lesson's parts (ADR-0025, amended 2026-11-21). A lesson of 40 minutes
+ * or less is one part. A longer one is cut where it asks a question, a
+ * <Check> written straight inside <Intro>, the only places a lesson has a
+ * natural stop.
+ *
+ * How long each stretch takes: its words at the reading speed authors use
+ * to work a topic's total out (estimates.ts), plus a quick question's time
+ * for the question that ends it. Whatever is left of the lesson's time
+ * after the intro belongs to the main resource and the recap. That last
+ * stretch can't be cut (it's somebody else's page or video), so it becomes
+ * a part of its own when it's long enough, and may run past 40 minutes.
+ */
+function learnParts(
+  content: TopicContent,
+  minutes: number,
+  stretch: number,
+): LearnPart[] {
+  const whole = wholeLesson(content, minutes)
+  const shape = content.lessonShape
+  if (!shape || shape.sections.length === 0 || minutes <= LONGEST_MINUTES) {
+    return [whole]
+  }
+  const read = (words: number) => (words / READING_WORDS_A_MINUTE) * stretch
+  const written = shape.sections.map(
+    (section) =>
+      read(section.words) + (section.check ? QUESTION_MINUTES * stretch : 0),
+  )
+  // If the text alone comes to more than the lesson's time, fit it in, so
+  // the parts still add up to the topic's total.
+  const fit = Math.min(1, minutes / (sum(written) + read(shape.recapWords)))
+  const units = written.map((each) => each * fit)
+  const tail = minutes - sum(units)
+  const ownTail = tail >= SHORTEST_OWN_PART && sum(units) >= SHORTEST_OWN_PART
+  if (!ownTail) units[units.length - 1]! += tail
+
+  // No extra cost for any cut: every candidate is already after a question.
+  const groups = splitLadder(
+    units,
+    units.map(() => 'exercise' as const),
+  )
+  if (groups.length === 1 && !ownTail) return [whole]
+
+  // Where each section's places start: places are numbered from 1.
+  const firstPlace = [1]
+  for (const section of shape.sections) {
+    firstPlace.push(firstPlace.at(-1)! + section.blocks)
+  }
+  const parts: LearnPart[] = groups.map((group, index) => {
+    const from = group[0]!
+    const to = group.at(-1)! + 1
+    return {
+      id: index === 0 ? 'learn' : `learn-${index + 1}`,
+      kind: 'learn',
+      title:
+        groups.length === 1
+          ? 'Learn: the lesson'
+          : `Learn: section ${index + 1} of ${groups.length}`,
+      minutes: sum(group.map((at) => units[at]!)),
+      sections: { from, to },
+      places: { first: firstPlace[from]!, last: firstPlace[to]! - 1 },
+      checks: shape.sections
+        .slice(from, to)
+        .map((section) => section.check)
+        .filter((item) => item !== null),
+      tail: !ownTail && index === groups.length - 1,
+    }
+  })
+  if (ownTail) {
+    const end = shape.sections.length
+    parts.push({
+      id: `learn-${parts.length + 1}`,
+      kind: 'learn',
+      title: `Learn: ${resourceName(content)} and the recap`,
+      minutes: tail,
+      sections: { from: end, to: end },
+      // It holds no numbered places, only the resource and the recap.
+      places: { first: Infinity, last: Infinity },
+      checks: [],
+      tail: true,
     })
   }
   return parts
@@ -233,9 +389,12 @@ export function describeItems(items: LadderItem[]): string {
  * Whether each part is done, by its id, or null while that can't be known
  * (signed out, or the progress still loading). A practice part is done once
  * every item in it has been got right; the proofs, once every proof check
- * has passed. The lesson has no answers of its own, so it counts as done
- * once the learner has tried anything in this topic's practice or proofs:
- * moving on is the only sign the page has, and nothing is stored for it.
+ * has passed. A part of the lesson that asks questions is done once each
+ * has been got right, or once the topic is proven (a learner who went
+ * straight to the proofs has nothing left to do in it). One that asks none
+ * has no answers of its own, so it counts as done once the learner has
+ * tried anything in this topic's practice or proofs: moving on is the only
+ * sign the page has, and nothing is stored for it.
  */
 export function partsDone(
   parts: TopicPart[],
@@ -268,8 +427,18 @@ export function partsDone(
     proofs.some((proof) => passed[proof])
   const done = new Map<string, boolean>()
   for (const part of parts) {
-    if (part.kind === 'learn') done.set(part.id, startedHere)
-    else if (part.kind === 'practice') {
+    if (part.kind === 'learn') {
+      const proven = proofs.length > 0 && proofs.every((proof) => passed[proof])
+      done.set(
+        part.id,
+        part.checks.length === 0
+          ? startedHere
+          : proven ||
+              part.checks.every(
+                (itemId) => states.get(itemKey(topicId, itemId)) === 'done',
+              ),
+      )
+    } else if (part.kind === 'practice') {
       done.set(
         part.id,
         part.items.every((item) => {
@@ -307,12 +476,12 @@ export function resumePart(
 }
 
 /**
- * The id of a part's heading, which a link to the part points at: "learn",
- * "practice" (the first practice part), "practice-2" and so on, and
- * "prove-it".
+ * The id of a part's heading, which a link to the part points at: "learn"
+ * (and "learn-2" and so on, for a lesson in parts), "practice" (the first
+ * practice part), "practice-2" and so on, and "prove-it".
  */
 export function partAnchor(part: TopicPart): string {
-  if (part.kind === 'learn') return 'learn'
+  if (part.kind === 'learn') return part.id
   if (part.kind === 'prove') return 'prove-it'
   return part.id === 'practice-1' ? 'practice' : part.id
 }
@@ -339,10 +508,29 @@ export function partOfAnchor(
   content: TopicContent,
   anchor: string,
 ): TopicPart | undefined {
-  const learn = parts.find((part) => part.kind === 'learn')
-  if (isLessonAnchor(anchor)) return learn
+  const learns = parts.filter((part) => part.kind === 'learn')
+  const learn = learns[0]
   const headed = parts.find((part) => partAnchor(part) === anchor)
   if (headed) return headed
+  if (isLessonAnchor(anchor)) {
+    // A lesson in parts: the part that holds this place.
+    if (anchor.startsWith(LESSON_PLACE_PREFIX)) {
+      const place = Number(anchor.slice(LESSON_PLACE_PREFIX.length))
+      const holds = learns.find(
+        (part) => part.places.first <= place && place <= part.places.last,
+      )
+      return holds ?? learn
+    }
+    if (anchor === 'place-resource' || anchor === 'place-recap') {
+      return learns.find((part) => part.tail) ?? learn
+    }
+    return learn
+  }
+  // A question the lesson asks, linked by its item.
+  const asks = learns.find((part) =>
+    part.checks.some((itemId) => anchor === `item-${itemId}`),
+  )
+  if (asks) return asks
   for (const part of parts) {
     if (part.kind !== 'practice') continue
     const holds = part.items.some(

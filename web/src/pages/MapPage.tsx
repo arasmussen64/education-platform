@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, useLocation, useParams } from 'react-router'
 import { FoundationsList } from '../components/FoundationsList.tsx'
-import { SECONDARY_BUTTON } from '../components/styles.ts'
+import { SECONDARY_BUTTON, YOU_ARE_HERE } from '../components/styles.ts'
 import {
   getTopic,
   getTrack,
@@ -215,7 +215,7 @@ function TrackSwitcher({ current }: { current: Track }) {
               end
               className={`inline-block rounded-full border px-3 py-1 text-sm ${
                 track.id === current.id
-                  ? 'border-lime-600 bg-lime-50 font-medium dark:bg-lime-950'
+                  ? YOU_ARE_HERE
                   : 'border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'
               }`}
             >
@@ -422,7 +422,7 @@ function TopicRow({
     <li
       className={`rounded-lg border p-3 ${
         open
-          ? 'border-lime-500 bg-white dark:bg-slate-900'
+          ? 'border-slate-400 bg-white dark:border-slate-600 dark:bg-slate-900'
           : 'border-slate-200 dark:border-slate-800'
       }`}
     >

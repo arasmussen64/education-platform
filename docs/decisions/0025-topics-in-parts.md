@@ -63,3 +63,24 @@ A regular topic's page shows **one part at a time**:
 - **What counts.** Only each question's first answer in the quick check, as in a review: a second try after seeing the feedback shows less. A right first answer shows every skill the question names. An item is optional when every skill it names was shown; an item with no skills never is. A later wrong answer in the practice doesn't undo it; it opens a follow-up as usual ([ADR-0011](0011-mistakes-come-back.md)).
 - **How it's recorded.** Through the existing event machinery, with no new event type and so no database change: each answer is an ordinary `answer` in context `practice`, with `quick_check: true` in its data ([data model](../specs/data-model.md)). It marks its item Done or Tried like any practice answer, which is honest, since it is that item answered. Which skills were shown is worked out from those answers on every visit, like the rest of progress; the history read takes the mark out of the data.
 - **Not offered** to a signed-out visitor, whose answers aren't saved, so nothing could be marked; once taken (any answer in it); or on a Learned topic.
+
+## Amendment (2026-11-21): a long lesson in parts, and times at the learner's pace
+
+The owner asked for both ("Start building these things"), from the "Next" list of 2026-11-16.
+
+**A long lesson is cut too.** The decision above kept the lesson as one part, so a cloud topic's first part ran 55 to 125 minutes.
+
+- **Where.** A lesson can only be cut where it asks a question: after a `<Check item="…" />` written directly inside `<Intro>` ([ADR-0026](0026-lesson-building-blocks.md)). A lesson of 40 minutes or less stays one part, "Learn", as before.
+- **How long each stretch is.** While a lesson is compiled, a build step (`web/src/tooling/remarkLessonShape.ts`) counts the words between its questions. The page turns words into minutes at 130 words a minute, the speed authors use to work a topic's total out (content/README.md), plus a minute and a half for each question. Whatever is left of the lesson's time belongs to the main resource and the recap.
+- **The parts.** The lesson's own text is cut at its questions into parts of about 30 minutes, at most about 40, by the same rule that cuts the practice. The main resource and the recap become a part of their own, "Learn: the reading and the recap", when they take 15 minutes or more and the text before them does too; otherwise they stay with the last section.
+- **What it does to today's topics.** Each of the 38 ready cloud topics now has two lesson parts: its own text, 10 to 37 minutes, and the reading with the recap, 32 to 73 minutes. The finance, Python and ML lessons are short and stay one part.
+- **What it can't do.** The reading is somebody else's page or video, with no place of ours to cut it, so that part can still run past 40 minutes. It is the one kind of part that does. A test over every written lesson fails if any other part could have been cut and wasn't.
+- **Done.** A lesson part that asks questions is done once each has been answered right, or once the topic is proven. One that asks none is done as before, once anything in the practice or proofs has been tried. Still nothing new is stored.
+- **Places keep their numbers.** The lesson's blocks are numbered across the whole lesson (`place-lesson-7`), whichever part shows them, so a remembered place or a link opens the right part. The parts' headings are `#learn`, `#learn-2` and so on.
+
+**Times at the learner's pace.** The Today page already stretches a topic's time when the learner's proven topics ran longer than their estimates (`web/src/progress/pace.ts`, 2026-11-16). The topic page now does the same.
+
+- **What.** Once three proven topics can be measured and their median ran over the estimate, every time on the topic page is multiplied by that ratio before the parts are cut. So a learner whose topics take 1.5 times the estimate gets more, shorter parts, each still about half an hour of their own time, and the header says "About 450 minutes for the whole topic at your pace (1.5× the estimate of 300)".
+- **Only stretched, never shrunk,** for the reason pace.ts gives: the measure is a floor.
+- **Fixed for the visit.** The pace is read once when the page's progress loads, so proving the topic doesn't move the parts while the learner is on the page. Between visits the cuts can move when the pace changes by a tenth; the part last viewed is then looked up by its id, and if that id is gone the page opens at the first part not done.
+- **Signed out,** or before three topics are proven, the page shows the estimates as written.

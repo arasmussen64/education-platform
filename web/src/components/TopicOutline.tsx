@@ -3,6 +3,7 @@ import type { TopicContent } from '../content/types.ts'
 import {
   aboutMinutes,
   type LadderItem,
+  type LearnPart,
   partAnchor,
   type TopicPart,
 } from '../parts/topicParts.ts'
@@ -18,6 +19,7 @@ import {
   itemKey,
 } from '../progress/itemStates.ts'
 import { type Proof, PROOFS } from '../progress/progress.ts'
+import { PROGRESS_FILL } from './styles.ts'
 
 export type { LadderItem }
 
@@ -53,12 +55,31 @@ const PROOF_NAMES: Record<Proof, string> = {
   explain: 'Explain',
 }
 
-const LEARN_PLACES: { id: string; label: string }[] = [
-  { id: START_PLACE, label: 'What you can do after' },
-  { id: `${LESSON_PLACE_PREFIX}1`, label: 'The lesson' },
-  { id: 'place-resource', label: 'The main resource' },
-  { id: 'place-recap', label: 'Recap' },
-]
+/**
+ * The places in one part of the lesson. A lesson in parts (ADR-0025, amended
+ * 2026-11-21) has the goals in its first part, the resource and the recap in
+ * its last, and some of the lesson's text in each part but a last one that
+ * holds only the resource and the recap.
+ */
+function learnPlaces(part: LearnPart): { id: string; label: string }[] {
+  const places: { id: string; label: string }[] = []
+  if (part.id === 'learn') {
+    places.push({ id: START_PLACE, label: 'What you can do after' })
+  }
+  if (part.sections.from < part.sections.to) {
+    places.push({
+      id: `${LESSON_PLACE_PREFIX}${part.places.first}`,
+      label: 'The lesson',
+    })
+  }
+  if (part.tail) {
+    places.push(
+      { id: 'place-resource', label: 'The main resource' },
+      { id: 'place-recap', label: 'Recap' },
+    )
+  }
+  return places
+}
 
 const CURRENT_MARK = '▸ '
 
@@ -117,7 +138,9 @@ export function TopicOutline({
         <a
           href={`#${resume}`}
           onClick={follow(resume)}
-          className="block rounded-md border border-lime-600 px-3 py-2 font-medium text-lime-800 hover:bg-lime-50 dark:border-lime-500 dark:text-lime-300 dark:hover:bg-lime-950"
+          // Not lime: the page's one lime button is "Next: Part…", and lime is
+          // never a text colour.
+          className="block rounded-md border border-slate-500 px-3 py-2 font-medium text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
         >
           Continue where you left off: {resumeLabel}
         </a>
@@ -170,12 +193,12 @@ export function TopicOutline({
               )}
               {part.kind === 'learn' && (
                 <ul className="space-y-0.5">
-                  {LEARN_PLACES.map((place) => {
+                  {learnPlaces(part).map((place) => {
+                    const isLesson = place.id.startsWith(LESSON_PLACE_PREFIX)
                     const here =
                       isCurrent &&
                       (current === place.id ||
-                        (place.id === `${LESSON_PLACE_PREFIX}1` &&
-                          lessonPart !== null))
+                        (isLesson && lessonPart !== null))
                     return (
                       <li key={place.id}>
                         <a
@@ -188,11 +211,13 @@ export function TopicOutline({
                             <span aria-hidden="true">{CURRENT_MARK}</span>
                           )}
                           {place.label}
-                          {place.id === `${LESSON_PLACE_PREFIX}1` &&
+                          {isLesson &&
                             here &&
                             lessonPart !== null &&
                             lessonParts > 0 &&
-                            ` (part ${lessonPart} of ${lessonParts})`}
+                            // Counted within the part on screen: its first
+                            // place is 1, whatever its number in the lesson.
+                            ` (part ${lessonPart - part.places.first + 1} of ${lessonParts})`}
                         </a>
                       </li>
                     )
@@ -265,7 +290,7 @@ function PracticeSquares({
               aria-current={isCurrent ? 'location' : undefined}
               className={`flex h-8 items-center justify-center gap-0.5 rounded border text-xs font-medium ${
                 state === 'done'
-                  ? 'border-lime-600 bg-lime-100 text-lime-900 dark:border-lime-500 dark:bg-lime-950 dark:text-lime-200'
+                  ? PROGRESS_FILL
                   : optional
                     ? 'border-dashed border-slate-300 text-slate-400 dark:border-slate-700 dark:text-slate-500'
                     : state === 'tried'
