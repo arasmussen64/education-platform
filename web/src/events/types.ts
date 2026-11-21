@@ -12,6 +12,8 @@ export type EventType =
   | 'review'
   /** A finished placement run (ADR-0021): what it found. */
   | 'placement'
+  /** The learner started a track over (ADR-0029); topic_id is the track. */
+  | 'track_reset'
 
 /**
  * Where an event happened. Answers given during the placement test carry

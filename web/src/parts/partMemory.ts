@@ -8,7 +8,7 @@ const PREFIX = 'part:'
 
 type PartStorage = Pick<Storage, 'getItem' | 'setItem'>
 
-function defaultStorage(): PartStorage | null {
+function defaultStorage(): Storage | null {
   try {
     return typeof localStorage === 'undefined' ? null : localStorage
   } catch {
@@ -38,5 +38,17 @@ export function recallPart(
     return storage?.getItem(PREFIX + topicId) ?? null
   } catch {
     return null
+  }
+}
+
+/** Forgets the part remembered for a topic (when a track starts over). */
+export function forgetPart(
+  topicId: string,
+  storage: Pick<Storage, 'removeItem'> | null = defaultStorage(),
+): void {
+  try {
+    storage?.removeItem(PREFIX + topicId)
+  } catch {
+    // Storage blocked: there was nothing to forget.
   }
 }

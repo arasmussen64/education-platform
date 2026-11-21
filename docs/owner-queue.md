@@ -12,11 +12,11 @@ The short list of things only the owner can do or decide. It replaces the "Decis
 
 ## Open
 
-### 1. Apply two migrations to the live database
+### 1. Apply three migrations to the live database
 
-A migration is a script that changes the database's structure. Two are waiting. `20261109220000_placement_events.sql` lets the live database accept the placement test's events. `20261111164541_raise_event_data_limit.sql` (#232) raises the size limit on an event's details from 16 KB to 128 KB, so the Run or Check of a long program (Module 8's run to 12,323 characters) is kept whole.
+A migration is a script that changes the database's structure. Three are waiting. `20261109220000_placement_events.sql` lets the live database accept the placement test's events. `20261111164541_raise_event_data_limit.sql` (#232) raises the size limit on an event's details from 16 KB to 128 KB, so the Run or Check of a long program (Module 8's run to 12,323 characters) is kept whole. `20261121230000_track_reset_events.sql` (2026-11-21) lets it accept "start a track over" ([ADR-0029](decisions/0029-starting-a-track-over.md)); until then a reset counts only on the device it was made on, and only until the server refuses it.
 
-- **Step:** `npx supabase db push --remote --dry-run` lists what the live database is missing and changes nothing. If it lists only those two, run it again with `--yes` in place of `--dry-run`.
+- **Step:** `npx supabase db push --remote --dry-run` lists what the live database is missing and changes nothing. If it lists only those three, run it again with `--yes` in place of `--dry-run`.
 - **Or:** say "push it" and Claude runs those two commands.
 - **Holds up:** placement results taken on the live site aren't saved until this is done, and neither is the Run or Check of a program too long for the old limit. Since 2026-11-10 the app keeps refused answers on the device, says so in the header, and sends them again by itself once the database accepts them, so nothing is lost by waiting. Do it before studying Module 8. (The AI proxy was deployed on 2026-11-21 without it: the proxy needs nothing these two migrations add.)
 
@@ -56,6 +56,7 @@ Module 2 is complete without them: every topic is proven locally, for free. Thes
 
 Made under your message of 2026-11-11. Say the word to overturn any of them.
 
+- **2026-11-21, what starting a track over keeps** ([ADR-0029](decisions/0029-starting-a-track-over.md), _Proposed_; say "accept 0029" to accept it). The track's topics go back to not started, but practice hours and weeks, the day's review limit, usual answer times, the forgetting curve, confidence calibration and the math diagnostic stay, because they describe you rather than the track. Nothing is deleted from your history.
 - **2026-11-16, how the four-expert plan was built.** You asked for every recommendation to be built (#293 to #318). The judgement calls, each with its reason in the devlog entries of 2026-11-16:
   - _Your study plan and the puzzle's guess stay on this device._ Syncing the plan would need a database migration, which is yours to push; the guess is never graded or saved.
   - _Implicit credit_ gives a direct prerequisite half a review for a Good review or a passed proof, halving at each step back, only once a card is half-way to due, at most twice between real reviews, and never as the review Mastered needs. A year's simulation of Modules 1 to 3 says it cuts about a third of the reviews. Even without it, the busiest day is about 7 reviews, so the 20-a-day limit was never at risk.
