@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, useLocation, useParams } from 'react-router'
 import { FoundationsList } from '../components/FoundationsList.tsx'
-import { SECONDARY_BUTTON } from '../components/styles.ts'
+import { SECONDARY_BUTTON, YOU_ARE_HERE } from '../components/styles.ts'
 import {
   getTopic,
   getTrack,
@@ -17,6 +17,11 @@ import {
   trackFoundations,
 } from '../content/foundations.ts'
 import type { Module, Topic, Track } from '../content/types.ts'
+import {
+  type PlacementRecord,
+  subjectOfFoundations,
+} from '../placement/history.ts'
+import { usePlacements } from '../placement/usePlacements.ts'
 import {
   furtherParts,
   PROOFS,
@@ -138,6 +143,8 @@ function LoadedTrackMap({ track }: { track: Track }) {
     [topics, foundations],
   )
   const progress = useProgress(withPrerequisites)
+  // Each foundations list shows its own placement result, if it has one.
+  const placements = usePlacements()
   useScrollToHash()
   // Drafts count as "still being written": the dev server can open them,
   // but the note is about what a learner can do.
@@ -164,6 +171,11 @@ function LoadedTrackMap({ track }: { track: Track }) {
             module={module}
             number={index + 1}
             foundations={foundations[index]}
+            placement={
+              placements.status === 'ready'
+                ? placements.latest.get(subjectOfFoundations(module.id))
+                : undefined
+            }
             progress={progress}
             now={now}
           />
@@ -203,7 +215,7 @@ function TrackSwitcher({ current }: { current: Track }) {
               end
               className={`inline-block rounded-full border px-3 py-1 text-sm ${
                 track.id === current.id
-                  ? 'border-lime-600 bg-lime-50 font-medium dark:bg-lime-950'
+                  ? YOU_ARE_HERE
                   : 'border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'
               }`}
             >
@@ -222,6 +234,7 @@ function ModuleSection({
   module,
   number,
   foundations,
+  placement,
   progress,
   now,
 }: {
@@ -230,6 +243,8 @@ function ModuleSection({
   number: number
   /** The other tracks' topics this module builds on. */
   foundations?: ModuleFoundations
+  /** The latest placement test of that list alone (ADR-0021). */
+  placement?: PlacementRecord
   progress: ProgressState
   now: string
 }) {
@@ -279,6 +294,7 @@ function ModuleSection({
             module={module}
             number={number}
             topics={foundations.topics}
+            placement={placement}
             progress={
               progress.status === 'ready' ? progress.progress : undefined
             }
@@ -406,7 +422,7 @@ function TopicRow({
     <li
       className={`rounded-lg border p-3 ${
         open
-          ? 'border-lime-500 bg-white dark:bg-slate-900'
+          ? 'border-slate-400 bg-white dark:border-slate-600 dark:bg-slate-900'
           : 'border-slate-200 dark:border-slate-800'
       }`}
     >

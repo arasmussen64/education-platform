@@ -423,7 +423,7 @@ function InputLine({
           .replace(/\r?\n/g, ' ')
         document.execCommand('insertText', false, text)
       }}
-      className="inline-block min-w-48 rounded border border-slate-500 bg-slate-800 px-1 text-slate-100 outline-none focus:border-lime-400"
+      className="inline-block min-w-48 rounded border border-slate-500 bg-slate-800 px-1 text-slate-100 outline-none focus:border-slate-100"
     />
   )
 }

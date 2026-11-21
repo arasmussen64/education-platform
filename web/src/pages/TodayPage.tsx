@@ -2,7 +2,13 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { Markdown } from '../components/Markdown.tsx'
-import { BUTTON, INLINE_CODE, PRIMARY_BUTTON } from '../components/styles.ts'
+import {
+  BUTTON,
+  INLINE_CODE,
+  PRIMARY_BUTTON,
+  PROGRESS_BAR,
+  PROGRESS_FILL,
+} from '../components/styles.ts'
 import {
   diagnostics,
   getTopic,
@@ -13,8 +19,10 @@ import {
   tracks,
 } from '../content/content.ts'
 import {
+  findFoundations,
   foundationLink,
   foundationsAnchor,
+  foundationsTitle,
   prerequisitesInOrder,
   trackFoundations,
 } from '../content/foundations.ts'
@@ -44,6 +52,7 @@ import {
 } from '../progress/practiceTime.ts'
 import {
   describeDiagnosticRecord,
+  describeListRecord,
   describeTrackRecord,
 } from '../placement/describe.ts'
 import { subjectOfDiagnostic } from '../placement/history.ts'
@@ -428,7 +437,7 @@ function Weeks({ weeks }: { weeks: WeeksPractised }) {
               data-practised={practised}
               className={`h-3 w-5 rounded-sm border ${
                 practised
-                  ? 'border-lime-600 bg-lime-400'
+                  ? PROGRESS_FILL
                   : 'border-slate-300 dark:border-slate-700'
               }`}
             />
@@ -463,7 +472,7 @@ function TrackHours({ title, time }: { title: string; time: PracticeTime }) {
       {milestone ? (
         <>
           <progress
-            className="h-2 w-full"
+            className={`h-2 w-full ${PROGRESS_BAR}`}
             max={milestone.hours * 60}
             value={Math.floor(time.totalMs / 60_000)}
             aria-label={`${title}: progress toward ${formatHours(milestone.hours)}`}
@@ -761,6 +770,16 @@ function PlacementNote({
     ...tracks().map((track) => {
       const record = placements.latest.get(track.id)
       return record && `${track.title}. ${describeTrackRecord(record, learned)}`
+    }),
+    // A placement in one foundations list is its own result, under the
+    // list's name: it says nothing about a whole track.
+    ...[...placements.latest.values()].map((record) => {
+      const scope =
+        record.list && findFoundations(record.list.track, record.list.module)
+      return (
+        scope &&
+        `${foundationsTitle(scope)}. ${describeListRecord(record, learned)}`
+      )
     }),
     ...diagnostics().map((diagnostic) => {
       const record = placements.latest.get(subjectOfDiagnostic(diagnostic.id))

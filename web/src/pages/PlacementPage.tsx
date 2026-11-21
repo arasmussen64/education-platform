@@ -1,9 +1,14 @@
 import { useEffect, useId, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { McqQuestion } from '../components/McqQuestion.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
-import { BUTTON, CARD, SECONDARY_BUTTON } from '../components/styles.ts'
+import {
+  BUTTON,
+  CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+} from '../components/styles.ts'
 import { useAttemptTimer } from '../components/useAttemptTimer.ts'
 import {
   diagnostics,
@@ -13,6 +18,13 @@ import {
   topicIdsOf,
   tracks,
 } from '../content/content.ts'
+import {
+  findFoundations,
+  foundationLink,
+  foundationsMapLink,
+  foundationsTitle,
+  type FoundationsScope,
+} from '../content/foundations.ts'
 import type {
   Diagnostic,
   DiagnosticLevel,
@@ -24,9 +36,15 @@ import type {
 import { useRecordEvent } from '../events/useEvents.ts'
 import {
   describeDiagnosticRecord,
+  describeListRecord,
   describeTrackRecord,
 } from '../placement/describe.ts'
-import { subjectOfDiagnostic } from '../placement/history.ts'
+import {
+  type PlacementList,
+  type PlacementRecord,
+  subjectOfDiagnostic,
+  subjectOfFoundations,
+} from '../placement/history.ts'
 import {
   afterProbe,
   chooseProbeItems,
@@ -46,8 +64,17 @@ import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 // middle and halving what's left. It marks nothing learned: what it finds
 // becomes a short list of topics to prove with "Prove it now", in order, and
 // a place to start.
+//
+// /placement?for=<track id>&module=<module id> is the test for one list
+// only: what that module needs from other tracks (the amendment of
+// 2026-11-21). It walks that list's topics and nothing else.
 export function PlacementPage() {
   const auth = useAuth()
+  const [params] = useSearchParams()
+  const forTrack = params.get('for')
+  const forModule = params.get('module')
+  const asked = forTrack !== null && forModule !== null
+  const scope = asked ? findFoundations(forTrack, forModule) : undefined
   return (
     <section className="space-y-8">
       <header className="space-y-2">
@@ -65,7 +92,13 @@ export function PlacementPage() {
           and cost you time later.
         </p>
       </header>
-      {auth.status === 'signed-in' && <Subjects />}
+      {asked && !scope && (
+        <p>
+          That link names a list this page can't find, so here is every
+          placement test instead.
+        </p>
+      )}
+      {auth.status === 'signed-in' && <Subjects scope={scope} />}
       {auth.status === 'signed-out' && (
         <p>
           <Link to="/sign-in" className="underline">
@@ -80,20 +113,41 @@ export function PlacementPage() {
 
 type Subject =
   | { kind: 'track'; track: Track }
+  | { kind: 'foundations'; scope: FoundationsScope }
   | { kind: 'diagnostic'; diagnostic: Diagnostic }
+
+/** Whether a placement can probe a topic: one a learner can open, no checkpoint. */
+function canProbe(topic: Topic | undefined): topic is Topic {
+  return topic !== undefined && topic.kind === 'topic' && isOpen(topic)
+}
 
 /** A track's topics a learner can open, in order: no checkpoints. */
 function openTopicsOf(track: Track): Topic[] {
   return topicIdsOf(track)
     .map((id) => getTopic(id))
-    .filter(
-      (topic): topic is Topic =>
-        topic !== undefined && topic.kind === 'topic' && isOpen(topic),
-    )
+    .filter(canProbe)
 }
 
-/** The tracks and diagnostics to place in, each with its last result. */
-function Subjects() {
+/** The foundations lists that have a result, newest result first. */
+function listsPlacedIn(
+  latest: Map<string, PlacementRecord>,
+): FoundationsScope[] {
+  return [...latest.values()]
+    .filter((record) => record.list !== undefined)
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .map((record) =>
+      record.list
+        ? findFoundations(record.list.track, record.list.module)
+        : undefined,
+    )
+    .filter((scope) => scope !== undefined)
+}
+
+/**
+ * The tracks and diagnostics to place in, each with its last result. With a
+ * `scope`, only that one foundations list.
+ */
+function Subjects({ scope }: { scope?: FoundationsScope }) {
   // The topics bundled with the app, like the Today page: an outline-only
   // track's topics can't be placed in, because they can't be opened.
   const topics = useMemo(
@@ -132,16 +186,32 @@ function Subjects() {
   }
   const learned = (topicId: string) =>
     Boolean(progress.progress.get(topicId)?.learnedAt)
-  const latest =
-    placements.status === 'ready' ? placements.latest : new Map<string, never>()
+  const latest: Map<string, PlacementRecord> =
+    placements.status === 'ready' ? placements.latest : new Map()
 
   if (running?.kind === 'track') {
     return (
-      <TrackRun
-        track={running.track}
+      <TopicsRun
+        title={running.track.title}
+        subject={running.track.id}
         order={openTopicsOf(running.track).filter(
           (topic) => !learned(topic.id),
         )}
+        learned={learned}
+        onDone={() => setRunning(null)}
+      />
+    )
+  }
+  if (running?.kind === 'foundations') {
+    return (
+      <TopicsRun
+        title={foundationsTitle(running.scope)}
+        subject={subjectOfFoundations(running.scope.module.id)}
+        scope={running.scope}
+        // The list's own order: each topic after what it builds on.
+        order={running.scope.topics
+          .filter(canProbe)
+          .filter((topic) => !learned(topic.id))}
         learned={learned}
         onDone={() => setRunning(null)}
       />
@@ -153,6 +223,30 @@ function Subjects() {
         diagnostic={running.diagnostic}
         onDone={() => setRunning(null)}
       />
+    )
+  }
+
+  const listCard = (list: FoundationsScope) => (
+    <ListCard
+      key={list.module.id}
+      scope={list}
+      record={latest.get(subjectOfFoundations(list.module.id))}
+      learned={learned}
+      onStart={() => setRunning({ kind: 'foundations', scope: list })}
+    />
+  )
+  if (scope) {
+    return (
+      <div className="space-y-4">
+        {listCard(scope)}
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Or place yourself in a whole track, or in the math ladder:{' '}
+          <Link to="/placement" className="underline">
+            every placement test
+          </Link>
+          .
+        </p>
+      </div>
     )
   }
 
@@ -192,6 +286,11 @@ function Subjects() {
           </section>
         )
       })}
+      {
+        // A list's test starts from the list on the map. Once taken, its
+        // result is kept here too, beside the others.
+        listsPlacedIn(latest).map(listCard)
+      }
       {diagnostics().map((diagnostic) => {
         const record = latest.get(subjectOfDiagnostic(diagnostic.id))
         const headingId = `place-diagnostic-${diagnostic.id}`
@@ -221,6 +320,52 @@ function Subjects() {
         )
       })}
     </div>
+  )
+}
+
+/** One foundations list to place in, with its last result. */
+function ListCard({
+  scope,
+  record,
+  learned,
+  onStart,
+}: {
+  scope: FoundationsScope
+  record: PlacementRecord | undefined
+  learned: (topicId: string) => boolean
+  onStart: () => void
+}) {
+  const headingId = `place-foundations-${scope.module.id}`
+  const open = scope.topics.filter(canProbe)
+  const left = open.filter((topic) => !learned(topic.id))
+  return (
+    <section aria-labelledby={headingId} className={CARD}>
+      <h2 id={headingId} className="text-lg font-semibold">
+        {foundationsTitle(scope)}
+      </h2>
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        {open.length === 0
+          ? 'Nothing on this list is written yet.'
+          : `Only the ${open.length} ${open.length === 1 ? 'topic' : 'topics'} from other tracks that Module ${scope.number} builds on, in the order to learn them; ${open.length - left.length} of them learned. About ${probesNeeded(left.length)} topics' worth of questions.`}{' '}
+        <Link
+          to={foundationsMapLink(scope.track, scope.module)}
+          className="underline"
+        >
+          See the list on the map
+        </Link>
+        .
+      </p>
+      {record && <p>{describeListRecord(record, learned)}</p>}
+      {open.length > 0 && left.length === 0 ? (
+        <p>You've learned everything on this list: nothing to place.</p>
+      ) : (
+        left.length > 0 && (
+          <button type="button" onClick={onStart} className={BUTTON}>
+            {record ? 'Take it again' : 'Start'}
+          </button>
+        )
+      )}
+    </section>
   )
 }
 
@@ -255,16 +400,23 @@ function StopButton({ onDone }: { onDone: () => void }) {
   )
 }
 
-// A track ---------------------------------------------------------------------
+// Topics: a track, or one foundations list ------------------------------------
 
-function TrackRun({
-  track,
+function TopicsRun({
+  title,
+  subject,
+  scope,
   order,
   learned,
   onDone,
 }: {
-  track: Track
-  /** The track's open topics the learner hasn't learned, in order. */
+  /** What's being walked, for the headings: a track's title, or a list's. */
+  title: string
+  /** The placement event's topic_id: a track's id, or the list's subject. */
+  subject: string
+  /** The foundations list, when the run walks one and not a whole track. */
+  scope?: FoundationsScope
+  /** The open topics the learner hasn't learned, in the order to walk. */
   order: Topic[]
   learned: (topicId: string) => boolean
   onDone: () => void
@@ -289,14 +441,21 @@ function TrackRun({
       nextWalk,
       nextProbes,
     )
+    // A list's run says which list, so its result is never read as the
+    // whole track's (docs/specs/data-model.md).
+    const list: PlacementList | undefined = scope && {
+      track: scope.track.id,
+      module: scope.module.id,
+    }
     record({
       type: 'placement',
-      topic_id: track.id,
+      topic_id: subject,
       item_id: 'placement',
       context: 'placement',
       data: {
         run,
-        kind: 'track',
+        kind: list ? 'foundations' : 'track',
+        ...(list ? { list } : {}),
         known: placement.known,
         next: placement.next,
         asked: placement.asked,
@@ -309,8 +468,9 @@ function TrackRun({
 
   if (result) {
     return (
-      <TrackResult
-        track={track}
+      <TopicsResult
+        title={title}
+        scope={scope}
         result={result}
         learned={learned}
         onDone={onDone}
@@ -323,7 +483,7 @@ function TrackRun({
   return (
     <section aria-labelledby={headingId} className="space-y-4">
       <h2 id={headingId} className="text-xl font-semibold">
-        {track.title}: placement
+        {title}: placement
       </h2>
       <Progress
         checked={probes.length}
@@ -459,7 +619,7 @@ function TopicProbe({
         onGraded={graded}
       />
       {answered && (
-        <button type="button" onClick={next} className={BUTTON}>
+        <button type="button" onClick={next} className={PRIMARY_BUTTON}>
           Next question
         </button>
       )}
@@ -467,13 +627,16 @@ function TopicProbe({
   )
 }
 
-function TrackResult({
-  track,
+function TopicsResult({
+  title,
+  scope,
   result,
   learned,
   onDone,
 }: {
-  track: Track
+  title: string
+  /** The foundations list the run walked, if it wasn't a whole track. */
+  scope?: FoundationsScope
   result: Placement
   learned: (topicId: string) => boolean
   onDone: () => void
@@ -485,21 +648,24 @@ function TrackResult({
       (topic): topic is Topic => topic !== undefined && !learned(topic.id),
     )
   const next = result.next ? getTopic(result.next) : undefined
+  // From a list, a topic's page keeps the way back to the track it's for.
+  const linkTo = (topicId: string) =>
+    scope ? foundationLink(topicId, scope.track) : `/topic/${topicId}`
   return (
     <section aria-labelledby={headingId} className="space-y-4">
       <h2 id={headingId} className="text-xl font-semibold">
-        {track.title}: where to start
+        {title}: where to start
       </h2>
       <p>
         You answered {result.correct} of {result.asked} right.
       </p>
       {result.known.length === 0 ? (
         <p>
-          Start at the beginning
+          Start at the beginning{scope && ' of the list'}
           {next && (
             <>
               :{' '}
-              <Link to={`/topic/${next.id}`} className="underline">
+              <Link to={linkTo(next.id)} className="underline">
                 {next.title}
               </Link>
             </>
@@ -513,10 +679,15 @@ function TrackResult({
             {next ? (
               <>
                 Your knowledge seems to run out at{' '}
-                <Link to={`/topic/${next.id}`} className="underline">
+                <Link to={linkTo(next.id)} className="underline">
                   {next.title}
                 </Link>
                 . That's where to start learning.
+              </>
+            ) : scope ? (
+              <>
+                You seem to know everything Module {scope.number} builds on from
+                other tracks.
               </>
             ) : (
               <>You seem to know everything written here so far.</>
@@ -536,7 +707,7 @@ function TrackResult({
               <ol className="list-decimal space-y-1 pl-6">
                 {toProve.map((topic) => (
                   <li key={topic.id}>
-                    <Link to={`/topic/${topic.id}`} className="underline">
+                    <Link to={linkTo(topic.id)} className="underline">
                       {topic.title}
                     </Link>
                   </li>
@@ -546,10 +717,18 @@ function TrackResult({
           )}
         </>
       )}
-      <p>
+      <p className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={onDone} className={SECONDARY_BUTTON}>
           Back to the placement test
         </button>
+        {scope && (
+          <Link
+            to={foundationsMapLink(scope.track, scope.module)}
+            className="underline"
+          >
+            Back to the list on the map
+          </Link>
+        )}
       </p>
     </section>
   )
@@ -732,7 +911,7 @@ function LevelProbe({
         onAnswer={(correct, choice) => graded(item, correct, choice)}
       />
       {answered && (
-        <button type="button" onClick={next} className={BUTTON}>
+        <button type="button" onClick={next} className={PRIMARY_BUTTON}>
           Next question
         </button>
       )}

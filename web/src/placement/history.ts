@@ -4,7 +4,15 @@
 import type { EventRow } from '../events/types.ts'
 import { getSupabase } from '../supabase/client.ts'
 
-export type PlacementKind = 'track' | 'diagnostic'
+/**
+ * What a run walked: a whole track, a diagnostic's ladder, or one list of
+ * "what this module needs from other tracks" (`foundations`, ADR-0021's
+ * amendment of 2026-11-21).
+ */
+export type PlacementKind = 'track' | 'diagnostic' | 'foundations'
+
+/** Which foundations list a run walked: the module it's listed before. */
+export type PlacementList = { track: string; module: string }
 
 /** One finished placement run. */
 export type PlacementRecord = {
@@ -12,9 +20,15 @@ export type PlacementRecord = {
   id: string
   /** The run's id, shared with the answers given during it. */
   run: string
-  /** A track's id, or `diagnostic.<id>` for a diagnostic like math. */
+  /**
+   * A track's id, `diagnostic.<id>` for a diagnostic like math, or
+   * `foundations.<module id>` for one module's foundations list. The three
+   * never share a subject, so a list's result can't replace a track's.
+   */
   subject: string
   kind: PlacementKind
+  /** The list walked, when the kind is `foundations`. */
+  list?: PlacementList
   /** When it finished, in ISO format, UTC. */
   at: string
   /** The topics or levels, in order, that count as known. */
@@ -37,12 +51,30 @@ export function diagnosticOfSubject(subject: string): string | null {
     : null
 }
 
+const FOUNDATIONS = 'foundations.'
+
+/**
+ * The events' topic_id for a module's foundations list. Module ids are
+ * unique across tracks (`fin.m1`, `ml.m1`), so the module names the list.
+ */
+export function subjectOfFoundations(moduleId: string): string {
+  return `${FOUNDATIONS}${moduleId}`
+}
+
 type Row = {
   id: string
   type: string
   topic_id: string
   occurred_at: string
   data: unknown
+}
+
+/** The `list` in a foundations run's data, if it's whole. */
+function toPlacementList(value: unknown): PlacementList | null {
+  if (value === null || typeof value !== 'object') return null
+  const { track, module } = value as Record<string, unknown>
+  if (typeof track !== 'string' || typeof module !== 'string') return null
+  return { track, module }
 }
 
 function isTextList(value: unknown): value is string[] {
@@ -60,14 +92,25 @@ export function toPlacementRecord(row: Row): PlacementRecord | null {
       : {}
   const { run, kind, known, next, asked, correct } = data
   if (typeof run !== 'string') return null
-  if (kind !== 'track' && kind !== 'diagnostic') return null
+  if (kind !== 'track' && kind !== 'diagnostic' && kind !== 'foundations') {
+    return null
+  }
   if (!isTextList(known)) return null
   if (next !== null && typeof next !== 'string') return null
+  // A list's result has to say which list, under the list's own subject:
+  // anything else could pass for a whole track's result.
+  const list = kind === 'foundations' ? toPlacementList(data.list) : null
+  if (kind === 'foundations') {
+    if (!list || row.topic_id !== subjectOfFoundations(list.module)) return null
+  } else if (row.topic_id.startsWith(FOUNDATIONS)) {
+    return null
+  }
   return {
     id: row.id,
     run,
     subject: row.topic_id,
     kind,
+    ...(list ? { list } : {}),
     at: new Date(row.occurred_at).toISOString(),
     known,
     next: next ?? null,
