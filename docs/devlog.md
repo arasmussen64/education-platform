@@ -8,7 +8,7 @@ A dated log of each working session: what changed, what was decided, what's next
 
 **What changed.** The Account page has a new section, "Start a track over", with one row per track: how many of its topics have progress, when it was last started over, and a "Start … over" button. The button opens a second step that lists what goes (every topic back to not started, with its proofs, reviews, mistakes coming back and placement results; drafts in this browser) and what stays (practice hours and weeks, the forgetting curve, every other track, and the full history). Confirming records one `track_reset` event naming the track.
 
-**How it works without deleting anything.** The event log is append-only ([ADR-0008](decisions/0008-event-log.md)), so a reset can't erase events. Instead the progress code ignores a track's events from before its newest reset. `web/src/resets/resets.ts` reads the resets and filters with `afterResets`; `useProgress` applies it to graded events and checkpoint steps opened, and `usePlacements` to placement results. `ProgressState` now has `attempts` (after resets) and `allAttempts` (everything): the Today page's practice hours, weeks practised and daily review limit use the second. The decision is [ADR-0029](decisions/0029-starting-a-track-over.md), _Proposed_.
+**How it works without deleting anything.** The event log is append-only ([ADR-0008](decisions/0008-event-log.md)), so a reset can't erase events. Instead the progress code ignores a track's events from before its newest reset. `web/src/resets/resets.ts` reads the resets and filters with `afterResets`; `useProgress` applies it to graded events and checkpoint steps opened, and `usePlacements` to placement results. `ProgressState` now has `attempts` (after resets) and `allAttempts` (everything): the Today page's practice hours, weeks practised and daily review limit use the second. The decision is [ADR-0029](decisions/0029-starting-a-track-over.md), accepted by the owner the same day.
 
 **Database.** Migration `20261121230000_track_reset_events.sql` adds `track_reset` to the event types, with a database test. Docker wasn't running, so the database tests ran only in CI. It joins the owner queue's item 1: until it's pushed, the live server refuses a reset like any new event type.
 
@@ -21,7 +21,9 @@ A dated log of each working session: what changed, what was decided, what's next
 - _The reset's context is `learn`,_ so the migration changes only the type list, not the context list.
 - _Placed on the Account page,_ not the map, so it's hard to press by accident; the second step is in the page, not a browser dialog.
 
-**Next:** the owner pushes the migrations (queue item 1), then cloud Module 4 as before.
+**Then the owner said** "You're allowed to merge. push it. accept 0029". #344 was merged; a dry run of `npx supabase db push --remote` listed exactly the three waiting migrations (placement events, the larger event size limit, and track resets), they were applied, and a second dry run reports the live database up to date. ADR-0029 is accepted.
+
+**Next:** cloud Module 4, security and identity foundations, as before.
 
 ## 2026-11-21, end: Momentum stage 3, named colours on every page
 
