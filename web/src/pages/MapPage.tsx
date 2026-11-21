@@ -18,6 +18,11 @@ import {
 } from '../content/foundations.ts'
 import type { Module, Topic, Track } from '../content/types.ts'
 import {
+  type PlacementRecord,
+  subjectOfFoundations,
+} from '../placement/history.ts'
+import { usePlacements } from '../placement/usePlacements.ts'
+import {
   furtherParts,
   PROOFS,
   STATE_LABELS,
@@ -138,6 +143,8 @@ function LoadedTrackMap({ track }: { track: Track }) {
     [topics, foundations],
   )
   const progress = useProgress(withPrerequisites)
+  // Each foundations list shows its own placement result, if it has one.
+  const placements = usePlacements()
   useScrollToHash()
   // Drafts count as "still being written": the dev server can open them,
   // but the note is about what a learner can do.
@@ -164,6 +171,11 @@ function LoadedTrackMap({ track }: { track: Track }) {
             module={module}
             number={index + 1}
             foundations={foundations[index]}
+            placement={
+              placements.status === 'ready'
+                ? placements.latest.get(subjectOfFoundations(module.id))
+                : undefined
+            }
             progress={progress}
             now={now}
           />
@@ -222,6 +234,7 @@ function ModuleSection({
   module,
   number,
   foundations,
+  placement,
   progress,
   now,
 }: {
@@ -230,6 +243,8 @@ function ModuleSection({
   number: number
   /** The other tracks' topics this module builds on. */
   foundations?: ModuleFoundations
+  /** The latest placement test of that list alone (ADR-0021). */
+  placement?: PlacementRecord
   progress: ProgressState
   now: string
 }) {
@@ -279,6 +294,7 @@ function ModuleSection({
             module={module}
             number={number}
             topics={foundations.topics}
+            placement={placement}
             progress={
               progress.status === 'ready' ? progress.progress : undefined
             }

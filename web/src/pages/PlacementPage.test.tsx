@@ -7,6 +7,7 @@ import {
   mainTrack,
   topicIdsOf,
 } from '../content/content.ts'
+import { findFoundations } from '../content/foundations.ts'
 import type { Topic } from '../content/types.ts'
 import type { EventRow } from '../events/types.ts'
 import { fetchAttempts } from '../followups/history.ts'
@@ -74,11 +75,22 @@ const ORDER: Topic[] = topicIdsOf(mainTrack())
 const MATH = getDiagnostic('math')
 if (!MATH) throw new Error('the math diagnostic is bundled')
 
-function renderPlacement(placements: PlacementRecord[] = []) {
+// What Finance and Markets' Module 1 needs from other tracks, as the
+// list's own placement test walks it: no checkpoints.
+const LIST_PATH = '/placement?for=finance&module=fin.m1'
+const LIST_NAME = 'Before Module 1 of Finance and Markets'
+const LIST_ORDER: Topic[] = (
+  findFoundations('finance', 'fin.m1')?.topics ?? []
+).filter((topic) => topic.kind === 'topic' && topic.status === 'ready')
+
+function renderPlacement(
+  placements: PlacementRecord[] = [],
+  path = '/placement',
+) {
   vi.mocked(fetchAttempts).mockResolvedValue([])
   vi.mocked(fetchPlacements).mockResolvedValue(placements)
   const client = fakeEventsClient()
-  renderApp('/placement', fakeAuth(fakeUser()), client)
+  renderApp(path, fakeAuth(fakeUser()), client)
   return { client }
 }
 
@@ -99,25 +111,28 @@ async function answer(choice: string) {
   await userEvent.click(screen.getByRole('button', { name: 'Next question' }))
 }
 
-/** The topic the question showing is from. */
-function topicShowing(): Topic {
+/** The topic the question showing is from, among those being walked. */
+function topicShowing(order: Topic[] = ORDER): Topic {
   const text = screen.getByText(/^From the topic/).textContent ?? ''
   const title = text.replace('From the topic ', '')
-  const topic = ORDER.find((each) => each.title === title)
-  if (!topic) throw new Error(`no open topic called ${title}`)
+  const topic = order.find((each) => each.title === title)
+  if (!topic) throw new Error(`no topic called ${title} in what's walked`)
   return topic
 }
 
-/** Walks a Python placement, answering right for the first `known` topics. */
-async function walkPython(known: number) {
+/** Walks a placement, answering right for the first `known` topics of `order`. */
+async function walk(order: Topic[], known: number) {
   for (let step = 0; step < 40; step++) {
     if (screen.queryByRole('heading', { name: /where to start/ })) return
     await screen.findByRole('radio', { name: 'right' })
-    const index = ORDER.indexOf(topicShowing())
+    const index = order.indexOf(topicShowing(order))
     await answer(index < known ? 'right' : 'wrong')
   }
   throw new Error('the placement never finished')
 }
+
+/** Walks a Python placement, answering right for the first `known` topics. */
+const walkPython = (known: number) => walk(ORDER, known)
 
 describe('the placement page', () => {
   beforeEach(() => {
@@ -437,6 +452,199 @@ describe('the placement page', () => {
     expect(
       within(python).getByRole('button', { name: 'Take it again' }),
     ).toBeInTheDocument()
+  })
+
+  describe("for one module's foundations list", () => {
+    // The learner this is for: knows Python, not yet the ML track's math.
+    const PYTHON_KNOWN = LIST_ORDER.findIndex((topic) =>
+      topic.id.startsWith('ml.'),
+    )
+
+    it('offers only that list, with a way to every other test', async () => {
+      renderPlacement([], LIST_PATH)
+      const card = await region(LIST_NAME)
+      expect(card).toHaveTextContent(
+        `Only the ${LIST_ORDER.length} topics from other tracks that Module 1 builds on, in the order to learn them; 0 of them learned. About 5 topics' worth of questions.`,
+      )
+      expect(
+        within(card).getByRole('link', { name: 'See the list on the map' }),
+      ).toHaveAttribute('href', '/map/finance#foundations-fin.m1')
+      expect(within(card).getByRole('button', { name: 'Start' })).toBeEnabled()
+      // No whole track, and no math ladder, on this page.
+      expect(
+        screen.queryByRole('region', { name: 'Python Foundations' }),
+      ).toBeNull()
+      expect(
+        screen.queryByRole('region', { name: 'Math for machine learning' }),
+      ).toBeNull()
+      expect(
+        screen.getByRole('link', { name: 'every placement test' }),
+      ).toHaveAttribute('href', '/placement')
+    })
+
+    it("walks only the list's topics, and finds where in the list to start", async () => {
+      // The list is Python first, then the ML track's math.
+      expect(PYTHON_KNOWN).toBeGreaterThan(0)
+      expect(LIST_ORDER.length).toBeLessThan(ORDER.length)
+      const { client } = renderPlacement([], LIST_PATH)
+      await userEvent.click(
+        within(await region(LIST_NAME)).getByRole('button', { name: 'Start' }),
+      )
+      // walk() throws if a question comes from a topic outside the list.
+      await walk(LIST_ORDER, PYTHON_KNOWN)
+
+      const result = await region(`${LIST_NAME}: where to start`)
+      const next = LIST_ORDER[PYTHON_KNOWN]
+      expect(next?.id.startsWith('ml.math.')).toBe(true)
+      expect(result).toHaveTextContent(
+        `Your knowledge seems to run out at ${next?.title}. That's where to start learning.`,
+      )
+      expect(result).toHaveTextContent(
+        `${PYTHON_KNOWN} topics before it look familiar. A test ticks nothing off`,
+      )
+      // Every link keeps the track the list is for.
+      const toProve = within(within(result).getByRole('list')).getAllByRole(
+        'link',
+      )
+      expect(toProve.map((link) => link.getAttribute('href'))).toEqual(
+        LIST_ORDER.slice(0, PYTHON_KNOWN).map(
+          (topic) => `/topic/${topic.id}?for=finance`,
+        ),
+      )
+      expect(
+        within(result).getByRole('link', { name: next?.title }),
+      ).toHaveAttribute('href', `/topic/${next?.id}?for=finance`)
+      expect(
+        within(result).getByRole('link', {
+          name: 'Back to the list on the map',
+        }),
+      ).toHaveAttribute('href', '/map/finance#foundations-fin.m1')
+
+      // Saved like any placement, but under the list's own subject, saying
+      // which list: never as a result for a track.
+      await waitFor(() => {
+        expect(
+          sentRows(client).filter((row) => row.type === 'placement'),
+        ).toHaveLength(1)
+      })
+      const rows = sentRows(client)
+      const answers = rows.filter((row) => row.type === 'answer')
+      expect(answers.every((row) => row.context === 'placement')).toBe(true)
+      const listIds = new Set(LIST_ORDER.map((topic) => topic.id))
+      expect(answers.every((row) => listIds.has(row.topic_id))).toBe(true)
+      const summary = rows.find((row) => row.type === 'placement')
+      expect(summary?.topic_id).toBe('foundations.fin.m1')
+      expect(summary?.item_id).toBe('placement')
+      expect(summary?.context).toBe('placement')
+      expect(summary?.data).toMatchObject({
+        kind: 'foundations',
+        list: { track: 'finance', module: 'fin.m1' },
+        known: LIST_ORDER.slice(0, PYTHON_KNOWN).map((topic) => topic.id),
+        next: next?.id,
+      })
+      // It estimates and plans: nothing was marked as proven or learned.
+      expect(
+        rows.every((row) => row.type === 'answer' || row.type === 'placement'),
+      ).toBe(true)
+
+      // Back on the list's card, the result shows straight away.
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Back to the placement test' }),
+      )
+      const card = await region(LIST_NAME)
+      expect(card).toHaveTextContent(
+        `start at ${next?.title}, with ${PYTHON_KNOWN} topics to prove first.`,
+      )
+      expect(
+        within(card).getByRole('button', { name: 'Take it again' }),
+      ).toBeInTheDocument()
+    })
+
+    it('says so when the whole list looks familiar', async () => {
+      renderPlacement([], LIST_PATH)
+      await userEvent.click(
+        within(await region(LIST_NAME)).getByRole('button', { name: 'Start' }),
+      )
+      await walk(LIST_ORDER, LIST_ORDER.length)
+      const result = await region(`${LIST_NAME}: where to start`)
+      expect(result).toHaveTextContent(
+        'You seem to know everything Module 1 builds on from other tracks.',
+      )
+      expect(
+        within(within(result).getByRole('list')).getAllByRole('link'),
+      ).toHaveLength(LIST_ORDER.length)
+    })
+
+    it('starts at the beginning of the list when nothing is familiar', async () => {
+      renderPlacement([], LIST_PATH)
+      await userEvent.click(
+        within(await region(LIST_NAME)).getByRole('button', { name: 'Start' }),
+      )
+      await walk(LIST_ORDER, 0)
+      const result = await region(`${LIST_NAME}: where to start`)
+      expect(result).toHaveTextContent(
+        `Start at the beginning of the list: ${LIST_ORDER[0]?.title}.`,
+      )
+    })
+
+    const TRACK_RESULT: PlacementRecord = {
+      id: 'p1',
+      run: 'r1',
+      subject: 'python-foundations',
+      kind: 'track',
+      at: '2026-11-09T12:00:00.000Z',
+      known: ['py.programs-and-print', 'py.values-and-types'],
+      next: 'py.variables',
+      asked: 6,
+      correct: 4,
+    }
+    const LIST_RESULT: PlacementRecord = {
+      ...TRACK_RESULT,
+      id: 'p2',
+      run: 'r2',
+      subject: 'foundations.fin.m1',
+      kind: 'foundations',
+      list: { track: 'finance', module: 'fin.m1' },
+      at: '2026-11-20T12:00:00.000Z',
+      known: ['py.programs-and-print'],
+      next: 'py.values-and-types',
+    }
+
+    it("doesn't show a whole track's result as the list's", async () => {
+      renderPlacement([TRACK_RESULT], LIST_PATH)
+      const card = await region(LIST_NAME)
+      expect(card).not.toHaveTextContent('Placement on')
+      expect(within(card).getByRole('button', { name: 'Start' })).toBeEnabled()
+    })
+
+    it("keeps a list's result beside the tracks', each with its own", async () => {
+      renderPlacement([TRACK_RESULT, LIST_RESULT])
+      // The newer list result didn't replace the track's.
+      expect(await region('Python Foundations')).toHaveTextContent(
+        'start at Variables, with 2 topics to prove first.',
+      )
+      expect(await region('Finance and Markets')).not.toHaveTextContent(
+        'Placement on',
+      )
+      const card = await region(LIST_NAME)
+      expect(card).toHaveTextContent(
+        'start at Values and types, with 1 topic to prove first.',
+      )
+    })
+
+    it('shows no list card on the main page until a list has a result', async () => {
+      renderPlacement()
+      await region('Python Foundations')
+      expect(screen.queryByRole('region', { name: LIST_NAME })).toBeNull()
+    })
+
+    it('falls back to every test when the link names no list', async () => {
+      renderPlacement([], '/placement?for=finance&module=no-such-module')
+      expect(await region('Python Foundations')).toBeInTheDocument()
+      expect(
+        screen.getByText(/names a list this page can't find/),
+      ).toBeInTheDocument()
+    })
   })
 
   it('can be stopped, saving no result', async () => {

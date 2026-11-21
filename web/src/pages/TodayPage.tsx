@@ -19,8 +19,10 @@ import {
   tracks,
 } from '../content/content.ts'
 import {
+  findFoundations,
   foundationLink,
   foundationsAnchor,
+  foundationsTitle,
   prerequisitesInOrder,
   trackFoundations,
 } from '../content/foundations.ts'
@@ -50,6 +52,7 @@ import {
 } from '../progress/practiceTime.ts'
 import {
   describeDiagnosticRecord,
+  describeListRecord,
   describeTrackRecord,
 } from '../placement/describe.ts'
 import { subjectOfDiagnostic } from '../placement/history.ts'
@@ -767,6 +770,16 @@ function PlacementNote({
     ...tracks().map((track) => {
       const record = placements.latest.get(track.id)
       return record && `${track.title}. ${describeTrackRecord(record, learned)}`
+    }),
+    // A placement in one foundations list is its own result, under the
+    // list's name: it says nothing about a whole track.
+    ...[...placements.latest.values()].map((record) => {
+      const scope =
+        record.list && findFoundations(record.list.track, record.list.module)
+      return (
+        scope &&
+        `${foundationsTitle(scope)}. ${describeListRecord(record, learned)}`
+      )
     }),
     ...diagnostics().map((diagnostic) => {
       const record = placements.latest.get(subjectOfDiagnostic(diagnostic.id))

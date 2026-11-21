@@ -7,6 +7,7 @@ import { getTopic } from '../content/content.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import type { Attempt } from '../followups/followUps.ts'
 import { fetchAttempts } from '../followups/history.ts'
+import { fetchPlacements, type PlacementRecord } from '../placement/history.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { recordingEventLog } from '../test/fakeEvents.ts'
 import { MapPage } from './MapPage.tsx'
@@ -16,6 +17,11 @@ import { MapPage } from './MapPage.tsx'
 vi.mock('../followups/history.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../followups/history.ts')>()),
   fetchAttempts: vi.fn(),
+}))
+// So do the finished placements: none, unless a test says otherwise.
+vi.mock('../placement/history.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../placement/history.ts')>()),
+  fetchPlacements: vi.fn(async () => []),
 }))
 // No checkpoint's steps were ever opened.
 vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
@@ -251,6 +257,54 @@ describe("a module's foundations from other tracks", () => {
       }),
     ).toBeInTheDocument()
     expect(within(list).getByText(/^1 of 32 learned/)).toBeInTheDocument()
+  })
+
+  it("offers a placement test of just the list, and not the whole track's", async () => {
+    renderMap([], { path: '/map/finance' })
+    const list = await screen.findByRole('region', LIST)
+    expect(
+      within(list).getByRole('link', {
+        name: 'Take a placement test of just this list',
+      }),
+    ).toHaveAttribute('href', '/placement?for=finance&module=fin.m1')
+    expect(list).toHaveTextContent(/about \d topics' worth of questions/)
+  })
+
+  it("shows the list's own placement result, never a whole track's", async () => {
+    const found = {
+      run: 'r1',
+      at: '2026-11-20T12:00:00.000Z',
+      known: ['py.programs-and-print', 'py.values-and-types'],
+      next: 'py.variables',
+      asked: 6,
+      correct: 4,
+    }
+    const placements: PlacementRecord[] = [
+      // Placed in all of Python Foundations: not this list's result.
+      { ...found, id: 'p1', subject: 'python-foundations', kind: 'track' },
+      {
+        ...found,
+        id: 'p2',
+        subject: 'foundations.fin.m1',
+        kind: 'foundations',
+        list: { track: 'finance', module: 'fin.m1' },
+        known: ['py.programs-and-print'],
+        next: 'py.values-and-types',
+      },
+    ]
+    vi.mocked(fetchPlacements).mockResolvedValueOnce(placements)
+    renderMap([], { path: '/map/finance' })
+    const list = await screen.findByRole('region', LIST)
+    expect(
+      await within(list).findByText(
+        /^Placement on 2026-11-\d\d: start at Values and types, with 1 topic to prove first\.$/,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(list).getByRole('link', {
+        name: "Take this list's placement test again",
+      }),
+    ).toHaveAttribute('href', '/placement?for=finance&module=fin.m1')
   })
 
   it('shows nothing of the kind on a track that builds only on itself', () => {
