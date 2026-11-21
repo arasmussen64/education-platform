@@ -80,6 +80,13 @@ describe("a lesson's shape, measured while it's compiled", () => {
     )
     // 4 + 3 in the puzzle, 2 of code, 3 + 2 in the story; not the address.
     expect(shape.sections).toEqual([{ words: 14, blocks: 3, check: null }])
+    // The puzzle's question, for asking before the lesson is opened.
+    expect(shape.puzzle).toBe('Why is it so?')
+  })
+
+  it('names no puzzle for a lesson without one', async () => {
+    const shape = await shapeOfLesson('<Intro>\n\nJust text.\n\n</Intro>')
+    expect(shape).not.toHaveProperty('puzzle')
   })
 
   it("doesn't end a section at a question inside a list, or count a comment", async () => {

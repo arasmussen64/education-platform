@@ -441,6 +441,9 @@ function TopicRow({
             min={0}
             max={100}
             low={90}
+            // The best value is 100: without this the browser takes the
+            // middle, 50, and colours a fading topic as the good one.
+            optimum={100}
             value={memory}
             aria-hidden="true"
           />

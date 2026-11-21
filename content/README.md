@@ -142,7 +142,7 @@ Leave a blank line before and after each block, and inside a block that wraps te
 
 ### `<Puzzle>`: an opening puzzle
 
-`<Puzzle question="...">answer</Puzzle>` opens the intro with a question the lesson is about to answer. The learner types a guess, then presses "Show the answer". Wanting to know makes the answer stick (Gruber, Gelman & Ranganath 2014), and a guess made first helps even when it's wrong (Richland, Kornell & Kao 2009). The guess isn't graded or saved anywhere.
+`<Puzzle question="...">answer</Puzzle>` opens the intro with a question the lesson is about to answer. The learner types a guess, then presses "Show the answer". Wanting to know makes the answer stick (Gruber, Gelman & Ranganath 2014), and a guess made first helps even when it's wrong (Richland, Kornell & Kao 2009). The guess isn't graded or saved anywhere. The question is also asked on its own, before the lesson is opened: a session ends on the next topic's puzzle, and keeps the learner's guess on their device until they see the answer here ([ADR-0030](../docs/decisions/0030-reasons-to-come-back.md)). So write a question that makes sense with nothing around it.
 
 - It goes first inside `<Intro>`, before any text, and a lesson has one at most.
 - The question is at most 50 words; the answer, between the tags, at most 150.

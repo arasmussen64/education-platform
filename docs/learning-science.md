@@ -36,6 +36,10 @@ Learning that takes years depends on coming back. These are the behavioural-scie
 | **Habits form slowly, and survive a missed day** | Habits take about two months to form, and missing one day doesn't break them (Lally et al., 2010)                      | Practice counted in weeks ("4 of the last 5 weeks"), never as a daily streak; a calm welcome-back plan after a break, spread within the daily limit |
 | **Goal gradient and fresh starts**               | People push harder as a goal gets close (Kivetz et al., 2006) and begin more readily at a new start (Dai et al., 2014) | Progress through the current module ("6 of 8 topics proven"), and a new module marked as a fresh start. No points or badges                         |
 | **Honest plans**                                 | People underestimate how long tasks take                                                                               | Time figures stretched to the learner's own pace once three topics are proven                                                                       |
+| **An open question** | People want to get back to a task left unfinished (Ovsiankina, 1928), and tend to remember it better than a finished one (Zeigarnik, 1927; that half has replicated less well) | A sitting ends on a question: a guess at the next topic's opening puzzle, kept on this device until the lesson shows the answer, or the next unanswered question of a topic in progress ([ADR-0030](decisions/0030-reasons-to-come-back.md)) |
+| **Peak and end** | An experience is judged by its best moment and by how it ended (Kahneman et al., 1993) | Proving a topic gets a moment: the module's bar moving on, the topics it opened, when its first review comes. Facts only, and no points, badges or confetti |
+| **Loss aversion, with a real loss** | People work harder to keep something than to gain it (Kahneman & Tversky, 1979) | "Your memory" on the Today page: each learned topic's predicted recall now and a day from now, weakest first. The numbers are the scheduler's own |
+| **The right level of difficulty** | Training goes fastest when about 85% of answers are right (Wilson et al., 2019, for simple learners and yes-or-no questions, so a guide and not a rule) | The share of quick questions right on the first try, on the Account page, and a note in a topic's practice when it has been easy (go to the proofs) or hard (back to the lesson) |
 
 ## Programming-specific methods
 
@@ -84,6 +88,8 @@ Unrestricted, answer-giving AI can make practice look better while hurting real 
 - Gollwitzer, P. M., & Sheeran, P. (2006). Implementation intentions and goal achievement: A meta-analysis of effects and processes. _Advances in Experimental Social Psychology_.
 - Gruber, M. J., Gelman, B. D., & Ranganath, C. (2014). States of curiosity modulate hippocampus-dependent learning via the dopaminergic circuit. _Neuron_.
 - Guskey, T. R. (2007). Closing achievement gaps: Revisiting Benjamin S. Bloom's "Learning for Mastery". _Journal of Advanced Academics_.
+- Kahneman, D., Fredrickson, B. L., Schreiber, C. A., & Redelmeier, D. A. (1993). When more pain is preferred to less: Adding a better end. _Psychological Science_.
+- Kahneman, D., & Tversky, A. (1979). Prospect theory: An analysis of decision under risk. _Econometrica_.
 - Kalyuga, S., Ayres, P., Chandler, P., & Sweller, J. (2003). The expertise reversal effect. _Educational Psychologist_.
 - Kang, S. H. K., McDermott, K. B., & Roediger, H. L. (2007). Test format and corrective feedback modify the effect of testing on long-term retention. _European Journal of Cognitive Psychology_.
 - Kivetz, R., Urminsky, O., & Zheng, Y. (2006). The goal-gradient hypothesis resurrected. _Journal of Marketing Research_.
@@ -91,6 +97,7 @@ Unrestricted, answer-giving AI can make practice look better while hurting real 
 - Lister, R., et al. (2004). A multi-national study of reading and tracing skills in novice programmers. _ITiCSE Working Group Reports_.
 - Margulieux, L. E., Guzdial, M., & Catrambone, R. (2012). Subgoal-labeled instructional material improves performance and transfer in learning to develop mobile applications. _ICER_.
 - Mayer, R. E. _Multimedia Learning_. Cambridge University Press.
+- Ovsiankina, M. (1928). Die Wiederaufnahme unterbrochener Handlungen. _Psychologische Forschung_.
 - Parsons, D., & Haden, P. (2006). Parson's programming puzzles: A fun and effective learning tool for first programming courses. _ACE_.
 - Pashler, H., et al. (2008). Learning styles: Concepts and evidence. _Psychological Science in the Public Interest_.
 - Rawson, K. A., & Dunlosky, J. (2011). Optimizing schedules of retrieval practice for durable and efficient learning: How much is enough? _Journal of Experimental Psychology: General_.
@@ -106,4 +113,6 @@ Unrestricted, answer-giving AI can make practice look better while hurting real 
 - Szpunar, K. K., Khan, N. Y., & Schacter, D. L. (2013). Interpolated memory tests reduce mind wandering and improve learning of online lectures. _PNAS_.
 - van Gog, T., Kester, L., & Paas, F. (2011). Effects of worked examples, example-problem, and problem-example pairs on novices' learning. _Contemporary Educational Psychology_.
 - van Merriënboer, J. J. G., & Kirschner, P. A. _Ten Steps to Complex Learning_. Routledge.
+- Wilson, R. C., Shenhav, A., Straccia, M., & Cohen, J. D. (2019). The Eighty Five Percent Rule for optimal learning. _Nature Communications_.
 - Ye, J., Su, J., & Cao, Y. (2022). A stochastic shortest path algorithm for optimizing spaced repetition scheduling. _KDD_.
+- Zeigarnik, B. (1927). Das Behalten erledigter und unerledigter Handlungen. _Psychologische Forschung_.

@@ -13,6 +13,8 @@ import { FollowUpCard } from '../followups/FollowUpCard.tsx'
 import type { TopicContent } from '../content/types.ts'
 import { type Attempt, topicsToLoad } from '../followups/followUps.ts'
 import { useTopicContents } from '../followups/useTopicContents.ts'
+import { NextTimeCard } from '../nexttime/NextTimeCard.tsx'
+import { type NextTime, nextTimeFor } from '../nexttime/nextTime.ts'
 import { type Pace, paced, stretches, topicPace } from '../progress/pace.ts'
 import type { TopicProgress } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
@@ -135,6 +137,9 @@ function Session({ quick }: { quick: boolean }) {
   const [plan, setPlan] = useState<SessionPlan | null>(null)
   // The learner's pace (progress/pace.ts), for the new topic's time.
   const [pace, setPace] = useState<Pace | null>(null)
+  // The topic that comes next, which the five-minute session leaves out of
+  // its steps but still ends on a question about (ADR-0030).
+  const [next, setNext] = useState<NextTopic | null>(null)
   if (progress.status === 'ready' && plan === null) {
     const full = planSession({
       topics,
@@ -144,6 +149,7 @@ function Session({ quick }: { quick: boolean }) {
       now,
     })
     setPlan(quick ? quickPlan(full, quickCount(progress.attempts)) : full)
+    setNext(full.next)
     setPace(topicPace(topics, progress.progress, progress.attempts))
   }
   // Each topic's progress as the plan saw it, for its review's card.
@@ -161,9 +167,11 @@ function Session({ quick }: { quick: boolean }) {
             ...new Set([
               ...plan.reviews.map((review) => review.topic.id),
               ...topicsToLoad(plan.followUps),
+              // The next topic too, for the question the session ends on.
+              ...(next ? [next.topic.id] : []),
             ]),
           ].sort(),
-    [plan],
+    [plan, next],
   )
   const loaded = useTopicContents(ids)
   const [steps, setSteps] = useState<Step[] | null>(null)
@@ -188,7 +196,27 @@ function Session({ quick }: { quick: boolean }) {
     return <p className="text-muted">Getting your session ready…</p>
   }
   if (steps.length === 0) return <NothingToDo quick={quick} />
-  return <Steps steps={steps} progress={progress} now={now} pace={pace} />
+  const nextContent =
+    next && loaded.status === 'ready'
+      ? loaded.contents.get(next.topic.id)
+      : undefined
+  return (
+    <Steps
+      steps={steps}
+      progress={progress}
+      now={now}
+      pace={pace}
+      ending={
+        next && nextContent
+          ? nextTimeFor(
+              nextContent,
+              next.state === 'in-progress',
+              progress.attempts,
+            )
+          : null
+      }
+    />
+  )
 }
 
 function Steps({
@@ -196,11 +224,14 @@ function Steps({
   progress,
   now,
   pace,
+  ending,
 }: {
   steps: Step[]
   progress: Extract<ProgressState, { status: 'ready' }>
   now: string
   pace: Pace | null
+  /** The open question to end on (nexttime/nextTime.ts), if there is one. */
+  ending: NextTime | null
 }) {
   const [index, setIndex] = useState(0)
   const [today] = useState(() => dayOf(now))
@@ -217,7 +248,14 @@ function Steps({
   }
 
   if (index >= steps.length) {
-    return <Finished steps={steps} attempts={progress.attempts} since={now} />
+    return (
+      <Finished
+        steps={steps}
+        attempts={progress.attempts}
+        since={now}
+        ending={ending}
+      />
+    )
   }
   const step = steps[index]
   const last = index === steps.length - 1
@@ -302,10 +340,12 @@ function Finished({
   steps,
   attempts,
   since,
+  ending,
 }: {
   steps: Step[]
   attempts: Attempt[]
   since: string
+  ending: NextTime | null
 }) {
   const reviewed = new Set(
     steps.flatMap((step) =>
@@ -351,6 +391,8 @@ function Finished({
           ? `You finished ${done.join(' and ')}. Each one is saved and counts in full.`
           : 'Nothing was answered this time, and that is fine. Everything is still here when you come back.'}
       </p>
+      {/* End on a question, not on "done": a reason to come back. */}
+      {ending && <NextTimeCard nextTime={ending} />}
     </div>
   )
 }

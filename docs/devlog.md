@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-21, later: four reasons to come back
+
+**The owner asked** what would make the app "as addictive as possible", got a list of eight, and said: "Build 2, 3, 4, and 7." They are [ADR-0030](decisions/0030-reasons-to-come-back.md). Nothing in them changes what counts as learned, and there is no migration and no new event.
+
+**A sitting ends on an open question** (`web/src/nexttime/`). The guided session, its five-minute version and the moment a topic is proven end with a card about the topic that's next. Not started: its lesson's opening puzzle, question only, with a box for a guess, kept in `localStorage` under `guess:<topic id>`. The Today page shows the guess back ("Your guess is waiting") and the lesson's puzzle opens with it filled in. A lesson with no puzzle asks how the learner would do the topic's first goal. In progress: the next unanswered question, with its program or command, and nothing to answer it with. A topic page has the same card under "Stopping here for today?", folded. The build step that measures a lesson now also exports its puzzle's question.
+
+**Proving a topic gets a moment** (`web/src/progress/ProofMoment.tsx`). When the last proof passes during a visit: a panel at the top of the page, with focus moved to it, saying what the proof was, the module's bar growing by one, the topics it opened, when the first review comes, and then the open question. Once only. The bar is the only movement and respects reduced motion.
+
+**"Your memory" on the Today page** (`web/src/reviews/memory.ts`). The five learned topics remembered least well, each with the scheduler's estimate now and a day from now, and either "about 2 minutes to keep it" or when the next review comes. The session card names the most faded one.
+
+**"How hard it's been"** (`web/src/progress/difficulty.ts`). The share of quick questions right on the first try in lessons and practice, against 85% (Wilson et al., 2019): on the Account page with the topics furthest off, and as a note in a topic's practice when its own figure is 95% or more (go to the proofs) or under 70% (back to the lesson).
+
+**Author notes:**
+
+- _"Addictive" was built as "worth coming back to"._ Streaks, points and random rewards stay out, as `learning-science.md` already says; each of the four gets its pull from a fact about the learner's own work.
+- _The guess is kept on the device, not saved as an event._ It isn't graded work, and it needs no schema. It doesn't follow the learner to another device.
+- _Only 49 lessons have a puzzle,_ so most topics get the weaker goal question for now. A puzzle per lesson is content work that improves two places at once.
+- _The 85% figure counts quick questions only,_ first tries, in lessons and practice. Checks of programs, reviews, proofs, placement and "Check what you know" are left out, each for a reason given in `difficulty.ts`. The bands (under 70% hard, 95% and up easy) and the minimum counts (20 overall, 8 in a topic) are my choices.
+- _With one learner, "which questions are off" is really "which topics are off for you"._ Per-question figures need more learners.
+- _A bug found on the way:_ the map's memory bar had no stated best value, so browsers drew a fading topic green and a fresh one yellow. Fixed with one attribute.
+- _Seen by eye on a throwaway preview page with made-up progress, in dark mode,_ on my own server: the proof moment, the memory list, both kinds of end card, and the difficulty section and notes. Docker wasn't running, so the real signed-in pages (Today, the session's end, a real proof) rest on their tests. Light mode wasn't seen.
+- _Another session had uncommitted work in the main folder_ (a "start a track over" branch, ADR-0029), so this was built in its own worktree. Both touch `TodayPage.tsx` and `AccountPage.tsx`; whichever lands second merges main in.
+
+**The question about lessons** ("bring the lessons into the app instead of a link"): answered in the session, not built. The count: of 135 ready topics, 26 have an embedded video as their main resource (22 in Python, 4 in cloud), 17 ML topics link to a video that could be embedded, 87 link to a reading and 5 to an interactive page. The readings' licences vary from "copy with credit" to "link only", so the recommendation was our own text in every lesson with the outside page as optional further reading, and an embedded video where a good one exists.
+
+**Next:** cloud Module 4, security and identity foundations.
 ## 2026-11-21, later: start a track over
 
 **The owner asked:** "Give me a way to reset my progress on each track so I can start fresh."

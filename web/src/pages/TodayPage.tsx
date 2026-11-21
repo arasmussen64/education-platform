@@ -57,11 +57,13 @@ import {
 } from '../placement/describe.ts'
 import { subjectOfDiagnostic } from '../placement/history.ts'
 import { usePlacements } from '../placement/usePlacements.ts'
+import { recallGuess } from '../nexttime/guesses.ts'
 import { countModule, describeModule } from '../progress/modules.ts'
 import {
   formatRatio,
   type Pace,
   paced,
+  reviewItemMinutes,
   stretches,
   topicPace,
 } from '../progress/pace.ts'
@@ -72,6 +74,8 @@ import {
   type WeeksPractised,
   weeksPractised,
 } from '../progress/weeks.ts'
+import { MemoryList } from '../reviews/MemoryList.tsx'
+import { describeDrop, memoryRows } from '../reviews/memory.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
 import { EVENING_LINE, isLateEvening } from '../session/evening.ts'
 import { type WelcomeBack, welcomeBack } from '../session/welcomeBack.ts'
@@ -94,6 +98,7 @@ import {
 import {
   type DueReview,
   dueReviews,
+  ITEMS_PER_REVIEW,
   reviewsLeftToday,
 } from '../reviews/reviews.ts'
 
@@ -165,9 +170,46 @@ function Plan() {
       <Reviews topics={topics} progress={progress} now={now} />
       <Revisit progress={progress} />
       <NextUp topics={topics} progress={progress} pace={pace} />
+      <Memory topics={topics} progress={progress} now={now} />
       <PracticeHours progress={progress} now={now} />
       <StudyPlanQuestion state={studyPlan} />
     </>
+  )
+}
+
+/**
+ * How well the learned topics are remembered, weakest first (ADR-0030):
+ * fixed when the history first loads, like the sections above it, so a
+ * review finished on this page doesn't reshuffle it.
+ */
+function Memory({
+  topics,
+  progress,
+  now,
+}: {
+  topics: Topic[]
+  progress: ProgressState
+  now: string
+}) {
+  const [seen, setSeen] = useState<{
+    progress: Map<string, TopicProgress>
+    minutes: number
+  } | null>(null)
+  if (progress.status === 'ready' && seen === null) {
+    setSeen({
+      progress: progress.progress,
+      minutes: ITEMS_PER_REVIEW * reviewItemMinutes(progress.attempts),
+    })
+  }
+  const open = useMemo(() => topics.filter(isOpen), [topics])
+  if (seen === null) return null
+  return (
+    <MemoryList
+      topics={open}
+      progress={seen.progress}
+      now={now}
+      minutesPerReview={seen.minutes}
+    />
   )
 }
 
@@ -263,6 +305,12 @@ function StartSession({
     next && progress.status === 'ready'
       ? moduleLine(next.topic.id, progress.progress)
       : null
+  // What the first review is there to keep (ADR-0030): the plan's reviews
+  // are the most faded first, so the first one is the weakest memory.
+  const weakest =
+    reviews.length > 0 && progress.status === 'ready'
+      ? (memoryRows([reviews[0].topic], progress.progress, now)[0] ?? null)
+      : null
 
   return (
     <section
@@ -275,7 +323,13 @@ function StartSession({
       <p>
         {summary} {time}
       </p>
+      {weakest && (
+        <p className="text-muted">
+          The most faded is {weakest.topic.title}, {describeDrop(weakest)}.
+        </p>
+      )}
       {whereInModule && <p className="text-muted">{whereInModule}</p>}
+      {next && <WaitingGuess topic={next.topic} />}
       <Link to={SESSION_PATH} className={PRIMARY_BUTTON}>
         Start today's session
       </Link>
@@ -293,6 +347,36 @@ function StartSession({
         </p>
       )}
     </section>
+  )
+}
+
+/**
+ * The guess the learner left at the end of an earlier session (ADR-0030,
+ * nexttime/), about the topic that's next: the question again, and where
+ * its answer is. An open question is a reason to come back.
+ */
+function WaitingGuess({ topic }: { topic: Topic }) {
+  // Read once: it's on this device, and doesn't change while the page is open.
+  const [waiting] = useState(() => recallGuess(topic.id))
+  if (!waiting) return null
+  return (
+    <div className="space-y-1 border-l-4 border-muted pl-3">
+      <p className="text-sm font-semibold tracking-wide text-muted uppercase">
+        Your guess is waiting
+      </p>
+      <div className="font-medium">
+        <Markdown inline>{waiting.question}</Markdown>
+      </div>
+      <p className="text-sm text-muted">
+        You guessed: {waiting.guess}{' '}
+        <Link to={`/topic/${topic.id}`} className="underline">
+          {waiting.source === 'puzzle'
+            ? `See the answer in ${topic.title}`
+            : `See how it holds up in ${topic.title}`}
+        </Link>
+        .
+      </p>
+    </div>
   )
 }
 

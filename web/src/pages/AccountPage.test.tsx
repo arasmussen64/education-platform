@@ -1,13 +1,15 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { fetchRatedAnswers } from '../confidence/confidence.ts'
 import type { EventLog } from '../events/eventLog.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import { downloadJson, downloadText } from '../export/download.ts'
 import { collectExport, type DataExport } from '../export/exportData.ts'
+import type { Attempt } from '../followups/followUps.ts'
+import { fetchAttempts } from '../followups/history.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { eventRow, recordingEventLog } from '../test/fakeEvents.ts'
 import { AccountPage } from './AccountPage.tsx'
@@ -350,5 +352,54 @@ describe('the study plan on the account page', () => {
     expect(
       within(section()).getByRole('button', { name: 'Save my plan' }),
     ).toBeInTheDocument()
+  })
+})
+
+describe('how hard it has been, on the account page (ADR-0030)', () => {
+  beforeEach(() => {
+    vi.mocked(fetchRatedAnswers).mockReset().mockResolvedValue([])
+  })
+  afterEach(() => {
+    vi.mocked(fetchAttempts).mockResolvedValue([])
+  })
+
+  const section = () =>
+    screen.getByRole('region', { name: "How hard it's been" })
+
+  /** First tries at `count` questions of a topic, `right` of them right. */
+  function tries(count: number, right: number, topicId: string): Attempt[] {
+    return Array.from({ length: count }, (_, index) => ({
+      id: `${topicId}-${index}`,
+      type: 'answer' as const,
+      topic_id: topicId,
+      item_id: `q${index}`,
+      correct: index < right,
+      occurred_at: new Date(Date.UTC(2026, 10, 1, 12, index)).toISOString(),
+      context: 'practice' as const,
+    }))
+  }
+
+  it('says there are too few first tries until there are 20', async () => {
+    renderAccount()
+    expect(
+      await within(section()).findByText(/Too few first tries to say yet/),
+    ).toBeInTheDocument()
+  })
+
+  it('gives the share right first time, what it means, and the topics furthest off', async () => {
+    vi.mocked(fetchAttempts).mockResolvedValue([
+      ...tries(12, 4, 'py.programs-and-print'),
+      ...tries(12, 12, 'py.values-and-types'),
+    ])
+    renderAccount()
+    expect(
+      await within(section()).findByText(/16 of 24 right first time \(67%\)/),
+    ).toBeInTheDocument()
+    expect(section()).toHaveTextContent('That is on the hard side')
+    const topics = within(section()).getAllByRole('listitem')
+    expect(topics.map((topic) => topic.textContent)).toEqual([
+      'Programs and print: 4 of 12 right first time (33%), hard for you.',
+      'Values and types: 12 of 12 right first time (100%), easy for you.',
+    ])
   })
 })

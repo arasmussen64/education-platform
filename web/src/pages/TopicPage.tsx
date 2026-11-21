@@ -51,6 +51,7 @@ import { TopicOutline } from '../components/TopicOutline.tsx'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { ExplainCheck, ExplainClosed } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
+import { SavedGuessNote, StoppingHere } from '../nexttime/TopicEnds.tsx'
 import { BREAK_ID, PartBreak } from '../parts/PartBreak.tsx'
 import { recallPart, rememberPart } from '../parts/partMemory.ts'
 import { QuickCheck, QuickCheckOffer } from '../parts/QuickCheck.tsx'
@@ -99,6 +100,8 @@ import {
   type TopicProgress,
   type TopicState,
 } from '../progress/progress.ts'
+import { DifficultyNote } from '../progress/DifficultyParts.tsx'
+import { ProofMoment } from '../progress/ProofMoment.tsx'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import { bundledTopics } from '../session/sessionPlan.ts'
 import type { topicLoader } from './topicLoader.ts'
@@ -244,6 +247,17 @@ export function TopicView({
     progress.status === 'ready'
       ? (progress.progress.get(topic.id)?.learnedAt ?? null)
       : null
+  // Whether the topic was already proven when the page first knew: only a
+  // proof finished during this visit gets its moment (ADR-0030).
+  const [learnedAtLoad, setLearnedAtLoad] = useState<string | null | undefined>(
+    undefined,
+  )
+  if (learnedAtLoad === undefined && progress.status === 'ready') {
+    setLearnedAtLoad(learnedAt)
+  }
+  const justProven = learnedAtLoad === null && learnedAt !== null
+  // Read the clock once, for "its first review comes in 3 days".
+  const [now] = useState(() => new Date().toISOString())
   const partNumber = currentPart ? parts.indexOf(currentPart) + 1 : 0
   // "Part 2 of 5 · about 30 min", above the part's heading, once there's
   // more than one part.
@@ -289,6 +303,14 @@ export function TopicView({
       <div
         className={`space-y-10 ${showOutline ? 'lg:col-start-1 lg:row-start-2' : 'lg:col-span-2'}`}
       >
+        {justProven && progress.status === 'ready' && (
+          <ProofMoment
+            topic={topic}
+            progress={progress.progress}
+            attempts={progress.attempts}
+            now={now}
+          />
+        )}
         {content && content.topic.kind === 'checkpoint' && (
           <>
             <SignInToSave />
@@ -306,8 +328,9 @@ export function TopicView({
             <TopicGoals
               objectives={topic.objectives}
               learnedOn={learnedAt ? shortDate(learnedAt) : null}
-              // Unfolded where the lesson starts, folded on the other parts.
-              open={currentPart.id === 'learn'}
+              // Unfolded where the lesson starts, and when the topic has just
+              // been proven, so the ticks are seen; folded otherwise.
+              open={currentPart.id === 'learn' || justProven}
             />
             {locked && <LockedNotice topic={topic} progress={progress} />}
             {state === 'available' && currentPart.kind !== 'prove' && (
@@ -316,6 +339,9 @@ export function TopicView({
             )}
             {breakAfter && (
               <PartBreak finished={breakAfter} onDismiss={endBreak} />
+            )}
+            {currentPart.id === 'learn' && !learnedAt && (
+              <SavedGuessNote topic={topic} />
             )}
             {currentPart.kind === 'learn' && (
               <Learn content={content} part={currentPart} eyebrow={eyebrow} />
@@ -332,6 +358,17 @@ export function TopicView({
                     flushSync(() => setQuickOpenOn(currentPart.id))
                     document.getElementById('quick-check')?.focus()
                   }}
+                />
+              )}
+            {currentPart.kind === 'practice' &&
+              quickOpenOn !== currentPart.id &&
+              progress.status === 'ready' &&
+              !learnedAt && (
+                <DifficultyNote
+                  topicId={topic.id}
+                  attempts={progress.attempts}
+                  onProve={() => openPart('prove')}
+                  onLesson={() => openPart('learn')}
                 />
               )}
             {currentPart.kind === 'practice' &&
@@ -379,6 +416,9 @@ export function TopicView({
                   )
                 }
               />
+            )}
+            {progress.status === 'ready' && !learnedAt && !locked && (
+              <StoppingHere content={content} attempts={progress.attempts} />
             )}
           </>
         )}

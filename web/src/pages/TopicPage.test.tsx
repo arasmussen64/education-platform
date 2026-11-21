@@ -2234,3 +2234,202 @@ beforeEach(() => {
 beforeEach(() => {
   window.history.replaceState(null, '', '/')
 })
+
+describe('the moment a topic is proven (ADR-0030)', () => {
+  beforeEach(() => {
+    setFakeRunner()
+    openAt('prove-it')
+  })
+
+  const moment = () => screen.queryByRole('region', { name: /You've proven/ })
+
+  it('shows when the last proof passes on the page: what it earned, and what is next', async () => {
+    setFakeRunner(fakeRunner({ check: allPassed('Greets') }))
+    const topic = fakeTopic()
+    render(
+      <AuthProvider auth={fakeAuth(fakeUser())}>
+        <EventsProvider client={fakeEventsClient()}>
+          <MemoryRouter>
+            <TopicView
+              topic={topic}
+              content={fakeContent(topic)}
+              loadAttempts={vi.fn((_topicId: string) =>
+                Promise.resolve([
+                  ...unlocked(topic),
+                  passedCheck('build-hello'),
+                  explainPassed(),
+                ]),
+              )}
+            />
+          </MemoryRouter>
+        </EventsProvider>
+      </AuthProvider>,
+    )
+    await screen.findByRole('list', { name: 'Your proof so far:' })
+    expect(moment()).not.toBeInTheDocument()
+
+    const debug = screen.getByRole('region', {
+      name: 'Debug: Fix the greeting',
+    })
+    await userEvent.click(within(debug).getByRole('button', { name: 'Check' }))
+    const heading = await screen.findByRole('heading', {
+      name: /You've proven Values and types/,
+    })
+    // Focus moves to it, for keyboards and screen readers.
+    expect(heading).toHaveFocus()
+    const section = moment()!
+    expect(section).toHaveTextContent('Topic proven')
+    // The module's count, with this topic in it, and a bar that shows it.
+    expect(section).toHaveTextContent(
+      /\d+ of \d+ topics proven in Module 1, First programs/,
+    )
+    expect(within(section).getByTestId('module-bar')).toBeInTheDocument()
+    expect(section).toHaveTextContent(
+      /its first review comes (tomorrow|in \d+ days)/,
+    )
+    // The goals unfold, ticked.
+    expect(screen.getByText('You can now…').closest('details')).toHaveAttribute(
+      'open',
+    )
+    // And it ends on a question about what comes next.
+    expect(
+      await within(section).findByRole(
+        'region',
+        { name: /One question before you go|One to sleep on/ },
+        { timeout: 5000 },
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it("isn't shown on a later visit to a topic already proven", async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([
+          ...unlocked(topic),
+          passedCheck('build-hello'),
+          passedCheck('debug-hello'),
+          explainPassed(),
+        ]),
+      ),
+    })
+    expect(await screen.findByText('You can now…')).toBeInTheDocument()
+    expect(moment()).not.toBeInTheDocument()
+  })
+})
+
+describe('stopping part-way through a topic (ADR-0030)', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
+  it('offers the next unanswered question to sleep on, folded until asked', async () => {
+    renderTopic()
+    await screen.findByTestId('topic-state')
+    expect(
+      screen.queryByRole('region', { name: 'One to sleep on' }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(screen.getByText('Stopping here for today?'))
+    const card = await screen.findByRole('region', { name: 'One to sleep on' })
+    expect(card).toHaveTextContent('The next thing waiting in Values and types')
+    expect(within(card).queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it("isn't offered to a signed-out visitor, whose answers aren't saved", () => {
+    renderTopic(fakeTopic(), fakeContent(), { signedIn: false })
+    expect(
+      screen.queryByText('Stopping here for today?'),
+    ).not.toBeInTheDocument()
+  })
+
+  it("shows a guess about the topic's goal at the start of its lesson, until put away", async () => {
+    localStorage.setItem(
+      'guess:py.values-and-types',
+      JSON.stringify({
+        question: 'How would you check a value?',
+        guess: 'Print it and look',
+        at: '2026-11-20T18:00:00.000Z',
+        source: 'goal',
+      }),
+    )
+    renderTopic()
+    const note = await screen.findByRole('complementary', {
+      name: 'Your guess from last time',
+    })
+    expect(note).toHaveTextContent('You guessed: Print it and look')
+    await userEvent.click(
+      within(note).getByRole('button', { name: 'Put it away' }),
+    )
+    expect(note).not.toBeInTheDocument()
+    expect(localStorage.getItem('guess:py.values-and-types')).toBeNull()
+  })
+})
+
+describe('how hard a topic has been, in its practice (ADR-0030)', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
+  /** First tries at eight quick questions here, `right` of them right. */
+  const tries = (right: number): Attempt[] =>
+    Array.from({ length: 8 }, (_, index) => ({
+      id: `try-${index}`,
+      type: 'answer' as const,
+      topic_id: 'py.values-and-types',
+      item_id: `asked-${index}`,
+      correct: index < right,
+      occurred_at: NOV_6.toISOString(),
+      context: 'practice' as const,
+    }))
+  const note = () =>
+    screen.findByRole('complementary', { name: 'How hard this topic has been' })
+
+  it('points to the proofs when every first try has been right', async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([...unlocked(topic), ...tries(8)]),
+      ),
+      at: 'practice',
+    })
+    expect(await note()).toHaveTextContent(
+      'So far here: 8 of 8 right first time (100%). These are easy for you.',
+    )
+    await userEvent.click(
+      within(await note()).getByRole('button', { name: 'Go to the proofs' }),
+    )
+    expect(
+      await screen.findByRole('heading', { name: 'Prove it' }),
+    ).toBeInTheDocument()
+  })
+
+  it('points back to the lesson when most first tries have been wrong', async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([...unlocked(topic), ...tries(3)]),
+      ),
+      at: 'practice',
+    })
+    expect(await note()).toHaveTextContent('So far here: 3 of 8 right')
+    expect(
+      within(await note()).getByRole('button', { name: 'Back to the lesson' }),
+    ).toBeInTheDocument()
+  })
+
+  it('says nothing while the practice is about as hard as it should be', async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([...unlocked(topic), ...tries(7)]),
+      ),
+      at: 'practice',
+    })
+    await screen.findByTestId('topic-state')
+    expect(
+      screen.queryByRole('complementary', {
+        name: 'How hard this topic has been',
+      }),
+    ).not.toBeInTheDocument()
+  })
+})

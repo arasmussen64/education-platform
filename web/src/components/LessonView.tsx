@@ -1,5 +1,5 @@
 import type { MDXComponents } from 'mdx/types'
-import { Children, type ReactNode, useMemo } from 'react'
+import { Children, type ComponentProps, type ReactNode, useMemo } from 'react'
 import type { LessonComponent, TopicContent } from '../content/types.ts'
 import { PLACE_ATTRIBUTE } from '../place/useCurrentPlace.ts'
 import { GlossaryTerm } from './GlossaryTerm.tsx'
@@ -105,7 +105,11 @@ export function LessonView({
         ) : null
       },
       Check,
-      Puzzle,
+      // With the topic, so a guess kept at the end of an earlier session
+      // is waiting in it (ADR-0030).
+      Puzzle: (props: ComponentProps<typeof Puzzle>) => (
+        <Puzzle {...props} topicId={content.topic.id} />
+      ),
       Story,
       // Added by the build, never written by hand: the first use of a term
       // another topic's glossary defines (src/tooling/remarkGlossary.ts).

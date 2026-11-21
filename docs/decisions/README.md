@@ -46,3 +46,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0027](0027-typed-answers.md)                | Typed answers, a command or a term recalled and typed                    | Accepted (2026-11-21, with its amendments) |
 | [0028](0028-confidence-before-the-answer.md) | Saying how sure you are, as part of answering                            | Accepted (2026-11-21, with its amendments) |
 | [0029](0029-starting-a-track-over.md)        | Starting a track over, as one more event                                 | Accepted (2026-11-21)                      |
+| [0030](0030-reasons-to-come-back.md)         | Reasons to come back: a question, a moment, memory, difficulty           | Accepted                                   |
