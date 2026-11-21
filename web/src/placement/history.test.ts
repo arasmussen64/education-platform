@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { getDiagnostic } from '../content/content.ts'
 import { dayOf } from '../days.ts'
 import { eventRow } from '../test/fakeEvents.ts'
-import { describeDiagnosticRecord, describeTrackRecord } from './describe.ts'
+import {
+  describeDiagnosticRecord,
+  describeListRecord,
+  describeTrackRecord,
+} from './describe.ts'
 import {
   diagnosticOfSubject,
   latestBySubject,
@@ -10,6 +14,7 @@ import {
   mergePlacements,
   type PlacementRecord,
   subjectOfDiagnostic,
+  subjectOfFoundations,
   toPlacementRecord,
 } from './history.ts'
 
@@ -26,6 +31,18 @@ const FINISHED = {
     asked: 6,
     correct: 4,
     probes: [],
+  },
+}
+
+/** A finished run of one list: what Finance's Module 1 needs from other tracks. */
+const LIST_FINISHED = {
+  ...FINISHED,
+  id: 'e3',
+  topic_id: 'foundations.fin.m1',
+  data: {
+    ...FINISHED.data,
+    kind: 'foundations',
+    list: { track: 'finance', module: 'fin.m1' },
   },
 }
 
@@ -71,6 +88,41 @@ describe('reading a finished placement', () => {
     ).toBeNull()
   })
 
+  it("reads a run of one foundations list, under the list's own subject", () => {
+    expect(subjectOfFoundations('fin.m1')).toBe('foundations.fin.m1')
+    expect(toPlacementRecord(LIST_FINISHED)).toEqual(
+      record({
+        id: 'e3',
+        subject: 'foundations.fin.m1',
+        kind: 'foundations',
+        list: { track: 'finance', module: 'fin.m1' },
+      }),
+    )
+    // A whole-track run has no list, as before.
+    expect(toPlacementRecord(FINISHED)).not.toHaveProperty('list')
+  })
+
+  it("never reads a list's run as a track's, or a track's as a list's", () => {
+    // A list's run filed under a track's id would replace the track's result.
+    expect(
+      toPlacementRecord({ ...LIST_FINISHED, topic_id: 'finance' }),
+    ).toBeNull()
+    // It has to say which list, and the subject has to be that list's.
+    expect(
+      toPlacementRecord({
+        ...LIST_FINISHED,
+        data: { ...FINISHED.data, kind: 'foundations' },
+      }),
+    ).toBeNull()
+    expect(
+      toPlacementRecord({ ...LIST_FINISHED, topic_id: 'foundations.ml.m1' }),
+    ).toBeNull()
+    // A track's run can't sit under a list's subject either.
+    expect(
+      toPlacementRecord({ ...FINISHED, topic_id: 'foundations.fin.m1' }),
+    ).toBeNull()
+  })
+
   it('finds the ones among events this device recorded', () => {
     const rows = [
       eventRow({ id: 'a1' }),
@@ -98,6 +150,21 @@ describe('the latest placement per subject', () => {
     const latest = latestBySubject([record(), older, math])
     expect(latest.get('python-foundations')?.id).toBe('e1')
     expect(latest.get('diagnostic.math')?.id).toBe('e2')
+  })
+
+  it("keeps a list's result apart from the result of the track it is for", () => {
+    const track = record({ id: 't1', subject: 'finance' })
+    const list = record({
+      id: 'l1',
+      subject: subjectOfFoundations('fin.m1'),
+      kind: 'foundations',
+      list: { track: 'finance', module: 'fin.m1' },
+      // Newer than the track's: it still doesn't replace it.
+      at: '2026-11-20T12:00:00.000Z',
+    })
+    const latest = latestBySubject([track, list])
+    expect(latest.get('finance')?.id).toBe('t1')
+    expect(latest.get('foundations.fin.m1')?.id).toBe('l1')
   })
 
   it('merges lists without repeating an event, oldest first', () => {
@@ -128,6 +195,15 @@ describe('describing a placement in one line', () => {
     )
     expect(describeTrackRecord(record({ next: null }), () => true)).toBe(
       `Placement on ${day}: everything written so far looked familiar.`,
+    )
+  })
+
+  it('says where to start in a foundations list', () => {
+    expect(describeListRecord(record(), () => false)).toBe(
+      `Placement on ${day}: start at Variables, with 2 topics to prove first.`,
+    )
+    expect(describeListRecord(record({ next: null }), () => true)).toBe(
+      `Placement on ${day}: everything on the list looked familiar.`,
     )
   })
 
