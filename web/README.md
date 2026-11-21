@@ -48,6 +48,7 @@ src/
 ├── export/          "Export my data": everything the learner has done, as one file (see below)
 ├── followups/       mistakes coming back as fresh questions (ADR-0011)
 ├── labs/            reading the result a learner pastes from the lab checker (ADR-0018)
+├── nexttime/        the open question a sitting ends on, and the guess kept for next time (ADR-0030)
 ├── pages/           one file per page
 ├── place/           where the learner is on a topic page, and the place remembered for next time
 ├── placement/       the placement test: finding where to start, without ticking anything off (ADR-0021)

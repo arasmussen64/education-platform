@@ -234,3 +234,74 @@ describe('the five-minute session', () => {
     ).toBeInTheDocument()
   })
 })
+
+describe('how a session ends (ADR-0030)', () => {
+  const VALUES = 'py.values-and-types'
+  const endCard = () =>
+    screen.findByRole(
+      'region',
+      { name: 'One question before you go' },
+      { timeout: 5000 },
+    )
+
+  it("ends on a question about the next topic, and keeps the learner's guess", async () => {
+    renderSession(learnedDaysAgo(10))
+    await stepHeading('Step 1 of 2 · Review')
+    await next()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Done for today' }),
+    )
+    const card = await endCard()
+    expect(card).toHaveTextContent('Your next topic is Values and types.')
+    // Nothing is kept until a guess is typed.
+    const keep = within(card).getByRole('button', {
+      name: 'Keep my guess for next time',
+    })
+    expect(keep).toBeDisabled()
+
+    await userEvent.type(
+      within(card).getByRole('textbox', { name: 'Your guess' }),
+      'Text and numbers differ',
+    )
+    await userEvent.click(keep)
+    expect(card).toHaveTextContent('Your guess: Text and numbers differ')
+    expect(card).toHaveTextContent('Kept on this device.')
+    expect(
+      within(card).getByRole('link', { name: 'Open Values and types' }),
+    ).toHaveAttribute('href', `/topic/${VALUES}`)
+    expect(
+      JSON.parse(localStorage.getItem(`guess:${VALUES}`) ?? '{}'),
+    ).toMatchObject({ guess: 'Text and numbers differ' })
+  })
+
+  it('ends the five-minute session on it too', async () => {
+    renderSession(learnedDaysAgo(10), '/session?minutes=5')
+    await stepHeading('Step 1 of 1 · Review')
+    await userEvent.click(screen.getByRole('button', { name: 'Finish' }))
+    expect(await endCard()).toHaveTextContent('Values and types')
+  })
+
+  it('shows the next unanswered question of a topic in progress, to sleep on', async () => {
+    renderSession([
+      ...learnedDaysAgo(10),
+      // Values and types has been started.
+      { ...answer('anything', false, daysAgo(1)), topic_id: VALUES },
+    ])
+    await stepHeading('Step 1 of 2 · Review')
+    await next()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Done for today' }),
+    )
+    const card = await screen.findByRole(
+      'region',
+      { name: 'One to sleep on' },
+      { timeout: 5000 },
+    )
+    expect(card).toHaveTextContent('The next thing waiting in Values and types')
+    // Nothing to answer here: answering belongs on the topic's page.
+    expect(within(card).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(
+      within(card).getByRole('link', { name: "It'll be here" }),
+    ).toHaveAttribute('href', `/topic/${VALUES}`)
+  })
+})

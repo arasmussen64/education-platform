@@ -129,6 +129,42 @@ describe('an opening puzzle (<Puzzle>)', () => {
   })
 })
 
+describe('a guess kept from the end of an earlier session', () => {
+  const keep = (source: 'puzzle' | 'goal') =>
+    localStorage.setItem(
+      `guess:${fakeContent().topic.id}`,
+      JSON.stringify({
+        question: 'Why does `print` start a new line?',
+        guess: 'It ends with one',
+        at: '2026-11-20T18:00:00.000Z',
+        source,
+      }),
+    )
+
+  it("is waiting in the lesson's puzzle, and is forgotten once the answer shows", async () => {
+    keep('puzzle')
+    renderLesson()
+    const puzzle = screen.getByRole('region', { name: 'A puzzle to start' })
+    const box = within(puzzle).getByRole('textbox', { name: 'Your guess' })
+    expect(box).toHaveValue('It ends with one')
+    expect(box).toHaveAccessibleDescription(/the guess you made last time/)
+
+    await userEvent.click(
+      within(puzzle).getByRole('button', { name: 'Show the answer' }),
+    )
+    expect(puzzle).toHaveTextContent('Your guess: It ends with one')
+    expect(puzzle).toHaveTextContent('Because its end is a newline')
+    expect(localStorage.getItem(`guess:${fakeContent().topic.id}`)).toBeNull()
+  })
+
+  it("leaves the puzzle empty when the guess was about the topic's goal", () => {
+    keep('goal')
+    renderLesson()
+    const puzzle = screen.getByRole('region', { name: 'A puzzle to start' })
+    expect(within(puzzle).getByRole('textbox')).toHaveValue('')
+  })
+})
+
 describe('a real incident (<Story>)', () => {
   it('tells the story and links its source, with its licence', () => {
     renderLesson()

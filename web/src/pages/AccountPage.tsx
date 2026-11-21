@@ -9,6 +9,7 @@ import { couldNotSave, keptAndRetried } from '../events/refusedText.ts'
 import { useEventLogStatus } from '../events/useEvents.ts'
 import { downloadJson } from '../export/download.ts'
 import { collectExport, exportFileName } from '../export/exportData.ts'
+import { DifficultySummary } from '../progress/DifficultyParts.tsx'
 import { useProgress } from '../progress/useProgress.ts'
 import { describeCurve } from '../reviews/personal.ts'
 import { StudyPlanSection } from '../studyplan/StudyPlanParts.tsx'
@@ -39,6 +40,7 @@ export function AccountPage() {
         <>
           <NotSavedYet />
           <CalibrationSummary />
+          <Difficulty />
 
           <StudyPlanOnAccount />
           <ForgettingCurve />
@@ -57,6 +59,12 @@ function StudyPlanOnAccount() {
 
 /** No topics of its own: useProgress adds every bundled topic. */
 const NO_TOPICS: never[] = []
+
+/** How hard practice has been, against the 85% target (ADR-0030). */
+function Difficulty() {
+  const progress = useProgress(NO_TOPICS)
+  return <DifficultySummary progress={progress} />
+}
 
 /**
  * How fast the learner forgets, compared with the average curve the

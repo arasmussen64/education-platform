@@ -1011,3 +1011,78 @@ describe('a plan for when and where, on the Today page', () => {
     expect(localStorage.getItem('study-plan-dismissed')).toBe('yes')
   })
 })
+
+describe('reasons to come back on the Today page (ADR-0030)', () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  const PRINT = getTopic('py.programs-and-print')!
+  /** Programs and print, proved `days` ago. */
+  const learned = (days: number): Attempt[] => [
+    check(PRINT.prove.build ?? '', true, daysAgo(days)),
+    check(PRINT.prove.debug ?? '', true, daysAgo(days)),
+    { ...answer('explain', true, daysAgo(days)), type: 'explain_submit' },
+  ]
+  const memory = () => screen.findByRole('region', { name: 'Your memory' })
+
+  it('shows how well each learned topic is remembered, and what a day costs', async () => {
+    renderToday(learned(10))
+    const section = await memory()
+    expect(section).toHaveTextContent(
+      '1 of your 1 learned topic has faded enough to need a review.',
+    )
+    expect(section).toHaveTextContent(
+      /Programs and print is at \d+% and dropping: \d+% by tomorrow\./,
+    )
+    expect(section).toHaveTextContent(
+      /Its review is due: about \d+ minutes? to keep it\./,
+    )
+    // The session card names what its first review is there to keep.
+    expect(
+      await screen.findByRole('region', { name: "Today's session" }),
+    ).toHaveTextContent(/The most faded is Programs and print, at \d+%/)
+  })
+
+  it('says when the next review comes for a topic that is still fresh', async () => {
+    renderToday(learned(0))
+    const section = await memory()
+    expect(section).toHaveTextContent(
+      'None of your 1 learned topic needs a review yet.',
+    )
+    expect(section).toHaveTextContent(/Next review (tomorrow|in \d+ days)\./)
+  })
+
+  it('has no memory section before anything is learned', async () => {
+    renderToday([])
+    await screen.findByRole('region', { name: "Today's session" })
+    expect(
+      screen.queryByRole('region', { name: 'Your memory' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the guess left at the end of an earlier session, with the way to its answer', async () => {
+    localStorage.setItem(
+      'guess:py.programs-and-print',
+      JSON.stringify({
+        question: 'Why does `print` start a new line?',
+        guess: 'It ends with one',
+        at: '2026-11-20T18:00:00.000Z',
+        source: 'puzzle',
+      }),
+    )
+    renderToday([])
+    const session = await screen.findByRole('region', {
+      name: "Today's session",
+    })
+    expect(session).toHaveTextContent('Your guess is waiting')
+    expect(session).toHaveTextContent('Why does print start a new line?')
+    expect(session).toHaveTextContent('You guessed: It ends with one')
+    expect(
+      within(session).getByRole('link', {
+        name: 'See the answer in Programs and print',
+      }),
+    ).toHaveAttribute('href', '/topic/py.programs-and-print')
+  })
+})

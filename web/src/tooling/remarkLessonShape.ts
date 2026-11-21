@@ -39,6 +39,11 @@ export type LessonShape = {
   sections: LessonSection[]
   /** How many words the <Recap> has. */
   recapWords: number
+  /**
+   * The question of the lesson's opening <Puzzle>, as Markdown, when it has
+   * one: the page can ask it before the lesson is opened (ADR-0030).
+   */
+  puzzle?: string
 }
 
 /** The little of a syntax tree node this step reads. */
@@ -119,7 +124,25 @@ export function shapeOf(tree: TreeNode): LessonShape {
     }
   }
   if (open.blocks > 0) sections.push(open)
-  return { sections, recapWords: recap ? wordsIn(recap) : 0 }
+  const shape: LessonShape = {
+    sections,
+    recapWords: recap ? wordsIn(recap) : 0,
+  }
+  const puzzle = puzzleQuestion(intro)
+  if (puzzle !== null) shape.puzzle = puzzle
+  return shape
+}
+
+/** The question of the first <Puzzle question="…"> in the intro, or null. */
+function puzzleQuestion(intro: TreeNode | undefined): string | null {
+  const puzzle = intro?.children?.find((node) => isTag(node, 'Puzzle'))
+  const question = puzzle?.attributes?.find(
+    (attribute) =>
+      attribute.type === 'mdxJsxAttribute' && attribute.name === 'question',
+  )?.value
+  return typeof question === 'string' && question.trim() !== ''
+    ? question
+    : null
 }
 
 /** A plain value (numbers, strings, null, lists, objects) as JavaScript. */
