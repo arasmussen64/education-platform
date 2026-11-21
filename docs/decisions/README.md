@@ -28,20 +28,20 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0009](0009-reviews.md)                   | Reviews are per topic and graded automatically                           | Accepted                                                          |
 | [0010](0010-environments.md)              | Local Supabase in Docker for development; one cloud project for real use | Accepted                                                          |
 | [0011](0011-mistakes-come-back.md)        | Mistakes come back as fresh questions until relearned                    | Accepted                                                          |
-| [0012](0012-checkpoint-support.md)        | Getting unstuck on a checkpoint                                          | Accepted; its amendment on further parts (2026-11-11) is Proposed |
-| [0013](0013-explain-grading.md)           | Grading explanations with Claude, through the AI proxy                   | Accepted; its amendment of 2026-11-16 is Proposed                 |
+| [0012](0012-checkpoint-support.md)        | Getting unstuck on a checkpoint                                          | Accepted (2026-11-21, with its amendments)                        |
+| [0013](0013-explain-grading.md)           | Grading explanations with Claude, through the AI proxy                   | Accepted (2026-11-21, with its amendments)                        |
 | [0014](0014-cloud-labs.md)                | Proving cloud skills with labs in the learner's own clouds               | Accepted                                                          |
 | [0015](0015-hint-only-tutor.md)           | The hint-only tutor                                                      | Accepted                                                          |
 | [0016](0016-parsons-problems.md)          | Parsons problems as a recall item type                                   | Accepted                                                          |
 | [0017](0017-shell-in-the-browser.md)      | Teaching and proving the shell                                           | Accepted                                                          |
-| [0018](0018-lab-checker-local-mode.md)    | The lab checker's local mode                                             | Accepted; its three amendments of 2026-11-11 are Proposed         |
+| [0018](0018-lab-checker-local-mode.md)    | The lab checker's local mode                                             | Accepted (2026-11-21, with its amendments)                        |
 | [0019](0019-today-across-tracks.md)       | Today shows every track, and counts practice hours per track             | Accepted                                                          |
 | [0020](0020-automated-backups.md)         | Nightly encrypted backups of the learning data                           | Accepted                                                          |
 | [0021](0021-placement-test.md)            | The placement test walks the map by halving, and proves nothing          | Accepted                                                          |
 | [0022](0022-step-through.md)              | Step through, a visualizer from Python's own trace hook                  | Accepted                                                          |
 | [0023](0023-packages-in-both-runtimes.md) | Packages beyond the standard library, in both Python runtimes            | Accepted                                                          |
-| [0024](0024-estimate-questions.md)        | Estimate questions, a typed number checked within a tolerance            | Proposed                                                          |
-| [0025](0025-topics-in-parts.md)           | A topic page in parts                                                    | Proposed, with its amendments                                     |
-| [0026](0026-lesson-building-blocks.md)    | Lesson building blocks: questions, a puzzle, a real incident, a glossary | Proposed                                                          |
-| [0027](0027-typed-answers.md)             | Typed answers, a command or a term recalled and typed                    | Proposed                                                          |
-| [0028](0028-confidence-before-the-answer.md) | Saying how sure you are, as part of answering                         | Proposed                                                          |
+| [0024](0024-estimate-questions.md)        | Estimate questions, a typed number checked within a tolerance            | Accepted (2026-11-21, with its amendments)                        |
+| [0025](0025-topics-in-parts.md)           | A topic page in parts                                                    | Accepted (2026-11-21, with its amendments)                        |
+| [0026](0026-lesson-building-blocks.md)    | Lesson building blocks: questions, a puzzle, a real incident, a glossary | Accepted (2026-11-21, with its amendments)                        |
+| [0027](0027-typed-answers.md)             | Typed answers, a command or a term recalled and typed                    | Accepted (2026-11-21, with its amendments)                        |
+| [0028](0028-confidence-before-the-answer.md) | Saying how sure you are, as part of answering                         | Accepted (2026-11-21, with its amendments)                        |

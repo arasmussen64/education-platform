@@ -84,7 +84,7 @@ Decided under the owner's delegation of 2026-11-11 and recorded in [docs/owner-q
 
 ## Amendment (2026-11-11): further parts after the build and the debug
 
-- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience and memory retention first, and free), and built on until the owner rules; see [docs/owner-queue.md](../owner-queue.md), "Decided for you".
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 
 **Context.** A checkpoint's `prove` held one build, one debug and one explain, and `web/src/progress/progress.ts` passed a checkpoint on those three. The cloud track's spec gives several checkpoints more parts than that: Checkpoint 2 has three, and Checkpoints 3, 5 and 7 have two or three each. Checkpoint 1 met the same wall and, in its 2026-11-11 rewrite, folded its second part (a service killed and throttled) into its debug as two more faults, which works because both parts are one broken server. Checkpoint 2's parts can't be folded honestly: a sizing sheet in a plain lab, four slow VMs' recorded evidence, and an Active Directory domain stood up in a systemd lab with a second machine. Leaving the third part out would make the checkpoint narrower than its spec, which the 2026-11-10 audit recorded as a fault in Checkpoint 1.
 

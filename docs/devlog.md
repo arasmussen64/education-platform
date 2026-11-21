@@ -2,6 +2,38 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-21: the proxy deployed, decisions accepted, and four app items
+
+**The owner asked** for a review of every document and a list of what's left to build, then: "Start building these things" (the Momentum redesign's stages 2 and 3, lesson parts that are too long, part times at the learner's pace, a placement test for one list), "Deploy the AI proxy's fixes", and "I accept all the ADR decisions you listed".
+
+**The AI proxy's fixes are live.** The free tests passed (51 of 51). Then the two paid test runs on Claude Haiku 5.5: the explain grader gave the expected verdict on 30 of 30 samples ($0.0057), and the tutor's 25 replies were all fine and were read ($0.0048). Then `npx supabase functions deploy ai --no-verify-jwt --yes`, and an unsigned request to the live function answers 401 and "Sign in first.". The proxy reads nothing the two waiting migrations add, so it didn't wait for them; they are still the owner's to push (owner queue, item 1), as is the Console check of the $10 limit (item 2).
+
+**The decisions are accepted.** ADR-0024 to 0028 with their amendments, the open amendments to ADR-0009, 0012, 0013 and 0018, and ADR-0020 to 0022, confirmed. Each status line and the ADR index say so, and the owner queue went from seven open items to five.
+
+**A placement test for one list** (#338, [ADR-0021](decisions/0021-placement-test.md), amended). "Before Module 1: from other tracks" on the map links to a placement test of just that list (`/placement?for=finance&module=fin.m1`): the same halving walk over the list's unlearned topics in learning order, ending with where in the list to start and what to prove first. Nothing is marked learned. A finished run is a `placement` event of a new kind, `foundations`, under its own subject (`foundations.<module id>`), so it can never be read as a whole track's result. No migration.
+
+**A long lesson in parts, and times at the learner's pace** (#340, [ADR-0025](decisions/0025-topics-in-parts.md), amended). A build step (`web/src/tooling/remarkLessonShape.ts`) counts the words between a lesson's questions while it compiles. The page cuts a lesson over 40 minutes at those questions, and gives the main resource and the recap a part of their own when they take 15 minutes or more. Every ready cloud topic's lesson is now two parts: its own text, 10 to 37 minutes, then "Learn: the reading and the recap", 32 to 73. The topic page also stretches every time by the learner's pace (`progress/pace.ts`) before cutting, and says so in the header. Seen in a browser on my own dev server, signed out: the DNS topic opens as seven parts, and a link to `#place-recap` opens Part 2.
+
+**Momentum, stage 2** (#339). Lime now lives only in four constants in `styles.ts` (the primary button, a progress fill, a progress bar, "you are here") and a test fails if a lime class appears anywhere else. The lesson's callouts, a focus ring and two borders went neutral; the current nav tab, placement's "Next question" and the milestone bar became lime. The code editor follows the system's light or dark setting, live, with "morning trail" and "night trail" themes built from CodeMirror's own parts; a test holds every syntax colour to 4.5 to 1.
+
+**Stage 3** (named colours on every page, then the slate repaint removed) was started the same day; its entry follows when it lands.
+
+**Author notes:**
+
+- _The lesson's reading part can still run past 40 minutes._ The roadmap's note said "so no part runs past about 40 minutes". The text between questions never does, but the outside reading is somebody else's page with no place of ours to cut it, and it is 32 to 73 minutes in the cloud topics. Splitting it would mean assigning the reading in sections inside `lesson.mdx`, which is content work, topic by topic.
+- _Today's cloud lessons are cut once, not at every question,_ because each lesson's own text is already under 40 minutes. The cuts at questions come into play for a learner whose pace stretches the text past 40, and for longer lessons later.
+- _A lesson part with questions is done when they're answered right,_ or when the topic is proven. Before, the whole lesson counted as done once anything after it was tried.
+- _The pace is fixed for the visit,_ so proving a topic doesn't recut the page under the learner. Between visits the cuts can move when the pace changes by a tenth.
+- _A new placement kind, not just a new field:_ app copies already cached in browsers read `latest.get(track.id)`, and a list's result filed under the track would pass for the track's.
+- _A list joins tracks_ (Python, then the math), so a learner who knows the math but not the Python is placed at the list's start and uses "Prove it now" for the math. Probing each source track's part on its own can wait.
+- _Stage 2's judgement calls:_ "Continue where you left off" is neutral, since the page's lime button is "Next: Part…"; done cells in the practice grid are a strong lime fill, which may want softening; Check and Run stay ink; the proven-goal tick is emerald, like passed tests; lime is pinned to the favicon's hex because Tailwind's own lime-400 is a different green. Comment text on selected text in the editor is under 4.5 to 1 (3.9 light, 3.5 dark).
+- _Not seen by eye:_ stage 2's light mode and its signed-in pages, and the scoped placement test. Those rest on tests. The owner's PC was in dark mode.
+- _Known small things in the scoped placement test:_ a signed-out visitor loses the list on the way through sign-in; "about 1 topics' worth" is ungrammatical (the whole-track card says the same).
+- _One CI hiccup:_ #340's Database job failed while starting its throwaway database, before any test ran, and passed when run again.
+- _`web/package.json` changed_ (#339 names two CodeMirror packages that were already installed), so a running dev server needs a restart.
+
+**Next:** stage 3's landing; then cloud Module 4, as the build order says.
+
 ## 2026-11-18, what a track needs from other tracks
 
 **The owner asked:** the first finance topic was Locked, and it wasn't clear whether that meant the whole Python track first or only parts of it. Keep the locks and prerequisites as they are, but point the learner to exactly what's needed, or show it in the track itself, "as a UI/UX expert".

@@ -1,6 +1,6 @@
 # ADR-0024: Estimate questions, a typed number checked within a tolerance
 
-- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience, then memory retention, then free), and built on until the owner rules; listed in [docs/owner-queue.md](../owner-queue.md) under "Decided for you".
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 - **Date:** 2026-11-11
 
 ## Context
