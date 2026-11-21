@@ -5,10 +5,14 @@ import {
   describeSources,
   foundationLink,
   foundationsAnchor,
+  foundationsPlacementLink,
   groupByModule,
   type FoundationGroup,
 } from '../content/foundations.ts'
 import type { Module, Topic, Track } from '../content/types.ts'
+import { describeListRecord } from '../placement/describe.ts'
+import type { PlacementRecord } from '../placement/history.ts'
+import { probesNeeded } from '../placement/placement.ts'
 import {
   nextUp,
   STATE_LABELS,
@@ -29,6 +33,7 @@ export function FoundationsList({
   number,
   topics,
   progress,
+  placement,
 }: {
   /** The track whose map this is. */
   track: Track
@@ -38,7 +43,20 @@ export function FoundationsList({
   topics: Topic[]
   /** The learner's progress, once known; undefined when signed out. */
   progress?: Map<string, TopicProgress>
+  /** The latest placement test taken for this list alone, if there is one. */
+  placement?: PlacementRecord
 }) {
+  const learned = (topicId: string) =>
+    Boolean(progress?.get(topicId)?.learnedAt)
+  // The placement test for this list walks its topics by halving
+  // (ADR-0021): this is how many of them it would probe at most. It skips
+  // checkpoints, topics not written yet and topics already learned, so
+  // there may be nothing left for it to walk.
+  const probes = probesNeeded(
+    topics.filter(
+      (topic) => topic.kind === 'topic' && isOpen(topic) && !learned(topic.id),
+    ).length,
+  )
   const learnedCount = progress
     ? topics.filter((topic) => progress.get(topic.id)?.learnedAt).length
     : 0
@@ -108,13 +126,28 @@ export function FoundationsList({
         progress={progress}
         next={next?.topic ?? null}
       />
+      {placement && (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          {describeListRecord(placement, learned)}
+        </p>
+      )}
       <p className="text-sm text-slate-600 dark:text-slate-400">
         Know some of this already?{' '}
-        <Link to="/placement" className="underline">
-          The placement test
-        </Link>{' '}
-        finds where to start, and any topic's "Prove it now" skips straight to
-        its checks.
+        {probes > 0 && (
+          <>
+            <Link
+              to={foundationsPlacementLink(track, module)}
+              className="underline"
+            >
+              {placement
+                ? "Take this list's placement test again"
+                : 'Take a placement test of just this list'}
+            </Link>
+            : about {probes} topics' worth of questions find where in it to
+            start.{' '}
+          </>
+        )}
+        Any topic's "Prove it now" skips straight to its checks.
       </p>
     </section>
   )

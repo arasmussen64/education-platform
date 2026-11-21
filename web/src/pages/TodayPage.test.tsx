@@ -678,6 +678,36 @@ describe('next up on the Today page', () => {
     ).toHaveAttribute('href', '/placement')
   })
 
+  it("says where a placement in one foundations list said to start, under the list's name", async () => {
+    const at = daysAgo(1)
+    renderToday([], {
+      placements: [
+        {
+          id: 'p1',
+          run: 'r1',
+          subject: 'foundations.fin.m1',
+          kind: 'foundations',
+          list: { track: 'finance', module: 'fin.m1' },
+          at,
+          known: ['py.programs-and-print'],
+          next: 'py.values-and-types',
+          asked: 4,
+          correct: 3,
+        },
+      ],
+    })
+    const next = await nextUpSection()
+    expect(
+      await within(next).findByText(
+        `Before Module 1 of Finance and Markets. Placement on ${dayOf(at)}: start at Values and types, with 1 topic to prove first.`,
+      ),
+    ).toBeInTheDocument()
+    // It's not a result for Finance and Markets, or for Python Foundations.
+    expect(
+      within(next).queryByText(/^(Finance and Markets|Python Foundations)\. /),
+    ).toBeNull()
+  })
+
   it('starts each track with its first topic when nothing has been started', async () => {
     renderToday([])
     const next = await nextUpSection()
