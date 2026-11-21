@@ -6,6 +6,7 @@ import { getTopic } from '../content/content.ts'
 import { EventsProvider } from '../events/EventsProvider.tsx'
 import type { Attempt } from '../followups/followUps.ts'
 import { loadSkillIndex } from '../followups/skillIndex.ts'
+import { fetchResets } from '../resets/resets.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { fakeEventsClient } from '../test/fakeEvents.ts'
 import { stateOf } from './progress.ts'
@@ -96,6 +97,26 @@ describe('useProgress', () => {
       'print-commas',
     ])
     expect(stateOf(PRINT, progress.progress, day(10, 2))).toBe('learned')
+  })
+
+  it('counts nothing from before the track was started over, but keeps every attempt for the hours', async () => {
+    // Python Foundations started over on day 11, after Mastered (ADR-0029).
+    vi.mocked(fetchResets).mockResolvedValueOnce([
+      { track: 'python-foundations', occurred_at: day(11) },
+    ])
+    const progress = await ready(async () => MASTERED)
+    expect(stateOf(PRINT, progress.progress, day(12))).toBe('available')
+    expect(progress.attempts).toEqual([])
+    expect(progress.allAttempts).toEqual(MASTERED)
+    expect(progress.resets.get('python-foundations')).toBe(day(11))
+  })
+
+  it('counts what was done after the reset', async () => {
+    vi.mocked(fetchResets).mockResolvedValueOnce([
+      { track: 'python-foundations', occurred_at: day(-1) },
+    ])
+    const progress = await ready(async () => MASTERED)
+    expect(stateOf(PRINT, progress.progress, day(10, 1))).toBe('mastered')
   })
 
   it('says so when the skill index fails to download, and tries again', async () => {

@@ -8,6 +8,14 @@ import {
 import { useAuth } from '../auth/useAuth.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import {
+  fetchResets,
+  latestResets,
+  localResets,
+  type TrackReset,
+  trackOfPlacement,
+  wasReset,
+} from '../resets/resets.ts'
+import {
   fetchPlacements,
   latestBySubject,
   localPlacements,
@@ -27,11 +35,15 @@ export type PlacementsState =
       latest: Map<string, PlacementRecord>
     }
 
-type Fetched = { userId: string; records: PlacementRecord[] | 'failed' }
+type Fetched = {
+  userId: string
+  history: { records: PlacementRecord[]; resets: TrackReset[] } | 'failed'
+}
 
 /**
  * The signed-in learner's finished placements (ADR-0021). Read from the
- * server once; a run finished on this device shows straight away.
+ * server once; a run finished on this device shows straight away. A run on
+ * a track the learner has since started over no longer counts (ADR-0029).
  */
 export function usePlacements(
   load: () => Promise<PlacementRecord[]> = fetchPlacements,
@@ -45,12 +57,12 @@ export function usePlacements(
   useEffect(() => {
     if (!userId) return
     let active = true
-    load().then(
-      (records) => {
-        if (active) setFetched({ userId, records })
+    Promise.all([load(), fetchResets()]).then(
+      ([records, resets]) => {
+        if (active) setFetched({ userId, history: { records, resets } })
       },
       () => {
-        if (active) setFetched({ userId, records: 'failed' })
+        if (active) setFetched({ userId, history: 'failed' })
       },
     )
     return () => {
@@ -63,8 +75,12 @@ export function usePlacements(
     if (fetched === null || fetched.userId !== userId) {
       return { status: 'loading' }
     }
-    if (fetched.records === 'failed') return { status: 'failed' }
-    const all = mergePlacements(fetched.records, localPlacements(localRows))
+    if (fetched.history === 'failed') return { status: 'failed' }
+    const resets = latestResets(fetched.history.resets, localResets(localRows))
+    const all = mergePlacements(
+      fetched.history.records,
+      localPlacements(localRows),
+    ).filter((record) => !wasReset(trackOfPlacement(record), record.at, resets))
     return { status: 'ready', all, latest: latestBySubject(all) }
   }, [auth.status, fetched, userId, localRows])
 }

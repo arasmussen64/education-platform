@@ -150,3 +150,27 @@ export function clearDraft(
   delete drafts[idOf(key)]
   writeDrafts(storage, drafts)
 }
+
+/**
+ * Forgets every draft of these topics, whatever item or revision: used when
+ * the learner starts a track over (ADR-0029), so its editors open on their
+ * starters again.
+ */
+export function clearDraftsOfTopics(
+  topicIds: string[],
+  storage: DraftStorage | null = defaultStorage(),
+): void {
+  if (!storage) return
+  const topics = new Set(topicIds)
+  const drafts = readDrafts(storage)
+  const kept = Object.fromEntries(
+    Object.entries(drafts).filter(([id]) => !topics.has(topicOfId(id))),
+  )
+  if (Object.keys(kept).length === Object.keys(drafts).length) return
+  writeDrafts(storage, kept)
+}
+
+/** The topic in a draft's name (`topic/item`). Item ids have no slash. */
+function topicOfId(id: string): string {
+  return id.slice(0, id.lastIndexOf('/'))
+}
