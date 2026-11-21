@@ -2,6 +2,36 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-21, end: Momentum stage 3, named colours on every page
+
+Stage 3 of the redesign landed (#342), which finishes the three stages planned on 2026-11-15.
+
+**What changed.** Every colour the app uses for its greys and its lime is now a named colour (a "design token": one name for one role, defined once), in `web/src/index.css`. Each has a light and a dark value and switches by itself with the system's setting, so a component writes `bg-card text-ink border-line` with no `dark:` twin. All 487 uses of the repainted `slate` scale and the 19 of `white` are gone, about 215 `dark:` twins with them, and the repaint itself is removed.
+
+| Token | Light | Dark | Role |
+| --- | --- | --- | --- |
+| paper | #f6f4ed | #111914 | the page |
+| card | #fdfcf8 | #1b2620 | cards, pop-ups, form fields |
+| sunken | #edeae0 | #28322b | inset areas: feedback boxes, a hover wash |
+| ink | #1b2620 | #edeae0 | text, and the dark button's fill |
+| muted | #666c5f | #9a9a88 | secondary text |
+| line | #dedacb | #28322b | hairlines, and the shade behind inline code |
+| line-strong | #c6c2b0 | #3b443b | the edge of things to click or type in |
+| forward, forward-hover, forward-edge, on-forward | #a3e635, #bef264, #65a30d, #1b2620 | the same | the lime fill, its hover, its edge, and text on it |
+| code, on-code, on-code-muted | #1b2620, #edeae0, #9a9a88 | #111914, then the same | code and output boxes |
+
+**Tests.** `web/src/components/tokens.test.ts` reads the real values from `index.css` and fails if any of twelve text-on-background pairings drops under 4.5 to 1 in either theme, if an editor theme's colours drift from the tokens, or if a `slate-<n>` or `white` class appears in a source file again.
+
+**Author notes:**
+
+- _Fourteen tokens, not the six the plan named._ Added: sunken, line-strong, three helpers for lime and three for code boxes, each for a role that repeats.
+- _What looks different._ Where an old light and dark pair matched a token exactly, nothing moved. The visible changes: secondary text is one grey (in light mode #4f574c became #666c5f in 88 places); text that was a step lighter than ink is now ink (nav links, the secondary button, outline chips); and in dark mode, text fields are dark like the rest of the page (they were near-white), which is the biggest change. Borders split by role: static boxes take `line`, things to click take `line-strong`.
+- _Muted text on a sunken box passes at 4.502 to 1,_ so any change to either colour will fail the test, which is what the test is for.
+- _Left alone on purpose:_ code boxes are dark pine in light mode while the editor is light paper; emerald, amber, red and sky keep their meanings and their own `dark:` twins.
+- _Seen by eye in dark mode only,_ signed out, by the agent that built it: computed colours of every element before and after on the map, two topic pages, the playground, the glossary, sign-in and a not-found page. Light mode, signed-in pages and hover states rest on the mapping and the tests. The owner's first look in light mode is the check.
+
+**Next:** cloud Module 4, security and identity foundations, whose design was paused on 2026-11-12.
+
 ## 2026-11-21: the proxy deployed, decisions accepted, and four app items
 
 **The owner asked** for a review of every document and a list of what's left to build, then: "Start building these things" (the Momentum redesign's stages 2 and 3, lesson parts that are too long, part times at the learner's pace, a placement test for one list), "Deploy the AI proxy's fixes", and "I accept all the ADR decisions you listed".
@@ -16,7 +46,7 @@ A dated log of each working session: what changed, what was decided, what's next
 
 **Momentum, stage 2** (#339). Lime now lives only in four constants in `styles.ts` (the primary button, a progress fill, a progress bar, "you are here") and a test fails if a lime class appears anywhere else. The lesson's callouts, a focus ring and two borders went neutral; the current nav tab, placement's "Next question" and the milestone bar became lime. The code editor follows the system's light or dark setting, live, with "morning trail" and "night trail" themes built from CodeMirror's own parts; a test holds every syntax colour to 4.5 to 1.
 
-**Stage 3** (named colours on every page, then the slate repaint removed) was started the same day; its entry follows when it lands.
+**Stage 3** (named colours on every page, then the slate repaint removed) landed the same day; its entry is above.
 
 **Author notes:**
 
