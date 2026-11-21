@@ -15,6 +15,7 @@ import {
   remarkGlossary,
 } from './src/tooling/remarkGlossary.ts'
 import { remarkLessonChecks } from './src/tooling/remarkLessonChecks.ts'
+import { remarkLessonShape } from './src/tooling/remarkLessonShape.ts'
 import { APP_NAME } from './src/config.ts'
 
 // Adds the product name as the page <title>, so the name only ever has to be
@@ -238,13 +239,17 @@ export default defineConfig({
   plugins: [
     // Lessons are MDX: Markdown with components like <Intro> and <Resource>.
     // Each compiled lesson also says which questions it asks with <Check>
-    // (ADR-0026), so the practice ladder can leave them out, and carries the
-    // definitions of the glossary terms it uses from other topics.
+    // (ADR-0026), so the practice ladder can leave them out, says how long
+    // each stretch between those questions is, so a long lesson can be shown
+    // in parts (ADR-0025), and carries the definitions of the glossary terms
+    // it uses from other topics.
     {
       enforce: 'pre',
       ...mdx({
         remarkPlugins: [
           remarkLessonChecks,
+          // Before the glossary step, which adds tags around words.
+          remarkLessonShape,
           [remarkGlossary, { load: glossaryLoader() }],
         ],
       }),

@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- A long lesson comes in parts, and a topic's times follow the learner's pace ([ADR-0025](docs/decisions/0025-topics-in-parts.md), amended 2026-11-21). A lesson over 40 minutes is cut at the questions it asks, and its main reading and recap become a part of their own, so each ready cloud topic's lesson is now two parts (its own text, 10 to 37 minutes, then the reading) instead of one of 55 to 125 minutes. Once three proven topics show the learner runs longer than the estimates, the topic page stretches every time by that ratio before cutting, so a part stays about half an hour of their own time, and the header says so.
 - What a track needs from other tracks, said exactly. Each module that builds on another track's topics lists them on the map, above the module, in the order to learn them: how much of each track that is ("Python Foundations: Modules 1 to 4 in full and 3 of the 6 topics in Module 5"), how long it takes, what's learned, and a Start button for the next one. A topic opened from that list says which track sent the learner, how far along the list they are, what's next on it and the way back. A locked topic says how many topics are still to go and where to start, even in another track, and the Today page does the same for a track whose topics are all locked.
 
 ### Added (Finance Module 1 topics)

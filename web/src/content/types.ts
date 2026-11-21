@@ -1,6 +1,7 @@
 // The shapes of the content files, as the app sees them. They mirror
 // tools/content_model.py, which is what checks them in CI.
 import type { MDXContent } from 'mdx/types'
+import type { LessonShape } from '../tooling/remarkLessonShape.ts'
 
 export type TopicStatus = 'planned' | 'draft' | 'ready'
 
@@ -313,9 +314,14 @@ export type LessonComponent = MDXContent
 /**
  * What a compiled lesson.mdx module holds: the lesson, and the ids of the
  * practice questions it places with <Check item="…" /> (ADR-0026), which
- * src/tooling/remarkLessonChecks.ts adds while compiling.
+ * src/tooling/remarkLessonChecks.ts adds while compiling, and how long each
+ * stretch of it is (src/tooling/remarkLessonShape.ts).
  */
-export type LessonModule = { default: LessonComponent; checks?: string[] }
+export type LessonModule = {
+  default: LessonComponent
+  checks?: string[]
+  shape?: LessonShape
+}
 
 /** Everything one topic page needs, loaded only when the page opens. */
 export type TopicContent = {
@@ -327,6 +333,11 @@ export type TopicContent = {
    * when the lesson asks none.
    */
   lessonChecks?: string[]
+  /**
+   * How long each stretch of the lesson is, so a long lesson can be shown in
+   * parts (ADR-0025, amended 2026-11-21). Missing: the lesson is one part.
+   */
+  lessonShape?: LessonShape
   recall: Record<string, RecallItem>
   exercises: Record<string, Exercise>
 }

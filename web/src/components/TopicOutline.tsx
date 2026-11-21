@@ -3,6 +3,7 @@ import type { TopicContent } from '../content/types.ts'
 import {
   aboutMinutes,
   type LadderItem,
+  type LearnPart,
   partAnchor,
   type TopicPart,
 } from '../parts/topicParts.ts'
@@ -53,12 +54,31 @@ const PROOF_NAMES: Record<Proof, string> = {
   explain: 'Explain',
 }
 
-const LEARN_PLACES: { id: string; label: string }[] = [
-  { id: START_PLACE, label: 'What you can do after' },
-  { id: `${LESSON_PLACE_PREFIX}1`, label: 'The lesson' },
-  { id: 'place-resource', label: 'The main resource' },
-  { id: 'place-recap', label: 'Recap' },
-]
+/**
+ * The places in one part of the lesson. A lesson in parts (ADR-0025, amended
+ * 2026-11-21) has the goals in its first part, the resource and the recap in
+ * its last, and some of the lesson's text in each part but a last one that
+ * holds only the resource and the recap.
+ */
+function learnPlaces(part: LearnPart): { id: string; label: string }[] {
+  const places: { id: string; label: string }[] = []
+  if (part.id === 'learn') {
+    places.push({ id: START_PLACE, label: 'What you can do after' })
+  }
+  if (part.sections.from < part.sections.to) {
+    places.push({
+      id: `${LESSON_PLACE_PREFIX}${part.places.first}`,
+      label: 'The lesson',
+    })
+  }
+  if (part.tail) {
+    places.push(
+      { id: 'place-resource', label: 'The main resource' },
+      { id: 'place-recap', label: 'Recap' },
+    )
+  }
+  return places
+}
 
 const CURRENT_MARK = '▸ '
 
@@ -170,12 +190,12 @@ export function TopicOutline({
               )}
               {part.kind === 'learn' && (
                 <ul className="space-y-0.5">
-                  {LEARN_PLACES.map((place) => {
+                  {learnPlaces(part).map((place) => {
+                    const isLesson = place.id.startsWith(LESSON_PLACE_PREFIX)
                     const here =
                       isCurrent &&
                       (current === place.id ||
-                        (place.id === `${LESSON_PLACE_PREFIX}1` &&
-                          lessonPart !== null))
+                        (isLesson && lessonPart !== null))
                     return (
                       <li key={place.id}>
                         <a
@@ -188,11 +208,13 @@ export function TopicOutline({
                             <span aria-hidden="true">{CURRENT_MARK}</span>
                           )}
                           {place.label}
-                          {place.id === `${LESSON_PLACE_PREFIX}1` &&
+                          {isLesson &&
                             here &&
                             lessonPart !== null &&
                             lessonParts > 0 &&
-                            ` (part ${lessonPart} of ${lessonParts})`}
+                            // Counted within the part on screen: its first
+                            // place is 1, whatever its number in the lesson.
+                            ` (part ${lessonPart - part.places.first + 1} of ${lessonParts})`}
                         </a>
                       </li>
                     )
