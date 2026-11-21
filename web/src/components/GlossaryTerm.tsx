@@ -107,7 +107,7 @@ export function GlossaryTerm({
           setPinned(!pinned)
           setHovered(false)
         }}
-        className="cursor-help underline decoration-slate-500 decoration-dotted decoration-2 underline-offset-4 hover:decoration-slate-900 dark:decoration-slate-400 dark:hover:decoration-slate-100"
+        className="cursor-help underline decoration-muted decoration-dotted decoration-2 underline-offset-4 hover:decoration-ink"
       >
         {children}
         <span className="sr-only">{' (show its definition)'}</span>
@@ -117,13 +117,13 @@ export function GlossaryTerm({
           ref={panel}
           id={panelId}
           style={shift ? { transform: `translateX(-${shift}px)` } : undefined}
-          className="absolute top-full left-0 z-30 mt-1 block w-72 max-w-[calc(100vw-2rem)] space-y-1 rounded-md border border-slate-300 bg-white p-3 text-left text-sm leading-normal font-normal text-slate-900 not-italic shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          className="absolute top-full left-0 z-30 mt-1 block w-72 max-w-[calc(100vw-2rem)] space-y-1 rounded-md border border-line-strong bg-card p-3 text-left text-sm leading-normal font-normal text-ink not-italic shadow-lg"
         >
           <span className="block font-semibold">{term}</span>
           <span className="block">
             <Markdown inline>{definition}</Markdown>
           </span>
-          <span className="block text-slate-600 dark:text-slate-400">
+          <span className="block text-muted">
             Taught in:{' '}
             <Link to={`/topic/${topicId}`} className="underline">
               {topicTitle}

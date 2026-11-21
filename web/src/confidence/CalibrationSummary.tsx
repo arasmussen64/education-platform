@@ -50,7 +50,7 @@ export function CalibrationSummary() {
       <h2 id="calibration" className="text-xl font-semibold">
         How sure you are, and how often you're right
       </h2>
-      <p className="text-slate-600 dark:text-slate-400">
+      <p className="text-muted">
         Before each quick question is checked, you say how sure you are. Here's
         how that compares with your answers. When the two match, you know what
         you know, and what to review.

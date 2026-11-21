@@ -130,7 +130,7 @@ export function TopicOutline({
     <nav aria-labelledby="outline" className="space-y-4 text-sm">
       <h2
         id="outline"
-        className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400"
+        className="text-xs font-semibold tracking-wide text-muted uppercase"
       >
         Your place in this topic
       </h2>
@@ -140,7 +140,7 @@ export function TopicOutline({
           onClick={follow(resume)}
           // Not lime: the page's one lime button is "Next: Part…", and lime is
           // never a text colour.
-          className="block rounded-md border border-slate-500 px-3 py-2 font-medium text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+          className="block rounded-md border border-muted px-3 py-2 font-medium text-ink hover:bg-sunken"
         >
           Continue where you left off: {resumeLabel}
         </a>
@@ -184,7 +184,7 @@ export function TopicOutline({
                 </span>
               </a>
               {parts.length > 1 && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-muted">
                   {aboutMinutes(part.minutes)}
                   {part.kind === 'practice' &&
                     states &&
@@ -292,11 +292,11 @@ function PracticeSquares({
                 state === 'done'
                   ? PROGRESS_FILL
                   : optional
-                    ? 'border-dashed border-slate-300 text-slate-400 dark:border-slate-700 dark:text-slate-500'
+                    ? 'border-dashed border-line-strong text-muted'
                     : state === 'tried'
                       ? 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
-                      : 'border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300'
-              } ${isCurrent ? 'ring-2 ring-slate-900 ring-offset-1 dark:ring-white dark:ring-offset-slate-900' : ''}`}
+                      : 'border-line-strong text-ink'
+              } ${isCurrent ? 'ring-2 ring-ink ring-offset-1 ring-offset-card' : ''}`}
             >
               {number}
               {/* A mark as well as a color, never color alone (F9). */}
@@ -328,7 +328,7 @@ function ProofList({
   return (
     <>
       {passed && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-muted">
           {proofs.filter((proof) => passed[proof]).length} of {proofs.length}{' '}
           passed
         </p>

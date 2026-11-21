@@ -65,7 +65,7 @@ export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
         {order.map((index) => (
           <label
             key={index}
-            className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 px-3 py-2 dark:border-slate-700"
+            className="flex cursor-pointer items-center gap-2 rounded-md border border-line-strong px-3 py-2"
           >
             <input
               type="radio"
@@ -84,7 +84,7 @@ export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
           // The honest answer when none of the above is known (ADR-0021,
           // amended 2026-11-10): it counts as wrong, so a guess can't place
           // the learner past what they know.
-          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-600 dark:border-slate-600 dark:text-slate-400">
+          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-line-strong px-3 py-2 text-muted">
             <input
               type="radio"
               name={promptId}
@@ -99,7 +99,7 @@ export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
       {checked && quiet ? (
         <Recorded />
       ) : checked ? (
-        <output className="block space-y-2 rounded-md bg-slate-100 p-3 dark:bg-slate-800">
+        <output className="block space-y-2 rounded-md bg-sunken p-3">
           <p className="font-medium">
             {correct ? (
               <>

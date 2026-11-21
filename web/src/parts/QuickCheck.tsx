@@ -63,7 +63,7 @@ export function QuickCheck({
       <h2 id="quick-check" tabIndex={-1} className="text-2xl font-bold">
         Check what you know
       </h2>
-      <p className="text-slate-600 dark:text-slate-400">
+      <p className="text-muted">
         Answer from memory; only your first answer to each question counts. A
         skill you get right makes its practice optional. Nothing here counts
         against you.

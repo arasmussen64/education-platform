@@ -24,9 +24,7 @@ export function AccountPage() {
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">Your account</h1>
         {auth.status === 'signed-in' && (
-          <p className="text-slate-600 dark:text-slate-400">
-            Signed in as {displayName(auth.user)}.
-          </p>
+          <p className="text-muted">Signed in as {displayName(auth.user)}.</p>
         )}
       </header>
       {auth.status === 'signed-out' && (

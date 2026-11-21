@@ -47,9 +47,7 @@ export function FollowUpCard({
 
   return (
     <div className="space-y-2">
-      <p
-        className={`text-sm text-slate-600 dark:text-slate-400 ${INLINE_CODE}`}
-      >
+      <p className={`text-sm text-muted ${INLINE_CODE}`}>
         <span className="font-medium">
           {names.length === 1 ? 'Skill:' : 'Skills:'}
         </span>{' '}

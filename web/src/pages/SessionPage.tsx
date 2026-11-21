@@ -44,7 +44,7 @@ export function SessionPage() {
         <h1 className="text-2xl font-bold">
           {quick ? 'Just 5 minutes' : "Today's session"}
         </h1>
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted">
           {quick
             ? 'Only the reviews you are closest to forgetting. They count exactly like any other review.'
             : 'One thing at a time: reviews first, the most faded first, then the mistakes coming back today, then your next topic.'}
@@ -185,11 +185,7 @@ function Session({ quick }: { quick: boolean }) {
     return <CouldNotLoad what="Today's questions" retry={loaded.retry} />
   }
   if (steps === null || progress.status !== 'ready') {
-    return (
-      <p className="text-slate-500 dark:text-slate-400">
-        Getting your session ready…
-      </p>
-    )
+    return <p className="text-muted">Getting your session ready…</p>
   }
   if (steps.length === 0) return <NothingToDo quick={quick} />
   return <Steps steps={steps} progress={progress} now={now} pace={pace} />
@@ -234,7 +230,7 @@ function Steps({
       <h2
         ref={heading}
         tabIndex={-1}
-        className="text-sm font-semibold tracking-wide text-slate-500 uppercase outline-none dark:text-slate-400"
+        className="text-sm font-semibold tracking-wide text-muted uppercase outline-none"
       >
         Step {index + 1} of {steps.length} · {STEP_NAMES[step.kind]}
       </h2>
@@ -275,7 +271,7 @@ function Steps({
             {last ? 'Finish' : 'Next'}
           </button>
         )}
-        <span className="text-sm text-slate-500 dark:text-slate-400">
+        <span className="text-sm text-muted">
           You can move on at any point. Whatever you answered is saved.
         </span>
       </div>
@@ -290,7 +286,7 @@ function NewTopic({ next, pace }: { next: NextTopic; pace: Pace | null }) {
     <div className={CARD}>
       <h3 className="text-lg font-semibold">{next.topic.title}</h3>
       <p>{next.topic.summary}</p>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-muted">
         {next.track.title} · about {paced(next.topic.estimated_minutes, pace)}{' '}
         minutes{stretches(pace) && ' at your pace'}
       </p>

@@ -14,14 +14,14 @@ export function SignInPage() {
   const auth = useAuth()
 
   if (auth.status === 'loading') {
-    return <p className="text-slate-500 dark:text-slate-400">Loading…</p>
+    return <p className="text-muted">Loading…</p>
   }
 
   if (auth.status === 'signed-in') {
     return (
       <section className="space-y-2">
         <h1 className="text-2xl font-bold">Signed in</h1>
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted">
           Signed in as {displayName(auth.user)}.{' '}
           <Link to="/" className="underline">
             Go to Today
@@ -34,9 +34,7 @@ export function SignInPage() {
   return (
     <section className="max-w-md space-y-4">
       <h1 className="text-2xl font-bold">Sign in</h1>
-      <p className="text-slate-600 dark:text-slate-400">
-        Sign in to save your progress.
-      </p>
+      <p className="text-muted">Sign in to save your progress.</p>
       {signInMethod() === 'github' ? <GitHubSignIn /> : <EmailLinkSignIn />}
     </section>
   )
@@ -99,7 +97,7 @@ function EmailLinkSignIn() {
 
   if (sent) {
     return (
-      <output className="block text-slate-600 dark:text-slate-400">
+      <output className="block text-muted">
         Sign-in link sent. Open the local test inbox at{' '}
         <a href="http://127.0.0.1:54324" className="underline">
           127.0.0.1:54324
@@ -111,7 +109,7 @@ function EmailLinkSignIn() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-muted">
         Local development: the local Supabase has no GitHub sign-in, so you sign
         in with an email link instead. Any address works. The email lands in the
         local test inbox, not a real mailbox.

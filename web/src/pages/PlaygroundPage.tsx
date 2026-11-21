@@ -28,7 +28,7 @@ export function PlaygroundPage() {
     <div className="space-y-10">
       <section>
         <h1 className="text-2xl font-bold">Playground</h1>
-        <p className="mt-2 text-slate-600 dark:text-slate-400">
+        <p className="mt-2 text-muted">
           Write and run Python right in your browser. Nothing here is saved yet.
         </p>
       </section>
@@ -37,7 +37,7 @@ export function PlaygroundPage() {
         <h2 id="run-anything" className="text-lg font-semibold">
           Run anything
         </h2>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           Press Run. When the program asks for your name, type it and press
           Enter.
         </p>
@@ -48,7 +48,7 @@ export function PlaygroundPage() {
         <h2 id="try-a-check" className="text-lg font-semibold">
           Try a check
         </h2>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           Swap x and y so the program prints 5, then 3. Press Check to see
           whether it works.
         </p>

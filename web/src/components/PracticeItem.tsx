@@ -375,7 +375,7 @@ export function PracticeItem({
       onPointerDown={timer.start}
     >
       {position && (
-        <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+        <p className="text-xs font-semibold tracking-wide text-muted uppercase">
           {position}
           {status && ` · ${ITEM_STATE_LABELS[status]}`}
         </p>
@@ -384,7 +384,7 @@ export function PracticeItem({
         {item.heading}
       </h3>
       {collapsed && !shown ? (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           You got this one right already.{' '}
           <button
             type="button"
@@ -401,7 +401,7 @@ export function PracticeItem({
           already shown (and announced) what went wrong; this says what it
           means for the learner. */}
       {checkNotRun && (
-        <output className="block text-sm text-slate-600 dark:text-slate-400">
+        <output className="block text-sm text-muted">
           That Check couldn't run, so it doesn't count for or against you. Press
           Check to try again.
         </output>

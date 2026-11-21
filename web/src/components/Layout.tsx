@@ -13,7 +13,7 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
   const base = 'rounded-md px-3 py-2 text-sm'
   return isActive
     ? `${base} ${YOU_ARE_HERE}`
-    : `${base} font-medium text-slate-700 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800`
+    : `${base} font-medium text-ink hover:bg-line`
 }
 
 // The frame around every page: the app name, the main navigation, who's
@@ -25,11 +25,11 @@ export function Layout() {
   // "Back to top" puts keyboard focus here, so the next Tab is the app name.
   const header = useRef<HTMLElement>(null)
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen bg-paper text-ink">
       <header
         ref={header}
         tabIndex={-1}
-        className="border-b border-slate-200 outline-none dark:border-slate-800"
+        className="border-b border-line outline-none"
       >
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
           <Link to="/" className="text-lg font-semibold">
@@ -92,7 +92,7 @@ function Account() {
             // the honest state, so there's nothing else to do here.
           })
         }}
-        className="rounded-md px-3 py-2 font-medium text-slate-700 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+        className="rounded-md px-3 py-2 font-medium text-ink hover:bg-line"
       >
         Sign out
       </button>

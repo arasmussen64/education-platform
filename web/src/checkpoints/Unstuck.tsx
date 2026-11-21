@@ -95,7 +95,7 @@ export function Unstuck({
                   position="3. Prove it on a fresh version"
                 />
               ) : (
-                <p className="text-slate-500 dark:text-slate-400">
+                <p className="text-muted">
                   Finding a version you haven't tried…
                 </p>
               ))}
@@ -109,7 +109,7 @@ export function Unstuck({
 /** The way through, and what opening the steps means for the proof. */
 function BuildIntro() {
   return (
-    <div className="space-y-2 text-slate-600 dark:text-slate-400">
+    <div className="space-y-2 text-muted">
       <p>
         A checkpoint is the first time you put a whole module together, so
         getting stuck is normal. When you are, take it in three parts:
@@ -144,7 +144,7 @@ function BuildIntro() {
  */
 function PartOneIntro() {
   return (
-    <div className="space-y-2 text-slate-600 dark:text-slate-400">
+    <div className="space-y-2 text-muted">
       <p>
         A checkpoint is the first time you put a whole module together, so
         getting stuck is normal. If you're stuck on part 1, the first build,

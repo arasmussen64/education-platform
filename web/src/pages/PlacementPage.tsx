@@ -79,7 +79,7 @@ export function PlacementPage() {
     <section className="space-y-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">Placement test</h1>
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted">
           Already know some of this? The placement test finds where your
           knowledge runs out, so you can start there. It picks a topic in the
           middle of a track and asks a few of its questions; each answer rules
@@ -178,11 +178,7 @@ function Subjects({ scope }: { scope?: FoundationsScope }) {
     )
   }
   if (progress.status !== 'ready' || placements.status === 'loading') {
-    return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Loading your progress…
-      </p>
-    )
+    return <p className="text-sm text-muted">Loading your progress…</p>
   }
   const learned = (topicId: string) =>
     Boolean(progress.progress.get(topicId)?.learnedAt)
@@ -239,7 +235,7 @@ function Subjects({ scope }: { scope?: FoundationsScope }) {
     return (
       <div className="space-y-4">
         {listCard(scope)}
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           Or place yourself in a whole track, or in the math ladder:{' '}
           <Link to="/placement" className="underline">
             every placement test
@@ -262,7 +258,7 @@ function Subjects({ scope }: { scope?: FoundationsScope }) {
             <h2 id={headingId} className="text-lg font-semibold">
               {track.title}
             </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-muted">
               {open.length === 0
                 ? 'Nothing written here yet.'
                 : `${open.length} topics written so far, ${open.length - left.length} of them learned. About ${probesNeeded(left.length)} topics' worth of questions.`}
@@ -303,7 +299,7 @@ function Subjects({ scope }: { scope?: FoundationsScope }) {
             <h2 id={headingId} className="text-lg font-semibold">
               {diagnostic.title}
             </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-muted">
               {diagnostic.summary} {diagnostic.levels.length} levels, about{' '}
               {probesNeeded(diagnostic.levels.length)} levels' worth of
               questions.
@@ -343,7 +339,7 @@ function ListCard({
       <h2 id={headingId} className="text-lg font-semibold">
         {foundationsTitle(scope)}
       </h2>
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-muted">
         {open.length === 0
           ? 'Nothing on this list is written yet.'
           : `Only the ${open.length} ${open.length === 1 ? 'topic' : 'topics'} from other tracks that Module ${scope.number} builds on, in the order to learn them; ${open.length - left.length} of them learned. About ${probesNeeded(left.length)} topics' worth of questions.`}{' '}
@@ -382,7 +378,7 @@ function Progress({
   what: string
 }) {
   return (
-    <p className="text-sm text-slate-500 dark:text-slate-400">
+    <p className="text-sm text-muted">
       Checked {checked} of up to {outOf} {what}; {asked}{' '}
       {asked === 1 ? 'question' : 'questions'} so far.
     </p>
@@ -391,7 +387,7 @@ function Progress({
 
 function StopButton({ onDone }: { onDone: () => void }) {
   return (
-    <p className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+    <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
       <button type="button" onClick={onDone} className={SECONDARY_BUTTON}>
         Stop here
       </button>
@@ -596,7 +592,7 @@ function TopicProbe({
   }
   if (!content) {
     return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-muted">
         Loading questions from {topic.title}…
       </p>
     )
@@ -606,7 +602,7 @@ function TopicProbe({
   if (!itemId) return null
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-muted">
         From the topic <span className="font-medium">{topic.title}</span>
       </p>
       <PracticeItem
@@ -898,7 +894,7 @@ function LevelProbe({
       onFocus={timer.start}
       onPointerDown={timer.start}
     >
-      <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+      <p className="text-xs font-semibold tracking-wide text-muted uppercase">
         Question {askedBefore + position + 1} · {level.title}
       </p>
       <h3 id={headingId} className="text-lg font-semibold">

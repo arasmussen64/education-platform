@@ -41,7 +41,7 @@ export function TopicGoals({
                 learnedOn
                   ? // Green for "proven", as passed tests are; lime means forward.
                     'text-emerald-700 dark:text-emerald-400'
-                  : 'text-slate-400'
+                  : 'text-muted'
               }
             >
               {learnedOn ? '✓' : '○'}
@@ -55,7 +55,7 @@ export function TopicGoals({
           </li>
         ))}
       </ul>
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-muted">
         {learnedOn
           ? `Ticked on ${learnedOn}, when you passed all three proofs.`
           : 'These are ticked once you pass all three proofs at the end.'}

@@ -58,12 +58,12 @@ export function ResourceView({ resource }: { resource: Resource }) {
           href={resource.url}
           target="_blank"
           rel="noreferrer"
-          className="block rounded-md border border-slate-300 p-4 font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+          className="block rounded-md border border-line-strong p-4 font-medium hover:bg-sunken"
         >
           {resource.title} ↗
         </a>
       )}
-      <figcaption className="text-xs text-slate-500 dark:text-slate-400">
+      <figcaption className="text-xs text-muted">
         {embed ? (
           <>
             {resource.title}

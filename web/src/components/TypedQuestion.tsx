@@ -38,12 +38,14 @@ type Props = {
 }
 
 const BOX =
-  'w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700'
+  'w-full min-w-0 rounded-md border border-line-strong bg-card px-3 py-2 text-sm text-ink'
 
 /** An answer as the page shows it: as code for a command, as text otherwise. */
 function Shown({ item, text }: { item: TypedItem; text: string }): ReactNode {
+  // Shown inside a sunken box, which in dark mode is the same colour as the
+  // usual shade behind code (line); the card colour shows there instead.
   return item.kind === 'command' ? (
-    <code className="rounded bg-slate-200 px-1 font-mono text-[0.9em] wrap-anywhere dark:bg-slate-900">
+    <code className="rounded bg-line px-1 font-mono text-[0.9em] wrap-anywhere dark:bg-card">
       {text}
     </code>
   ) : (
@@ -177,7 +179,7 @@ function Feedback({
   const others = item.answers.filter((answer) => answer !== grade.matched)
   const alsoAccepted = grade.correct ? others : item.answers.slice(1)
   return (
-    <output className="block space-y-2 rounded-md bg-slate-100 p-3 dark:bg-slate-800">
+    <output className="block space-y-2 rounded-md bg-sunken p-3">
       <p className="font-medium">
         {grade.correct ? (
           <>
@@ -197,13 +199,13 @@ function Feedback({
       )}
       <ConfidenceNote confidence={confidence} correct={grade.correct} />
       {mistake && (
-        <div className="rounded-md border-l-4 border-amber-500 bg-white px-3 py-2 dark:bg-slate-900">
+        <div className="rounded-md border-l-4 border-amber-500 bg-card px-3 py-2">
           <p className="text-sm font-medium">A common slip</p>
           <Markdown>{mistake.why}</Markdown>
         </div>
       )}
       {alsoAccepted.length > 0 && (
-        <p className="text-sm text-slate-600 dark:text-slate-300">
+        <p className="text-sm text-muted">
           {grade.correct ? 'Also right: ' : 'Also accepted: '}
           {alsoAccepted.map((answer, index) => (
             <span key={answer}>

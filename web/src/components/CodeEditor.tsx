@@ -85,7 +85,7 @@ export function CodeEditor({
     <div
       ref={hostRef}
       // The colours inside come from the editor's theme (editorThemes.ts).
-      className="overflow-hidden rounded-md border border-slate-300 text-sm dark:border-slate-700"
+      className="overflow-hidden rounded-md border border-line-strong text-sm"
     />
   )
 }

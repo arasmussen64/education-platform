@@ -544,7 +544,7 @@ function PartNav({
   return (
     <nav
       aria-label="Parts of this topic"
-      className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-6 dark:border-slate-800"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6"
     >
       {previous ? (
         <button
@@ -696,7 +696,7 @@ function LockedNotice({
             {start.topic.title}
           </Link>
           {startPlace && (
-            <span className="text-sm text-slate-500 dark:text-slate-400">
+            <span className="text-sm text-muted">
               {' '}
               ({startPlace.track.title}, Module {startPlace.number})
             </span>
@@ -766,7 +766,7 @@ function SentForNote({
   return (
     <aside
       aria-label={`For ${track.title}`}
-      className="mt-4 space-y-1 rounded-lg border-2 border-dashed border-slate-300 p-3 text-sm dark:border-slate-700"
+      className="mt-4 space-y-1 rounded-lg border-2 border-dashed border-line-strong p-3 text-sm"
     >
       <p>
         <span className="font-medium">For {track.title}:</span> this is{' '}
@@ -1070,7 +1070,7 @@ function TopicHeader({
   return (
     <header className="space-y-2">
       {place && (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-muted">
           {/* The track's name matters once there's more than one. */}
           {tracks().length > 1 && `${place.track.title} · `}
           {place.role === 'capstone'
@@ -1093,10 +1093,8 @@ function TopicHeader({
           Draft: only shown on the dev server
         </p>
       )}
-      <p className="text-lg text-slate-600 dark:text-slate-400">
-        {topic.summary}
-      </p>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-lg text-muted">{topic.summary}</p>
+      <p className="text-sm text-muted">
         About {paced(topic.estimated_minutes, pace)} minutes for the whole{' '}
         {topic.kind === 'checkpoint' ? 'checkpoint' : 'topic'}
         {stretches(pace) &&
@@ -1138,7 +1136,7 @@ function SectionHeading({
   if (!eyebrow) return heading
   return (
     <div>
-      <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+      <p className="text-xs font-semibold tracking-wide text-muted uppercase">
         {eyebrow}
       </p>
       {heading}
@@ -1198,7 +1196,7 @@ function Learn({
                 >
                   {resource.title}
                 </a>{' '}
-                <span className="text-sm text-slate-500 dark:text-slate-400">
+                <span className="text-sm text-muted">
                   ({resource.type}; license: {resource.license})
                 </span>
               </li>
@@ -1245,7 +1243,7 @@ function Practice({
       <SectionHeading id={anchor} eyebrow={eyebrow}>
         {part.title}
       </SectionHeading>
-      <p className="text-slate-600 dark:text-slate-400">
+      <p className="text-muted">
         Work through these in order. Each one asks a little more of you.
         {interleaved &&
           ' One question is from an earlier topic, to keep it fresh.'}
@@ -1277,9 +1275,9 @@ function Practice({
         return (
           <details
             key={key}
-            className="rounded-lg border border-dashed border-slate-300 px-4 py-3 dark:border-slate-700"
+            className="rounded-lg border border-dashed border-line-strong px-4 py-3"
           >
-            <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400">
+            <summary className="cursor-pointer text-sm text-muted">
               Practice {number} of {total} · Optional: you seem to know this,
               from your quick check
             </summary>
@@ -1336,7 +1334,7 @@ function ProveIt({
       <SectionHeading id="prove-it" eyebrow={eyebrow}>
         Prove it
       </SectionHeading>
-      <p className="text-slate-600 dark:text-slate-400">{intro}</p>
+      <p className="text-muted">{intro}</p>
       <ProofProgress content={content} state={progress} />
       {beforeBuild}
       {build && (
@@ -1564,7 +1562,7 @@ function UnknownTopic() {
   return (
     <section>
       <h1 className="text-2xl font-bold">Topic not found</h1>
-      <p className="mt-2 text-slate-600 dark:text-slate-400">
+      <p className="mt-2 text-muted">
         There's no topic at this address.{' '}
         <Link to="/map" className="underline">
           See every topic on the map

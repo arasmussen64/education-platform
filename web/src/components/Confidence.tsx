@@ -67,7 +67,7 @@ export function ConfidenceNote({
 }) {
   if (confidence === 'sure' && !correct) {
     return (
-      <p className="rounded-md border-l-4 border-sky-500 bg-white px-3 py-2 text-sm dark:bg-slate-900">
+      <p className="rounded-md border-l-4 border-sky-500 bg-card px-3 py-2 text-sm">
         You were certain, and it's wrong. That's the kind of mistake that sticks
         once it's corrected, so read why below.
       </p>
@@ -75,7 +75,7 @@ export function ConfidenceNote({
   }
   if (confidence === 'guess' && correct) {
     return (
-      <p className="text-sm text-slate-600 dark:text-slate-300">
+      <p className="text-sm text-muted">
         Right, though you were guessing: read why, so next time you know.
       </p>
     )

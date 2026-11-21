@@ -16,7 +16,7 @@ type Props = {
   allowHints: boolean
 }
 
-const NOTE = 'text-sm text-slate-600 dark:text-slate-300'
+const NOTE = 'text-sm text-muted'
 
 /**
  * A lab (ADR-0018): an exercise that runs in a container on the learner's
@@ -192,9 +192,7 @@ function Walkthrough({ exercise }: { exercise: Exercise }) {
           <li key={`${step.lines} ${step.label}`} className="space-y-1">
             <p>
               <span className="font-medium">{step.label}</span>{' '}
-              <span className="text-sm text-slate-500 dark:text-slate-400">
-                ({linesLabel(step)})
-              </span>
+              <span className="text-sm text-muted">({linesLabel(step)})</span>
             </p>
             <Markdown>{step.note}</Markdown>
           </li>
@@ -238,7 +236,7 @@ function Checks({
         What the checker looks for
       </h4>
       {waitForATry ? (
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted">
           {exercise.checks.length === 1
             ? 'One check. It'
             : `${exercise.checks.length} checks. They`}{' '}

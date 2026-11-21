@@ -45,7 +45,7 @@ export function WelcomeBackPlan({
                 <span className="font-medium">{dayLabel(day, today)}:</span>{' '}
                 {count(reviews.length, 'review', 'reviews')}, about{' '}
                 {count(minutes, 'minute', 'minutes')}
-                <details className="text-sm text-slate-600 dark:text-slate-400">
+                <details className="text-sm text-muted">
                   <summary className="cursor-pointer">Which topics</summary>
                   <ul className="list-disc pl-6">
                     {reviews.map((review) => (
@@ -59,7 +59,7 @@ export function WelcomeBackPlan({
               </li>
             ))}
           </ol>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-muted">
             Topics that come due meanwhile join in, so take the days as a guide.
             {days[0].day === today &&
               " Today's session below starts with today's share, in this order."}
