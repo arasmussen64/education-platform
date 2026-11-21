@@ -41,7 +41,12 @@ import type { Explain, Topic, TopicContent, Track } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
-import { CARD, PROSE, SECONDARY_BUTTON } from '../components/styles.ts'
+import {
+  CARD,
+  PRIMARY_BUTTON,
+  PROSE,
+  SECONDARY_BUTTON,
+} from '../components/styles.ts'
 import { TopicOutline } from '../components/TopicOutline.tsx'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { ExplainCheck, ExplainClosed } from '../explain/ExplainCheck.tsx'
@@ -517,7 +522,7 @@ function PartNav({
           type="button"
           onClick={() => onNext(next)}
           // Lime is for moving forward (the Momentum design).
-          className="rounded-md bg-lime-600 px-4 py-2 text-sm font-semibold text-white hover:bg-lime-700 dark:bg-lime-500 dark:text-slate-950 dark:hover:bg-lime-400"
+          className={PRIMARY_BUTTON}
         >
           Next: Part {index + 2}, {next.title}
           <span aria-hidden="true"> →</span>

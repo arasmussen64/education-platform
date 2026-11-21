@@ -39,7 +39,8 @@ export function TopicGoals({
               aria-hidden="true"
               className={
                 learnedOn
-                  ? 'text-lime-700 dark:text-lime-400'
+                  ? // Green for "proven", as passed tests are; lime means forward.
+                    'text-emerald-700 dark:text-emerald-400'
                   : 'text-slate-400'
               }
             >

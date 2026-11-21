@@ -3,7 +3,12 @@ import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { McqQuestion } from '../components/McqQuestion.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
-import { BUTTON, CARD, SECONDARY_BUTTON } from '../components/styles.ts'
+import {
+  BUTTON,
+  CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+} from '../components/styles.ts'
 import { useAttemptTimer } from '../components/useAttemptTimer.ts'
 import {
   diagnostics,
@@ -459,7 +464,7 @@ function TopicProbe({
         onGraded={graded}
       />
       {answered && (
-        <button type="button" onClick={next} className={BUTTON}>
+        <button type="button" onClick={next} className={PRIMARY_BUTTON}>
           Next question
         </button>
       )}
@@ -732,7 +737,7 @@ function LevelProbe({
         onAnswer={(correct, choice) => graded(item, correct, choice)}
       />
       {answered && (
-        <button type="button" onClick={next} className={BUTTON}>
+        <button type="button" onClick={next} className={PRIMARY_BUTTON}>
           Next question
         </button>
       )}
