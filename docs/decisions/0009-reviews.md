@@ -61,7 +61,7 @@ A review session is rated from the first answer to each of its items given in th
 
 ## Amendment (2026-11-16): implicit repetition
 
-- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience, then the best memory retention, then free) and built on until the owner rules; it is listed in [the owner queue](../owner-queue.md) under _Decided for you_.
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 
 "Later" above named implicit repetition, Math Academy's FIRe: practising an advanced topic gives partial review credit to the topics it builds on. It is built now, in `web/src/reviews/implicit.ts`. The learner's own reviews, their ratings and Mastered are unchanged; what changes is when a topic's next review falls due.
 
@@ -108,7 +108,7 @@ After a real review the schedule is plain FSRS-4.5 again, from the state the cre
 
 ## Amendment (2026-11-16): a slow right answer makes a review Hard
 
-- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience, then the best memory retention, then free) and built on until the owner rules; it is listed in [the owner queue](../owner-queue.md) under _Decided for you_.
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 
 Until now a session with every item right was Good, however long it took. Getting a question right after five minutes of digging is not the same as getting it right at once: the memory is there, but fading, and a review that comes a little sooner is the one that strengthens it. Every graded event already carries `duration_ms`, from the learner's first click or focus in the item to the answer ([data-model.md](../specs/data-model.md)). "Later" above named answer time as a way to tell Good from Easy; it is used the other way first, to tell Good from Hard, because Easy isn't used and a slow success is the case that costs retention.
 
@@ -129,7 +129,7 @@ Until now a session with every item right was Good, however long it took. Gettin
 
 ## Amendment (2026-11-16): a personal forgetting curve
 
-- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience, then the best memory retention, then free) and built on until the owner rules; it is listed in [the owner queue](../owner-queue.md) under _Decided for you_.
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 
 "Later" above deferred personal FSRS parameters to the ML capstone. That stays: fitting FSRS's seventeen parameters is the capstone's job. What is built now is the smallest honest step toward it, in `web/src/reviews/personal.ts`: one number, fitted to the learner's own reviews, that says how many times longer (or shorter) their memory lasts than the average curve says.
 
@@ -151,7 +151,7 @@ Until now a session with every item right was Good, however long it took. Gettin
 
 ## Amendment (2026-11-16): review labs for hands-on skills
 
-- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience, then the best memory retention, then free) and built on until the owner rules; it is listed in [the owner queue](../owner-queue.md) under _Decided for you_.
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 
 The cloud track's skills are typed commands and broken servers fixed by hand ([ADR-0018](0018-lab-checker-local-mode.md)), and its reviews were only quick questions: a learner could keep recognising the right `systemctl` line and lose the ability to bring a service back. Recall of the thing itself is what the review should test, so a review sometimes asks for a lab.
 

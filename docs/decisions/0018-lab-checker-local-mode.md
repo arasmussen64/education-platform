@@ -73,7 +73,7 @@ The tutor reads the learner's code and their last Check; a lab has neither in th
 
 ## Amendment (2026-11-11): a shell command, a start that keeps the work, and what privileged means
 
-- **Status:** Proposed. It is built as described here, for the owner to accept or change.
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 
 The decision had `start` print "the command that opens a shell", and said nothing about running `start` twice, about labs left running, or about what a privileged container may touch. An audit on 2026-11-10 found four things wrong with that. Each was then tried for real on the owner's PC before anything was changed:
 
@@ -120,7 +120,7 @@ What is true now:
 
 ## Amendment (2026-11-11, second): a check's own time limit
 
-- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience, then the best memory retention, then free) and built on until the owner rules; it is listed in [the owner queue](../owner-queue.md) under _Decided for you_.
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 
 **Context.** Every check had 30 seconds (`CHECK_TIMEOUT_SECONDS` in `tools/labcheck.py`). That was enough for Module 1. Module 2's hypervisors topic boots a small virtual machine with QEMU inside the lab container, without hardware help (emulation, which QEMU calls TCG): 16 to 27 seconds a boot on the owner's PC with other containers busy, and not yet measured on a CI runner testing four labs at once. So its designer had the checks read a log that the learner's own run left behind. A log is a file the learner can write by hand, so in the topic's debug, which is a proof, a hand-edited log would pass. The honest check runs the learner's launcher itself and reads what the guest reports, and that takes longer than 30 seconds.
 
@@ -152,7 +152,7 @@ What doesn't change: what a check means, the result the learner pastes, and the 
 
 ## Amendment (2026-11-11, third): shared lab bases, checks that cut a link, and the restart trial
 
-- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience, then the best memory retention, then free or inside the $150 Azure credit) and built on until the owner rules; it is listed in [the owner queue](../owner-queue.md) under _Decided for you_.
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 
 **Context.** Module 3 of the Cloud Solutions Architect track, networking, has about 91 labs, nearly all of them several machines in one container: routers, name servers, VPN gateways, load balancers. Its plan ([MODULE-3-BRIEF.md](../plans/cloud-module-3/MODULE-3-BRIEF.md), sections 3.5, 4 and 7) gives them one way to build a network: a shared base image, `content/lab-bases/net/`, in which each machine is a network namespace with its own `/etc`, built at boot by an engine (`netlab`) from a topology file, with each daemon a systemd unit per machine. Three things the decision above doesn't allow, or doesn't do, stood in the way:
 

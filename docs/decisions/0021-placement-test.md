@@ -1,6 +1,6 @@
 # ADR-0021: The placement test walks the map by halving, and proves nothing
 
-- **Status:** Accepted (the owner asked for Phase 2 to be built on 2026-11-09; this is its placement item)
+- **Status:** Accepted (the owner asked for Phase 2 to be built on 2026-11-09; this is its placement item) Confirmed by the owner on 2026-11-21.
 - **Date:** 2026-11-09
 
 ## Context

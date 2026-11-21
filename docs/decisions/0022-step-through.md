@@ -1,6 +1,6 @@
 # ADR-0022: Step through, a visualizer from Python's own trace hook
 
-- **Status:** Accepted (the owner asked for Phase 2 to be built on 2026-11-09; this is its visualizer item)
+- **Status:** Accepted (the owner asked for Phase 2 to be built on 2026-11-09; this is its visualizer item) Confirmed by the owner on 2026-11-21.
 - **Date:** 2026-11-09
 
 ## Context

@@ -1,6 +1,6 @@
 # ADR-0026: Lesson building blocks: questions, a puzzle, a real incident, and a glossary
 
-- **Status:** Proposed
+- **Status:** Accepted by the owner on 2026-11-21 ("I accept all the ADR decisions you listed"). It was designed and built on under the owner's delegation of 2026-11-11, and listed in [the owner queue](../owner-queue.md) until then.
 - **Date:** 2026-11-16
 
 ## Context

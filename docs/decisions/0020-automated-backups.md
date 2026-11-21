@@ -1,6 +1,6 @@
 # ADR-0020: Nightly encrypted backups of the learning data
 
-- **Status:** Accepted (the owner asked for Phase 2 to be built on 2026-11-09; this is its backups item)
+- **Status:** Accepted (the owner asked for Phase 2 to be built on 2026-11-09; this is its backups item) Confirmed by the owner on 2026-11-21.
 - **Date:** 2026-11-09
 
 ## Context
