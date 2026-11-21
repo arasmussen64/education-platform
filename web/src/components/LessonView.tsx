@@ -1,18 +1,9 @@
 import type { MDXComponents } from 'mdx/types'
-import {
-  Children,
-  cloneElement,
-  isValidElement,
-  type ReactElement,
-  type ReactNode,
-  useMemo,
-} from 'react'
+import { Children, type ReactNode, useMemo } from 'react'
 import type { LessonComponent, TopicContent } from '../content/types.ts'
-import {
-  LESSON_PLACE_PREFIX,
-  PLACE_ATTRIBUTE,
-} from '../place/useCurrentPlace.ts'
+import { PLACE_ATTRIBUTE } from '../place/useCurrentPlace.ts'
 import { GlossaryTerm } from './GlossaryTerm.tsx'
+import { type SectionRange, WHOLE_INTRO, withPlaces } from './lessonSections.ts'
 import { PracticeItem } from './PracticeItem.tsx'
 import { Puzzle } from './Puzzle.tsx'
 import { ResourceView } from './ResourceView.tsx'
@@ -45,24 +36,6 @@ function Callout({
   )
 }
 
-/**
- * Marks each of the intro's paragraphs (and lists, and code blocks) as a
- * place, so the outline can say how far into the lesson the learner is and
- * the next visit can continue there.
- */
-function withPlaces(children: ReactNode): ReactNode {
-  let part = 0
-  return Children.map(children, (child) => {
-    if (!isValidElement(child)) return child
-    part += 1
-    const id = `${LESSON_PLACE_PREFIX}${part}`
-    return cloneElement(child as ReactElement<Record<string, unknown>>, {
-      id,
-      [PLACE_ATTRIBUTE]: id,
-    })
-  })
-}
-
 /** The place props LessonView's intro gives each of its parts (withPlaces). */
 type PlaceProps = { id?: string; 'data-place'?: string }
 
@@ -78,49 +51,67 @@ type PlaceProps = { id?: string; 'data-place'?: string }
 export function LessonView({
   Lesson,
   content,
+  sections = WHOLE_INTRO,
+  tail = true,
 }: {
   Lesson: LessonComponent
   /** The topic's questions and resources, which the lesson's tags show. */
   content: TopicContent
+  /** A long lesson in parts: the sections of the intro to show. */
+  sections?: SectionRange
+  /** Whether to show the main resource and the recap, which end a lesson. */
+  tail?: boolean
 }) {
   const resources = content.topic.resources
-  const components = useMemo<MDXComponents>(
-    () => ({
-      Intro: ({ children }: { children?: ReactNode }) => (
-        <Callout title="What to watch for">{withPlaces(children)}</Callout>
-      ),
-      Recap: ({ children }: { children?: ReactNode }) => (
-        <Callout title="Recap" id="place-recap">
-          {children}
-        </Callout>
-      ),
+  const { from, to } = sections
+  const components = useMemo<MDXComponents>(() => {
+    // One of the topic's practice questions, asked in the lesson: graded
+    // and saved exactly as in the practice ladder, which leaves it out
+    // (lessonChecks.ts).
+    const Check = ({ item, id }: { item: string } & PlaceProps) => (
+      <PracticeItem
+        itemId={item}
+        content={content}
+        context="practice"
+        placeId={id}
+      />
+    )
+    return {
+      Intro: ({ children }: { children?: ReactNode }) => {
+        const shown = withPlaces(children, (child) => child.type === Check, {
+          from,
+          to,
+        })
+        // The part with only the resource and the recap shows no intro.
+        if (Children.count(shown) === 0) return null
+        return (
+          <Callout title={from === 0 ? 'What to watch for' : 'The lesson'}>
+            {shown}
+          </Callout>
+        )
+      },
+      Recap: ({ children }: { children?: ReactNode }) =>
+        tail ? (
+          <Callout title="Recap" id="place-recap">
+            {children}
+          </Callout>
+        ) : null,
       Resource: ({ index }: { index?: number }) => {
         const resource = resources[index ?? 0]
-        return resource ? (
+        return tail && resource ? (
           <div id="place-resource" {...{ [PLACE_ATTRIBUTE]: 'place-resource' }}>
             <ResourceView resource={resource} />
           </div>
         ) : null
       },
-      // One of the topic's practice questions, asked in the lesson: graded
-      // and saved exactly as in the practice ladder, which leaves it out
-      // (lessonChecks.ts).
-      Check: ({ item, id }: { item: string } & PlaceProps) => (
-        <PracticeItem
-          itemId={item}
-          content={content}
-          context="practice"
-          placeId={id}
-        />
-      ),
+      Check,
       Puzzle,
       Story,
       // Added by the build, never written by hand: the first use of a term
       // another topic's glossary defines (src/tooling/remarkGlossary.ts).
       Term: GlossaryTerm,
-    }),
-    [resources, content],
-  )
+    }
+  }, [resources, content, from, to, tail])
   return (
     <div className={PROSE}>
       <Lesson components={components} />

@@ -20,6 +20,13 @@ import type { Stage, TopicContent } from '../content/types.ts'
 /** A quick question: multiple choice, predict the output, Parsons, estimate. */
 export const QUESTION_MINUTES = 1.5
 
+/**
+ * How fast a lesson is read, in words a minute: the speed authors use when
+ * they work a topic's total out (content/README.md). It's slower than
+ * ordinary reading, because a lesson is studied, not skimmed.
+ */
+export const READING_WORDS_A_MINUTE = 130
+
 /** A Python exercise, run in the browser, by its stage. */
 const PYTHON_MINUTES: Record<Stage, number> = {
   worked_example: 5,

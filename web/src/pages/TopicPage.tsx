@@ -64,6 +64,7 @@ import { TopicGoals } from '../parts/TopicGoals.tsx'
 import {
   aboutMinutes,
   type LadderItem,
+  type LearnPart,
   partAnchor,
   partOfAnchor,
   partsDone,
@@ -82,6 +83,13 @@ import type { Interleaved } from '../practice/interleave.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
 import { type ItemState, itemKey, itemStates } from '../progress/itemStates.ts'
 import {
+  formatRatio,
+  type Pace,
+  paced,
+  stretches,
+  topicPace,
+} from '../progress/pace.ts'
+import {
   furtherParts,
   nextUp,
   type Proof,
@@ -92,6 +100,7 @@ import {
   type TopicState,
 } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
+import { bundledTopics } from '../session/sessionPlan.ts'
 import type { topicLoader } from './topicLoader.ts'
 
 // One topic: Learn, Practice and Prove it (v1 spec, F3, F5, F7), gated by
@@ -162,10 +171,24 @@ export function TopicView({
       ? (progress.progress.get(topic.id)?.passed ?? {})
       : null
 
-  // The topic in parts, one on screen at a time (ADR-0025).
+  // The learner's pace, from the topics they've proven (progress/pace.ts).
+  // Fixed the first time the progress is known, so proving this topic
+  // doesn't move the parts under the learner's feet. In tests that read one
+  // topic's history at a time there is too little to measure, so it's null.
+  const [pace, setPace] = useState<Pace | null | undefined>(undefined)
+  if (pace === undefined && progress.status === 'ready') {
+    setPace(topicPace(bundledTopics(), progress.progress, progress.attempts))
+  }
+  const stretch = stretches(pace ?? null) ? (pace?.ratio ?? 1) : 1
+
+  // The topic in parts, one on screen at a time (ADR-0025), cut by the
+  // learner's own pace so a part is about half an hour of their time.
   const parts = useMemo(
-    () => (content && isTopic ? topicParts(content, items, { locked }) : []),
-    [content, isTopic, items, locked],
+    () =>
+      content && isTopic
+        ? topicParts(content, items, { locked, pace: stretch })
+        : [],
+    [content, isTopic, items, locked, stretch],
   )
   // "Check what you know" (ADR-0025, amended 2026-11-16): its questions,
   // whether it's been taken, and the practice its right answers made
@@ -235,7 +258,12 @@ export function TopicView({
       className="lg:grid lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-x-10"
     >
       <div className="mb-8 lg:col-span-2">
-        <TopicHeader topic={topic} state={state} progress={progress} />
+        <TopicHeader
+          topic={topic}
+          state={state}
+          progress={progress}
+          pace={pace ?? null}
+        />
         {sentFor && (
           <SentForNote topic={topic} sentFor={sentFor} progress={progress} />
         )}
@@ -278,8 +306,8 @@ export function TopicView({
             <TopicGoals
               objectives={topic.objectives}
               learnedOn={learnedAt ? shortDate(learnedAt) : null}
-              // Unfolded with the lesson, folded on the other parts.
-              open={currentPart.kind === 'learn'}
+              // Unfolded where the lesson starts, folded on the other parts.
+              open={currentPart.id === 'learn'}
             />
             {locked && <LockedNotice topic={topic} progress={progress} />}
             {state === 'available' && currentPart.kind !== 'prove' && (
@@ -290,7 +318,7 @@ export function TopicView({
               <PartBreak finished={breakAfter} onDismiss={endBreak} />
             )}
             {currentPart.kind === 'learn' && (
-              <Learn content={content} eyebrow={eyebrow} />
+              <Learn content={content} part={currentPart} eyebrow={eyebrow} />
             )}
             {currentPart.id === 'practice-1' &&
               quickItems.length > 0 &&
@@ -408,6 +436,17 @@ function usePartChoice(
   if (chosen === null && settled && parts.length > 0) {
     setChosen(resumePart(parts, done, lastViewed))
   }
+  // The parts are cut again once the learner's pace is known, so the place
+  // a link pointed at may now be in another part: look it up once more.
+  const [lookedAgain, setLookedAgain] = useState(false)
+  if (!lookedAgain && settled && parts.length > 0) {
+    setLookedAgain(true)
+    const part =
+      initialAnchor && content
+        ? partOfAnchor(parts, content, initialAnchor)
+        : undefined
+    if (part && part.id !== chosen) setChosen(part.id)
+  }
   const currentId = chosen ?? resumePart(parts, null, lastViewed)
   const currentPart =
     parts.find((part) => part.id === currentId) ?? parts[0] ?? null
@@ -418,11 +457,13 @@ function usePartChoice(
 
   // The page opened from a link to a place in it: go there, now that its
   // part is on screen.
+  const anchorPart = initialAnchor ? chosen : null
   useEffect(() => {
     if (initialAnchor) {
       document.getElementById(initialAnchor)?.scrollIntoView({ block: 'start' })
     }
-  }, [initialAnchor])
+    // Again if the link's place turned out to be in another part.
+  }, [initialAnchor, anchorPart])
 
   // The part just finished, while a break is suggested after it (PartBreak).
   const [breakAfter, setBreakAfter] = useState<string | null>(null)
@@ -1008,11 +1049,14 @@ function TopicHeader({
   topic,
   state,
   progress,
+  pace,
 }: {
   topic: Topic
   /** Null until a signed-in learner's progress is known. */
   state: TopicState | null
   progress: ProgressState
+  /** The learner's pace, which stretches the time shown (pace.ts). */
+  pace: Pace | null
 }) {
   const place = placeOf(topic.id)
   const prerequisites = topic.prerequisites
@@ -1053,8 +1097,10 @@ function TopicHeader({
         {topic.summary}
       </p>
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        About {topic.estimated_minutes} minutes for the whole{' '}
+        About {paced(topic.estimated_minutes, pace)} minutes for the whole{' '}
         {topic.kind === 'checkpoint' ? 'checkpoint' : 'topic'}
+        {stretches(pace) &&
+          ` at your pace (${formatRatio(pace.ratio)} the estimate of ${topic.estimated_minutes})`}
         {prerequisites.length > 0 && (
           <>
             {' · Builds on '}
@@ -1100,26 +1146,38 @@ function SectionHeading({
   )
 }
 
-/** The lesson: what you'll be able to do, then intro, resource and recap. */
+/**
+ * The lesson: the intro, the main resource and the recap. A long lesson
+ * comes a part at a time (ADR-0025, amended 2026-11-21): some sections of
+ * the intro, with the resource and the recap in the last part.
+ */
 function Learn({
   content,
+  part,
   eyebrow,
 }: {
   content: TopicContent
+  part: LearnPart
   eyebrow?: string
 }) {
   const { topic, Lesson } = content
   // The first resource is the main one, placed in the lesson; the rest are
-  // listed after it (content/README.md).
-  const moreResources = topic.resources.slice(1)
+  // listed after it (content/README.md), where the lesson ends.
+  const moreResources = part.tail ? topic.resources.slice(1) : []
+  const anchor = partAnchor(part)
 
   return (
-    <section aria-labelledby="learn" className="space-y-4">
-      <SectionHeading id="learn" eyebrow={eyebrow}>
-        Learn
+    <section aria-labelledby={anchor} className="space-y-4">
+      <SectionHeading id={anchor} eyebrow={eyebrow}>
+        {part.title}
       </SectionHeading>
       {Lesson ? (
-        <LessonView Lesson={Lesson} content={content} />
+        <LessonView
+          Lesson={Lesson}
+          content={content}
+          sections={part.sections}
+          tail={part.tail}
+        />
       ) : (
         <p>The lesson for this topic hasn't been written yet.</p>
       )}
