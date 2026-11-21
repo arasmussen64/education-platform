@@ -13,6 +13,7 @@ import type { Module, Topic, Track } from '../content/types.ts'
 import { describeListRecord } from '../placement/describe.ts'
 import type { PlacementRecord } from '../placement/history.ts'
 import { probesNeeded } from '../placement/placement.ts'
+import { PRIMARY_BUTTON } from './styles.ts'
 import {
   nextUp,
   STATE_LABELS,
@@ -112,7 +113,7 @@ export function FoundationsList({
         <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <Link
             to={foundationLink(next.topic.id, track)}
-            className="inline-block rounded-md bg-lime-400 px-4 py-2 font-semibold text-slate-900 hover:bg-lime-300"
+            className={PRIMARY_BUTTON}
           >
             {next.state === 'in-progress' ? 'Continue' : 'Start'}:{' '}
             {next.topic.title}

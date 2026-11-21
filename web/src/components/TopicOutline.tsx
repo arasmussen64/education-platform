@@ -18,6 +18,7 @@ import {
   itemKey,
 } from '../progress/itemStates.ts'
 import { type Proof, PROOFS } from '../progress/progress.ts'
+import { PROGRESS_FILL } from './styles.ts'
 
 export type { LadderItem }
 
@@ -117,7 +118,9 @@ export function TopicOutline({
         <a
           href={`#${resume}`}
           onClick={follow(resume)}
-          className="block rounded-md border border-lime-600 px-3 py-2 font-medium text-lime-800 hover:bg-lime-50 dark:border-lime-500 dark:text-lime-300 dark:hover:bg-lime-950"
+          // Not lime: the page's one lime button is "Next: Part…", and lime is
+          // never a text colour.
+          className="block rounded-md border border-slate-500 px-3 py-2 font-medium text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
         >
           Continue where you left off: {resumeLabel}
         </a>
@@ -265,7 +268,7 @@ function PracticeSquares({
               aria-current={isCurrent ? 'location' : undefined}
               className={`flex h-8 items-center justify-center gap-0.5 rounded border text-xs font-medium ${
                 state === 'done'
-                  ? 'border-lime-600 bg-lime-100 text-lime-900 dark:border-lime-500 dark:bg-lime-950 dark:text-lime-200'
+                  ? PROGRESS_FILL
                   : optional
                     ? 'border-dashed border-slate-300 text-slate-400 dark:border-slate-700 dark:text-slate-500'
                     : state === 'tried'

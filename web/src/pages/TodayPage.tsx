@@ -2,7 +2,13 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { Markdown } from '../components/Markdown.tsx'
-import { BUTTON, INLINE_CODE, PRIMARY_BUTTON } from '../components/styles.ts'
+import {
+  BUTTON,
+  INLINE_CODE,
+  PRIMARY_BUTTON,
+  PROGRESS_BAR,
+  PROGRESS_FILL,
+} from '../components/styles.ts'
 import {
   diagnostics,
   getTopic,
@@ -431,7 +437,7 @@ function Weeks({ weeks }: { weeks: WeeksPractised }) {
               data-practised={practised}
               className={`h-3 w-5 rounded-sm border ${
                 practised
-                  ? 'border-lime-600 bg-lime-400'
+                  ? PROGRESS_FILL
                   : 'border-slate-300 dark:border-slate-700'
               }`}
             />
@@ -466,7 +472,7 @@ function TrackHours({ title, time }: { title: string; time: PracticeTime }) {
       {milestone ? (
         <>
           <progress
-            className="h-2 w-full"
+            className={`h-2 w-full ${PROGRESS_BAR}`}
             max={milestone.hours * 60}
             value={Math.floor(time.totalMs / 60_000)}
             aria-label={`${title}: progress toward ${formatHours(milestone.hours)}`}

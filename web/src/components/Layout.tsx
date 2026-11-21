@@ -5,14 +5,15 @@ import { useAuth } from '../auth/useAuth.ts'
 import { APP_NAME } from '../config.ts'
 import { BackToTop } from './BackToTop.tsx'
 import { SaveStatus } from './SaveStatus.tsx'
+import { YOU_ARE_HERE } from './styles.ts'
 
 // NavLink tells us whether its link matches the current page, so the
 // current page's tab can be highlighted.
 function navLinkClass({ isActive }: { isActive: boolean }) {
-  const base = 'rounded-md px-3 py-2 text-sm font-medium'
+  const base = 'rounded-md px-3 py-2 text-sm'
   return isActive
-    ? `${base} bg-slate-900 text-white dark:bg-white dark:text-slate-900`
-    : `${base} text-slate-700 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800`
+    ? `${base} ${YOU_ARE_HERE}`
+    : `${base} font-medium text-slate-700 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800`
 }
 
 // The frame around every page: the app name, the main navigation, who's

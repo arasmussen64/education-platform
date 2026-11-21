@@ -33,9 +33,11 @@ function Callout({
     <aside
       id={id}
       {...(id ? { [PLACE_ATTRIBUTE]: id } : {})}
-      className="space-y-2 rounded-lg border-l-4 border-lime-500 bg-lime-50 p-4 dark:bg-lime-950/40"
+      // Neutral on purpose: a callout is something to read, not the way
+      // forward, so it leaves lime alone (the Momentum design).
+      className="space-y-2 rounded-lg border-l-4 border-slate-400 bg-slate-100 p-4 dark:border-slate-500 dark:bg-slate-900"
     >
-      <p className="text-sm font-semibold tracking-wide text-lime-800 uppercase dark:text-lime-300">
+      <p className="text-sm font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-300">
         {title}
       </p>
       {children}
