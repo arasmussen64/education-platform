@@ -7,7 +7,7 @@ const PREFIX = 'place:'
 
 type PlaceStorage = Pick<Storage, 'getItem' | 'setItem'>
 
-function defaultStorage(): PlaceStorage | null {
+function defaultStorage(): Storage | null {
   try {
     return typeof localStorage === 'undefined' ? null : localStorage
   } catch {
@@ -37,5 +37,17 @@ export function recallPlace(
     return storage?.getItem(PREFIX + topicId) ?? null
   } catch {
     return null
+  }
+}
+
+/** Forgets the place remembered for a topic (when a track starts over). */
+export function forgetPlace(
+  topicId: string,
+  storage: Pick<Storage, 'removeItem'> | null = defaultStorage(),
+): void {
+  try {
+    storage?.removeItem(PREFIX + topicId)
+  } catch {
+    // Storage blocked: there was nothing to forget.
   }
 }

@@ -28,6 +28,28 @@ A dated log of each working session: what changed, what was decided, what's next
 **The question about lessons** ("bring the lessons into the app instead of a link"): answered in the session, not built. The count: of 135 ready topics, 26 have an embedded video as their main resource (22 in Python, 4 in cloud), 17 ML topics link to a video that could be embedded, 87 link to a reading and 5 to an interactive page. The readings' licences vary from "copy with credit" to "link only", so the recommendation was our own text in every lesson with the outside page as optional further reading, and an embedded video where a good one exists.
 
 **Next:** cloud Module 4, security and identity foundations.
+## 2026-11-21, later: start a track over
+
+**The owner asked:** "Give me a way to reset my progress on each track so I can start fresh."
+
+**What changed.** The Account page has a new section, "Start a track over", with one row per track: how many of its topics have progress, when it was last started over, and a "Start … over" button. The button opens a second step that lists what goes (every topic back to not started, with its proofs, reviews, mistakes coming back and placement results; drafts in this browser) and what stays (practice hours and weeks, the forgetting curve, every other track, and the full history). Confirming records one `track_reset` event naming the track.
+
+**How it works without deleting anything.** The event log is append-only ([ADR-0008](decisions/0008-event-log.md)), so a reset can't erase events. Instead the progress code ignores a track's events from before its newest reset. `web/src/resets/resets.ts` reads the resets and filters with `afterResets`; `useProgress` applies it to graded events and checkpoint steps opened, and `usePlacements` to placement results. `ProgressState` now has `attempts` (after resets) and `allAttempts` (everything): the Today page's practice hours, weeks practised and daily review limit use the second. The decision is [ADR-0029](decisions/0029-starting-a-track-over.md), accepted by the owner the same day.
+
+**Database.** Migration `20261121230000_track_reset_events.sql` adds `track_reset` to the event types, with a database test. Docker wasn't running, so the database tests ran only in CI. It joins the owner queue's item 1: until it's pushed, the live server refuses a reset like any new event type.
+
+**Tests.** `resets.test.ts` (the filtering rules), `StartOver.test.tsx` (asks first, Cancel records nothing, confirming records one event and clears only that track's drafts and places), and two cases in `useProgress.test.tsx` (a Mastered topic is available again after a reset, and work after a reset counts). All 2,471 web tests pass.
+
+**Author notes:**
+
+- _What stays is what describes the learner,_ not the track: hours, weeks, the day's review limit, usual answer times, the forgetting curve, confidence calibration and the math diagnostic. By the three tests in CLAUDE.md: keeping the forgetting curve keeps reviews well timed (it takes 100 reviews to fit), and taking back hours that were really practised would only discourage.
+- _A foundations-list placement belongs to the track whose module it sits before,_ so starting that track over clears it; the math diagnostic never resets.
+- _The reset's context is `learn`,_ so the migration changes only the type list, not the context list.
+- _Placed on the Account page,_ not the map, so it's hard to press by accident; the second step is in the page, not a browser dialog.
+
+**Then the owner said** "You're allowed to merge. push it. accept 0029". #344 was merged; a dry run of `npx supabase db push --remote` listed exactly the three waiting migrations (placement events, the larger event size limit, and track resets), they were applied, and a second dry run reports the live database up to date. ADR-0029 is accepted.
+
+**Next:** cloud Module 4, security and identity foundations, as before.
 
 ## 2026-11-21, end: Momentum stage 3, named colours on every page
 
@@ -35,17 +57,17 @@ Stage 3 of the redesign landed (#342), which finishes the three stages planned o
 
 **What changed.** Every colour the app uses for its greys and its lime is now a named colour (a "design token": one name for one role, defined once), in `web/src/index.css`. Each has a light and a dark value and switches by itself with the system's setting, so a component writes `bg-card text-ink border-line` with no `dark:` twin. All 487 uses of the repainted `slate` scale and the 19 of `white` are gone, about 215 `dark:` twins with them, and the repaint itself is removed.
 
-| Token | Light | Dark | Role |
-| --- | --- | --- | --- |
-| paper | #f6f4ed | #111914 | the page |
-| card | #fdfcf8 | #1b2620 | cards, pop-ups, form fields |
-| sunken | #edeae0 | #28322b | inset areas: feedback boxes, a hover wash |
-| ink | #1b2620 | #edeae0 | text, and the dark button's fill |
-| muted | #666c5f | #9a9a88 | secondary text |
-| line | #dedacb | #28322b | hairlines, and the shade behind inline code |
-| line-strong | #c6c2b0 | #3b443b | the edge of things to click or type in |
-| forward, forward-hover, forward-edge, on-forward | #a3e635, #bef264, #65a30d, #1b2620 | the same | the lime fill, its hover, its edge, and text on it |
-| code, on-code, on-code-muted | #1b2620, #edeae0, #9a9a88 | #111914, then the same | code and output boxes |
+| Token                                            | Light                              | Dark                   | Role                                               |
+| ------------------------------------------------ | ---------------------------------- | ---------------------- | -------------------------------------------------- |
+| paper                                            | #f6f4ed                            | #111914                | the page                                           |
+| card                                             | #fdfcf8                            | #1b2620                | cards, pop-ups, form fields                        |
+| sunken                                           | #edeae0                            | #28322b                | inset areas: feedback boxes, a hover wash          |
+| ink                                              | #1b2620                            | #edeae0                | text, and the dark button's fill                   |
+| muted                                            | #666c5f                            | #9a9a88                | secondary text                                     |
+| line                                             | #dedacb                            | #28322b                | hairlines, and the shade behind inline code        |
+| line-strong                                      | #c6c2b0                            | #3b443b                | the edge of things to click or type in             |
+| forward, forward-hover, forward-edge, on-forward | #a3e635, #bef264, #65a30d, #1b2620 | the same               | the lime fill, its hover, its edge, and text on it |
+| code, on-code, on-code-muted                     | #1b2620, #edeae0, #9a9a88          | #111914, then the same | code and output boxes                              |
 
 **Tests.** `web/src/components/tokens.test.ts` reads the real values from `index.css` and fails if any of twelve text-on-background pairings drops under 4.5 to 1 in either theme, if an editor theme's colours drift from the tokens, or if a `slate-<n>` or `white` class appears in a source file again.
 
@@ -168,6 +190,7 @@ Writer D of four wrote topics 10 and 11 of Finance and Markets Module 1 and its 
 - _For the cold review:_ the first-year interest of the puzzle's mortgage ($1,500 of $1,798.65), the friends' totals, and the extra-$1,200 claim in `review-mcq-extra-early` (three months sooner, about $5,700 less paid on $300,000 at 6%) were all computed in CPython; worth a second look are the Investor.gov license wording and whether 85 minutes is right for topic 3.
 
 **Next:** writers B, C and D's topics, then the checkpoint and a cold review of the whole module.
+
 ## 2026-11-17, finance Module 1: rates, returns and risk
 
 **What was written.** Three topics of Finance and Markets Module 1, one pull request each, to the plan in [docs/plans/finance-module-1/README.md](plans/finance-module-1/README.md):
@@ -189,6 +212,7 @@ Each has a puzzle, four in-lesson checks, a glossary, a worked example, a Parson
 - _Plan correction:_ the plan's Risk debug "resets the running peak every month"; written as a peak that looks back only one month (`max(prices[i - 1], prices[i])`), which is what that bug looks like in code.
 
 **Next:** the checkpoint (Writer D) reuses `effective_annual_rate`, `simple_returns`, `annualized_return` and `max_drawdown`; then the module's cold review.
+
 ## 2026-11-17, finance Module 1: Diversification; Fees, taxes and compounding; Stocks, bonds and funds
 
 Writer C of four wrote topics 7 to 9 of Finance and Markets Module 1 from [its plan](plans/finance-module-1/README.md), one pull request each, all `ready`.
@@ -704,11 +728,11 @@ The first of four changes to the review engine. ADR-0009 listed implicit repetit
 
 **The simulation.** An hour of new study a day through cloud Modules 1 to 3 (38 topics and 3 checkpoints), every due review done, each item right with the chance the card predicts; 20 runs of a year:
 
-| | Reviews in the year | A day, on average | Busiest day | Rated Again |
-| --- | --- | --- | --- | --- |
-| Without credit | 167 | 0.46 | 3.3 | 1.4 |
-| Credit, if it's right | 114 | 0.31 | 2.6 | 0.7 |
-| Credit, if it's worthless | 129 | 0.35 | 3.1 | 4.1 |
+|                           | Reviews in the year | A day, on average | Busiest day | Rated Again |
+| ------------------------- | ------------------- | ----------------- | ----------- | ----------- |
+| Without credit            | 167                 | 0.46              | 3.3         | 1.4         |
+| Credit, if it's right     | 114                 | 0.31              | 2.6         | 0.7         |
+| Credit, if it's worthless | 129                 | 0.35              | 3.1         | 4.1         |
 
 So credit spares about a third of the reviews. "Worthless" is the worst case: the schedule trusts the credit while the learner's memory gets nothing from it, so the reviews that are left fail more often. At two hours a day the numbers are much the same (178 reviews without, 114 with). Over all 31 modules' outlines (376 topics, two hours a day, 1,100 days) it spares about a tenth (1,968 to 1,789), because most outlines list only their module's checkpoint as a prerequisite, and credit doesn't cross checkpoints. The written topics list more.
 
@@ -1410,7 +1434,7 @@ Both now wait for real events (a log line, a serial that has stopped changing). 
 - a cache rule mended on one page while the storefront kept its own, which also passed;
 - nginx's `server`, `location` and `proxy_pass`, used but never defined.
 
-**Labs CI's shares are balanced by each lab's time** (#263). The Labs job dealt whole topics to its eight machines in turn, so a share that drew a slow Module 3 topic and a Samba one held the whole run up: #262's shares took from 8.6 to 24.6 minutes. A first try weighed each lab by how many containers its contract starts, and did worse (10.6 to 29.3 minutes): the slowest labs, a QEMU boot and the Samba domains, are slow on every run, not because they run often. So `labcheck test` now prints each lab's time, and `tools/lab-seconds.json` keeps the times from a CI run. Each topic goes, slowest first, to the machine with the least work so far, and each machine starts its slowest labs first; a new lab weighs the middle time until the file is refreshed. Under the new split one Module 1 lab, `csa.linux.net-tools/debug-not-from-the-office`, started on GitHub's runner with its name server's fault already mended, three times running (its untouched container passed 2 of 5 checks where it always passes 1), and never on Docker Desktop. `labcheck test` now prints what each check saw when a known-wrong fix passes them all, and a probe of the untouched container found the cause. The image held the *working* name file: the Dockerfile copied it in, then copied the broken one over it, and the two were the same size (10.0.9.1 and 10.0.9.5 are equally long). On a fresh checkout both files have the same time, and Docker's layer differ, which on some build paths compares size and time rather than content, took the second copy for no change. Which path it takes depends on what is in the build cache, which is why the split brought it out. The lab now copies only the broken file, and `tools/tests/test_lab_dockerfiles.py` fails any lab that copies two different files of the same size onto one path (no other lab does). Topics stay whole on a machine all the same: that builds the layers a topic's labs share once, and spreading them out balanced the work hardly better. Its last run took 8 to 22 minutes a share, against 8.6 to 24.6 before; the 22 is HTTP semantics' build on its own, now the floor, and the next thing worth slimming.
+**Labs CI's shares are balanced by each lab's time** (#263). The Labs job dealt whole topics to its eight machines in turn, so a share that drew a slow Module 3 topic and a Samba one held the whole run up: #262's shares took from 8.6 to 24.6 minutes. A first try weighed each lab by how many containers its contract starts, and did worse (10.6 to 29.3 minutes): the slowest labs, a QEMU boot and the Samba domains, are slow on every run, not because they run often. So `labcheck test` now prints each lab's time, and `tools/lab-seconds.json` keeps the times from a CI run. Each topic goes, slowest first, to the machine with the least work so far, and each machine starts its slowest labs first; a new lab weighs the middle time until the file is refreshed. Under the new split one Module 1 lab, `csa.linux.net-tools/debug-not-from-the-office`, started on GitHub's runner with its name server's fault already mended, three times running (its untouched container passed 2 of 5 checks where it always passes 1), and never on Docker Desktop. `labcheck test` now prints what each check saw when a known-wrong fix passes them all, and a probe of the untouched container found the cause. The image held the _working_ name file: the Dockerfile copied it in, then copied the broken one over it, and the two were the same size (10.0.9.1 and 10.0.9.5 are equally long). On a fresh checkout both files have the same time, and Docker's layer differ, which on some build paths compares size and time rather than content, took the second copy for no change. Which path it takes depends on what is in the build cache, which is why the split brought it out. The lab now copies only the broken file, and `tools/tests/test_lab_dockerfiles.py` fails any lab that copies two different files of the same size onto one path (no other lab does). Topics stay whole on a machine all the same: that builds the layers a topic's labs share once, and spreading them out balanced the work hardly better. Its last run took 8 to 22 minutes a share, against 8.6 to 24.6 before; the 22 is HTTP semantics' build on its own, now the floor, and the next thing worth slimming.
 
 **Author notes:**
 
@@ -2136,7 +2160,7 @@ So: content is no longer held to one module ahead of the owner's learning; the b
 
 **"The last topic" named:** the track's order isn't the writing order (sampling follows maximum likelihood, entropy follows sampling), so "the last topic showed it was a negative log-likelihood" pointed at the wrong topic in three places; every such reference now names the topic.
 
-**Jargon glossed at first use,** for a beginner: simulate, sample, histogram bin (already there), coverage, with replacement, percentile, `ddof`, the bias of a coin (not Module 4's bias), odds, moments, mini-batch, classifier, score and threshold, underflow, `E[X]`, `Var[X]`, `ŷ`, `Σ`, MLE, outlier, prevalence, statistic and parameter, vocabulary; "latency" became "response time"; the entropy lesson's last bullet is marked as names you'll meet later. Number lists spliced straight from NumPy output ("0.83  0.744 0.824 0.782", "an interval of 0.015 0.165") are written with commas and "to". The sampling Parsons item printed a NumPy tuple (`(np.float64(46.08), np.float64(53.92))`) rather than the `(46.08, 53.92)` it promised; it now prints two plain numbers, and the fix script ran the lines to check. The checkpoint's build prompts now say the threshold is rounded to 2 places (the grid value 1.7 is 1.7000000000000002 unrounded, and a learner following the old prompt would fail). The checkpoint's debug test for the thresholds now actually fails while the thresholds are chosen on the test set. The checkpoint's solved sibling steps through `report` and the data, which its old steps skipped; the evaluating-models worked example's step ranges match what the notes describe.
+**Jargon glossed at first use,** for a beginner: simulate, sample, histogram bin (already there), coverage, with replacement, percentile, `ddof`, the bias of a coin (not Module 4's bias), odds, moments, mini-batch, classifier, score and threshold, underflow, `E[X]`, `Var[X]`, `ŷ`, `Σ`, MLE, outlier, prevalence, statistic and parameter, vocabulary; "latency" became "response time"; the entropy lesson's last bullet is marked as names you'll meet later. Number lists spliced straight from NumPy output ("0.83 0.744 0.824 0.782", "an interval of 0.015 0.165") are written with commas and "to". The sampling Parsons item printed a NumPy tuple (`(np.float64(46.08), np.float64(53.92))`) rather than the `(46.08, 53.92)` it promised; it now prints two plain numbers, and the fix script ran the lines to check. The checkpoint's build prompts now say the threshold is rounded to 2 places (the grid value 1.7 is 1.7000000000000002 unrounded, and a learner following the old prompt would fail). The checkpoint's debug test for the thresholds now actually fails while the thresholds are chosen on the test set. The checkpoint's solved sibling steps through `report` and the data, which its old steps skipped; the evaluating-models worked example's step ranges match what the notes describe.
 
 **Decisions for you to review:**
 

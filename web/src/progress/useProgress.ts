@@ -29,6 +29,14 @@ import {
   openItemsOf,
   type SkillIndex,
 } from '../followups/skillIndex.ts'
+import {
+  afterResets,
+  fetchResets,
+  latestResets,
+  localResets,
+  type Resets,
+  type TrackReset,
+} from '../resets/resets.ts'
 import { type UsualTimes, usualTimes } from '../reviews/answerTime.ts'
 import {
   type PersonalCurve,
@@ -50,8 +58,19 @@ export type ProgressState =
       status: 'ready'
       /** Each topic's progress, with its skills still being relearned. */
       progress: Map<string, TopicProgress>
-      /** The graded history the progress was worked out from. */
+      /**
+       * The graded history the progress was worked out from: everything
+       * except a started-over track's attempts from before its newest
+       * reset (ADR-0029).
+       */
       attempts: Attempt[]
+      /**
+       * Every graded attempt, resets or not. Practice time, weeks practised
+       * and the daily review limit count what the learner really did.
+       */
+      allAttempts: Attempt[]
+      /** The newest time each track was started over, by track id. */
+      resets: Resets
       /** The mistakes coming back (ADR-0011), from that same history. */
       followUps: FollowUp[]
       /**
@@ -63,7 +82,8 @@ export type ProgressState =
       /**
        * The learner's own forgetting curve, fitted to every review once
        * there are enough (ADR-0009, amended 2026-11-16). The cards above
-       * are scheduled by it.
+       * are scheduled by it. It describes the learner's memory, not a
+       * track, so starting a track over keeps it (ADR-0029).
        */
       personalCurve: PersonalCurve
     }
@@ -77,6 +97,8 @@ type Fetched = {
         index: SkillIndex
         /** When they opened a checkpoint's steps (ADR-0012). */
         stepsOpened: StepsOpened[]
+        /** When they started a track over (ADR-0029). */
+        resets: TrackReset[]
       }
     | 'failed'
 }
@@ -110,13 +132,22 @@ export function useProgress(
   useEffect(() => {
     if (!userId) return
     let active = true
-    // All three at once: the index downloads while the server answers. All
-    // or nothing: without the openings, the page can't tell whether a
-    // checkpoint's main build counts.
-    Promise.all([load(), loadSkillIndex(), fetchStepsOpened()]).then(
-      ([attempts, index, stepsOpened]) => {
+    // All at once: the index downloads while the server answers. All or
+    // nothing: without the openings, the page can't tell whether a
+    // checkpoint's main build counts, and without the resets it would count
+    // what the learner chose to start over.
+    Promise.all([
+      load(),
+      loadSkillIndex(),
+      fetchStepsOpened(),
+      fetchResets(),
+    ]).then(
+      ([attempts, index, stepsOpened, resets]) => {
         if (active) {
-          setFetched({ userId, history: { attempts, index, stepsOpened } })
+          setFetched({
+            userId,
+            history: { attempts, index, stepsOpened, resets },
+          })
         }
       },
       () => {
@@ -143,21 +174,34 @@ export function useProgress(
     const local = localRows
       .map(localAttempt)
       .filter((attempt) => attempt !== null)
-    const attempts = mergeAttempts(fetched.history.attempts, local)
+    const allAttempts = mergeAttempts(fetched.history.attempts, local)
+    // A track started over counts nothing from before its newest reset
+    // (ADR-0029). With no reset, these are the very same lists.
+    const resets = latestResets(fetched.history.resets, localResets(localRows))
+    const attempts = afterResets(allAttempts, resets)
     // Nor may the steps opened on this visit. Only the first opening of
     // each checkpoint's steps matters, so one seen twice changes nothing.
-    const stepsOpened = [
+    const allStepsOpened = [
       ...fetched.history.stepsOpened,
       ...localRows.map(localStepsOpened).filter((opened) => opened !== null),
     ]
+    const stepsOpened = afterResets(allStepsOpened, resets)
     const itemsOf = openItemsOf(fetched.history.index)
     const followUps = openFollowUps(attempts, itemsOf)
     // Every bundled topic's progress, not only the ones asked for: the
     // personal forgetting curve is fitted to all of the learner's reviews,
     // and any topic can give what it builds on implicit review credit
     // (ADR-0009, amended 2026-11-16).
-    const all = progressOf(withBundled(topics), attempts, stepsOpened, getTopic)
-    const curve = personalCurve(all)
+    const bundled = withBundled(topics)
+    const all = progressOf(bundled, attempts, stepsOpened, getTopic)
+    // The curve and the usual answer times describe the learner, not a
+    // track, so they're worked out from every attempt, from before a reset
+    // too (ADR-0029).
+    const curve = personalCurve(
+      attempts === allAttempts
+        ? all
+        : progressOf(bundled, allAttempts, allStepsOpened, getTopic),
+    )
     return {
       status: 'ready',
       progress: withOpenFollowUps(
@@ -165,8 +209,10 @@ export function useProgress(
         followUps,
       ),
       attempts,
+      allAttempts,
+      resets,
       followUps,
-      usualTimes: usualTimes(attempts, itemsOf),
+      usualTimes: usualTimes(allAttempts, itemsOf),
       personalCurve: curve,
     }
   }, [auth.status, fetched, userId, retry, localRows, topics])

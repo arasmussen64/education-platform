@@ -448,14 +448,16 @@ function PracticeHours({
   now: string
 }) {
   if (progress.status !== 'ready') return null
-  const all = practiceTime(progress.attempts, now)
+  // Every attempt, from before a track was started over too: the hours
+  // happened, and starting over doesn't take them back (ADR-0029).
+  const all = practiceTime(progress.allAttempts, now)
   const split = practiceTimeByTrack(
-    progress.attempts,
+    progress.allAttempts,
     now,
     tracks().map((track) => track.id),
     (topicId) => placeOf(topicId)?.track.id,
   )
-  const weeks = weeksPractised(progress.attempts, dayOf(now))
+  const weeks = weeksPractised(progress.allAttempts, dayOf(now))
   const recent =
     all.recentMs === 0
       ? 'none of it in the last 7 days'
@@ -588,7 +590,8 @@ function Reviews({
   const [limitReached, setLimitReached] = useState(false)
   if (progress.status === 'ready' && due === null) {
     const open = topics.filter(isOpen)
-    const left = reviewsLeftToday(progress.attempts, now)
+    // Reviews done today before a reset still count toward the day's limit.
+    const left = reviewsLeftToday(progress.allAttempts, now)
     setDue(dueReviews(open, progress.progress, now, left))
     setLimitReached(
       left === 0 && dueReviews(open, progress.progress, now).length > 0,

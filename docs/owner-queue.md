@@ -12,22 +12,14 @@ The short list of things only the owner can do or decide. It replaces the "Decis
 
 ## Open
 
-### 1. Apply two migrations to the live database
-
-A migration is a script that changes the database's structure. Two are waiting. `20261109220000_placement_events.sql` lets the live database accept the placement test's events. `20261111164541_raise_event_data_limit.sql` (#232) raises the size limit on an event's details from 16 KB to 128 KB, so the Run or Check of a long program (Module 8's run to 12,323 characters) is kept whole.
-
-- **Step:** `npx supabase db push --remote --dry-run` lists what the live database is missing and changes nothing. If it lists only those two, run it again with `--yes` in place of `--dry-run`.
-- **Or:** say "push it" and Claude runs those two commands.
-- **Holds up:** placement results taken on the live site aren't saved until this is done, and neither is the Run or Check of a program too long for the old limit. Since 2026-11-10 the app keeps refused answers on the device, says so in the header, and sends them again by itself once the database accepts them, so nothing is lost by waiting. Do it before studying Module 8. (The AI proxy was deployed on 2026-11-21 without it: the proxy needs nothing these two migrations add.)
-
-### 2. Check the $10 spending limit in the Anthropic Console
+### 1. Check the $10 spending limit in the Anthropic Console
 
 The AI proxy's fixes went live on 2026-11-21 (see _Answered_). One step of that item was always yours: in the Anthropic Console, check that the $10 monthly spending limit is set. It's the backstop [ADR-0013](decisions/0013-explain-grading.md) names, and nothing records it as set.
 
 - **Recommendation:** two minutes, next time you're in the Console.
 - **Holds up:** nothing. The proxy's own budget cap counts every call.
 
-### 3. Protect `main` on GitHub
+### 2. Protect `main` on GitHub
 
 Today nothing but habit stops a direct push, a force-push or a merge with failing checks from reaching the live site.
 
@@ -35,14 +27,14 @@ Today nothing but habit stops a direct push, a force-push or a merge with failin
 - **Recommendation:** yes.
 - **Holds up:** nothing.
 
-### 4. Optional: ask GitHub to drop the erased commit
+### 3. Optional: ask GitHub to drop the erased commit
 
 The two stray files were erased from `main`'s history on 2026-11-10, but GitHub keeps the old commit reachable by its ID for anyone who already has that ID, through pull request #198's hidden reference. Only GitHub Support can remove that, and only the repository's owner can ask.
 
 - **Recommendation:** not worth the effort. Neither file held a key or a password, and no branch contains them any more.
 - **Holds up:** nothing.
 
-### 5. Optional: Module 2's runs in your clouds (about $1.45 in all)
+### 4. Optional: Module 2's runs in your clouds (about $1.45 in all)
 
 Module 2 is complete without them: every topic is proven locally, for free. These make parts of it real.
 
@@ -56,6 +48,7 @@ Module 2 is complete without them: every topic is proven locally, for free. Thes
 
 Made under your message of 2026-11-11. Say the word to overturn any of them.
 
+- **2026-11-21, what starting a track over keeps** ([ADR-0029](decisions/0029-starting-a-track-over.md), accepted by you the same day). The track's topics go back to not started, but practice hours and weeks, the day's review limit, usual answer times, the forgetting curve, confidence calibration and the math diagnostic stay, because they describe you rather than the track. Nothing is deleted from your history.
 - **2026-11-16, how the four-expert plan was built.** You asked for every recommendation to be built (#293 to #318). The judgement calls, each with its reason in the devlog entries of 2026-11-16:
   - _Your study plan and the puzzle's guess stay on this device._ Syncing the plan would need a database migration, which is yours to push; the guess is never graded or saved.
   - _Implicit credit_ gives a direct prerequisite half a review for a Good review or a passed proof, halving at each step back, only once a card is half-way to due, at most twice between real reviews, and never as the review Mastered needs. A year's simulation of Modules 1 to 3 says it cuts about a third of the reviews. Even without it, the busiest day is about 7 reviews, so the 20-a-day limit was never at risk.
@@ -130,6 +123,7 @@ Cloud Module 1, hardened after the audit (#209, #223 to #227, #233):
 
 ## Answered
 
+- **2026-11-21, the three migrations and ADR-0029.** "push it. accept 0029": `20261109220000_placement_events.sql`, `20261111164541_raise_event_data_limit.sql` and `20261121230000_track_reset_events.sql` were applied to the live database (a dry run first listed exactly those three; afterwards it reports the database up to date). Placement results, long programs' Runs and Checks, and starting a track over are now saved on the live site, and events the server refused before are sent again by the browser within 12 hours. [ADR-0029](decisions/0029-starting-a-track-over.md), starting a track over, is _Accepted_.
 - **2026-11-10, pace and direction.** "I'm going to just go at my own pace and bounce around from track to track so your job is to just build. Let's focus the build on the cloud track until it's completely finished and then start working on the ML track again." Content is no longer held to one module ahead of your learning; the build order is the cloud track to its end, then ML from Module 9.
 - **2026-11-10, the audit's fixes.** "You can execute all of item 2": the stray files removed, the generators archived in the repository, refused events sent again, checkpoint explain checks opened only after the build, Module 8's time limits and a CI check on the browser's limit, the confirmed content corrections, and this queue.
 - **2026-11-10, the stray files.** "Erase the stray files": `k.html` and `y.html` erased from `main`'s history, not just deleted going forward. You ran the erase yourself.
