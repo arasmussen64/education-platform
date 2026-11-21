@@ -1,6 +1,6 @@
 # ADR-0029: Starting a track over
 
-- **Status:** Proposed
+- **Status:** Accepted (the owner, 2026-11-21)
 - **Date:** 2026-11-21
 
 ## Context
@@ -32,5 +32,5 @@ Two rules stand in the way of the obvious design, deleting the track's events:
 
 - A reset is reversible in code: the events are all still there, so a future "undo" would only have to ignore a reset.
 - Every reader of progress has to apply the resets. Today that's `useProgress` and `usePlacements`; anything new that reads attempts for a topic's state must use `afterResets` too. `ProgressState` carries both `attempts` (after resets) and `allAttempts` (everything) so the choice is explicit.
-- Until the migration reaches the live database, the server refuses a reset like any new event type: the browser keeps it, says so in the header, and resends it every 12 hours ([ADR-0008](0008-event-log.md), amended 2026-11-10). It applies on that device while it's waiting in the outbox, but not after the refusal or on another device.
+- The migration reached the live database on 2026-11-21, the day it was written, so resets are saved like any other event.
 - The ML capstone sees every event, resets included, and can choose whether to honour them.
