@@ -10,11 +10,36 @@ export function describeTrackRecord(
   record: PlacementRecord,
   learned: (topicId: string) => boolean,
 ): string {
+  return describeTopics(
+    record,
+    learned,
+    'everything written so far looked familiar',
+  )
+}
+
+/**
+ * The same line for a placement in one foundations list (what a module
+ * needs from other tracks): "start at" is a place in that list.
+ */
+export function describeListRecord(
+  record: PlacementRecord,
+  learned: (topicId: string) => boolean,
+): string {
+  return describeTopics(
+    record,
+    learned,
+    'everything on the list looked familiar',
+  )
+}
+
+function describeTopics(
+  record: PlacementRecord,
+  learned: (topicId: string) => boolean,
+  allFamiliar: string,
+): string {
   const toProve = record.known.filter((id) => !learned(id))
   const next = record.next ? getTopic(record.next)?.title : undefined
-  const start = next
-    ? `start at ${next}`
-    : 'everything written so far looked familiar'
+  const start = next ? `start at ${next}` : allFamiliar
   const prove =
     toProve.length === 0
       ? ''

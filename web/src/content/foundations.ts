@@ -1,5 +1,12 @@
 import { moduleTopicIds } from '../progress/modules.ts'
-import { getTopic, placeOf, topicIdsOf, tracks, type Place } from './content.ts'
+import {
+  getTopic,
+  getTrack,
+  placeOf,
+  topicIdsOf,
+  tracks,
+  type Place,
+} from './content.ts'
 import type { Module, Topic, Track } from './types.ts'
 
 // A track can build on another track's topics: Finance and Markets starts
@@ -111,6 +118,49 @@ export function foundationsListing(
 /** A link to a foundation topic that remembers which track sent the learner. */
 export function foundationLink(topicId: string, track: Track): string {
   return `/topic/${topicId}?for=${encodeURIComponent(track.id)}`
+}
+
+/** One module's foundations list, found by the ids a link carries. */
+export type FoundationsScope = ModuleFoundations & {
+  track: Track
+  /** The module's number in its track, from 1. */
+  number: number
+}
+
+/**
+ * The foundations list of one module of a track, or undefined when there's
+ * no such track or module, or the module builds on nothing from other
+ * tracks (or its topics haven't been downloaded yet, for an outline track).
+ */
+export function findFoundations(
+  trackId: string,
+  moduleId: string,
+): FoundationsScope | undefined {
+  const track = getTrack(trackId)
+  if (!track) return undefined
+  const index = track.modules.findIndex((module) => module.id === moduleId)
+  const found = trackFoundations(track)[index]
+  if (!found || found.topics.length === 0) return undefined
+  return { ...found, track, number: index + 1 }
+}
+
+/** "Before Module 1 of Finance and Markets": a list's name off the map. */
+export function foundationsTitle(scope: FoundationsScope): string {
+  return `Before Module ${scope.number} of ${scope.track.title}`
+}
+
+/**
+ * A link to the placement test for one module's foundations list only
+ * (ADR-0021's amendment of 2026-11-21). `for` is the track, as on a
+ * foundation topic's link.
+ */
+export function foundationsPlacementLink(track: Track, module: Module): string {
+  return `/placement?for=${encodeURIComponent(track.id)}&module=${encodeURIComponent(module.id)}`
+}
+
+/** A link to a module's foundations list on its track's map. */
+export function foundationsMapLink(track: Track, module: Module): string {
+  return `/map/${track.id}#${foundationsAnchor(module)}`
 }
 
 /** The id of a module's foundations list on the map, for links to it. */
