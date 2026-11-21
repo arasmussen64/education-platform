@@ -37,11 +37,11 @@ export function Hints({
 /** Shown only after a pass (v1 spec, F5), so it can't replace the effort. */
 export function ReferenceSolution({ code }: { code: string }) {
   return (
-    <details className="rounded-md border border-slate-200 dark:border-slate-700">
+    <details className="rounded-md border border-line">
       <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
         Compare with a reference solution
       </summary>
-      <pre className="overflow-x-auto border-t border-slate-200 p-3 font-mono text-sm dark:border-slate-700">
+      <pre className="overflow-x-auto border-t border-line p-3 font-mono text-sm">
         {code}
       </pre>
     </details>

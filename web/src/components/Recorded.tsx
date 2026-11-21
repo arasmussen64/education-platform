@@ -5,7 +5,7 @@
  */
 export function Recorded() {
   return (
-    <output className="block rounded-md bg-slate-100 p-3 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+    <output className="block rounded-md bg-sunken p-3 text-sm text-muted">
       Answer recorded.
     </output>
   )

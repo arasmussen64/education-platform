@@ -47,7 +47,7 @@ export function ReportProblem({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="text-xs text-slate-500 underline hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+          className="text-xs text-muted underline hover:text-ink"
         >
           Report a problem
         </button>
@@ -62,7 +62,7 @@ export function ReportProblem({
         event.preventDefault()
         void submit()
       }}
-      className="space-y-2 rounded-md border border-slate-200 p-3 text-sm dark:border-slate-700"
+      className="space-y-2 rounded-md border border-line p-3 text-sm"
     >
       <label htmlFor={boxId} className="block font-medium">
         What's wrong here?
@@ -76,7 +76,7 @@ export function ReportProblem({
         autoComplete="off"
         className={TEXT_INPUT}
       />
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-xs text-muted">
         A wrong answer, a confusing hint, a broken link: anything. The report is
         saved with this item, so it can be fixed.
       </p>

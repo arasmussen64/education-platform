@@ -52,7 +52,7 @@ export function PartBreak({
       // Focusable, so moving on to the next part can put focus here first.
       tabIndex={-1}
       aria-label="A short break"
-      className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+      className="space-y-3 rounded-lg border border-line bg-card p-4"
     >
       <p>
         <span className="font-medium">{finished}: done.</span> Time for a

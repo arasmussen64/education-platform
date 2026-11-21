@@ -77,9 +77,7 @@ function TrackMap({ track }: { track: Track }) {
       <section className="space-y-8">
         <TrackHeader track={track} />
         {outlines === 'loading' ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Loading this track's map…
-          </p>
+          <p className="text-sm text-muted">Loading this track's map…</p>
         ) : (
           <p className="flex flex-wrap items-center gap-2 text-sm">
             This track's map couldn't load. Check your connection, then try
@@ -111,7 +109,7 @@ function TrackHeader({
     <header className="space-y-2">
       <h1 className="text-2xl font-bold">Topic map</h1>
       <TrackSwitcher current={track} />
-      <p className="text-slate-600 dark:text-slate-400">
+      <p className="text-muted">
         <span className="font-medium">{track.title}:</span> {track.summary}
       </p>
       <p className="text-sm">
@@ -156,7 +154,7 @@ function LoadedTrackMap({ track }: { track: Track }) {
     <section className="space-y-8">
       <TrackHeader track={track}>
         {!anythingReady && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-muted">
             This track is an outline so far: every topic is still being written.
             It's on the map so you can see where everything fits.
           </p>
@@ -216,7 +214,7 @@ function TrackSwitcher({ current }: { current: Track }) {
               className={`inline-block rounded-full border px-3 py-1 text-sm ${
                 track.id === current.id
                   ? YOU_ARE_HERE
-                  : 'border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'
+                  : 'border-line-strong hover:bg-sunken'
               }`}
             >
               {track.title}
@@ -283,7 +281,7 @@ function ModuleSection({
             Module {number}: {module.title}
           </h2>
           {count && count.open > 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-muted">
               {count.proven} of {count.open} proven
             </p>
           )}
@@ -332,11 +330,7 @@ function UnknownTrack() {
 /** Says while the learner's progress loads, or if it couldn't. */
 function ProgressStatus({ state }: { state: ProgressState }) {
   if (state.status === 'loading') {
-    return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Loading your progress…
-      </p>
-    )
+    return <p className="text-sm text-muted">Loading your progress…</p>
   }
   if (state.status === 'failed') {
     return (
@@ -421,9 +415,7 @@ function TopicRow({
   return (
     <li
       className={`rounded-lg border p-3 ${
-        open
-          ? 'border-slate-400 bg-white dark:border-slate-600 dark:bg-slate-900'
-          : 'border-slate-200 dark:border-slate-800'
+        open ? 'border-line-strong bg-card' : 'border-line'
       }`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4">
@@ -433,21 +425,15 @@ function TopicRow({
         >
           {topic.title}
         </Link>
-        <span className="text-sm text-slate-500 dark:text-slate-400">
+        <span className="text-sm text-muted">
           <span aria-hidden="true">{shown.icon} </span>
           {shown.label}
         </span>
       </div>
-      <p className="text-sm text-slate-600 dark:text-slate-400">
-        {topic.summary}
-      </p>
-      {note && (
-        <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">
-          {note}
-        </p>
-      )}
+      <p className="text-sm text-muted">{topic.summary}</p>
+      {note && <p className="mt-1 text-sm font-medium text-ink">{note}</p>}
       {memory !== null && (
-        <p className="mt-1 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+        <p className="mt-1 flex items-center gap-2 text-sm text-muted">
           <span>Memory: {memory}%</span>
           {/* The words carry the meaning; the bar only shows it at a glance. */}
           <meter

@@ -17,9 +17,7 @@ export const routes: RouteObject[] = [
   {
     element: <Layout />,
     // Shown while a lazy page's code loads when the app first opens on it.
-    hydrateFallbackElement: (
-      <p className="p-8 text-slate-500 dark:text-slate-400">Loading…</p>
-    ),
+    hydrateFallbackElement: <p className="p-8 text-muted">Loading…</p>,
     children: [
       {
         // If a page fails to load, the error shows inside the layout, so the

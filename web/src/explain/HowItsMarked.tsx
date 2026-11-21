@@ -17,7 +17,7 @@ export function HowItsMarked({ explain }: { explain: Explain }) {
   const extra = explain.rubric.length - required
   if (explain.rubric.length === 0) return null
   return (
-    <details className="text-sm text-slate-700 dark:text-slate-300">
+    <details className="text-sm text-ink">
       <summary className="cursor-pointer font-medium">How it's marked</summary>
       <ul className="mt-2 list-disc space-y-1 pl-6">
         <li>{pointsSentence(explain.rubric.length, required, extra)}</li>

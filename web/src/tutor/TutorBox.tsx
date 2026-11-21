@@ -108,7 +108,7 @@ export function TutorBox({
       className="space-y-2 rounded-md border border-sky-200 bg-sky-50 p-3 dark:border-sky-900 dark:bg-sky-950/40"
     >
       <p className="text-sm font-semibold">Ask the tutor</p>
-      <p className="text-xs text-slate-600 dark:text-slate-400">
+      <p className="text-xs text-muted">
         It asks questions and gives hints, one small step at a time. It won't
         write the answer for you.
       </p>
@@ -119,9 +119,7 @@ export function TutorBox({
             // oxlint-disable-next-line react/no-array-index-key
             <li key={index} className="space-y-1 text-sm">
               {exchange.question && (
-                <p className="text-slate-600 italic dark:text-slate-400">
-                  You: {exchange.question}
-                </p>
+                <p className="text-muted italic">You: {exchange.question}</p>
               )}
               <p className="text-xs font-semibold tracking-wide text-sky-800 uppercase dark:text-sky-300">
                 {LEVEL_LABELS[exchange.hint.level]}
@@ -132,7 +130,7 @@ export function TutorBox({
         </ol>
       )}
       {askedEnough ? (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           That's all the tutor can give here. Read the lesson's recap again,
           then try the next step yourself.
         </p>

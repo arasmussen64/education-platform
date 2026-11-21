@@ -37,11 +37,11 @@ export function Puzzle({ question, children, id, ...rest }: Props) {
       id={id}
       data-place={rest['data-place']}
       aria-labelledby={headingId}
-      className="space-y-3 rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+      className="space-y-3 rounded-lg border border-line-strong bg-card p-4"
     >
       <p
         id={headingId}
-        className="text-sm font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-400"
+        className="text-sm font-semibold tracking-wide text-muted uppercase"
       >
         A puzzle to start
       </p>
@@ -50,10 +50,10 @@ export function Puzzle({ question, children, id, ...rest }: Props) {
       </div>
       {revealed ? (
         <div className="space-y-2">
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-muted">
             <span className="font-semibold">Your guess:</span> {guess.trim()}
           </p>
-          <div className="space-y-2 border-l-4 border-slate-400 pl-3 dark:border-slate-600">
+          <div className="space-y-2 border-l-4 border-muted pl-3">
             <p
               ref={answer}
               tabIndex={-1}
@@ -97,7 +97,7 @@ export function Puzzle({ question, children, id, ...rest }: Props) {
           />
           <p
             id={hintId}
-            className={`text-sm ${needGuess ? 'font-medium text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'}`}
+            className={`text-sm ${needGuess ? 'font-medium text-ink' : 'text-muted'}`}
           >
             {needGuess
               ? 'Type a guess first: any guess, even "no idea, maybe…". Guessing before you read helps you remember the answer, even when the guess is wrong.'

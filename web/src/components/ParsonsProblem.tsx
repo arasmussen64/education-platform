@@ -28,7 +28,7 @@ type Props = {
 }
 
 const SMALL_BUTTON =
-  'rounded border border-slate-300 px-2 py-0.5 text-xs hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800'
+  'rounded border border-line-strong px-2 py-0.5 text-xs hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-40'
 
 /**
  * A Parsons problem (ADR-0016): the lines of a short program, scrambled,
@@ -87,7 +87,7 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
             Your program
           </h4>
           {program.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-muted">
               Add lines from the list, top to bottom. Each line already has its
               indentation.
             </p>
@@ -96,7 +96,7 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
               {program.map((line, index) => (
                 <li
                   key={line}
-                  className="flex items-center gap-2 rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800"
+                  className="flex items-center gap-2 rounded-md bg-sunken px-2 py-1"
                 >
                   <code className="flex-1 whitespace-pre">{line}</code>
                   <button
@@ -136,15 +136,13 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
             Lines to use
           </h4>
           {tray.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Every line is in your program.
-            </p>
+            <p className="text-sm text-muted">Every line is in your program.</p>
           ) : (
             <ul className="space-y-1 font-mono text-sm">
               {tray.map((line) => (
                 <li
                   key={line}
-                  className="flex items-center gap-2 rounded-md border border-slate-200 px-2 py-1 dark:border-slate-700"
+                  className="flex items-center gap-2 rounded-md border border-line-strong px-2 py-1"
                 >
                   <code className="flex-1 whitespace-pre">{line}</code>
                   <button
@@ -161,7 +159,7 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
             </ul>
           )}
           {decoys > 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-muted">
               {decoys === 1
                 ? "One line is a decoy that doesn't belong."
                 : `${decoys} lines are decoys that don't belong.`}
@@ -172,7 +170,7 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
       {checked && quiet ? (
         <Recorded />
       ) : checked ? (
-        <output className="block space-y-2 rounded-md bg-slate-100 p-3 dark:bg-slate-800">
+        <output className="block space-y-2 rounded-md bg-sunken p-3">
           <p className="font-medium">
             {correct ? (
               <>

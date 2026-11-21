@@ -106,7 +106,7 @@ export function TodayPage() {
     <section className="space-y-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">Today</h1>
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted">
           First the topics due for a review, timed to how fast you forget. Then
           skills you've missed, back as different questions until you've got
           them right on {CORRECT_DAYS_NEEDED} different days. Then the topic
@@ -159,9 +159,7 @@ function Plan() {
   return (
     <>
       <StudyPlanReminder state={studyPlan} />
-      {isLateEvening(now) && (
-        <p className="text-slate-600 dark:text-slate-400">{EVENING_LINE}</p>
-      )}
+      {isLateEvening(now) && <p className="text-muted">{EVENING_LINE}</p>}
       <ComingBack topics={topics} progress={progress} now={now} />
       <StartSession topics={topics} progress={progress} now={now} pace={pace} />
       <Reviews topics={topics} progress={progress} now={now} />
@@ -269,7 +267,7 @@ function StartSession({
   return (
     <section
       aria-labelledby="session"
-      className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+      className="space-y-3 rounded-lg border border-line bg-card p-4"
     >
       <h2 id="session" className="text-xl font-semibold">
         Today's session
@@ -277,14 +275,12 @@ function StartSession({
       <p>
         {summary} {time}
       </p>
-      {whereInModule && (
-        <p className="text-slate-600 dark:text-slate-400">{whereInModule}</p>
-      )}
+      {whereInModule && <p className="text-muted">{whereInModule}</p>}
       <Link to={SESSION_PATH} className={PRIMARY_BUTTON}>
         Start today's session
       </Link>
       {quick > 0 && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           Short on time or energy?{' '}
           <Link to={QUICK_SESSION_PATH} className="underline">
             Just 5 minutes
@@ -388,7 +384,7 @@ function PracticeHours({
       </h2>
       {weeks && <Weeks weeks={weeks} />}
       {all.attempts === 0 ? (
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted">
           Nothing counted yet. Every answer, Check and review you finish adds
           its time here.
         </p>
@@ -436,16 +432,14 @@ function Weeks({ weeks }: { weeks: WeeksPractised }) {
               key={index}
               data-practised={practised}
               className={`h-3 w-5 rounded-sm border ${
-                practised
-                  ? PROGRESS_FILL
-                  : 'border-slate-300 dark:border-slate-700'
+                practised ? PROGRESS_FILL : 'border-line-strong'
               }`}
             />
           ))}
         </span>
         <span>{summary}</span>
       </div>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-muted">
         A week here is seven days up to today.{note ? ` ${note}` : ''}
       </p>
     </div>
@@ -465,9 +459,7 @@ function TrackHours({ title, time }: { title: string; time: PracticeTime }) {
     <div className="space-y-1">
       <h3 className="font-semibold">
         {title}
-        <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
-          {summary}
-        </span>
+        <span className="ml-2 text-sm font-normal text-muted">{summary}</span>
       </h3>
       {milestone ? (
         <>
@@ -477,13 +469,13 @@ function TrackHours({ title, time }: { title: string; time: PracticeTime }) {
             value={Math.floor(time.totalMs / 60_000)}
             aria-label={`${title}: progress toward ${formatHours(milestone.hours)}`}
           />
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-muted">
             Next milestone: {formatHours(milestone.hours)} (
             {formatDuration(milestone.remainingMs)} to go).
           </p>
         </>
       ) : (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-muted">
           Past {formatHours(10000)}. The milestones stop here; the practice
           doesn't have to.
         </p>
@@ -536,18 +528,16 @@ function Reviews({
       {loaded.status === 'failed' ? (
         <CouldNotLoad what="Your reviews" retry={loaded.retry} />
       ) : due === null || contents === null || progress.status !== 'ready' ? (
-        <p className="text-slate-500 dark:text-slate-400">
-          Loading your reviews…
-        </p>
+        <p className="text-muted">Loading your reviews…</p>
       ) : due.length === 0 ? (
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted">
           {limitReached
             ? "That's today's reviews done. The rest come back tomorrow, the most forgotten first."
             : 'No reviews due today.'}
         </p>
       ) : (
         <>
-          <p className="text-slate-600 dark:text-slate-400">
+          <p className="text-muted">
             {due.length === 1
               ? 'One topic is due for a review.'
               : `${due.length} topics are due for a review, the most forgotten first.`}{' '}
@@ -620,14 +610,12 @@ function NextUp({
           <div key={track.id} className="space-y-1">
             <h3 className="font-semibold">
               {track.title}
-              <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
+              <span className="ml-2 text-sm font-normal text-muted">
                 {learned} of {own.length} learned
               </span>
             </h3>
             {own.length === 0 ? (
-              <p className="text-slate-600 dark:text-slate-400">
-                Nothing written here yet.
-              </p>
+              <p className="text-muted">Nothing written here yet.</p>
             ) : next ? (
               <p>
                 <span className="font-medium">
@@ -638,14 +626,14 @@ function NextUp({
                 </Link>
                 {' · '}
                 {next.topic.summary}
-                <span className="text-sm text-slate-500 dark:text-slate-400">
+                <span className="text-sm text-muted">
                   {' · about '}
                   {paced(next.topic.estimated_minutes, pace)} minutes
                   {stretches(pace) && ' at your pace'}
                 </span>
               </p>
             ) : learned === own.length ? (
-              <p className="text-slate-600 dark:text-slate-400">
+              <p className="text-muted">
                 You've learned everything written here so far. More is on the
                 way.
               </p>
@@ -672,7 +660,7 @@ function NextUp({
 function PaceNote({ pace }: { pace: Pace | null }) {
   if (!stretches(pace)) return null
   return (
-    <p className="text-sm text-slate-600 dark:text-slate-400">
+    <p className="text-sm text-muted">
       Topics you've proven took you about {formatRatio(pace.ratio)} their
       estimate, so the times on this page are stretched to match. That's counted
       from your first answer in each sitting, so reading before it isn't
@@ -717,7 +705,7 @@ function LockedNext({
         <Link to={foundationLink(start.topic.id, track)} className="underline">
           {start.topic.title}
         </Link>
-        <span className="text-slate-600 dark:text-slate-400">
+        <span className="text-muted">
           {' '}
           ({startTrack.title}), on the way to {first.title}: {toGo.length}{' '}
           {toGo.length === 1 ? 'topic' : 'topics'} to go.{' '}
@@ -743,7 +731,7 @@ function LockedNext({
         : topic.title
     })
   return (
-    <p className="text-slate-600 dark:text-slate-400">
+    <p className="text-muted">
       <span className="font-medium">Next:</span>{' '}
       <Link to={`/topic/${first.id}`} className="underline">
         {first.title}
@@ -791,7 +779,7 @@ function PlacementNote({
   ].filter((note) => note !== undefined)
   if (notes.length === 0) {
     return (
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-muted">
         New here, or know some of this already?{' '}
         <Link to="/placement" className="underline">
           Take the placement test
@@ -801,7 +789,7 @@ function PlacementNote({
     )
   }
   return (
-    <div className="space-y-1 text-sm text-slate-600 dark:text-slate-400">
+    <div className="space-y-1 text-sm text-muted">
       {notes.map((note) => (
         <p key={note}>{note}</p>
       ))}
@@ -844,11 +832,7 @@ function Revisit({ progress }: { progress: ProgressState }) {
 
   const failed = loaded.status === 'failed' ? loaded : null
   if (progress.status !== 'ready' || (cards === null && !failed)) {
-    return (
-      <p className="text-slate-500 dark:text-slate-400">
-        Loading your history…
-      </p>
-    )
+    return <p className="text-muted">Loading your history…</p>
   }
   const live = new Map(
     progress.followUps.map((followUp) => [keyOf(followUp), followUp]),
@@ -877,9 +861,7 @@ function Revisit({ progress }: { progress: ProgressState }) {
             />
           )
         ) : cards.length === 0 ? (
-          <p className="text-slate-600 dark:text-slate-400">
-            Nothing to revisit today.
-          </p>
+          <p className="text-muted">Nothing to revisit today.</p>
         ) : (
           cards.map((card) => (
             <FollowUpCard
@@ -900,7 +882,7 @@ function Revisit({ progress }: { progress: ProgressState }) {
             {later.map((followUp) => (
               <li key={keyOf(followUp)}>
                 <Markdown inline>{skillName(followUp)}</Markdown>{' '}
-                <span className="text-sm text-slate-500 dark:text-slate-400">
+                <span className="text-sm text-muted">
                   ({getTopic(followUp.topicId)?.title}):{' '}
                   {whenDue(followUp.due, today)}
                 </span>

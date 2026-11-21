@@ -30,7 +30,7 @@ export function StepThrough({ code, trace }: Props) {
         <h4 id={headingId} className="font-semibold">
           Step through
         </h4>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           Nothing to step through: the program didn't get to its first line.
         </p>
         {trace.error && <ErrorBox text={trace.error} />}
@@ -110,7 +110,7 @@ export function StepThrough({ code, trace }: Props) {
                 <span aria-hidden="true" className="inline-block w-4">
                   {current ? '→' : ''}
                 </span>
-                <span className="inline-block w-8 text-right text-slate-400 select-none">
+                <span className="inline-block w-8 text-right text-on-code-muted select-none">
                   {number}
                 </span>{' '}
                 {text}
@@ -123,12 +123,12 @@ export function StepThrough({ code, trace }: Props) {
             <FrameTable key={`${index}-${frame.name}`} frame={frame} />
           ))}
           <div className="space-y-1">
-            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+            <p className="text-xs font-semibold tracking-wide text-muted uppercase">
               Output so far
             </p>
             <pre className={`${CODE_BOX} whitespace-pre-wrap`}>
               {trace.output.slice(0, step.out_len) || (
-                <span className="text-slate-400">Nothing printed yet</span>
+                <span className="text-on-code-muted">Nothing printed yet</span>
               )}
             </pre>
           </div>
@@ -136,13 +136,13 @@ export function StepThrough({ code, trace }: Props) {
       </div>
       {at === last && trace.error && <ErrorBox text={trace.error} />}
       {at === last && trace.truncated && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           Recording stopped after {steps.length} steps. The program went on
           without being recorded; Run shows everything it prints.
         </p>
       )}
       {at === last && trace.waiting_for_input && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           The program asked for more input than it was given. Press Run, answer
           its questions, then step through again: it uses what you typed.
         </p>
@@ -156,7 +156,7 @@ function FrameTable({ frame }: { frame: TraceFrame }) {
   const title = frame.name === 'program' ? 'The program' : `${frame.name}()`
   return (
     <table className="w-full text-sm" aria-label={`Variables: ${title}`}>
-      <caption className="text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+      <caption className="text-left text-xs font-semibold tracking-wide text-muted uppercase">
         {title}
         {frame.returns !== null && (
           <span className="normal-case">
@@ -168,16 +168,11 @@ function FrameTable({ frame }: { frame: TraceFrame }) {
       <tbody>
         {frame.vars.length === 0 ? (
           <tr>
-            <td className="py-0.5 text-slate-500 dark:text-slate-400">
-              No variables yet
-            </td>
+            <td className="py-0.5 text-muted">No variables yet</td>
           </tr>
         ) : (
           frame.vars.map(([name, value]) => (
-            <tr
-              key={name}
-              className="border-t border-slate-200 dark:border-slate-700"
-            >
+            <tr key={name} className="border-t border-line">
               <th
                 scope="row"
                 className="py-0.5 pr-3 text-left font-mono font-medium"

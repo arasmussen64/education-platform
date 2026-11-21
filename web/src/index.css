@@ -1,12 +1,11 @@
 @import 'tailwindcss';
 
-/* Momentum, the app's visual design (stage 1: colours and fonts; stage 2:
-   lime and the code editor).
+/* Momentum, the app's visual design.
    Light is "morning trail": limestone paper, near-white cards, pine ink.
-   Dark is "night trail": the same scale read from the other end.
+   Dark is "night trail": a night-green page, pine cards, limestone text.
    Lime (#a3e635, the favicon's) is kept for "forward": the one primary
-   button on a card, progress fills, "you are here". Those three are
-   constants in components/styles.ts; the code editor's two themes are in
+   button on a card, progress fills, "you are here". Those are constants in
+   components/styles.ts; the code editor's two themes are in
    components/editorThemes.ts. */
 
 /* The fonts are bundled with the app (SIL Open Font License 1.1), so no
@@ -15,33 +14,86 @@
 @import '@fontsource-variable/figtree';
 @import '@fontsource-variable/jetbrains-mono';
 
+/* The named colours ("design tokens"). Each is named for its job and is
+   defined once here, with a light value and a dark value. A component writes
+   `bg-card text-ink border-line` and never a `dark:` twin: the colour itself
+   changes with the system's colour scheme, so the two themes can't drift
+   apart. The app has no theme switch; dark mode is the media query below.
+
+   tokens.test.ts reads this file: it checks that every text and background
+   pairing the app uses keeps a contrast of at least 4.5 to 1 (WCAG AA) in
+   both themes, that the code editor's themes use these same values, and that
+   no component goes back to Tailwind's grey `slate` scale. */
+:root {
+  /* Surfaces, from the back to the front. */
+  --paper: #f6f4ed; /* the page: limestone paper */
+  --card: #fdfcf8; /* cards, pop-ups and form fields: near-white, not pure
+                      white, which glares on paper */
+  --sunken: #edeae0; /* a quieter area set into a card or the page: feedback
+                        after an answer, a button under the pointer */
+
+  /* Text. */
+  --ink: #1b2620; /* text and headings: pine ink. Also the fill of the dark
+                     button, with `text-card` on top */
+  --muted: #666c5f; /* secondary text: notes, labels, captions. Also the few
+                       borders that must stand out, such as a quote's bar */
+
+  /* Lines. */
+  --line: #dedacb; /* hairlines: card edges, dividers. Also the shade behind
+                      code inside a line of text, which must show on paper,
+                      on a card and on a sunken area alike */
+  --line-strong: #c6c2b0; /* the edge of something to click or type in:
+                             fields, buttons, answer choices */
+
+  /* "Forward": lime, the same in both themes, always a fill and never a
+     text colour (lime on paper is 1.4 to 1). */
+  --forward: #a3e635; /* exactly the favicon's lime */
+  --forward-hover: #bef264; /* a primary button under the pointer */
+  --forward-edge: #65a30d; /* the edge of a progress fill */
+  --on-forward: #1b2620; /* text on lime: pine ink in both themes */
+
+  /* Boxes of code and program output: darker than the page in both themes.
+     (The code editor is separate: light in light mode. See editorThemes.ts.) */
+  --code: #1b2620;
+  --on-code: #edeae0; /* text in a code box, the same in both themes */
+  --on-code-muted: #9a9a88; /* quiet text there: line numbers, "nothing
+                               printed yet" */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #111914; /* night trail */
+    --card: #1b2620;
+    --sunken: #28322b;
+    --ink: #edeae0;
+    --muted: #9a9a88;
+    --line: #28322b;
+    --line-strong: #3b443b;
+    --code: #111914;
+  }
+}
+
+/* Hands the tokens to Tailwind, which then makes `bg-paper`, `text-ink`,
+   `border-line` and so on. "inline" makes each class use the variable above
+   directly, so it follows the colour scheme. */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-forward: var(--forward);
+  --color-forward-hover: var(--forward-hover);
+  --color-forward-edge: var(--forward-edge);
+  --color-on-forward: var(--on-forward);
+  --color-code: var(--code);
+  --color-on-code: var(--on-code);
+  --color-on-code-muted: var(--on-code-muted);
+}
+
 @theme {
-  /* Components were written with Tailwind's grey "slate" scale. Repainting
-     that scale here moves every page to Momentum at once; later stages swap
-     the components over to named colours one page at a time. Every text
-     pairing the app uses keeps a contrast of at least 4.5 to 1 (WCAG AA). */
-  --color-slate-50: #f6f4ed; /* limestone paper: the page in light mode */
-  --color-slate-100: #edeae0;
-  --color-slate-200: #dedacb;
-  --color-slate-300: #c6c2b0;
-  --color-slate-400: #9a9a88;
-  --color-slate-500: #666c5f;
-  --color-slate-600: #4f574c;
-  --color-slate-700: #3b443b;
-  --color-slate-800: #28322b;
-  --color-slate-900: #1b2620; /* pine ink: text in light mode */
-  --color-slate-950: #111914; /* night trail: the page in dark mode */
-
-  /* The three limes the app uses, as plain hex values: 400 is exactly the
-     favicon's lime, 300 is a primary button under the pointer, 600 is the
-     edge of a progress fill. (Tailwind's own are close, but not the same.) */
-  --color-lime-300: #bef264;
-  --color-lime-400: #a3e635;
-  --color-lime-600: #65a30d;
-
-  /* Cards are near-white rather than pure white, which glares on paper. */
-  --color-white: #fdfcf8;
-
   --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Gabarito Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono:

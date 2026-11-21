@@ -5,6 +5,11 @@
 // Lime is not used here: it means "forward" and nothing else. Syntax colours
 // are few and earthy, and editorThemes.test.ts checks that each one keeps a
 // contrast of at least 4.5 to 1 against the editor's background.
+//
+// CodeMirror wants plain hex values, so the background, text, gutter, cursor,
+// line and comment colours below repeat named colours from index.css (card,
+// ink, paper, muted, line and line-strong). tokens.test.ts fails if a copy
+// here and its named colour stop being equal.
 
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import type { Extension } from '@codemirror/state'

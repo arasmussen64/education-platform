@@ -59,7 +59,7 @@ function MorePart({
       />
       {part.versions.length > 0 && (
         <div className="space-y-4">
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-muted">
             If {name} doesn't pass, the skills behind the tests you missed come
             back for practice on your Today page. Then prove it on a fresh
             version: the same skills in another story, so your second try isn't
@@ -107,11 +107,7 @@ function FreshVersion({
 }) {
   const version = useFreshVersion(content.topic.id, part.versions, loadAttempts)
   if (!version) {
-    return (
-      <p className="text-slate-500 dark:text-slate-400">
-        Finding a version you haven't tried…
-      </p>
-    )
+    return <p className="text-muted">Finding a version you haven't tried…</p>
   }
   return (
     <PracticeItem

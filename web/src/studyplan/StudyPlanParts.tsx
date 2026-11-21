@@ -27,7 +27,7 @@ function reminder(plan: StudyPlan, now: Date): string {
 /** Said when the browser wouldn't keep the plan (a private window, say). */
 function NotKept() {
   return (
-    <p className="text-sm text-slate-600 dark:text-slate-400">
+    <p className="text-sm text-muted">
       This browser couldn't keep your plan, so it lasts until you leave the
       page. The calendar file keeps it for good.
     </p>
@@ -59,9 +59,7 @@ export function StudyPlanReminder({ state }: { state: StudyPlanState }) {
   }
   return (
     <div className="space-y-2">
-      <p className="text-slate-700 dark:text-slate-300">
-        {reminder(plan, now)}
-      </p>
+      <p className="text-ink">{reminder(plan, now)}</p>
       <div className="flex flex-wrap gap-2">
         <CalendarButton plan={plan} />
         <button
@@ -89,7 +87,7 @@ export function StudyPlanQuestion({ state }: { state: StudyPlanState }) {
       <h2 id="study-plan-question" className="text-xl font-semibold">
         When and where will you study?
       </h2>
-      <p className="text-slate-600 dark:text-slate-400">{ASK}</p>
+      <p className="text-muted">{ASK}</p>
       <StudyPlanForm
         initial={null}
         onSave={save}
@@ -126,13 +124,13 @@ export function StudyPlanSection({ state }: { state: StudyPlanState }) {
             </button>
           </div>
           {!kept && <NotKept />}
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-muted">
             It's kept on this device only, not with your account.
           </p>
         </>
       ) : (
         <>
-          <p className="text-slate-600 dark:text-slate-400">{ASK}</p>
+          <p className="text-muted">{ASK}</p>
           <StudyPlanForm
             initial={plan}
             onSave={(next) => {

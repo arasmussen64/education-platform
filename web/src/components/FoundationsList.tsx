@@ -71,10 +71,7 @@ export function FoundationsList({
   // the list is still where to look when one of them fades.
   if (allLearned) {
     return (
-      <details
-        id={headingId}
-        className="rounded-lg border border-slate-200 p-3 dark:border-slate-800"
-      >
+      <details id={headingId} className="rounded-lg border border-line p-3">
         <summary className="cursor-pointer text-sm">
           <span aria-hidden="true">✓ </span>
           {heading}: all {topics.length} learned
@@ -88,7 +85,7 @@ export function FoundationsList({
     <section
       id={headingId}
       aria-labelledby={`${headingId}-heading`}
-      className="space-y-3 rounded-lg border-2 border-dashed border-slate-300 p-4 dark:border-slate-700"
+      className="space-y-3 rounded-lg border-2 border-dashed border-line-strong p-4"
     >
       <h3 id={`${headingId}-heading`} className="font-semibold">
         {heading}
@@ -104,7 +101,7 @@ export function FoundationsList({
         ))}
       </ul>
       {progress && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           {learnedCount} of {topics.length} learned. Anything you learn from
           another track counts here too.
         </p>
@@ -128,11 +125,11 @@ export function FoundationsList({
         next={next?.topic ?? null}
       />
       {placement && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           {describeListRecord(placement, learned)}
         </p>
       )}
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-muted">
         Know some of this already?{' '}
         {probes > 0 && (
           <>
@@ -159,7 +156,7 @@ function PlaceNote({ topic }: { topic: Topic }) {
   const place = placeOf(topic.id)
   if (!place) return null
   return (
-    <span className="text-sm text-slate-500 dark:text-slate-400">
+    <span className="text-sm text-muted">
       {place.track.title} · Module {place.number}: {place.module.title}
     </span>
   )
@@ -198,14 +195,14 @@ function Groups({
           <details
             key={`${place.module.id}-${index}`}
             open={open}
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900"
+            className="rounded-md border border-line bg-card px-3 py-2"
           >
             <summary className="cursor-pointer">
               <span className="font-medium">
                 {place.track.title} · Module {place.number}:{' '}
                 {place.module.title}
               </span>
-              <span className="text-sm text-slate-500 dark:text-slate-400">
+              <span className="text-sm text-muted">
                 {' · '}
                 {size}
                 {learned !== null && `, ${learned} of ${topics.length} learned`}
@@ -231,7 +228,7 @@ function Groups({
                     >
                       {topic.title}
                     </Link>
-                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                    <span className="text-sm text-muted">
                       <span aria-hidden="true">{shown.icon} </span>
                       {shown.label}
                       {' · '}

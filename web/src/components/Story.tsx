@@ -39,16 +39,16 @@ export function Story({
       id={id}
       data-place={rest['data-place']}
       aria-labelledby={headingId}
-      className="space-y-2 rounded-lg border border-l-4 border-slate-200 border-l-slate-500 bg-white p-4 dark:border-slate-800 dark:border-l-slate-400 dark:bg-slate-900"
+      className="space-y-2 rounded-lg border border-l-4 border-line border-l-muted bg-card p-4"
     >
-      <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-400">
+      <p className="text-xs font-semibold tracking-wide text-muted uppercase">
         A real incident
       </p>
       <p id={headingId} className="font-display text-lg font-semibold">
         {title}
       </p>
       {children}
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-muted">
         Told in our own words, from{' '}
         {safeSource ? (
           <a

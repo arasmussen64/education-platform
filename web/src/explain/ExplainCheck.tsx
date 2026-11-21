@@ -91,7 +91,7 @@ export function ExplainCheck({
       <Markdown>{explain.prompt}</Markdown>
       <HowItsMarked explain={explain} />
       {auth.status === 'signed-out' ? (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           <Link to="/sign-in" className="underline">
             Sign in
           </Link>{' '}
@@ -116,7 +116,7 @@ export function ExplainCheck({
               autoComplete="off"
               className={TEXT_INPUT}
             />
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-muted">
               {draft.restored &&
                 'This is your explanation from last time, kept on this device. '}
               A few sentences, in your own words, as if teaching a friend.
@@ -156,9 +156,7 @@ export function ExplainClosed({ children }: { children: ReactNode }) {
       <h3 id="explain" className="text-lg font-semibold">
         Explain it back
       </h3>
-      <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-        {children}
-      </div>
+      <div className="space-y-2 text-sm text-muted">{children}</div>
     </section>
   )
 }

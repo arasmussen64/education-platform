@@ -235,7 +235,7 @@ export function CodeRunner({
         // fresh editor instead of being lost.
         focusOnStart={startOvers > 0}
       />
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-xs text-muted">
         {draft.restored &&
           startOvers === 0 &&
           'This is your code from last time, kept on this device. '}
@@ -280,9 +280,7 @@ export function CodeRunner({
           </button>
         )}
         {/* <output> is announced by screen readers when its text changes. */}
-        <output className="text-sm text-slate-500 dark:text-slate-400">
-          {STATUS_TEXT[status]}
-        </output>
+        <output className="text-sm text-muted">{STATUS_TEXT[status]}</output>
       </div>
       <div aria-live="polite">
         {shown.kind === 'run' && (
@@ -352,14 +350,14 @@ function Terminal({
             />
           )}
           {printedNothing && (
-            <span className="text-slate-400">
+            <span className="text-on-code-muted">
               Your program printed nothing.
             </span>
           )}
         </div>
       )}
       {waiting && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-muted">
           Your program is waiting for input. Type your answer and press Enter.
         </p>
       )}
@@ -423,7 +421,7 @@ function InputLine({
           .replace(/\r?\n/g, ' ')
         document.execCommand('insertText', false, text)
       }}
-      className="inline-block min-w-48 rounded border border-slate-500 bg-slate-800 px-1 text-slate-100 outline-none focus:border-slate-100"
+      className="inline-block min-w-48 rounded border border-on-code-muted bg-on-code/10 px-1 text-on-code outline-none focus:border-on-code"
     />
   )
 }
@@ -535,7 +533,7 @@ function TestRow({ result, hidden }: { result: TestResult; hidden: boolean }) {
           {result.description}
         </p>
         {showMessage && (
-          <pre className="mt-1 overflow-x-auto text-xs whitespace-pre-wrap text-slate-600 dark:text-slate-400">
+          <pre className="mt-1 overflow-x-auto text-xs whitespace-pre-wrap text-muted">
             {result.message}
           </pre>
         )}

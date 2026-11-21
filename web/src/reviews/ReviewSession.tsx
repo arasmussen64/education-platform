@@ -187,7 +187,7 @@ export function ReviewSession({
         </Link>
       </h3>
       {labPutOff && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           The lab is put off: a question took its place, and the lab comes back
           at a later review.
         </p>
@@ -259,7 +259,7 @@ function AnsweredEarlier({
 }) {
   return (
     <section className={CARD}>
-      <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+      <p className="text-xs font-semibold tracking-wide text-muted uppercase">
         {position}
       </p>
       <p>

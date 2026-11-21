@@ -11,7 +11,7 @@ export function GlossaryPage() {
         <h1 id="glossary" className="text-3xl font-bold">
           Glossary
         </h1>
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted">
           Every term the topics teach, with the topic that teaches it. In a
           lesson, a word with a dotted underline is one of these: press it to
           see what it means.
@@ -24,12 +24,12 @@ export function GlossaryPage() {
           {terms.map((entry) => (
             <div
               key={`${entry.topicId}/${entry.term}`}
-              className="space-y-1 border-b border-slate-200 pb-4 dark:border-slate-800"
+              className="space-y-1 border-b border-line pb-4"
             >
               <dt className="font-display text-lg font-semibold">
                 {entry.term}
                 {entry.aliases && entry.aliases.length > 0 && (
-                  <span className="ml-2 text-sm font-normal text-slate-600 dark:text-slate-400">
+                  <span className="ml-2 text-sm font-normal text-muted">
                     also {entry.aliases.join(', ')}
                   </span>
                 )}
@@ -37,7 +37,7 @@ export function GlossaryPage() {
               <dd>
                 <Markdown inline>{entry.definition}</Markdown>
               </dd>
-              <dd className="text-sm text-slate-600 dark:text-slate-400">
+              <dd className="text-sm text-muted">
                 Taught in{' '}
                 <Link to={`/topic/${entry.topicId}`} className="underline">
                   {entry.topicTitle}

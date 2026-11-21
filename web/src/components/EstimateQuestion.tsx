@@ -48,9 +48,9 @@ type Props = {
   quiet?: boolean
 }
 
-const NOTE = 'text-sm text-slate-600 dark:text-slate-300'
+const NOTE = 'text-sm text-muted'
 const NUMBER_BOX =
-  'w-40 rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 aria-invalid:border-red-600 dark:border-slate-700'
+  'w-40 rounded-md border border-line-strong bg-card px-3 py-2 font-mono text-sm text-ink aria-invalid:border-red-600'
 
 /**
  * The day prices were read, as a person says it: November 10, 2026. Only
@@ -274,7 +274,7 @@ function Feedback({
   const mistake = item.mistakes.find(({ id }) => id === answer.mistake)
   const far = howFar(answer.number, item, correct)
   return (
-    <output className="block space-y-2 rounded-md bg-slate-100 p-3 dark:bg-slate-800">
+    <output className="block space-y-2 rounded-md bg-sunken p-3">
       <p className="font-medium">
         {correct ? (
           <>
@@ -291,7 +291,7 @@ function Feedback({
       {far && <p className="wrap-anywhere">{far}</p>}
       <ConfidenceNote confidence={confidence} correct={correct} />
       {mistake && (
-        <div className="rounded-md border-l-4 border-amber-500 bg-white px-3 py-2 dark:bg-slate-900">
+        <div className="rounded-md border-l-4 border-amber-500 bg-card px-3 py-2">
           <p className="text-sm font-medium">A common slip</p>
           <Markdown>{mistake.why}</Markdown>
         </div>

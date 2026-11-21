@@ -34,7 +34,7 @@ type Props = {
   packages?: string[]
 }
 
-const NOTE = 'text-sm text-slate-600 dark:text-slate-300'
+const NOTE = 'text-sm text-muted'
 
 /**
  * The scene of a shell item: the files the command sees, then the command
@@ -54,7 +54,7 @@ function ShellScene({ item }: { item: PredictShellItem }) {
       )}
       {files.map(([name, text]) => (
         <figure key={name} className="space-y-1">
-          <figcaption className="font-mono text-xs text-slate-600 dark:text-slate-300">
+          <figcaption className="font-mono text-xs text-muted">
             {name}
           </figcaption>
           <pre className={CODE_BOX}>{text}</pre>
@@ -141,7 +141,7 @@ export function PredictOutput({
       {checked && quiet ? (
         <Recorded />
       ) : checked ? (
-        <output className="block space-y-2 rounded-md bg-slate-100 p-3 dark:bg-slate-800">
+        <output className="block space-y-2 rounded-md bg-sunken p-3">
           <p className="font-medium">
             {correct ? (
               <>
@@ -166,9 +166,7 @@ export function PredictOutput({
             </button>
           )}
           {trace === 'loading' && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Starting Python…
-            </p>
+            <p className="text-sm text-muted">Starting Python…</p>
           )}
           {pythonCode !== null && trace !== null && trace !== 'loading' && (
             <TraceView

@@ -111,15 +111,13 @@ function WorkedExample({
           <li key={`${step.lines} ${step.label}`} className="space-y-1">
             <p>
               <span className="font-medium">{step.label}</span>{' '}
-              <span className="text-sm text-slate-500 dark:text-slate-400">
-                ({linesLabel(step)})
-              </span>
+              <span className="text-sm text-muted">({linesLabel(step)})</span>
             </p>
             <Markdown>{step.note}</Markdown>
           </li>
         ))}
       </ol>
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-muted">
         Run it, then try changing something and predict what will happen before
         you run it again.
       </p>

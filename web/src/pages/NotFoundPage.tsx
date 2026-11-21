@@ -5,7 +5,7 @@ export function NotFoundPage() {
   return (
     <section>
       <h1 className="text-2xl font-bold">Page not found</h1>
-      <p className="mt-2 text-slate-600 dark:text-slate-400">
+      <p className="mt-2 text-muted">
         There is nothing at this address.{' '}
         <Link to="/" className="underline">
           Go to Today
