@@ -1,6 +1,12 @@
 import { useId } from 'react'
-import { formatTime, youtubeEmbedUrl } from '../content/resources.ts'
+import {
+  formatTime,
+  playsInPage,
+  readsInPage,
+  youtubeEmbedUrl,
+} from '../content/resources.ts'
 import type { Resource } from '../content/types.ts'
+import { ReadingText } from './ReadingText.tsx'
 
 /** The part of a video to watch, when the resource names one. */
 function clipOf(resource: Resource) {
@@ -14,15 +20,23 @@ function clipOf(resource: Resource) {
 }
 
 /**
- * A lesson's main resource (v1 spec, F3): an embedded video segment, or a
- * link to a reading. Always credits the source and shows its license.
+ * A lesson's main resource (v1 spec, F3): an embedded video segment, a
+ * reading's own words where we hold a copy (ADR-0031), or a link. Always
+ * credits the source and shows its license.
  */
-export function ResourceView({ resource }: { resource: Resource }) {
+export function ResourceView({
+  resource,
+  loadText,
+}: {
+  resource: Resource
+  /** Fetches a reading's copy, when the topic holds one. */
+  loadText?: () => Promise<string>
+}) {
   const clipNoteId = useId()
-  const embed =
-    resource.type === 'video' && resource.use === 'embed'
-      ? youtubeEmbedUrl(resource)
-      : null
+  if (readsInPage(resource) && loadText) {
+    return <ReadingText resource={resource} load={loadText} />
+  }
+  const embed = playsInPage(resource) ? youtubeEmbedUrl(resource) : null
   const clip = clipOf(resource)
 
   return (

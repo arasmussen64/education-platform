@@ -1,0 +1,165 @@
+<h2>How DNS Works</h2>
+<p>Now that you are familiar with some of the terminology involved with DNS, how does the system actually work?</p>
+<p>The system is very simple at a high-level overview, but is very complex as you look at the details.  Overall though, it is a very reliable infrastructure that has been essential to the adoption of the internet as we know it today.</p>
+<h3>Root Servers</h3>
+<p>As we said above, DNS is, at its core, a hierarchical system.  At the top of this system is what are known as "root servers".  These servers are controlled by various organizations and are delegated authority by ICANN (Internet Corporation for Assigned Names and Numbers).</p>
+<p>There are currently 13 root servers in operation.  However, as there are an incredible number of names to resolve every minute, each of these servers is actually mirrored.  The interesting thing about this set up is that each of the mirrors for a single root server share the same IP address.  When requests are made for a certain root server, the request will be routed to the nearest mirror of that root server.</p>
+<p>What do these root servers do?  Root servers handle requests for information about Top-level domains.  So if a request comes in for something a lower-level name server cannot resolve, a query is made to the root server for the domain.</p>
+<p>The root servers won't actually know where the domain is hosted.  They will, however, be able to direct the requester to the name servers that handle the specifically requested top-level domain.</p>
+<p>So if a request for "<code>www.wikipedia.org</code>" is made to the root server, the root server will not find the result in its records.  It will check its zone files for a listing that matches "<code>www.wikipedia.org</code>".  It will not find one.</p>
+<p>It will instead find a record for the "org" TLD and give the requesting entity the address of the name server responsible for "org" addresses.</p>
+<h3>TLD Servers</h3>
+<p>The requester then sends a new request to the IP address (given to it by the root server) that is responsible for the top-level domain of the request.</p>
+<p>So, to continue our example, it would send a request to the name server responsible for knowing about "org" domains to see if it knows where "<code>www.wikipedia.org</code>" is located.</p>
+<p>Once again, the requester will look for "<code>www.wikipedia.org</code>" in its zone files.  It will not find this record in its files.</p>
+<p>However, it will find a record listing the IP address of the name server responsible for "<code>wikipedia.org</code>".  This is getting much closer to the answer we want.</p>
+<h3>Domain-Level Name Servers</h3>
+<p>At this point, the requester has the IP address of the name server that is responsible for knowing the actual IP address of the resource.  It sends a new request to the name server asking, once again, if it can resolve "<code>www.wikipedia.org</code>".</p>
+<p>The name server checks its zone files and it finds that it has a zone file associated with "<code>wikipedia.org</code>".  Inside of this file, there is a record for the "www" host.  This record tells the IP address where this host is located.  The name server returns the final answer to the requester.</p>
+<h3>What is a Resolving Name Server?</h3>
+<p>In the above scenario, we referred to a "requester".  What is the requester in this situation?</p>
+<p>In almost all cases, the requester will be what we call a "resolving name server."  A resolving name server is one configured to ask other servers questions.  It is basically an intermediary for a user which caches previous query results to improve speed and knows the addresses of the root servers to be able to "resolve" requests made for things it doesn't already know about.</p>
+<p>Basically, a user will usually have a few resolving name servers configured on their computer system.  The resolving name servers are usually provided by an ISP or other organizations.  For instance <a href="https://developers.google.com/speed/public-dns/">Google provides resolving DNS servers</a> that you can query.  These can be either configured in your computer automatically or manually.</p>
+<p>When you type a URL in the address bar of your browser, your computer first looks to see if it can find out locally where the resource is located.  It checks the "hosts" file on the computer and a few other locations.  It then sends the request to the resolving name server and waits back to receive the IP address of the resource.</p>
+<p>The resolving name server then checks its cache for the answer.  If it doesn't find it, it goes through the steps outlined above.</p>
+<p>Resolving name servers basically compress the requesting process for the end user.  The clients simply have to know to ask the resolving name servers where a resource is located and be confident that they will investigate and return the final answer.</p>
+<h2>Zone Files</h2>
+<p>We mentioned in the above process the idea of "zone files" and "records".</p>
+<p>Zone files are the way that name servers store information about the domains they know about.  Every domain that a name server knows about is stored in a zone file.  Most requests coming to the average name server are not something that the server will have zone files for.</p>
+<p>If it is configured to handle recursive queries, like a resolving name server, it will find out the answer and return it.  Otherwise, it will tell the requesting party where to look next.</p>
+<p>The more zone files that a name server has, the more requests it will be able to answer authoritatively.</p>
+<p>A zone file describes a DNS "zone", which is basically a subset of the entire DNS naming system.  It generally is used to configure just a single domain.  It can contain a number of records which define where resources are for the domain in question.</p>
+<p>The zone's <code>$ORIGIN</code> is a parameter equal to the zone's highest level of authority by default.</p>
+<p>So if a zone file is used to configure the "<code>example.com.</code>" domain, the <code>$ORIGIN</code> would be set to <code>example.com.</code>.</p>
+<p>This is either configured at the top of the zone file or it can be defined in the DNS server's configuration file that references the zone file.  Either way, this parameter describes what the zone is going to be authoritative for.</p>
+<p>Similarly, the <code>$TTL</code> configures the "time to live" of the information it provides.  It is basically a timer.  A caching name server can use previously queried results to answer questions until the TTL value runs out.</p>
+<h2>Record Types</h2>
+<p>Within the zone file, we can have many different record types.  We will go over some of the more common (or mandatory types) here.</p>
+<h3>SOA Records</h3>
+<p>The Start of Authority, or SOA, record is a mandatory record in all zone files.  It must be the first real record in a file (although <code>$ORIGIN</code> or <code>$TTL</code> specifications may appear above).  It is also one of the most complex to understand.</p>
+<p>The start of authority record looks something like this:</p>
+<pre><code>domain.com.  IN SOA   ns1.domain.com. admin.domain.com. (
+                          12083           ; serial number
+                          3h              ; refresh interval
+                          30m             ; retry interval
+                          3w              ; expiry period
+                          1h              ; negative TTL
+                          )</code></pre>
+<p>Let's explain what each part is for:</p>
+<ul>
+<li>
+<p><strong><code>domain.com.</code></strong>: This is the root of the zone.  This specifies that the zone file is for the <code>domain.com.</code> domain.  Often, you'll see this replaced with <code>@</code>, which is just a placeholder that substitutes the contents of the <code>$ORIGIN</code> variable we learned about above.</p>
+</li>
+<li>
+<p><strong>IN SOA</strong>: The "IN" portion means internet (and will be present in many records).  The SOA is the indicator that this is a Start of Authority record.</p>
+</li>
+<li>
+<p><strong><code>ns1.domain.com.</code></strong>: This defines the primary name server for this domain.  Name servers can either be primary or secondary, and if dynamic DNS is configured one server needs to be a "primary", which goes here.  If you haven't configured dynamic DNS, then this is just one of your primary name servers.</p>
+</li>
+<li>
+<p><strong><code>admin.domain.com.</code></strong>: This is the email address of the administrator for this zone.  The "@" is replaced with a dot in the email address.  If the name portion of the email address normally has a dot in it, this is replace with a "\" in this part (<code>your.name@domain.com</code> becomes <code>your\name.domain.com</code>).</p>
+</li>
+<li>
+<p><strong>12083</strong>: This is the serial number for the zone file.  Every time you edit a zone file, you must increment this number for the zone file to propagate correctly.  Secondary servers will check if the primary server's serial number for a zone is larger than the one they have on their system.  If it is, it requests the new zone file, if not, it continues serving the original file.</p>
+</li>
+<li>
+<p><strong>3h</strong>: This is the refresh interval for the zone.  This is the amount of time that the secondary will wait before polling the primary for zone file changes.</p>
+</li>
+<li>
+<p><strong>30m</strong>: This is the retry interval for this zone.  If the secondary cannot connect to the primary when the refresh period is up, it will wait this amount of time and retry to poll the primary.</p>
+</li>
+<li>
+<p><strong>3w</strong>: This is the expiry period.  If a secondary name server has not been able to contact the primary for this amount of time, it no longer returns responses as an authoritative source for this zone.</p>
+</li>
+<li>
+<p><strong>1h</strong>: This is the amount of time that the name server will cache a name error if it cannot find the requested name in this file.</p>
+</li>
+</ul>
+<h3>A and AAAA Records</h3>
+<p>Both of these records map a host to an IP address. The "A" record is used to map a host to an IPv4 IP address, while "AAAA" records are used to map a host to an IPv6 address.</p>
+<p>The general format of these records is this:</p>
+<pre><code>host     IN      A       IPv4_address
+host     IN      AAAA    IPv6_address</code></pre>
+<p>So since our SOA record called out a primary server at "<code>ns1.domain.com</code>", we would have to map this to an address to an IP address since "<code>ns1.domain.com</code>" is within the "<code>domain.com</code>" zone that this file is defining.</p>
+<p>The record could look something like this:</p>
+<pre><code>ns1     IN  A       111.222.111.222</code></pre>
+<p>Notice that we don't have to give the full name.  We can just give the host, without the FQDN and the DNS server will fill in the rest with the <code>$ORIGIN</code> value.  However, we could just as easily use the entire FQDN if we feel like being semantic:</p>
+<pre><code>ns1.domain.com.     IN  A       111.222.111.222</code></pre>
+<p>In most cases, this is where you'll define your web server as "www":</p>
+<pre><code>www     IN  A       222.222.222.222</code></pre>
+<p>We should also tell where the base domain resolves to.  We can do this like this:</p>
+<pre><code>domain.com.     IN  A       222.222.222.222</code></pre>
+<p>We could have used the "<code>@</code>" to refer to the base domain instead:</p>
+<pre><code>@       IN  A       222.222.222.222</code></pre>
+<p>We also have the option of resolving anything that under this domain that is not defined explicitly to this server too.  We can do this with the "<code>*</code>" wild card:</p>
+<pre><code>*       IN  A       222.222.222.222</code></pre>
+<p>All of these work just as well with AAAA records for IPv6 addresses.</p>
+<h3>CNAME Records</h3>
+<p>CNAME records define an alias for canonical name for your server (one defined by an A or AAAA record).</p>
+<p>For instance, we could have an A name record defining the "server1" host and then use the "www" as an alias for this host:</p>
+<pre><code>server1     IN  A       111.111.111.111
+www         IN  CNAME   server1</code></pre>
+<p>Be aware that these aliases come with some performance losses because they require an additional query to the server.  Most of the time, the same result could be achieved by using additional A or AAAA records.</p>
+<p>One case when a CNAME is recommended is to provide an alias for a resource outside of the current zone.</p>
+<h3>MX Records</h3>
+<p>MX records are used to define the mail exchanges that are used for the domain.  This helps email messages arrive at your mail server correctly.</p>
+<p>Unlike many other record types, mail records generally don't map a host to something, because they apply to the entire zone.  As such, they usually look like this:</p>
+<pre><code>        IN  MX  10   mail.domain.com.</code></pre>
+<p>Note that there is no host name at the beginning.</p>
+<p>Also note that there is an extra number in there.  This is the preference number that helps computers decide which server to send mail to if there are multiple mail servers defined.  Lower numbers have a higher priority.</p>
+<p>The MX record should generally point to a host defined by an A or AAAA record, and not one defined by a CNAME.</p>
+<p>So, let's say that we have two mail servers.  There would have to be records that look something like this:</p>
+<pre><code>        IN  MX  10  mail1.domain.com.
+        IN  MX  50  mail2.domain.com.
+mail1   IN  A       111.111.111.111
+mail2   IN  A       222.222.222.222</code></pre>
+<p>In this example, the "mail1" host is the preferred email exchange server.</p>
+<p>We could also write that like this:</p>
+<pre><code>        IN  MX  10  mail1
+        IN  MX  50  mail2
+mail1   IN  A       111.111.111.111
+mail2   IN  A       222.222.222.222</code></pre>
+<h3>NS Records</h3>
+<p>This record type defines the name servers that are used for this zone.</p>
+<p>You may be wondering, "if the zone file resides on the name server, why does it need to reference itself?".  Part of what makes DNS so successful is its multiple levels of caching.  One reason for defining name servers within the zone file is that the zone file may be actually being served from a cached copy on another name server.  There are other reasons for needing the name servers defined on the name server itself, but we won't go into that here.</p>
+<p>Like the MX records, these are zone-wide parameters, so they do not take hosts either.  In general, they look like this:</p>
+<pre><code>        IN  NS     ns1.domain.com.
+        IN  NS     ns2.domain.com.</code></pre>
+<p>You should have at least two name servers defined in each zone file in order to operate correctly if there is a problem with one server.  Most DNS server software considers a zone file to be invalid if there is only a single name server.</p>
+<p>As always, include the mapping for the hosts with A or AAAA records:</p>
+<pre><code>        IN  NS     ns1.domain.com.
+        IN  NS     ns2.domain.com.
+ns1     IN  A      111.222.111.111
+ns2     IN  A      123.211.111.233</code></pre>
+<p>There are quite a few other record types you can use, but these are probably the most common types that you will come across.</p>
+<h3>PTR Records</h3>
+<p>The PTR records are used define a name associated with an IP address. PTR records are the inverse of an A or AAAA record. PTR records are unique in that they begin at the <code>.arpa</code> root and are delegated to the owners of the IP addresses. The Regional Internet Registries (RIRs) manage the IP address delegation to organization and service providers. The Regional Internet Registries include APNIC, ARIN, RIPE NCC, LACNIC, and AFRINIC.</p>
+<p>Here is an example of a PTR record for <code>111.222.333.444</code> would look like:</p>
+<pre><code>444.333.222.111.in-addr.arpa.	33692	IN	PTR	host.example.com.</code></pre>
+<p>This example of a PTR record for an IPv6 address shows the <em>nibble</em> format of the reverse of Google's IPv6 DNS Server <code>2001:4860:4860::8888</code>.</p>
+<pre><code>8.8.8.8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.6.8.4.0.6.8.4.1.0.0.2.ip6.arpa. 86400IN PTR google-public-dns-a.google.com.</code></pre>
+<p>The command line tool <code>dig</code> with the <code>-x</code> flag can be used to look up the reverse DNS name of an IP address.</p>
+<p>Here is an example of a dig command. The <code>+short</code> is appended to reduce the output to the reverse DNS name.</p>
+<pre><code>dig -x 8.8.4.4 +short</code></pre>
+<p>The output for the dig command above will be the domain name in the PTR record for the IP address:</p>
+<pre><code>google-public-dns-b.google.com.</code></pre>
+<p>Servers on the Internet use PTR records to place domain names within log entries, make informed spam handling decisions, and display easy-to-read details about other devices.</p>
+<p>Most commonly-used email servers will look up the PTR record of an IP address it receives email from. If the source IP address does not have a PTR record associated with it, the emails being sent may be treated as spam and rejected. It is not important that the FQDN in the PTR matches the domain name of the email being sent. What is important is that there is a valid PTR record with a corresponding and matching forward A record.</p>
+<p>Normally network routers on the Internet are given PTR records that correspond with their physical location. For example you may see references to 'NYC' or 'CHI' for a router in New York City or Chicago. This is helpful when running a <a href="https://www.digitalocean.com/community/tutorials/how-to-use-traceroute-and-mtr-to-diagnose-network-issues">traceroute or MTR</a> and reviewing the path Internet traffic is taking.</p>
+<p>Most providers offering dedicated servers or VPS services will give customers the ability to set a PTR record for their IP address. <strong>DigitalOcean will automatically assign the PTR record of any Droplet when the Droplet is named with a domain name.</strong> The Droplet name is assigned during creation and can be edited later using the settings page of the Droplet control panel.</p>
+<blockquote>
+<p><strong>Note:</strong> It is important that the FQDN in the PTR record has a corresponding and matching forward A record. Example: <code>111.222.333.444</code> has a PTR of <code>server.example.com</code> and <code>server.example.com</code> is an A record that points to <code>111.222.333.444</code>.</p>
+</blockquote>
+<h3>CAA Records</h3>
+<p>CAA records are used to specify which Certificate Authorities (CAs) are allowed to issue SSL/TLS certificates for your domain. As of September 8, 2017 all CAs are required to check for these records before issuing a certificate. If no record is present, any CA may issue a certificate. Otherwise, only the specified CAs may issue certificates. CAA records can be applied to single hosts, or entire domains.</p>
+<p>An example CAA record follows:</p>
+<pre><code>example.com.	IN	CAA	0 issue "letsencrypt.org"</code></pre>
+<p>The host, <code>IN</code>, and record type (<code>CAA</code>) are common DNS fields. The CAA-specific information above is the <code>0 issue "letsencrypt.org"</code> portion. It is made up of three parts: flags (<code>0</code>), tags (<code>issue</code>), and values (<code>"letsencrypt.org"</code>).</p>
+<ul>
+<li><strong>Flags</strong> are an integer which indicates how a CA should handle tags it doesn't understand. If the flag is <code>0</code>, the record will be ignored. If <code>1</code>, the CA must refuse to issue the certificate.</li>
+<li><strong>Tags</strong> are strings that denote the purpose of a CAA record. Currently they can be <code>issue</code> to authorize a CA to create certificates for a specific hostname, <code>issuewild</code> to authorize wildcard certificates, or <code>iodef</code> to define a URL where CAs can report policy violations.</li>
+<li><strong>Values</strong> are a string associated with the record's <strong>tag</strong>. For <code>issue</code> and <code>issuewild</code> this will typically be the domain of the CA you're granting the permission to. For <code>iodef</code> this may be the URL of a contact form, or a <code>mailto:</code> link for email feedback.</li>
+</ul>
+<p>You may use <code>dig</code> to fetch CAA records using the following options:</p>
+<pre><code>dig example.com type257</code></pre>
+<p>For more detailed information about CAA records, you can read <a href="https://tools.ietf.org/html/rfc6844">RFC 6844</a>, or our tutorial <a href="https://www.digitalocean.com/community/tutorials/how-to-create-and-manage-caa-records-using-digitalocean-dns"><em>How To Create and Manage CAA Records Using DigitalOcean DNS</em></a></p>

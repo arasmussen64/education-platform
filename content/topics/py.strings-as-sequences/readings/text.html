@@ -1,0 +1,187 @@
+<h3>3.1.2. Text</h3>
+<p>Python can manipulate text (represented by type <a href="https://docs.python.org/3/builtins/stdtypes.html#str"><code>str</code></a>, so-called
+“strings”) as well as numbers.  This includes characters “<code>!</code>”, words
+“<code>rabbit</code>”, names “<code>Paris</code>”, sentences “<code>Got your back.</code>”, etc.
+“<code>Yay! :)</code>”. They can be enclosed in single quotes (<code>'...'</code>) or double
+quotes (<code>"..."</code>) with the same result .</p>
+<pre><code>&gt;&gt;&gt; 'spam eggs'  # single quotes
+'spam eggs'
+&gt;&gt;&gt; "Paris rabbit got your back :)! Yay!"  # double quotes
+'Paris rabbit got your back :)! Yay!'
+&gt;&gt;&gt; '1975'  # digits and numerals enclosed in quotes are also strings
+'1975'</code></pre>
+<p>To quote a quote, we need to “escape” it, by preceding it with <code>\</code>.
+Alternatively, we can use the other type of quotation marks:</p>
+<pre><code>&gt;&gt;&gt; 'doesn\'t'  # use \' to escape the single quote...
+"doesn't"
+&gt;&gt;&gt; "doesn't"  # ...or use double quotes instead
+"doesn't"
+&gt;&gt;&gt; '"Yes," they said.'
+'"Yes," they said.'
+&gt;&gt;&gt; "\"Yes,\" they said."
+'"Yes," they said.'
+&gt;&gt;&gt; '"Isn\'t," they said.'
+'"Isn\'t," they said.'</code></pre>
+<p>In the Python shell, the string definition and output string can look
+different.  The <a href="https://docs.python.org/3/builtins/functions.html#print"><code>print()</code></a> function produces a more readable output, by
+omitting the enclosing quotes and by printing escaped and special characters:</p>
+<pre><code>&gt;&gt;&gt; s = 'First line.\nSecond line.'  # \n means newline
+&gt;&gt;&gt; s  # without print(), special characters are included in the string
+'First line.\nSecond line.'
+&gt;&gt;&gt; print(s)  # with print(), special characters are interpreted, so \n produces new line
+First line.
+Second line.</code></pre>
+<p>If you don’t want characters prefaced by <code>\</code> to be interpreted as
+special characters, you can use <em>raw strings</em> by adding an <code>r</code> before
+the first quote:</p>
+<pre><code>&gt;&gt;&gt; print('C:\this\name')  # here \t means tab, \n means newline
+C:      his
+ame
+&gt;&gt;&gt; print(r'C:\this\name')  # note the r before the quote
+C:\this\name</code></pre>
+<p>There is one subtle aspect to raw strings: a raw string may not end in
+an odd number of <code>\</code> characters; see
+<a href="https://docs.python.org/3/faq/programming.html#faq-programming-raw-string-backslash">the FAQ entry</a> for more information
+and workarounds.</p>
+<p>String literals can span multiple lines.  One way is using triple-quotes:
+<code>"""..."""</code> or <code>'''...'''</code>.  End-of-line characters are automatically
+included in the string, but it’s possible to prevent this by adding a <code>\</code> at
+the end of the line.  In the following example, the initial newline is not
+included:</p>
+<pre><code>&gt;&gt;&gt; print("""\
+... Usage: thingy [OPTIONS]
+...      -h                        Display this usage message
+...      -H hostname               Hostname to connect to
+... """)
+Usage: thingy [OPTIONS]
+     -h                        Display this usage message
+     -H hostname               Hostname to connect to
+
+&gt;&gt;&gt;</code></pre>
+<p>Strings can be concatenated (glued together) with the <code>+</code> operator, and
+repeated with <code>*</code>:</p>
+<pre><code>&gt;&gt;&gt; # 3 times 'un', followed by 'ium'
+&gt;&gt;&gt; 3 * 'un' + 'ium'
+'unununium'</code></pre>
+<p>Two or more <em>string literals</em> (i.e. the ones enclosed between quotes) next
+to each other are automatically concatenated.</p>
+<pre><code>&gt;&gt;&gt; 'Py' 'thon'
+'Python'</code></pre>
+<p>This feature is particularly useful when you want to break long strings:</p>
+<pre><code>&gt;&gt;&gt; text = ('Put several strings within parentheses '
+...         'to have them joined together.')
+&gt;&gt;&gt; text
+'Put several strings within parentheses to have them joined together.'</code></pre>
+<p>This only works with two literals though, not with variables or expressions:</p>
+<pre><code>&gt;&gt;&gt; prefix = 'Py'
+&gt;&gt;&gt; prefix 'thon'  # can't concatenate a variable and a string literal
+  File "&lt;stdin&gt;", line 1
+    prefix 'thon'
+           ^^^^^^
+SyntaxError: invalid syntax
+&gt;&gt;&gt; ('un' * 3) 'ium'
+  File "&lt;stdin&gt;", line 1
+    ('un' * 3) 'ium'
+               ^^^^^
+SyntaxError: invalid syntax</code></pre>
+<p>If you want to concatenate variables or a variable and a literal, use <code>+</code>:</p>
+<pre><code>&gt;&gt;&gt; prefix + 'thon'
+'Python'</code></pre>
+<p>Strings can be <em>indexed</em> (subscripted), with the first character having index 0.
+There is no separate character type; a character is simply a string of size
+one:</p>
+<pre><code>&gt;&gt;&gt; word = 'Python'
+&gt;&gt;&gt; word[0]  # character in position 0
+'P'
+&gt;&gt;&gt; word[5]  # character in position 5
+'n'</code></pre>
+<p>Indices may also be negative numbers, to start counting from the right:</p>
+<pre><code>&gt;&gt;&gt; word[-1]  # last character
+'n'
+&gt;&gt;&gt; word[-2]  # second-last character
+'o'
+&gt;&gt;&gt; word[-6]
+'P'</code></pre>
+<p>Note that since -0 is the same as 0, negative indices start from -1.</p>
+<p>In addition to indexing, <em>slicing</em> is also supported.  While indexing is used
+to obtain individual characters, <em>slicing</em> allows you to obtain a substring:</p>
+<pre><code>&gt;&gt;&gt; word[0:2]  # characters from position 0 (included) to 2 (excluded)
+'Py'
+&gt;&gt;&gt; word[2:5]  # characters from position 2 (included) to 5 (excluded)
+'tho'</code></pre>
+<p>Slice indices have useful defaults; an omitted first index defaults to zero, an
+omitted second index defaults to the size of the string being sliced.</p>
+<pre><code>&gt;&gt;&gt; word[:2]   # character from the beginning to position 2 (excluded)
+'Py'
+&gt;&gt;&gt; word[4:]   # characters from position 4 (included) to the end
+'on'
+&gt;&gt;&gt; word[-2:]  # characters from the second-last (included) to the end
+'on'</code></pre>
+<p>Note how the start is always included, and the end always excluded.  This
+makes sure that <code>s[:i] + s[i:]</code> is always equal to <code>s</code>:</p>
+<pre><code>&gt;&gt;&gt; word[:2] + word[2:]
+'Python'
+&gt;&gt;&gt; word[:4] + word[4:]
+'Python'</code></pre>
+<p>One way to remember how slices work is to think of the indices as pointing
+<em>between</em> characters, with the left edge of the first character numbered 0.
+Then the right edge of the last character of a string of <em>n</em> characters has
+index <em>n</em>, for example:</p>
+<pre><code> +---+---+---+---+---+---+
+ | P | y | t | h | o | n |
+ +---+---+---+---+---+---+
+ 0   1   2   3   4   5   6
+-6  -5  -4  -3  -2  -1</code></pre>
+<p>The first row of numbers gives the position of the indices 0…6 in the string;
+the second row gives the corresponding negative indices. The slice from <em>i</em> to
+<em>j</em> consists of all characters between the edges labeled <em>i</em> and <em>j</em>,
+respectively.</p>
+<p>For non-negative indices, the length of a slice is the difference of the
+indices, if both are within bounds.  For example, the length of <code>word[1:3]</code> is
+2.</p>
+<p>Attempting to use an index that is too large will result in an error:</p>
+<pre><code>&gt;&gt;&gt; word[42]  # the word only has 6 characters
+Traceback (most recent call last):
+  File "&lt;stdin&gt;", line 1, in &lt;module&gt;
+IndexError: string index out of range</code></pre>
+<p>However, out of range slice indexes are handled gracefully when used for
+slicing:</p>
+<pre><code>&gt;&gt;&gt; word[4:42]
+'on'
+&gt;&gt;&gt; word[42:]
+''</code></pre>
+<p>Python strings cannot be changed — they are <a href="https://docs.python.org/3/glossary.html#term-immutable">immutable</a>.
+Therefore, assigning to an indexed position in the string results in an error:</p>
+<pre><code>&gt;&gt;&gt; word[0] = 'J'
+Traceback (most recent call last):
+  File "&lt;stdin&gt;", line 1, in &lt;module&gt;
+TypeError: 'str' object does not support item assignment
+&gt;&gt;&gt; word[2:] = 'py'
+Traceback (most recent call last):
+  File "&lt;stdin&gt;", line 1, in &lt;module&gt;
+TypeError: 'str' object does not support item assignment</code></pre>
+<p>If you need a different string, you should create a new one:</p>
+<pre><code>&gt;&gt;&gt; 'J' + word[1:]
+'Jython'
+&gt;&gt;&gt; word[:2] + 'py'
+'Pypy'</code></pre>
+<p>The built-in function <a href="https://docs.python.org/3/builtins/functions.html#len"><code>len()</code></a> returns the length of a string:</p>
+<pre><code>&gt;&gt;&gt; s = 'supercalifragilisticexpialidocious'
+&gt;&gt;&gt; len(s)
+34</code></pre>
+<p>See also</p>
+<dl>
+<dt><a href="https://docs.python.org/3/builtins/stdtypes.html#textseq">Text Sequence Type — str</a></dt><dd><p>Strings are examples of <em>sequence types</em>, and support the common
+operations supported by such types.</p>
+</dd>
+<dt><a href="https://docs.python.org/3/builtins/stdtypes.html#string-methods">String Methods</a></dt><dd><p>Strings support a large number of methods for
+basic transformations and searching.</p>
+</dd>
+<dt><a href="https://docs.python.org/3/reference/lexical_analysis.html#f-strings">f-strings</a></dt><dd><p>String literals that have embedded expressions.</p>
+</dd>
+<dt><a href="https://docs.python.org/3/library/string.html#formatstrings">Format string syntax</a></dt><dd><p>Information about string formatting with <a href="https://docs.python.org/3/builtins/stdtypes.html#str.format"><code>str.format()</code></a>.</p>
+</dd>
+<dt><a href="https://docs.python.org/3/builtins/stdtypes.html#old-string-formatting">printf-style String Formatting</a></dt><dd><p>The old formatting operations invoked when strings are
+the left operand of the <code>%</code> operator are described in more detail here.</p>
+</dd>
+</dl>

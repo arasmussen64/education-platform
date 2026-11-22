@@ -68,6 +68,7 @@ import arithmetic
 import lesson_blocks
 import mcq_lengths
 import parsons_orders
+import reading_html
 import typed_answers
 import yaml
 from content_model import (
@@ -721,6 +722,33 @@ def check_references(folder: TopicFolder, report: Report) -> None:
                 )
             elif not folder.topic.resources:
                 report.add(lesson, "<Resource index={0}> doesn't exist")
+
+
+def check_readings(folder: TopicFolder, report: Report) -> None:
+    """A reading shown inside the app (ADR-0031): the copy exists, holds only
+    the plain HTML a reading may, and no copy lies about unused."""
+    topic_file = folder.path / "topic.yaml"
+    used = set()
+    for resource in folder.topic.resources:
+        if resource.text is None:
+            continue
+        used.add(resource.text.file)
+        copy = folder.path / resource.text.file
+        if not copy.exists():
+            report.add(
+                topic_file, f"text: names {resource.text.file}, which doesn't exist"
+            )
+            continue
+        problems, words = reading_html.check(copy.read_text(encoding="utf-8"))
+        for problem in problems:
+            report.add(copy, problem)
+        if words == 0:
+            report.add(copy, "the reading is empty")
+    readings = folder.path / "readings"
+    if readings.is_dir():
+        for copy in sorted(readings.iterdir()):
+            if f"readings/{copy.name}" not in used:
+                report.add(copy, "no resource's text: names this file")
 
 
 def check_lesson_blocks(folder: TopicFolder, report: Report) -> None:
@@ -1672,6 +1700,7 @@ def check_topic(
     check_references(folder, report)
     check_review_labs(folder, report)
     check_lesson_blocks(folder, report)
+    check_readings(folder, report)
     check_packages(folder, report)
     check_test_skills(folder, topics, place, report)
     if folder.topic.status == "ready":

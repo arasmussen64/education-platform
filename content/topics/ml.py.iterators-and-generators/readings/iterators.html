@@ -1,0 +1,132 @@
+<h2>9.8. Iterators</h2>
+<p>By now you have probably noticed that most container objects can be looped over
+using a <a href="https://docs.python.org/3/reference/compound_stmts.html#for"><code>for</code></a> statement:</p>
+<pre><code>for element in [1, 2, 3]:
+    print(element)
+for element in (1, 2, 3):
+    print(element)
+for key in {'one':1, 'two':2}:
+    print(key)
+for char in "123":
+    print(char)
+for line in open("myfile.txt"):
+    print(line, end='')</code></pre>
+<p>This style of access is clear, concise, and convenient.  The use of iterators
+pervades and unifies Python.  Behind the scenes, the <a href="https://docs.python.org/3/reference/compound_stmts.html#for"><code>for</code></a> statement
+calls <a href="https://docs.python.org/3/builtins/functions.html#iter"><code>iter()</code></a> on the container object.  The function returns an iterator
+object that defines the method <a href="https://docs.python.org/3/builtins/stdtypes.html#iterator.__next__"><code>__next__()</code></a> which accesses
+elements in the container one at a time.  When there are no more elements,
+<code>__next__()</code> raises a <a href="https://docs.python.org/3/builtins/exceptions.html#StopIteration"><code>StopIteration</code></a> exception which tells the
+<code>for</code> loop to terminate.  You can call the <code>__next__()</code> method
+using the <a href="https://docs.python.org/3/builtins/functions.html#next"><code>next()</code></a> built-in function; this example shows how it all works:</p>
+<pre><code>&gt;&gt;&gt; s = 'abc'
+&gt;&gt;&gt; it = iter(s)
+&gt;&gt;&gt; it
+&lt;str_iterator object at 0x10c90e650&gt;
+&gt;&gt;&gt; next(it)
+'a'
+&gt;&gt;&gt; next(it)
+'b'
+&gt;&gt;&gt; next(it)
+'c'
+&gt;&gt;&gt; next(it)
+Traceback (most recent call last):
+  File "&lt;stdin&gt;", line 1, in &lt;module&gt;
+    next(it)
+StopIteration</code></pre>
+<p>Having seen the mechanics behind the iterator protocol, it is easy to add
+iterator behavior to your classes.  Define an <a href="https://docs.python.org/3/builtins/stdtypes.html#container.__iter__"><code>__iter__()</code></a> method which
+returns an object with a <a href="https://docs.python.org/3/builtins/stdtypes.html#iterator.__next__"><code>__next__()</code></a> method.  If the class
+defines <code>__next__()</code>, then <code>__iter__()</code> can just return <code>self</code>:</p>
+<pre><code>class Reverse:
+    """Iterator for looping over a sequence backwards."""
+    def __init__(self, data):
+        self.data = data
+        self.index = len(data)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.index == 0:
+            raise StopIteration
+        self.index = self.index - 1
+        return self.data[self.index]</code></pre>
+<pre><code>&gt;&gt;&gt; rev = Reverse('spam')
+&gt;&gt;&gt; iter(rev)
+&lt;__main__.Reverse object at 0x00A1DB50&gt;
+&gt;&gt;&gt; for char in rev:
+...     print(char)
+...
+m
+a
+p
+s</code></pre>
+<h2>9.9. Generators</h2>
+<p><a href="https://docs.python.org/3/glossary.html#term-generator">Generators</a> are a simple and powerful tool for creating iterators.  They
+are written like regular functions but use the <a href="https://docs.python.org/3/reference/simple_stmts.html#yield"><code>yield</code></a> statement
+whenever they want to return data.  Each time <a href="https://docs.python.org/3/builtins/functions.html#next"><code>next()</code></a> is called on it, the
+generator resumes where it left off (it remembers all the data values and which
+statement was last executed).  An example shows that generators can be trivially
+easy to create:</p>
+<pre><code>def reverse(data):
+    for index in range(len(data)-1, -1, -1):
+        yield data[index]</code></pre>
+<pre><code>&gt;&gt;&gt; for char in reverse('golf'):
+...     print(char)
+...
+f
+l
+o
+g</code></pre>
+<p>Anything that can be done with generators can also be done with class-based
+iterators as described in the previous section.  What makes generators so
+compact is that the <a href="https://docs.python.org/3/builtins/stdtypes.html#iterator.__iter__"><code>__iter__()</code></a> and <a href="https://docs.python.org/3/builtins/stdtypes.html#generator.__next__"><code>__next__()</code></a> methods
+are created automatically.</p>
+<p>Another key feature is that the local variables and execution state are
+automatically saved between calls.  This made the function easier to write and
+much more clear than an approach using instance variables like <code>self.index</code>
+and <code>self.data</code>.</p>
+<p>In addition to automatic method creation and saving program state, when
+generators terminate, they automatically raise <a href="https://docs.python.org/3/builtins/exceptions.html#StopIteration"><code>StopIteration</code></a>. In
+combination, these features make it easy to create iterators with no more effort
+than writing a regular function.</p>
+<h2>9.10. Generator Expressions</h2>
+<p>Some simple generators can be coded succinctly as expressions using a syntax
+similar to list comprehensions but with parentheses instead of square brackets.
+These expressions are designed for situations where the generator is used right
+away by an enclosing function.  Generator expressions are more compact but less
+versatile than full generator definitions and tend to be more memory friendly
+than equivalent list comprehensions.</p>
+<p>Examples:</p>
+<pre><code>&gt;&gt;&gt; sum(i*i for i in range(10))                 # sum of squares
+285
+
+&gt;&gt;&gt; xvec = [10, 20, 30]
+&gt;&gt;&gt; yvec = [7, 5, 3]
+&gt;&gt;&gt; sum(x*y for x,y in zip(xvec, yvec))         # dot product
+260
+
+&gt;&gt;&gt; unique_words = set(word for line in page  for word in line.split())
+
+&gt;&gt;&gt; valedictorian = max((student.gpa, student.name) for student in graduates)
+
+&gt;&gt;&gt; data = 'golf'
+&gt;&gt;&gt; list(data[i] for i in range(len(data)-1, -1, -1))
+['f', 'l', 'o', 'g']
+
+&gt;&gt;&gt; x = [[1,2,3], [], [4, 5]]
+&gt;&gt;&gt; g = (*i for i in x)
+&gt;&gt;&gt; list(g)
+[1, 2, 3, 4, 5]</code></pre>
+<p>In most cases, generator expressions must be wrapped in parentheses.  As a
+special case, however, when provided as the sole argument to a function (as in
+the examples involving <code>sum</code>, <code>set</code>, <code>max</code>, and <code>list</code> above), the
+generator expression does not need to be wrapped in an additional set of
+parentheses.  That is to say, the following two pieces of code are semantically
+equivalent:</p>
+<pre><code>&gt;&gt;&gt; f(x for x in y)
+&gt;&gt;&gt; f((x for x in y))</code></pre>
+<p>as are the following:</p>
+<pre><code>&gt;&gt;&gt; f(*x for x in y)
+&gt;&gt;&gt; f((*x for x in y))</code></pre>

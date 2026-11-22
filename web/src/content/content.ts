@@ -93,6 +93,11 @@ const codeFiles = import.meta.glob<string>(
   '../../../content/topics/*/exercises/*/{starter,solution,test_exercise}.py',
   { query: '?raw', import: 'default' },
 )
+// Readings copied in under their licences (ADR-0031), as text.
+const readingFiles = import.meta.glob<string>(
+  '../../../content/topics/*/readings/*.html',
+  { query: '?raw', import: 'default' },
+)
 // A lab (ADR-0018) has a shell walkthrough and checks instead of Python.
 const shellFiles = import.meta.glob<string>(
   '../../../content/topics/*/exercises/*/solution.sh',
@@ -343,6 +348,22 @@ export async function loadTopicContent(
       }
     })
 
+  // Named as topic.yaml names them: "readings/<file>".
+  const readings: Record<string, () => Promise<string>> = {}
+  for (const [path, load] of Object.entries(readingFiles)) {
+    if (inTopic(path, topicId)) {
+      readings[path.slice(path.indexOf('/readings/') + 1)] = load
+    }
+  }
+
   await Promise.all([...recallLoads, ...exerciseLoads])
-  return { topic, Lesson, lessonChecks, lessonShape, recall, exercises }
+  return {
+    topic,
+    Lesson,
+    lessonChecks,
+    lessonShape,
+    recall,
+    exercises,
+    readings,
+  }
 }

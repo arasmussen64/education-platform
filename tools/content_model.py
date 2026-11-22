@@ -10,6 +10,7 @@ import re
 from datetime import date
 from typing import Annotated, Literal
 
+import reading_html
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -50,6 +51,22 @@ class Track(Strict):
     modules: list[Module] = Field(min_length=1)
 
 
+class ReadingText(Strict):
+    """A copy of part of a reading, shown inside the app (ADR-0031), with
+    what its licence asks us to say about it."""
+
+    file: Annotated[str, Field(pattern=r"^readings/[a-z0-9-]+\.html$")]
+    # The author or publisher, as the source credits itself.
+    by: Text
+    license_url: Annotated[str, Field(pattern=r"^https://")]
+    retrieved: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+    # What was left out or altered: licences ask that changes be stated.
+    changes: Text
+    # Words a source asks to be shown with its text, such as OpenStax's
+    # "Access for free at ...".
+    notice: Text | None = None
+
+
 class Resource(Strict):
     title: Text
     url: Annotated[str, Field(pattern=r"^https://")]
@@ -58,6 +75,7 @@ class Resource(Strict):
     license: Text
     start: Annotated[int, Field(ge=0)] | None = None
     end: Annotated[int, Field(ge=1)] | None = None
+    text: ReadingText | None = None
 
     @model_validator(mode="after")
     def times_fit(self) -> Resource:
@@ -65,6 +83,31 @@ class Resource(Strict):
             raise ValueError("start and end are only for videos")
         if self.start is not None and self.end is not None and self.end <= self.start:
             raise ValueError("end must come after start")
+        # Two things can be shown inside the page: a YouTube video, and a
+        # reading whose text we hold a copy of. Anything else marked "embed"
+        # would silently show as a plain link.
+        video = self.type == "video" and re.match(
+            r"^https://(www\.youtube\.com/watch\?(.*&)?v=|youtu\.be/)[\w-]+",
+            self.url,
+        )
+        reading = self.type == "reading" and self.text is not None
+        if self.use == "embed" and not (video or reading):
+            raise ValueError(
+                "use: embed is only for a YouTube video (youtube.com/watch?v=...) "
+                "or a reading with a copy of its text (text:)"
+            )
+        if self.text is not None:
+            if not (self.type == "reading" and self.use == "embed"):
+                raise ValueError("text: is only for a reading with use: embed")
+            if not reading_html.copyable(self.license):
+                raise ValueError(
+                    "text: needs a licence that allows copying (see COPYABLE in "
+                    f"tools/reading_html.py); this one is recorded as {self.license!r}"
+                )
+            if "not copied" in self.license:
+                raise ValueError(
+                    'the licence still says "not copied", but text: holds a copy'
+                )
         return self
 
 

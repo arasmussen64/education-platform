@@ -1,0 +1,146 @@
+<h3>5.1.3. List Comprehensions</h3>
+<p>List comprehensions provide a concise way to create lists.
+Common applications are to make new lists where each element is the result of
+some operations applied to each member of another sequence or iterable, or to
+create a subsequence of those elements that satisfy a certain condition.</p>
+<p>For example, assume we want to create a list of squares, like:</p>
+<pre><code>&gt;&gt;&gt; squares = []
+&gt;&gt;&gt; for x in range(10):
+...     squares.append(x**2)
+...
+&gt;&gt;&gt; squares
+[0, 1, 4, 9, 16, 25, 36, 49, 64, 81]</code></pre>
+<p>Note that this creates (or overwrites) a variable named <code>x</code> that still exists
+after the loop completes.  We can calculate the list of squares without any
+side effects using:</p>
+<pre><code>squares = list(map(lambda x: x**2, range(10)))</code></pre>
+<p>or, equivalently:</p>
+<pre><code>squares = [x**2 for x in range(10)]</code></pre>
+<p>which is more concise and readable.</p>
+<p>A list comprehension consists of brackets containing an expression followed
+by a <code>for</code> clause, then zero or more <code>for</code> or <code>if</code>
+clauses.  The result will be a new list resulting from evaluating the expression
+in the context of the <code>for</code> and <code>if</code> clauses which follow it.
+For example, this listcomp combines the elements of two lists if they are not
+equal:</p>
+<pre><code>&gt;&gt;&gt; [(x, y) for x in [1,2,3] for y in [3,1,4] if x != y]
+[(1, 3), (1, 4), (2, 3), (2, 1), (2, 4), (3, 1), (3, 4)]</code></pre>
+<p>and it’s equivalent to:</p>
+<pre><code>&gt;&gt;&gt; combs = []
+&gt;&gt;&gt; for x in [1,2,3]:
+...     for y in [3,1,4]:
+...         if x != y:
+...             combs.append((x, y))
+...
+&gt;&gt;&gt; combs
+[(1, 3), (1, 4), (2, 3), (2, 1), (2, 4), (3, 1), (3, 4)]</code></pre>
+<p>Note how the order of the <a href="https://docs.python.org/3/reference/compound_stmts.html#for"><code>for</code></a> and <a href="https://docs.python.org/3/reference/compound_stmts.html#if"><code>if</code></a> statements is the
+same in both these snippets.</p>
+<p>If the expression is a tuple (e.g. the <code>(x, y)</code> in the previous example),
+it must be parenthesized.</p>
+<pre><code>&gt;&gt;&gt; vec = [-4, -2, 0, 2, 4]
+&gt;&gt;&gt; # create a new list with the values doubled
+&gt;&gt;&gt; [x*2 for x in vec]
+[-8, -4, 0, 4, 8]
+&gt;&gt;&gt; # filter the list to exclude negative numbers
+&gt;&gt;&gt; [x for x in vec if x &gt;= 0]
+[0, 2, 4]
+&gt;&gt;&gt; # apply a function to all the elements
+&gt;&gt;&gt; [abs(x) for x in vec]
+[4, 2, 0, 2, 4]
+&gt;&gt;&gt; # call a method on each element
+&gt;&gt;&gt; freshfruit = ['  banana', '  loganberry ', 'passion fruit  ']
+&gt;&gt;&gt; [weapon.strip() for weapon in freshfruit]
+['banana', 'loganberry', 'passion fruit']
+&gt;&gt;&gt; # create a list of 2-tuples like (number, square)
+&gt;&gt;&gt; [(x, x**2) for x in range(6)]
+[(0, 0), (1, 1), (2, 4), (3, 9), (4, 16), (5, 25)]
+&gt;&gt;&gt; # the tuple must be parenthesized, otherwise an error is raised
+&gt;&gt;&gt; [x, x**2 for x in range(6)]
+  File "&lt;stdin&gt;", line 1
+    [x, x**2 for x in range(6)]
+     ^^^^^^^
+SyntaxError: did you forget parentheses around the comprehension target?
+&gt;&gt;&gt; # flatten a list using a listcomp with two 'for'
+&gt;&gt;&gt; vec = [[1,2,3], [4,5,6], [7,8,9]]
+&gt;&gt;&gt; [num for elem in vec for num in elem]
+[1, 2, 3, 4, 5, 6, 7, 8, 9]</code></pre>
+<p>List comprehensions can contain complex expressions and nested functions:</p>
+<pre><code>&gt;&gt;&gt; from math import pi
+&gt;&gt;&gt; [str(round(pi, i)) for i in range(1, 6)]
+['3.1', '3.14', '3.142', '3.1416', '3.14159']</code></pre>
+<h2>5.5. Dictionaries</h2>
+<p>Another useful data type built into Python is the <em>dictionary</em> (see
+<a href="https://docs.python.org/3/builtins/stdtypes.html#typesmapping">Mapping types — dict, frozendict</a>). Dictionaries are sometimes found in other languages as
+“associative memories” or “associative arrays”.  Unlike sequences, which are
+indexed by a range of numbers, dictionaries are indexed by <em>keys</em>, which can be
+any immutable type; strings and numbers can always be keys.  Tuples can be used
+as keys if they contain only strings, numbers, or tuples; if a tuple contains
+any mutable object either directly or indirectly, it cannot be used as a key.
+You can’t use lists as keys, since lists can be modified in place using index
+assignments, slice assignments, or methods like <a href="https://docs.python.org/3/builtins/stdtypes.html#list.append"><code>append()</code></a> and
+<a href="https://docs.python.org/3/builtins/stdtypes.html#list.extend"><code>extend()</code></a>.</p>
+<p>It is best to think of a dictionary as a set of <em>key: value</em> pairs,
+with the requirement that the keys are unique (within one dictionary). A pair of
+braces creates an empty dictionary: <code>{}</code>. Placing a comma-separated list of
+key:value pairs within the braces adds initial key:value pairs to the
+dictionary; this is also the way dictionaries are written on output.</p>
+<p>The main operations on a dictionary are storing a value with some key and
+extracting the value given the key.  It is also possible to delete a key:value
+pair with <code>del</code>. If you store using a key that is already in use, the old
+value associated with that key is forgotten.</p>
+<p>Extracting a value for a non-existent key by subscripting (<code>d[key]</code>) raises a
+<a href="https://docs.python.org/3/builtins/exceptions.html#KeyError"><code>KeyError</code></a>. To avoid getting this error when trying to access a possibly
+non-existent key, use the <a href="https://docs.python.org/3/builtins/stdtypes.html#dict.get"><code>get()</code></a> method instead, which returns
+<code>None</code> (or a specified default value) if the key is not in the dictionary.</p>
+<p>Performing <code>list(d)</code> on a dictionary returns a list of all the keys
+used in the dictionary, in insertion order (if you want it sorted, just use
+<code>sorted(d)</code> instead). To check whether a single key is in the
+dictionary, use the <a href="https://docs.python.org/3/reference/expressions.html#in"><code>in</code></a> keyword.</p>
+<p>Here is a small example using a dictionary:</p>
+<pre><code>&gt;&gt;&gt; tel = {'jack': 4098, 'sape': 4139}
+&gt;&gt;&gt; tel['guido'] = 4127
+&gt;&gt;&gt; tel
+{'jack': 4098, 'sape': 4139, 'guido': 4127}
+&gt;&gt;&gt; tel['jack']
+4098
+&gt;&gt;&gt; tel['irv']
+Traceback (most recent call last):
+  File "&lt;stdin&gt;", line 1, in &lt;module&gt;
+KeyError: 'irv'
+&gt;&gt;&gt; print(tel.get('irv'))
+None
+&gt;&gt;&gt; del tel['sape']
+&gt;&gt;&gt; tel['irv'] = 4127
+&gt;&gt;&gt; tel
+{'jack': 4098, 'guido': 4127, 'irv': 4127}
+&gt;&gt;&gt; list(tel)
+['jack', 'guido', 'irv']
+&gt;&gt;&gt; sorted(tel)
+['guido', 'irv', 'jack']
+&gt;&gt;&gt; 'guido' in tel
+True
+&gt;&gt;&gt; 'jack' not in tel
+False</code></pre>
+<p>The <a href="https://docs.python.org/3/builtins/stdtypes.html#dict"><code>dict()</code></a> constructor builds dictionaries directly from sequences of
+key-value pairs:</p>
+<pre><code>&gt;&gt;&gt; dict([('sape', 4139), ('guido', 4127), ('jack', 4098)])
+{'sape': 4139, 'guido': 4127, 'jack': 4098}</code></pre>
+<p>In addition, dict comprehensions can be used to create dictionaries from
+arbitrary key and value expressions:</p>
+<pre><code>&gt;&gt;&gt; {x: x**2 for x in (2, 4, 6)}
+{2: 4, 4: 16, 6: 36}</code></pre>
+<p>And dictionary unpacking (via <code>**</code>) can be used to merge multiple
+dictionaries:</p>
+<pre><code>&gt;&gt;&gt; odds = {i: i**2 for i in (1, 3, 5)}
+&gt;&gt;&gt; evens = {i: i**2 for i in (2, 4, 6)}
+&gt;&gt;&gt; {**odds, **evens}
+{1: 1, 3: 9, 5: 25, 2: 4, 4: 16, 6: 36}
+
+&gt;&gt;&gt; all_values = [odds, evens, {0: 0}]
+&gt;&gt;&gt; {**i for i in all_values}
+{1: 1, 3: 9, 5: 25, 2: 4, 4: 16, 6: 36, 0: 0}</code></pre>
+<p>When the keys are simple strings, it is sometimes easier to specify pairs using
+keyword arguments:</p>
+<pre><code>&gt;&gt;&gt; dict(sape=4139, guido=4127, jack=4098)
+{'sape': 4139, 'guido': 4127, 'jack': 4098}</code></pre>

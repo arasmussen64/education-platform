@@ -36,11 +36,19 @@ import {
   trackFoundations,
 } from '../content/foundations.ts'
 import { practiceOutsideLesson } from '../content/lessonChecks.ts'
+import { playsInPage, readsInPage } from '../content/resources.ts'
 import { STAGES } from '../content/stages.ts'
-import type { Explain, Topic, TopicContent, Track } from '../content/types.ts'
+import type {
+  Explain,
+  Resource,
+  Topic,
+  TopicContent,
+  Track,
+} from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
+import { ResourceView } from '../components/ResourceView.tsx'
 import {
   CARD,
   PRIMARY_BUTTON,
@@ -1184,6 +1192,29 @@ function SectionHeading({
   )
 }
 
+/** A further reading held as a copy: its title, and its text once opened. */
+function FoldedReading({
+  resource,
+  loadText,
+}: {
+  resource: Resource
+  loadText: (() => Promise<string>) | undefined
+}) {
+  const [opened, setOpened] = useState(false)
+  return (
+    <details onToggle={(event) => event.currentTarget.open && setOpened(true)}>
+      <summary className="cursor-pointer underline">
+        Read here: {resource.title}
+      </summary>
+      {opened && (
+        <div className="mt-2">
+          <ResourceView resource={resource} loadText={loadText} />
+        </div>
+      )}
+    </details>
+  )
+}
+
 /**
  * The lesson: the intro, the main resource and the recap. A long lesson
  * comes a part at a time (ADR-0025, amended 2026-11-21): some sections of
@@ -1202,6 +1233,19 @@ function Learn({
   // The first resource is the main one, placed in the lesson; the rest are
   // listed after it (content/README.md), where the lesson ends.
   const moreResources = part.tail ? topic.resources.slice(1) : []
+  // A video plays here too, like the main one, so nobody has to leave the
+  // page to watch it. Readings and pages we can't embed stay links.
+  const moreVideos = moreResources.filter(playsInPage)
+  // A reading we hold a copy of opens here too (ADR-0031), folded until
+  // asked for, so its text is only downloaded by someone who wants it.
+  const loaderOf = (resource: Resource) =>
+    resource.text && content.readings?.[resource.text.file]
+  const moreReadings = moreResources.filter(
+    (resource) => readsInPage(resource) && loaderOf(resource),
+  )
+  const moreLinks = moreResources.filter(
+    (resource) => !playsInPage(resource) && !moreReadings.includes(resource),
+  )
   const anchor = partAnchor(part)
 
   return (
@@ -1225,23 +1269,35 @@ function Learn({
       {moreResources.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-semibold">More resources</h3>
-          <ul className="list-disc space-y-1 pl-6">
-            {moreResources.map((resource) => (
-              <li key={resource.url}>
-                <a
-                  href={resource.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline"
-                >
-                  {resource.title}
-                </a>{' '}
-                <span className="text-sm text-muted">
-                  ({resource.type}; license: {resource.license})
-                </span>
-              </li>
-            ))}
-          </ul>
+          {moreVideos.map((resource) => (
+            <ResourceView key={resource.url} resource={resource} />
+          ))}
+          {moreReadings.map((resource) => (
+            <FoldedReading
+              key={resource.url}
+              resource={resource}
+              loadText={loaderOf(resource)}
+            />
+          ))}
+          {moreLinks.length > 0 && (
+            <ul className="list-disc space-y-1 pl-6">
+              {moreLinks.map((resource) => (
+                <li key={resource.url}>
+                  <a
+                    href={resource.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    {resource.title}
+                  </a>{' '}
+                  <span className="text-sm text-muted">
+                    ({resource.type}; license: {resource.license})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </section>

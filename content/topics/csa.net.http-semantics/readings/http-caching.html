@@ -1,0 +1,363 @@
+<h2><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#types_of_caches">Types of caches</a></h2>
+<p>In the <a href="https://httpwg.org/specs/rfc9111.html">HTTP Caching</a> spec, there are two main types of caches: <strong>private caches</strong> and <strong>shared caches</strong>.</p>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#private_caches">Private caches</a></h3>
+<p>A private cache is a cache tied to a specific client — typically a browser cache. Since the stored response is not shared with other clients, a private cache can store a personalized response for that user.</p>
+<p>On the other hand, if personalized contents are stored in a cache other than a private cache, then other users may be able to retrieve those contents — which may cause unintentional information leakage.</p>
+<p>If a response contains personalized content and you want to store the response only in the private cache, you must specify a <code>private</code> directive.</p>
+<pre><code>Cache-Control: private</code></pre>
+<p>Personalized contents are usually controlled by cookies, but the presence of a cookie does not always indicate that it is private, and thus a cookie alone does not make the response private.</p>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#shared_cache">Shared cache</a></h3>
+<p>The shared cache is located between the client and the server and can store responses that can be shared among users. And shared caches can be further sub-classified into <strong>proxy caches</strong> and <strong>managed caches</strong>.</p>
+<h4>Proxy caches</h4>
+<p>In addition to the function of access control, some proxies implement caching to reduce traffic out of the network. This is usually not managed by the service developer, so it must be controlled by appropriate HTTP headers and so on. However, in the past, outdated proxy-cache implementations — such as implementations that do not properly understand the HTTP Caching standard — have often caused problems for developers.</p>
+<p><strong>Kitchen-sink headers</strong> like the following are used to try to work around "old and not updated proxy cache" implementations that do not understand current HTTP Caching spec directives like <code>no-store</code>.</p>
+<pre><code>Cache-Control: no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate</code></pre>
+<p>However, in recent years, as HTTPS has become more common and client/server communication has become encrypted, proxy caches in the path can only tunnel a response and can't behave as a cache, in many cases. So in that scenario, there is no need to worry about outdated proxy cache implementations that cannot even see the response.</p>
+<p>On the other hand, if a <a href="https://developer.mozilla.org/en-US/docs/Glossary/TLS">TLS</a> bridge proxy decrypts all communications in a person-in-the-middle manner by installing a certificate from a <a href="https://developer.mozilla.org/en-US/docs/Glossary/Certificate_authority">CA (certificate authority)</a> managed by the organization on the PC, and performs access control, etc. — it is possible to see the contents of the response and cache it. However, since <a href="https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Certificate_Transparency">CT (certificate transparency)</a> has become widespread in recent years, and some browsers only allow certificates issued with an SCT (signed certificate timestamp), this method requires the application of an enterprise policy. In such a controlled environment, there is no need to worry about the proxy cache being "out of date and not updated".</p>
+<h4>Managed caches</h4>
+<p>Managed caches are explicitly deployed by service developers to offload the origin server and to deliver content efficiently. Examples include reverse proxies, CDNs, and service workers in combination with the Cache API.</p>
+<p>The characteristics of managed caches vary depending on the product deployed. In most cases, you can control the cache's behavior through the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control"><code>Cache-Control</code></a> header and your own configuration files or dashboards.</p>
+<p>For example, the HTTP Caching specification essentially does not define a way to explicitly delete a cache — but with a managed cache, the stored response can be deleted at any time through dashboard operations, API calls, restarts, and so on. That allows for a more proactive caching strategy.</p>
+<p>It is also possible to ignore the standard HTTP Caching spec protocols in favor of explicit manipulation. For example, the following can be specified to opt-out of a private cache or proxy cache, while using your own strategy to cache only in a managed cache.</p>
+<pre><code>Cache-Control: no-store</code></pre>
+<p>For example, Varnish Cache uses VCL (Varnish Configuration Language, a type of <a href="https://developer.mozilla.org/en-US/docs/Glossary/DSL/Domain_specific_language">DSL</a>) logic to handle cache storage, while service workers in combination with the Cache API allow you to create that logic in JavaScript.</p>
+<p>That means if a managed cache intentionally ignores a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control#no-store"><code>no-store</code></a> directive, there is no need to perceive it as being "non-compliant" with the standard. What you should do is, avoid using kitchen-sink headers, but carefully read the documentation of whatever managed-cache mechanism you're using, and ensure you're controlling the cache properly in the ways provided by the mechanism you've chosen to use.</p>
+<p>Note that some CDNs provide their own headers that are effective only for that CDN (for example, <code>Surrogate-Control</code>). Currently, work is underway to define a <a href="https://httpwg.org/specs/rfc9213.html"><code>CDN-Cache-Control</code></a> header to standardize those.</p>
+<p><img alt="Types of caches, including a private cache in the browser, a shared (proxy) cache, a reverse proxy cache, and a shared (managed) cache in a CDN, leading to the origin server's cache" src="https://mdn.github.io/shared-assets/images/diagrams/http/cache/type-of-cache.svg"/></p>
+<h2><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#heuristic_caching">Heuristic caching</a></h2>
+<p>HTTP is designed to cache as much as possible, so even if no <code>Cache-Control</code> is given, responses will get stored and reused if certain conditions are met. This is called <strong>heuristic caching</strong>.</p>
+<p>For example, take the following response. This response was last updated 1 year ago.</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+Last-Modified: Tue, 22 Feb 2021 22:22:22 GMT
+
+&lt;!doctype html&gt;
+…</code></pre>
+<p>It is heuristically known that content which has not been updated for a full year will not be updated for some time after that. Therefore, the client stores this response (despite the lack of <code>max-age</code>) and reuses it for a while. How long to reuse is up to the implementation, but the specification recommends about 10% (in this case 0.1 year) of the time after storing.</p>
+<p>Heuristic caching is a workaround that came before <code>Cache-Control</code> support became widely adopted, and basically all responses should explicitly specify a <code>Cache-Control</code> header.</p>
+<h2><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#fresh_and_stale_based_on_age">Fresh and stale based on age</a></h2>
+<p>Stored HTTP responses have two states: <strong>fresh</strong> and <strong>stale</strong>. The <em>fresh</em> state usually indicates that the response is still valid and can be reused, while the <em>stale</em> state means that the cached response has already expired.</p>
+<p>The criterion for determining when a response is fresh and when it is stale is <strong>age</strong>. In HTTP, age is the time elapsed since the response was generated. This is similar to the <a href="https://developer.mozilla.org/en-US/docs/Glossary/TTL">TTL</a> in other caching mechanisms.</p>
+<p>Take the following example response (604800 seconds is one week):</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+Cache-Control: max-age=604800
+
+&lt;!doctype html&gt;
+…</code></pre>
+<p>The cache that stored the example response calculates the time elapsed since the response was generated and uses the result as the response's <em>age</em>.</p>
+<p>For the example response, the meaning of <code>max-age</code> is the following:</p>
+<ul>
+<li>If the age of the response is <em>less</em> than one week, the response is <em>fresh</em>.</li>
+<li>If the age of the response is <em>more</em> than one week, the response is <em>stale</em>.</li>
+</ul>
+<p>As long as the stored response remains fresh, it will be used to fulfill client requests.</p>
+<p>When a response is stored in a shared cache, it is possible to tell the client the age of the response. Continuing with the example, if the shared cache stored the response for one day, the shared cache would send the following response to subsequent client requests.</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+Cache-Control: max-age=604800
+Age: 86400
+
+&lt;!doctype html&gt;
+…</code></pre>
+<p>The client which receives that response will find it to be fresh for the remaining 518400 seconds, the difference between the response's <code>max-age</code> and <code>Age</code>.</p>
+<h2><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#expires_or_max-age">Expires or max-age</a></h2>
+<p>In HTTP/1.0, freshness used to be specified by the <code>Expires</code> header.</p>
+<p>The <code>Expires</code> header specifies the lifetime of the cache using an explicit time rather than by specifying an elapsed time.</p>
+<pre><code>Expires: Tue, 28 Feb 2022 22:22:22 GMT</code></pre>
+<p>However, the time format is difficult to parse, many implementation bugs were found, and it is possible to induce problems by intentionally shifting the system clock; therefore, <code>max-age</code> — for specifying an elapsed time — was adopted for <code>Cache-Control</code> in HTTP/1.1.</p>
+<p>If both <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Expires"><code>Expires</code></a> and <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control#max-age"><code>Cache-Control: max-age</code></a> are available, <code>max-age</code> is defined to be preferred. So it is not necessary to provide <code>Expires</code> now that HTTP/1.1 is widely used.</p>
+<h2><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#vary">Vary</a></h2>
+<p>The way that responses are distinguished from one another is essentially based on their URLs:</p>
+<figure><table>
+<thead>
+<tr>
+<th>URL</th>
+<th>Response body</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>https://example.com/index.html</code></td>
+<td><code>&lt;!doctype html&gt;...</code></td>
+</tr>
+<tr>
+<td><code>https://example.com/style.css</code></td>
+<td><code>body { ...</code></td>
+</tr>
+<tr>
+<td><code>https://example.com/script.js</code></td>
+<td><code>function main () { ...</code></td>
+</tr>
+</tbody>
+</table></figure>
+<p>But the contents of responses are not always the same, even if they have the same URL. Especially when content negotiation is performed, the response from the server can depend on the values of the <code>Accept</code>, <code>Accept-Language</code>, and <code>Accept-Encoding</code> request headers.</p>
+<p>For example, for English content returned with an <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept-Language"><code>Accept-Language: en</code></a> header and cached, it is undesirable to then reuse that cached response for requests that have an <code>Accept-Language: ja</code> request header. In this case, you can cause the responses to be cached separately — based on language — by adding <code>Accept-Language</code> to the value of the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Vary"><code>Vary</code></a> header.</p>
+<pre><code>Vary: Accept-Language</code></pre>
+<p>That causes the cache to be keyed based on a composite of the response URL and the <code>Accept-Language</code> request header — rather than being based just on the response URL.</p>
+<figure><table>
+<thead>
+<tr>
+<th>URL</th>
+<th><code>Accept-Language</code></th>
+<th>Response body</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>https://example.com/index.html</code></td>
+<td><code>ja-JP</code></td>
+<td><code>&lt;!doctype html&gt;...</code></td>
+</tr>
+<tr>
+<td><code>https://example.com/index.html</code></td>
+<td><code>en-US</code></td>
+<td><code>&lt;!doctype html&gt;...</code></td>
+</tr>
+<tr>
+<td><code>https://example.com/style.css</code></td>
+<td><code>ja-JP</code></td>
+<td><code>body { ...</code></td>
+</tr>
+<tr>
+<td><code>https://example.com/script.js</code></td>
+<td><code>ja-JP</code></td>
+<td><code>function main () { ...</code></td>
+</tr>
+</tbody>
+</table></figure>
+<p>Also, if you are providing content optimization (for example, for responsive design) based on the user agent, you may be tempted to include <code>User-Agent</code> in the value of the <code>Vary</code> header. However, the <code>User-Agent</code> request header generally has a very large number of variations, which drastically reduces the chance that the cache will be reused. So if possible, instead consider a way to vary behavior based on feature detection rather than based on the <code>User-Agent</code> request header.</p>
+<p>For applications that employ cookies to prevent others from reusing cached personalized content, you should specify <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control#private"><code>Cache-Control: private</code></a> instead of specifying a cookie for <code>Vary</code>.</p>
+<h2><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#validation">Validation</a></h2>
+<p>Stale responses are not immediately discarded. HTTP has a mechanism to transform a stale response into a fresh one by asking the origin server. This is called <strong>validation</strong>, or sometimes, <strong>revalidation</strong>.</p>
+<p>Validation is done by using a <strong>conditional request</strong> that includes an <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/If-Modified-Since"><code>If-Modified-Since</code></a> or <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/If-None-Match"><code>If-None-Match</code></a> request header.</p>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#if-modified-since">If-Modified-Since</a></h3>
+<p>The following response was generated at 22:22:22 and has a <code>max-age</code> of 1 hour, so you know that it is fresh until 23:22:22.</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+Last-Modified: Tue, 22 Feb 2022 22:00:00 GMT
+Cache-Control: max-age=3600
+
+&lt;!doctype html&gt;
+…</code></pre>
+<p>At 23:22:22, the response becomes stale and the cache cannot be reused. So the request below shows a client sending a request with an <code>If-Modified-Since</code> request header, to ask the server if there have been any changes made since the specified time.</p>
+<pre><code>GET /index.html HTTP/1.1
+Host: example.com
+Accept: text/html
+If-Modified-Since: Tue, 22 Feb 2022 22:00:00 GMT</code></pre>
+<p>The server will respond with <code>304 Not Modified</code> if the content has not changed since the specified time.</p>
+<p>Since this response only indicates "no change", there is no response body — there's just a status code — so the transfer size is extremely small.</p>
+<pre><code>HTTP/1.1 304 Not Modified
+Content-Type: text/html
+Date: Tue, 22 Feb 2022 23:22:22 GMT
+Last-Modified: Tue, 22 Feb 2022 22:00:00 GMT
+Cache-Control: max-age=3600</code></pre>
+<p>Upon receiving that response, the client reverts the stored stale response back to being fresh and can reuse it during the remaining 1 hour.</p>
+<p>The server can obtain the modification time from the operating-system file system, which is relatively easy to do for the case of serving static files. However, there are some problems; for example, the time format is complex and difficult to parse, and distributed servers have difficulty synchronizing file-update times.</p>
+<p>To solve such problems, the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/ETag"><code>ETag</code></a> response header was standardized as an alternative.</p>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#etagif-none-match">ETag/If-None-Match</a></h3>
+<p>The value of the <code>ETag</code> response header is an arbitrary value generated by the server. There are no restrictions on how the server must generate the value, so servers are free to set the value based on whatever means they choose — such as a hash of the body contents or a version number.</p>
+<p>As an example, if a hash value is used for the <code>ETag</code> header and the hash value of the <code>index.html</code> resource is <code>33a64df5</code>, the response will be as follows:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+ETag: "33a64df5"
+Cache-Control: max-age=3600
+
+&lt;!doctype html&gt;
+…</code></pre>
+<p>If that response is stale, the client takes the value of the <code>ETag</code> response header for the cached response, and puts it into the <code>If-None-Match</code> request header, to ask the server if the resource has been modified:</p>
+<pre><code>GET /index.html HTTP/1.1
+Host: example.com
+Accept: text/html
+If-None-Match: "33a64df5"</code></pre>
+<p>The server will return <code>304 Not Modified</code> if the value of the <code>ETag</code> header it determines for the requested resource is the same as the <code>If-None-Match</code> value in the request.</p>
+<p>But if the server determines the requested resource should now have a different <code>ETag</code> value, the server will instead respond with a <code>200 OK</code> and the latest version of the resource.</p>
+<p><strong>Note:</strong>
+RFC9110 prefers that servers send both <code>ETag</code> and <code>Last-Modified</code> for a <code>200</code> response if possible.
+During cache revalidation, if both <code>If-Modified-Since</code> and <code>If-None-Match</code> are present, then <code>If-None-Match</code> takes precedence for the validator.
+If you are only considering caching, you may think that <code>Last-Modified</code> is unnecessary.
+However, <code>Last-Modified</code> is not just useful for caching; it is a standard HTTP header that is also used by content-management (CMS) systems to display the last-modified time, by crawlers to adjust crawl frequency, and for other various purposes.
+So considering the overall HTTP ecosystem, it is better to provide both <code>ETag</code> and <code>Last-Modified</code>.</p>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#force_revalidation">Force Revalidation</a></h3>
+<p>If you do not want a response to be reused, but instead want to always fetch the latest content from the server, you can use the <code>no-cache</code> directive to force validation.</p>
+<p>By adding <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control#no-cache"><code>Cache-Control: no-cache</code></a> to the response along with <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Last-Modified"><code>Last-Modified</code></a> and <code>ETag</code> — as shown below — the client will receive a <code>200 OK</code> response if the requested resource has been updated, or will otherwise receive a <code>304 Not Modified</code> response if the requested resource has not been updated.</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+Last-Modified: Tue, 22 Feb 2022 22:00:00 GMT
+ETag: "deadbeef"
+Cache-Control: no-cache
+
+&lt;!doctype html&gt;
+…</code></pre>
+<p><strong>Note:</strong>
+The <code>no-cache</code> directive (or equivalent, such as <code>max-age=0, must-revalidate</code>) does not guarantee revalidation for history navigations — such as those made using the <kbd>Back</kbd> button.
+If the back/forward cache (<a href="https://developer.mozilla.org/en-US/docs/Glossary/bfcache">bfcache</a>) is used, the browser restores a snapshot of the page without revalidating.
+Even when bfcache is not used, the browser may still serve the cached response without revalidating.
+This is <a href="https://httpwg.org/specs/rfc7234.html#history.lists">allowed by the specification</a> because history navigations are usually treated as restoring a snapshot of a historical session and not a new request for a previously visited page.</p>
+<p>It is often stated that the combination of <code>max-age=0</code> and <code>must-revalidate</code> has the same meaning as <code>no-cache</code>.</p>
+<pre><code>Cache-Control: max-age=0, must-revalidate</code></pre>
+<p><code>max-age=0</code> means that the response is immediately stale, and <code>must-revalidate</code> means that it must not be reused without revalidation once it is stale — so, in combination, the semantics seem to be the same as <code>no-cache</code>.</p>
+<p>However, that usage of <code>max-age=0</code> is a remnant of the fact that many implementations prior to HTTP/1.1 were unable to handle the <code>no-cache</code> directive — and so to deal with that limitation, <code>max-age=0</code> was used as a workaround.</p>
+<p>But now that HTTP/1.1-conformant servers are widely deployed, there's no reason to ever use that <code>max-age=0</code> and <code>must-revalidate</code> combination — you should instead just use <code>no-cache</code>.</p>
+<h2><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#dont_cache">Don't cache</a></h2>
+<p>The <code>no-cache</code> directive does not prevent the storing of responses but instead prevents the reuse of responses without revalidation.</p>
+<p>If you don't want a response stored in any cache, use <code>no-store</code>.</p>
+<pre><code>Cache-Control: no-store</code></pre>
+<p>However, in general, a "do not cache" requirement in practice amounts to the following set of circumstances:</p>
+<ul>
+<li>Don't want the response stored by anyone other than the specific client, for privacy reasons.</li>
+<li>Want to provide up-to-date information always.</li>
+<li>Don't know what could happen in outdated implementations.</li>
+</ul>
+<p>Under that set of circumstances, <code>no-store</code> is not always the most-appropriate directive.</p>
+<p>The following sections look at the circumstances in more detail.</p>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#do_not_share_with_others">Do not share with others</a></h3>
+<p>It would be problematic if a response with personalized content is unexpectedly visible to other users of a cache.</p>
+<p>In such a case, using the <code>private</code> directive will cause the personalized response to only be stored with the specific client and not be leaked to any other user of the cache.</p>
+<pre><code>Cache-Control: private</code></pre>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#provide_up-to-date_content_every_time">Provide up-to-date content every time</a></h3>
+<p>The <code>no-store</code> directive prevents a response from being stored, but does not delete any already-stored response for the same URL.</p>
+<p>In other words, if there is an old response already stored for a particular URL, returning <code>no-store</code> will not prevent the old response from being reused.</p>
+<p>However, a <code>no-cache</code> directive will force the client to send a validation request before reusing any stored response.</p>
+<pre><code>Cache-Control: no-cache</code></pre>
+<p>If the server does not support conditional requests, you can force the client to access the server every time and always get the latest response with <code>200 OK</code>.</p>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#dealing_with_outdated_implementations">Dealing with outdated implementations</a></h3>
+<p>As a workaround for outdated implementations that ignore <code>no-store</code>, you may see kitchen-sink headers such as the following being used.</p>
+<pre><code>Cache-Control: no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate</code></pre>
+<p>It is <a href="https://learn.microsoft.com/en-us/previous-versions/troubleshoot/browsers/connectivity-navigation/how-to-prevent-caching">recommended</a> to use <code>no-cache</code> as an alternative for dealing with such outdated implementations, and it is not a problem if <code>no-cache</code> is given from the beginning, since the server will always receive the request.</p>
+<p>If it is the shared cache that you are concerned about, you can make sure to prevent unintended caching by also adding <code>private</code>:</p>
+<pre><code>Cache-Control: no-cache, private</code></pre>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#whats_lost_by_no-store">What's lost by <code>no-store</code></a></h3>
+<p>You may think adding <code>no-store</code> would be the right way to opt-out of caching.</p>
+<p>However, it's not recommended to grant <code>no-store</code> liberally, because you lose many advantages that HTTP and browsers have, including the browser's back/forward cache.</p>
+<p>Therefore, to get the advantages of the full feature set of the web platform, prefer the use of <code>no-cache</code> in combination with <code>private</code>.</p>
+<h2><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#common_caching_patterns">Common caching patterns</a></h2>
+<p>There are many directives in the <code>Cache-Control</code> spec, and it may be difficult to understand all of them. But most websites can be covered by a combination of a handful of patterns.</p>
+<p>This section describes the common patterns in designing caches.</p>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#default_settings">Default settings</a></h3>
+<p>As mentioned above, the default behavior for caching (that is, for a response without <code>Cache-Control</code>) is not simply "don't cache" but implicit caching according to so-called "heuristic caching".</p>
+<p>To avoid that heuristic caching, it's preferable to explicitly give all responses a default <code>Cache-Control</code> header.</p>
+<p>To ensure that by default the latest versions of resources will always be transferred, it's common practice to make the default <code>Cache-Control</code> value include <code>no-cache</code>:</p>
+<pre><code>Cache-Control: no-cache</code></pre>
+<p>In addition, if the service implements cookies or other login methods, and the content is personalized for each user, <code>private</code> must be given too, to prevent sharing with other users:</p>
+<pre><code>Cache-Control: no-cache, private</code></pre>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#cache_busting">Cache Busting</a></h3>
+<p>The resources that work best with caching are static immutable files whose contents never change. And for resources that <em>do</em> change, it is a common best practice to change the URL each time the content changes, so that the URL unit can be cached for a longer period.</p>
+<p>As an example, consider the following HTML:</p>
+<pre><code>&lt;script src="bundle.js"&gt;&lt;/script&gt;
+&lt;link rel="stylesheet" href="build.css" /&gt;
+&lt;body&gt;
+  hello
+&lt;/body&gt;</code></pre>
+<p>In modern web development, JavaScript and CSS resources are frequently updated as development progresses. Also, if the versions of JavaScript and CSS resources that a client uses are out of sync, the display will break.</p>
+<p>So the HTML above makes it difficult to cache <code>bundle.js</code> and <code>build.css</code> with <code>max-age</code>.</p>
+<p>Therefore, you can serve the JavaScript and CSS with URLs that include a changing part based on a version number or hash value. Some of the ways to do that are shown below.</p>
+<pre><code># version in filename
+bundle.v123.js
+
+# version in query
+bundle.js?v=123
+
+# hash in filename
+bundle.YsAIAAAA-QG4G6kCMAMBAAAAAAAoK.js
+
+# hash in query
+bundle.js?v=YsAIAAAA-QG4G6kCMAMBAAAAAAAoK</code></pre>
+<p>Since the cache distinguishes resources from one another based on their URLs, the cache will not be reused again if the URL changes when a resource is updated.</p>
+<pre><code>&lt;script src="bundle.v123.js"&gt;&lt;/script&gt;
+&lt;link rel="stylesheet" href="build.v123.css" /&gt;
+&lt;body&gt;
+  hello
+&lt;/body&gt;</code></pre>
+<p>With that design, both JavaScript and CSS resources can be cached for a long time. So how long should <code>max-age</code> be set to? The QPACK specification provides an answer to that question.</p>
+<p><a href="https://datatracker.ietf.org/doc/html/rfc9204">QPACK</a> is a standard for compressing HTTP header fields, with tables of commonly-used field values defined.</p>
+<p>Some commonly-used cache-header values are shown below.</p>
+<pre><code>36 cache-control max-age=0
+37 cache-control max-age=604800
+38 cache-control max-age=2592000
+39 cache-control no-cache
+40 cache-control no-store
+41 cache-control public, max-age=31536000</code></pre>
+<p>If you select one of those numbered options, you can compress values in 1 byte when transferred via HTTP3.</p>
+<p>Numbers <code>37</code>, <code>38</code>, and <code>41</code> are for periods of one week, one month, and one year.</p>
+<p>Because the cache removes old entries when new entries are saved, the probability that a stored response still exists after one week is not that high — even if <code>max-age</code> is set to 1 week. Therefore, in practice, it does not make much difference which one you choose.</p>
+<p>Note that number <code>41</code> has the longest <code>max-age</code> (1 year), but with <code>public</code>.</p>
+<p>The <code>public</code> value has the effect of making the response storable even if the <code>Authorization</code> header is present.</p>
+<p><strong>Note:</strong>
+The <code>public</code> directive should only be used if there is a need to store the response when the <code>Authorization</code> header is set.
+It is not required otherwise, because a response will be stored in the shared cache as long as <code>max-age</code> is given.</p>
+<p>So if the response is personalized with basic authentication, the presence of <code>public</code> may cause problems. If you are concerned about that, you can choose the second-longest value, <code>38</code> (1 month).</p>
+<pre><code># response for bundle.v123.js
+
+# If you never personalize responses via Authorization
+Cache-Control: public, max-age=31536000
+
+# If you can't be certain
+Cache-Control: max-age=2592000</code></pre>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#validation_2">Validation</a></h3>
+<p>Don't forget to set the <code>Last-Modified</code> and <code>ETag</code> headers, so that you don't have to re-transmit a resource when reloading. It's easy to generate those headers for pre-built static files.</p>
+<p>The <code>ETag</code> value here may be a hash of the file.</p>
+<pre><code># response for bundle.v123.js
+Last-Modified: Tue, 22 Feb 2022 20:20:20 GMT
+ETag: "YsAIAAAA-QG4G6kCMAMBAAAAAAAoK"</code></pre>
+<p>In addition, <code>immutable</code> can be added to prevent validation on reload.</p>
+<p>The combined result is shown below.</p>
+<pre><code># bundle.v123.js
+HTTP/1.1 200 OK
+Content-Type: text/javascript
+Content-Length: 1024
+Cache-Control: public, max-age=31536000, immutable
+Last-Modified: Tue, 22 Feb 2022 20:20:20 GMT
+ETag: "YsAIAAAA-QG4G6kCMAMBAAAAAAAoK"</code></pre>
+<p><strong>Cache busting</strong> is a technique to make a response cacheable over a long period by changing the URL when the content changes. The technique can be applied to all subresources, such as images.</p>
+<p><strong>Note:</strong>
+When evaluating the use of <code>immutable</code> and QPACK:
+If you're concerned that <code>immutable</code> changes the predefined value provided by QPACK, consider that
+in this case, the <code>immutable</code> part can be encoded separately by splitting the <code>Cache-Control</code> value into two lines — though this is dependent on the encoding algorithm a particular QPACK implementation uses.</p>
+<pre><code>Cache-Control: public, max-age=31536000
+Cache-Control: immutable</code></pre>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#main_resources">Main resources</a></h3>
+<p>Unlike subresources, main resources cannot be cache busted because their URLs can't be decorated in the same way that subresource URLs can be.</p>
+<p>If the following HTML itself is stored, the latest version cannot be displayed even if the content is updated on the server side.</p>
+<pre><code>&lt;script src="bundle.v123.js"&gt;&lt;/script&gt;
+&lt;link rel="stylesheet" href="build.v123.css" /&gt;
+&lt;body&gt;
+  hello
+&lt;/body&gt;</code></pre>
+<p>For that case, <code>no-cache</code> would be appropriate — rather than <code>no-store</code> — since we don't want to store HTML, but instead just want it to always be up-to-date.</p>
+<p>Furthermore, adding <code>Last-Modified</code> and <code>ETag</code> will allow clients to send conditional requests, and a <code>304 Not Modified</code> can be returned if there have been no updates to the HTML:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Cache-Control: no-cache
+Last-Modified: Tue, 22 Feb 2022 20:20:20 GMT
+ETag: "AAPuIbAOdvAGEETbgAAAAAAABAAE"</code></pre>
+<p>That setting is appropriate for non-personalized HTML, but for a response that gets personalized using cookies — for example, after a login — don't forget to also specify <code>private</code>:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Cache-Control: no-cache, private
+Last-Modified: Tue, 22 Feb 2022 20:20:20 GMT
+ETag: "AAPuIbAOdvAGEETbgAAAAAAABAAE"
+Set-Cookie: __Host-SID=AHNtAyt3fvJrUL5g5tnGwER; Secure; Path=/; HttpOnly</code></pre>
+<p>The same can be used for <code>favicon.ico</code>, <code>manifest.json</code>, <code>.well-known</code>, and API endpoints whose URLs cannot be changed using cache busting.</p>
+<p>Most web content can be covered by a combination of the two patterns described above.</p>
+<h3><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching#more_about_managed_caches">More about managed caches</a></h3>
+<p>With the method described in previous sections, subresources can be cached for a long time by using cache busting, but main resources (which are usually HTML documents) can't be.</p>
+<p>Caching main resources is difficult because, using just standard directives from the HTTP Caching specification, there's no way to actively delete cache contents when content is updated on the server.</p>
+<p>However, it is possible by deploying a managed cache such as a CDN or service worker.</p>
+<p>For example, a CDN that allows cache purging via an API or dashboard operation would allow for a more aggressive caching strategy by storing the main resource and explicitly purging the relevant cache only when an update occurs on the server.</p>
+<p>A service worker could do the same if it could delete the contents in the Cache API when an update occurs on the server.</p>
+<p>For more information, see the documentation for your CDN, and consult the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">service worker documentation</a>.</p>

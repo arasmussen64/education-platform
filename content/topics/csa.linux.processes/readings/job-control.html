@@ -1,0 +1,84 @@
+<h2>Job Control</h2>
+<p>In some cases you will need to interrupt a job while it is executing, for instance if a command is taking too long to complete (such as a <code>find</code> with a very large directory structure to search through).
+Most of the time, you can do <code>Ctrl-C</code> and the command will stop.
+But how does this actually work and why does it sometimes fail to stop the process?</p>
+<h2>Killing a process</h2>
+<p>Your shell is using a UNIX communication mechanism called a <em>signal</em> to communicate information to the process. When a process receives a signal it stops its execution, deals with the signal and potentially changes the flow of execution based on the information that the signal delivered. For this reason, signals are <em>software interrupts</em>.</p>
+<p>In our case, when typing <code>Ctrl-C</code> this prompts the shell to deliver a <code>SIGINT</code> signal to the process.</p>
+<p>Here’s a minimal example of a Python program that captures <code>SIGINT</code> and ignores it, no longer stopping. To kill this program we can now use the <code>SIGQUIT</code> signal instead, by typing <code>Ctrl-\</code>.</p>
+<pre><code>#!/usr/bin/env python
+import signal, time
+
+def handler(signum, time):
+    print("\nI got a SIGINT, but I am not stopping")
+
+signal.signal(signal.SIGINT, handler)
+i = 0
+while True:
+    time.sleep(.1)
+    print("\r{}".format(i), end="")
+    i += 1</code></pre>
+<p>Here’s what happens if we send <code>SIGINT</code> twice to this program, followed by <code>SIGQUIT</code>. Note that <code>^</code> is how <code>Ctrl</code> is displayed when typed in the terminal.</p>
+<pre><code>$ python sigint.py
+24^C
+I got a SIGINT, but I am not stopping
+26^C
+I got a SIGINT, but I am not stopping
+30^\[1]    39913 quit       python sigint.py</code></pre>
+<p>While <code>SIGINT</code> and <code>SIGQUIT</code> are both usually associated with terminal related requests, a more generic signal for asking a process to exit gracefully is the <code>SIGTERM</code> signal.
+To send this signal we can use the <a href="https://www.man7.org/linux/man-pages/man1/kill.1.html"><code>kill</code></a> command, with the syntax <code>kill -TERM &lt;PID&gt;</code>.</p>
+<h2>Pausing and backgrounding processes</h2>
+<p>Signals can do other things beyond killing a process. For instance, <code>SIGSTOP</code> pauses a process. In the terminal, typing <code>Ctrl-Z</code> will prompt the shell to send a <code>SIGTSTP</code> signal, short for Terminal Stop (i.e. the terminal’s version of <code>SIGSTOP</code>).</p>
+<p>We can then continue the paused job in the foreground or in the background using <a href="https://www.man7.org/linux/man-pages/man1/fg.1p.html"><code>fg</code></a> or <a href="https://man7.org/linux/man-pages/man1/bg.1p.html"><code>bg</code></a>, respectively.</p>
+<p>The <a href="https://www.man7.org/linux/man-pages/man1/jobs.1p.html"><code>jobs</code></a> command lists the unfinished jobs associated with the current terminal session.
+You can refer to those jobs using their pid (you can use <a href="https://www.man7.org/linux/man-pages/man1/pgrep.1.html"><code>pgrep</code></a> to find that out).
+More intuitively, you can also refer to a process using the percent symbol followed by its job number (displayed by <code>jobs</code>). To refer to the last backgrounded job you can use the <code>$!</code> special parameter.</p>
+<p>One more thing to know is that the <code>&amp;</code> suffix in a command will run the command in the background, giving you the prompt back, although it will still use the shell’s STDOUT which can be annoying (use shell redirections in that case).</p>
+<p>To background an already running program you can do <code>Ctrl-Z</code> followed by <code>bg</code>.
+Note that backgrounded processes are still children processes of your terminal and will die if you close the terminal (this will send yet another signal, <code>SIGHUP</code>).
+To prevent that from happening you can run the program with <a href="https://www.man7.org/linux/man-pages/man1/nohup.1.html"><code>nohup</code></a> (a wrapper to ignore <code>SIGHUP</code>), or use <code>disown</code> if the process has already been started.
+Alternatively, you can use a terminal multiplexer as we will see in the next section.</p>
+<p>Below is a sample session to showcase some of these concepts.</p>
+<pre><code>$ sleep 1000
+^Z
+[1]  + 18653 suspended  sleep 1000
+
+$ nohup sleep 2000 &amp;
+[2] 18745
+appending output to nohup.out
+
+$ jobs
+[1]  + suspended  sleep 1000
+[2]  - running    nohup sleep 2000
+
+$ bg %1
+[1]  - 18653 continued  sleep 1000
+
+$ jobs
+[1]  - running    sleep 1000
+[2]  + running    nohup sleep 2000
+
+$ kill -STOP %1
+[1]  + 18653 suspended (signal)  sleep 1000
+
+$ jobs
+[1]  + suspended (signal)  sleep 1000
+[2]  - running    nohup sleep 2000
+
+$ kill -SIGHUP %1
+[1]  + 18653 hangup     sleep 1000
+
+$ jobs
+[2]  + running    nohup sleep 2000
+
+$ kill -SIGHUP %2
+
+$ jobs
+[2]  + running    nohup sleep 2000
+
+$ kill %2
+[2]  + 18745 terminated  nohup sleep 2000
+
+$ jobs</code></pre>
+<p>A special signal is <code>SIGKILL</code> since it cannot be captured by the process and it will always terminate it immediately. However, it can have bad side effects such as leaving orphaned children processes.</p>
+<p>You can learn more about these and other signals <a href="https://en.wikipedia.org/wiki/Signal_(IPC)">here</a> or typing <a href="https://www.man7.org/linux/man-pages/man7/signal.7.html"><code>man signal</code></a> or <code>kill -l</code>.</p>

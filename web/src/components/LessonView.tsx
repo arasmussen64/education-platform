@@ -100,7 +100,10 @@ export function LessonView({
         const resource = resources[index ?? 0]
         return tail && resource ? (
           <div id="place-resource" {...{ [PLACE_ATTRIBUTE]: 'place-resource' }}>
-            <ResourceView resource={resource} />
+            <ResourceView
+              resource={resource}
+              loadText={resource.text && content.readings?.[resource.text.file]}
+            />
           </div>
         ) : null
       },

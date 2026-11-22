@@ -47,3 +47,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0028](0028-confidence-before-the-answer.md) | Saying how sure you are, as part of answering                            | Accepted (2026-11-21, with its amendments) |
 | [0029](0029-starting-a-track-over.md)        | Starting a track over, as one more event                                 | Accepted (2026-11-21)                      |
 | [0030](0030-reasons-to-come-back.md)         | Reasons to come back: a question, a moment, memory, difficulty           | Accepted                                   |
+| [0031](0031-lessons-inside-the-app.md) | Lessons inside the app: play the video, show the reading, or write our own | Accepted |

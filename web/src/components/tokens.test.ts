@@ -59,6 +59,7 @@ test('index.css defines every named colour, and Tailwind gets each one', () => {
       'code',
       'on-code',
       'on-code-muted',
+      'picture',
     ].sort(),
   )
   // A dark value only ever replaces a colour that has a light value.
