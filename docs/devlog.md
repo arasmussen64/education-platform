@@ -2,6 +2,39 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, later still: step 3, the other fourteen cloud lessons
+
+**What changed.** The same method, one helper per topic, on the fourteen remaining cloud topics whose main resource sent the learner away. All nineteen cloud lessons now teach everything their items ask, and every linked page in them is optional.
+
+| Topic | Words added | Minutes |
+| --- | --- | --- |
+| `csa.hw.domain-join` | 850 | 263 to 241 |
+| `csa.hw.gpus` | 520 | 308 to 255 |
+| `csa.hw.hypervisors` | 760 | 291 to 227 |
+| `csa.hw.windows-ad` | 750 | 296 to 242 |
+| `csa.linux.containers` | 1,035 | 228 to 236 |
+| `csa.linux.permissions` | 980 | 228 to 236 |
+| `csa.linux.triage` | 1,210 | 254 to 263 |
+| `csa.net.bgp-steering` | 410 | 330 to 303 |
+| `csa.net.cidr` | 620 | 301 to 278 |
+| `csa.net.congestion` | 350 | 306 to 259 |
+| `csa.net.http-tls` | 275 | 270 to 242 |
+| `csa.net.layers` | 360 | 316 to 298 |
+| `csa.net.load-balancing` | 130 | 320 to 271 |
+| `csa.net.transport` | 330 | 308 to 266 |
+
+**Author notes:**
+
+- _Module 1's three topics grew._ Their estimates were built from lesson words, questions and labs and never counted the readings, so nothing came out and the new text went in.
+- _Most gaps were not about the reading._ They were things only a lab's worked example, an item's explanation or the recap had taught. `csa.hw.windows-ad`'s build needed `samba-tool` commands that no lesson before it had shown; the lesson now has them.
+- _A real error found in `csa.linux.triage`._ Three items present plain `strace -c` as timing a waiting process. By strace's manual, `-c` counts processor time inside the kernel, and `-w` is what times the wait. The lesson now teaches `-w`, and `typed-count-syscalls` accepts it (rev 2). Still to fix, once the command can be run in a container: the wording of `tri-strace-summary`, `mcq-on-off-cpu` and the explain's model answer, and whether `tri-strace-summary`'s captured table was made with `-w`.
+- _Also found, not changed:_ the lesson, recap and one item of `csa.linux.containers` say `WORKDIR` only records metadata, where Docker's own page says it can add a layer; sysstat 12.7.6 renamed `retrans/s` to `retrseg/s` (the triage lesson now gives both names; the items give the old one); AWS lists T9g among the unlimited-by-default families.
+- _Two resource titles changed_ in `csa.net.layers`, which had said "watch this or read the chapter, one of the two".
+- _No command output was added anywhere._ Docker wasn't running. Helpers ran what they could in Git Bash (bash arithmetic, openssl) to check their own examples.
+- _Each helper's report lists what it could not check against a primary source._ I read the reports and sampled the new text; I did not re-verify each fact.
+
+**Next:** the 24 topics outside the cloud track (the ML track's maths, data structures and a few others, three Python topics, one finance topic). Their lessons are short and lean on their readings, so they need much more writing.
+
 ## 2026-11-22, later: lessons inside the app, step 3: the first five lessons on their own text
 
 **The owner said "Go"** to step 3: where a reading can't be played or copied, our own text carries the topic. 43 topics still sent the learner to an outside page for their main resource. This is the first five, the cloud topics with neither a copy nor a video.
@@ -27,8 +60,6 @@ A dated log of each working session: what changed, what was decided, what's next
 - _Resource titles still say "read sections ..."_ on pages that are now optional. They read as "the best part to look at"; left for now.
 - _Things the helpers found and did not change:_ AWS now lists T9g among the unlimited-by-default families (one question's explanation doesn't); two of the packages topic's readings (the Debian handbook, Fedora Quick Docs) could be copied in under step 2; that topic's recap repeats the new dnf section; several plan files no longer match their topics' minutes.
 - _Not seen by eye._ The lessons compile (the content test passes) and validate; nobody has read them in the app.
-
-**Next:** the other fourteen cloud topics, then the ML topics, whose lessons are much thinner (450 to 900 words) and will need real writing.
 
 ## 2026-11-22: lessons inside the app, step 1 continued: a video for topics that had none
 

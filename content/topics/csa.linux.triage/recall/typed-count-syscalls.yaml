@@ -1,6 +1,6 @@
 id: typed-count-syscalls
 type: typed
-rev: 1
+rev: 2
 prompt: |
   Process 4321 answers slowly but uses hardly any CPU: it's waiting on something. Type the `strace` command that attaches to it and counts its system calls, their time and their errors, with `sudo` in front if you like.
 kind: command
@@ -11,6 +11,14 @@ answers:
   - "strace -p 4321 -c"
   - "sudo strace -cp 4321"
   - "strace -cp 4321"
+  # With -w the time column is time waited, the better table for a waiting
+  # process (strace(1)); accepted since rev 2.
+  - "sudo strace -c -w -p 4321"
+  - "strace -c -w -p 4321"
+  - "sudo strace -w -c -p 4321"
+  - "strace -w -c -p 4321"
+  - "sudo strace -cw -p 4321"
+  - "strace -cw -p 4321"
 mistakes:
   - id: perf-for-busy
     answers: ["sudo perf top", "perf top"]
@@ -19,5 +27,5 @@ mistakes:
     answers: ["sudo strace -p 4321", "strace -p 4321"]
     why: "That prints every call as it happens, a fast-scrolling stream. `-c` counts them and prints a summary when you press Ctrl-C."
 explanation: |
-  A busy process wants `perf`, to see which code runs; a waiting one wants `strace`, to see what it's asking the kernel for. `-p 4321` attaches to the running process and `-c` counts each system call, its total time and its errors, printing the table when you stop it. `strace` slows the process it watches, so keep it short.
+  A busy process wants `perf`, to see which code runs; a waiting one wants `strace`, to see what it's asking the kernel for. `-p 4321` attaches to the running process and `-c` counts each system call, its total time and its errors, printing the table when you stop it. Add `-w` and the time column is the time each call waited, by the clock; without it, it is only the processor time spent inside the kernel. `strace` slows the process it watches, so keep it short.
 skills: [cpu-profiling]

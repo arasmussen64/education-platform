@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- Fourteen more cloud lessons stand on their own text ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md), step 3), which is every cloud topic whose reading couldn't be shown in the app: directory join, GPUs, hypervisors, Windows and Active Directory, containers, permissions, triage, BGP steering, CIDR, congestion, HTTP and TLS, layers, load balancing and transport. Every linked page in them is optional, and their times drop by the reading they no longer count (hypervisors from 291 to 227 minutes, GPUs from 308 to 255).
+
 - Lessons that stand on their own text ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md), step 3). Where a topic's reading can't be shown in the app, the lesson now teaches everything its questions, labs and explanation ask, and every outside page is marked `optional: true`: the page says "Go deeper (optional)", and the topic's time no longer counts it. The first five: `csa.hw.cores-memory` (311 to 276 minutes), `csa.linux.packages` (253 to 265: its readings were never counted, and the lesson doubled), `csa.net.certificates` (285 to 260), `csa.net.ipv6` (306 to 271) and `csa.net.troubleshooting` (311 to 259).
 
 - 55 topics that had no video now have one that plays in the lesson, under "More resources": 13 in the Python topics (mostly CS50P cut to the part that fits), 13 in the ML track (StatQuest, Computerphile, Andrew Ng's lectures, CS50 shorts, Crash Course), 18 in the cloud track (Red Hat, MIT's Missing Semester, Jim Kurose's networking lectures, Computerphile, John Savill, Ben Eater, Brendan Gregg) and 11 in finance and the maths refreshers (Khan Academy). 25 topics still have none: nothing found met the bar.
@@ -26,6 +28,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- `csa.linux.triage`'s typed question on counting system calls now accepts `strace -c -w`, the form that times a waiting process: by its manual, plain `-c` counts only processor time inside the kernel.
 - `fin.markets.prices` linked to an address that showed an empty page; it now points at the live one.
 - Ubuntu Server documentation was recorded as CC BY-SA 3.0. The site states no licence today, so the record now says so and the two resources stay links.
 - The reading importer joined words across a line break inside a table cell, dropped the labels of textbook boxes ("Example 4.1"), left empty code boxes behind when cutting a page, and turned a jump target into a link. Wikipedia's footnote marks are kept as links to the article's notes, since removing them broke sentences.
