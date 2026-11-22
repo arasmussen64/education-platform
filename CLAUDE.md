@@ -59,7 +59,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Mastery = blank-editor challenge + explain it back + debug unfamiliar code + survives a delayed review ([ADR-0002](docs/decisions/0002-mastery-and-gating.md)). Don't weaken this without a new ADR.
 - The AI tutor gives hints, never full solutions, and is switched off during "prove it" checks ([ADR-0003](docs/decisions/0003-ai-roles-and-guardrails.md)).
 - Every exercise must be machine-verifiable: its reference solution passes the tests and known-wrong solutions fail ([ADR-0004](docs/decisions/0004-content-model.md)).
-- Record every external resource's license. Never copy text from sources that don't allow it ([ADR-0004](docs/decisions/0004-content-model.md)).
+- Record every external resource's license. Never copy text from sources that don't allow it ([ADR-0004](docs/decisions/0004-content-model.md)). A lesson brings its resource into the page in this order ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md)): an embedded video, else a copy of the reading where its licence allows (`tools/import_reading.py`), else our own text with a link.
 - The Python harness (`harness/`) runs learner code in both the browser and CI. Its scenario results are a contract both runtimes must match; read [harness/README.md](harness/README.md) before changing it.
 - Learner answer and review logs are future ML training data. Append only: never delete or rewrite them.
 - For Claude API work, look up current model IDs and pricing in the official docs instead of relying on memory.

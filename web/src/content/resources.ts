@@ -44,6 +44,15 @@ export function playsInPage(resource: Resource): boolean {
   )
 }
 
+/** Whether a reading's own words are shown in the page (ADR-0031). */
+export function readsInPage(resource: Resource): boolean {
+  return (
+    resource.type === 'reading' &&
+    resource.use === 'embed' &&
+    resource.text !== undefined
+  )
+}
+
 /** 754 -> "12:34", 3725 -> "1:02:05". */
 export function formatTime(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600)

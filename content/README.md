@@ -13,6 +13,7 @@ content/
     ├── topic.yaml                   metadata, prerequisites, resources, which items to use
     ├── lesson.mdx                   the AI-written intro and recap around the main resource
     ├── glossary.yaml                the terms this topic teaches, defined in a line each (ADR-0026)
+    ├── readings/<name>.html         a copy of a reading, shown inside the lesson, where its licence allows (ADR-0031)
     ├── recall/<item>.yaml           multiple-choice, predict-the-output (Python or shell), Parsons, estimate and typed items
     └── exercises/<item>/
         ├── exercise.yaml
@@ -49,6 +50,14 @@ content/
    Record each resource's license as its own source states it, read on the day you add it. Two licenses were recorded wrongly before, and one kind of link led to the wrong page. OpenStax books are CC BY-NC-SA 4.0: each book's preface says so, and the record reads `CC BY-NC-SA 4.0 (linked, not copied)`. Chapters of Python for Everybody are CC BY-NC-SA 3.0 by the book's copyright page, whatever the site's footer says. A video plays inside the lesson whenever YouTube allows it (`use: embed`), so the learner doesn't have to leave the page: record it by its YouTube address (`youtube.com/watch?v=...`), one record for each video, and check that it may be embedded by asking YouTube's oEmbed address for it (`https://www.youtube.com/oembed?format=json&url=<the video's address>` answers 200 when it may, 401 when its owner has switched embedding off; such a video stays `use: link`). A video under the standard YouTube licence is recorded as `Standard YouTube licence (official embed)`: YouTube's own player shows it, and nothing is copied. Videos beyond the main one play under "More resources". A 3Blue1Brown series page (`/topics/...`) redirects to the homepage, so never record one.
 
    Before a topic goes `ready`, fetch each resource and check that its title says what the page covers: a title is a claim the learner acts on (one Shell essentials resource was titled as covering `iostat` and `vmstat`, and mentioned neither). Work out `estimated_minutes` rather than guessing: the lesson and the assigned parts of each reading at about 130 words a minute, more where the learner types along, about a minute and a half for each recall item, and each lab and the explain check on top.
+
+   **Bring the resource into the lesson** ([ADR-0031](../docs/decisions/0031-lessons-inside-the-app.md)), in this order: a video that plays in the page (above); else a copy of the reading's text; else a link, with the lesson's own text carrying the topic. A reading may be copied only under a licence on the list in `tools/reading_html.py` (Creative Commons BY, BY-SA, BY-NC and BY-NC-SA, the Python docs' licence, BSD, MIT, Apache, the GPL family, US government work). "No derivatives" and "all rights reserved" stay links. To make a copy:
+
+   ```
+   python -m uv run python tools/import_reading.py <topic id> <resource number> --name <file name> --from "<heading or #id>" --to "<heading or #id>"
+   ```
+
+   It writes `readings/<name>.html` and prints the `text:` lines to add to the resource, with `use: embed`. Copy exactly the part the title assigns (`--from` and `--to`; `--url` with `--append` adds a book's next section). Then read the file: the words must be the source's, in order, with no menus, adverts or "edit" links left in. Fill in `by` as the source credits itself, `license_url`, and `changes` (which sections, and anything the importer altered). Some sources ask for set words: OpenStax's "Access for free at ..." goes in `notice`. Drop "linked, not copied" from the licence. A site the importer hasn't met needs a line in its `SITES` table saying where the article is and what to leave out.
 
 2. Write `lesson.mdx`: `<Intro>` (what to watch for), `<Resource index={0} />`, then `<Recap>`. The first resource in `topic.yaml` is the main one, shown in the lesson; any others are listed after the lesson as "More resources". Write your own explanations; never copy or paraphrase a resource's text. Inside it you can ask the topic's own quick questions, open with a puzzle and tell a real incident: see [Lesson building blocks](#lesson-building-blocks), below.
 3. Add the practice ladder: a worked example with labeled steps, then 2–3 recall items, a fill-in exercise, and a write exercise. Everything the build in step 4 needs appears here first: if the build uses a construct (`*args`, an attribute on a function, `argmin`), a practice item or the recap has already shown it.

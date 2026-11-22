@@ -257,6 +257,66 @@ describe('the topic page', () => {
     expect(within(learn).getAllByRole('list')).toHaveLength(1)
   })
 
+  it("shows a reading's own words in the lesson when the topic holds a copy (ADR-0031)", async () => {
+    const copy = {
+      by: 'the Example Foundation',
+      license_url: 'https://example.com/license',
+      retrieved: '2026-11-21',
+      changes: 'Only section 2.',
+    }
+    const topic = fakeTopic({
+      resources: [
+        {
+          title: 'A good chapter',
+          url: 'https://example.com/chapter',
+          type: 'reading',
+          use: 'embed',
+          license: 'CC BY 4.0',
+          text: { ...copy, file: 'readings/chapter.html' },
+        },
+        {
+          title: 'A further page',
+          url: 'https://example.com/further',
+          type: 'reading',
+          use: 'embed',
+          license: 'CC BY-SA 4.0',
+          text: { ...copy, file: 'readings/further.html' },
+        },
+      ],
+    })
+    let furtherLoads = 0
+    renderTopic(topic, {
+      ...fakeContent(topic),
+      readings: {
+        'readings/chapter.html': () =>
+          Promise.resolve('<h3>Section 2</h3><p>The chapter itself.</p>'),
+        'readings/further.html': () => {
+          furtherLoads += 1
+          return Promise.resolve('<p>The further page itself.</p>')
+        },
+      },
+    })
+    const learn = screen.getByRole('region', { name: 'Learn' })
+    expect(await within(learn).findByText('The chapter itself.')).toBeVisible()
+    // Whose words they are, under which licence, and what was changed.
+    expect(learn).toHaveTextContent('by the Example Foundation')
+    expect(learn).toHaveTextContent('Changes: Only section 2.')
+    expect(
+      within(learn).getByRole('link', { name: 'CC BY 4.0' }),
+    ).toHaveAttribute('href', 'https://example.com/license')
+    expect(
+      within(learn).getAllByRole('link', { name: /Open the original/ })[0],
+    ).toHaveAttribute('href', 'https://example.com/chapter')
+
+    // A further reading is folded, and downloaded only when it's opened.
+    expect(furtherLoads).toBe(0)
+    await userEvent.click(within(learn).getByText('Read here: A further page'))
+    expect(
+      await within(learn).findByText('The further page itself.'),
+    ).toBeVisible()
+    expect(furtherLoads).toBe(1)
+  })
+
   it('lists the practice ladder in order', () => {
     renderTopic(fakeTopic(), fakeContent(), { at: 'practice' })
     const practice = screen.getByRole('region', { name: 'Practice' })

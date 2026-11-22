@@ -2,6 +2,25 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-21, night: lessons inside the app, step 2: a reading's own words
+
+**What changed.** A reading can now be read inside the lesson ([ADR-0031](decisions/0031-lessons-inside-the-app.md)). `tools/import_reading.py` downloads a resource's page, keeps the sections asked for, and cleans them down to plain HTML in `content/topics/<id>/readings/`. The resource in `topic.yaml` gets `use: embed` and a `text:` block (the file, who it is by, the licence's address, the day, what was changed). The lesson shows the text in a box with that credit under it; a further reading under "More resources" is folded and downloaded when opened.
+
+**Five readings to start,** one of each main kind: the Python tutorial's Text section (`py.strings-as-sequences`), OpenStax Principles of Finance 7.1 and 8.2 (`fin.money.time-value`, `fin.money.annuities`), Investor.gov on compound interest (`fin.money.compounding`), and Wikipedia's Amdahl's law (`ml.hw.parallelism-and-gpus`).
+
+**Author notes:**
+
+- _Which licences allow a copy is a list in code_ (`COPYABLE` in `tools/reading_html.py`), and the content model refuses `text:` under anything else. "No derivatives" licences are left out: we show parts of pages.
+- _The copy is plain HTML, not Markdown._ Tables, formulas and figures survive, and the words stay exactly the source's.
+- _Three guards._ The importer keeps only allowed tags; the validator refuses a committed file with anything else; the app rebuilds each allowed tag itself and never hands the text to the browser as HTML.
+- _Formulas are MathML,_ drawn by the browser. OpenStax writes brackets with `<mfenced>`, which browsers no longer draw: (1 + r) would have shown as 1 + r. The importer writes the brackets out, and each `changes` line says so.
+- _Pictures load from the source's site_ on a light ground (a new colour, `picture`, the same in both themes), because diagrams are drawn for white pages.
+- _The Investor.gov licence line was "no license stated; linked, not copied"._ It is a US government work, not under copyright in the United States (17 U.S.C. 105), and now says so.
+- _Much of what can be copied is "non-commercial"._ Fine while the app is free; in the owner queue as the one thing to remember.
+- _Seen by eye_ on a throwaway preview page on my own server, in dark mode: the OpenStax annuities section (tables, formulas with their brackets) and the Wikipedia article (the graph on its light ground). OpenStax's equation numbers show as a short line under each formula. The real topic page rests on its tests.
+
+**Next:** the rest of the readings whose licences allow it, source by source, and a video for topics that have none.
+
 ## 2026-11-21, night: lessons inside the app, step 1: the videos
 
 **The owner's order** for bringing lessons into the app ("Do these in this priority"): embed a video when possible; else show the outside page's text in the app; else our own text. This entry is the first of the three.
@@ -16,8 +35,6 @@ A dated log of each working session: what changed, what was decided, what's next
 - _Four lessons said "the link here"_ about a video that now plays; reworded.
 - _The validator now refuses `use: embed` on anything but a YouTube video,_ since the app would silently show it as a link.
 - _Not watched._ I can't watch a video. Each was matched by YouTube's own title and channel against the record's title.
-
-**Next:** find a video for the topics whose main resource is a reading, then the readings themselves.
 
 ## 2026-11-21, later: four reasons to come back
 

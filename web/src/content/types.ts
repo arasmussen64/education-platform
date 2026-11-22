@@ -26,14 +26,34 @@ export type Track = {
   modules: Module[]
 }
 
+/**
+ * A copy of part of a reading, shown inside the app (ADR-0031), with what
+ * its licence asks us to say about it.
+ */
+export type ReadingCopy = {
+  /** The copy, in the topic's folder: "readings/<name>.html". */
+  file: string
+  /** The author or publisher, as the source credits itself. */
+  by: string
+  license_url: string
+  /** The day it was copied, as 2026-11-21. */
+  retrieved: string
+  /** What was left out or altered. */
+  changes: string
+  /** Words the source asks to be shown with its text. */
+  notice?: string
+}
+
 export type Resource = {
   title: string
   url: string
   type: 'video' | 'reading' | 'interactive'
+  /** embed: a video that plays in the page, or a reading with `text`. */
   use: 'embed' | 'link'
   license: string
   start?: number
   end?: number
+  text?: ReadingCopy
 }
 
 export type Explain = {
@@ -340,4 +360,9 @@ export type TopicContent = {
   lessonShape?: LessonShape
   recall: Record<string, RecallItem>
   exercises: Record<string, Exercise>
+  /**
+   * The topic's readings held as copies (ADR-0031), by file name
+   * ("readings/text.html"). Each is downloaded when it's first shown.
+   */
+  readings?: Record<string, () => Promise<string>>
 }
