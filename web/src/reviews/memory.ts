@@ -71,7 +71,7 @@ export function memorySummary(rows: MemoryRow[]): string {
   const due = rows.filter((row) => row.due).length
   const all = `${rows.length} learned ${rows.length === 1 ? 'topic' : 'topics'}`
   if (due === 0) {
-    return `None of your ${all} needs a review yet. Weakest first. The scheduler asks for one when a topic's memory is predicted to fall to 90%.`
+    return `None of your ${all} needs a review yet. Weakest first.`
   }
-  return `${due} of your ${all} ${due === 1 ? 'has' : 'have'} faded enough to need a review. Weakest first. A review brings a topic back to 100%, and one you get right makes it fade more slowly afterwards.`
+  return `${due} of your ${all} ${due === 1 ? 'has' : 'have'} faded enough to need a review. Weakest first.`
 }

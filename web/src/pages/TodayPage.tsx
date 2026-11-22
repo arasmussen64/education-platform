@@ -127,10 +127,7 @@ export function TodayPage() {
         <p className={EYEBROW}>{day}</p>
         <h1 className="text-3xl font-bold sm:text-4xl">Today</h1>
         <p className="max-w-2xl text-base text-muted">
-          First the topics due for a review, timed to how fast you forget. Then
-          skills you've missed, back as different questions until you've got
-          them right on {CORRECT_DAYS_NEEDED} different days. Then the topic
-          you're on.
+          Reviews first, then mistakes coming back, then your next topic.
         </p>
       </header>
       {auth.status === 'signed-in' && <Plan />}
@@ -142,12 +139,68 @@ export function TodayPage() {
           to see what to revisit today.
         </p>
       )}
+      <HowThisWorks />
       <p>
         <Link to="/map" className={`inline-block ${SECONDARY_BUTTON}`}>
           See every topic on the map
         </Link>
       </p>
     </section>
+  )
+}
+
+/**
+ * The explanations the page used to carry in every section, kept in one
+ * place and closed until asked for (the owner, 2026-11-22: "cut down the
+ * explanations"). The sections above say what to do; this says why.
+ */
+function HowThisWorks() {
+  return (
+    <details className="rounded-2xl border border-line bg-card p-4 text-base shadow-card sm:p-5">
+      <summary className="cursor-pointer font-semibold">How this works</summary>
+      <dl className="mt-3 space-y-3 [&_dd]:text-muted [&_dt]:font-medium">
+        <div>
+          <dt>The order</dt>
+          <dd>
+            First the topics due for a review, timed to how fast you forget.
+            Then skills you've missed, back as different questions until you've
+            got them right on {CORRECT_DAYS_NEEDED} different days. Then the
+            topic you're on.
+          </dd>
+        </div>
+        <div>
+          <dt>Reviews</dt>
+          <dd>
+            Each asks two short items, sometimes a lab in place of one. No hints
+            here.
+          </dd>
+        </div>
+        <div>
+          <dt>Your memory</dt>
+          <dd>
+            The scheduler asks for a review when a topic's memory is predicted
+            to fall to 90%. A review brings a topic back to 100%, and one you
+            get right makes it fade more slowly afterwards.
+          </dd>
+        </div>
+        <div>
+          <dt>Times at your pace</dt>
+          <dd>
+            Once you've proven a few topics, the times here are stretched by how
+            long those took you against their estimates. That's counted from
+            your first answer in each sitting, so reading before it isn't
+            included: if anything, the real figure is a little higher.
+          </dd>
+        </div>
+        <div>
+          <dt>Practice hours</dt>
+          <dd>
+            Counting the time spent on answers, Checks and reviews, not time
+            with the site open. A week here is seven days up to today.
+          </dd>
+        </div>
+      </dl>
+    </details>
   )
 }
 
@@ -529,11 +582,7 @@ function PracticeHours({
             <span className={`mb-1 block ${STAT_NUMBER}`}>
               {formatDuration(all.totalMs)}
             </span>{' '}
-            of deliberate practice so far, {recent}.{' '}
-            <span className="text-base text-muted">
-              Counting the time spent on answers, Checks and reviews, not time
-              with the site open.
-            </span>
+            of deliberate practice so far, {recent}.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             {split.tracks.map(({ trackId, time }) => (
@@ -581,9 +630,7 @@ function Weeks({ weeks }: { weeks: WeeksPractised }) {
         </span>
         <span>{summary}</span>
       </div>
-      <p className="text-sm text-muted">
-        A week here is seven days up to today.{note ? ` ${note}` : ''}
-      </p>
+      {note && <p className="text-sm text-muted">{note}</p>}
     </div>
   )
 }
@@ -685,9 +732,7 @@ function Reviews({
           <p className="text-muted">
             {due.length === 1
               ? 'One topic is due for a review.'
-              : `${due.length} topics are due for a review, the most forgotten first.`}{' '}
-            Each asks two short items, sometimes a lab in place of one. No hints
-            here.
+              : `${due.length} topics are due for a review, the most forgotten first.`}
           </p>
           {due.map((review) => {
             const content = contents.get(review.topic.id)
@@ -825,9 +870,7 @@ function PaceNote({ pace }: { pace: Pace | null }) {
   return (
     <p className="text-sm text-muted">
       Topics you've proven took you about {formatRatio(pace.ratio)} their
-      estimate, so the times on this page are stretched to match. That's counted
-      from your first answer in each sitting, so reading before it isn't
-      included: if anything, the real figure is a little higher.
+      estimate, so the times on this page are stretched to match.
     </p>
   )
 }

@@ -2,6 +2,24 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, night: Today explains itself less
+
+**What the owner asked.** "cut down the explanations." (The question was in the queue from the visual lift.)
+
+**What changed.** On Today, each section keeps the line that says what to do and loses the lines that say why:
+
+- The header is one line: "Reviews first, then mistakes coming back, then your next topic."
+- Reviews: how many are due. Your memory: how many have faded. Practice hours: the total and the last seven days. The pace note: that times are stretched, and by how much.
+- The reasons are in one box at the bottom, **How this works**, closed until opened: the order of the day, what a review asks, when the scheduler asks for one, what the pace measure leaves out, what practice hours count.
+
+**Author notes:**
+
+- _Nothing was deleted, only moved,_ except that two sentences about memory were merged into one in the box. The session card, each memory row and the five-minute line are unchanged: they are instructions, not explanations.
+- _One box, not one per section:_ a learner reads the reasons once, and five small "why?" links would be the same clutter in another shape.
+- _Not seen in a browser:_ tests cover it (the box is closed, and holds the moved text). The owner queue's item is closed.
+
+**Next:** the pages not yet looked at (session, placement, account, sign-in) and phone width; then the directory-join lab and cloud Module 4.
+
 ## 2026-11-22, evening: a visual lift, and lesson tables that were broken
 
 **What the owner asked.** "Act as a UI/UX expert. Make this app pretty and top tier."
