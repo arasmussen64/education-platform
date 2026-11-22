@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, later: the pages not yet looked at, and the deletion tried for real
+
+**Looked at, on my own dev server against the local database** (Docker was running this time; a made-up learner signed in through the local test inbox, with 112 invented events inserted): the session, placement, playground, account and sign-in pages at desktop width, and every page at phone width (a 390px frame, measured).
+
+**The deletion works end to end.** With the 112 events in the local database, "Start everything over" on the Account page left exactly one row, the marker event, and Today went back to a fresh start.
+
+**Found and fixed:**
+
+- _The sticky header was too tall on a phone:_ it wraps onto three rows there and held 143 of 800 pixels while scrolling. It now sticks only from tablet width up. A long name or address in it is cut short, not wrapped.
+- _The sign-in page_ was a bare column at the left edge; it is one card in the middle.
+- _The placement test's introduction_ was one paragraph of six sentences. It keeps what it is, how long it takes, and the one instruction that matters (use "I don't know this" rather than guess); the rest is under "How it works", closed, as on Today.
+
+**No page scrolls sideways at phone width.** Not seen: Firefox, and the light theme on these pages (they use the same named colours as the ones checked in light).
+
 ## 2026-11-22, late: starting everything over is a true deletion
 
 **What the owner asked.** "with the deletion make it a true deletion", after reading that the first version only hid the history.
