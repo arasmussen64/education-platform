@@ -839,7 +839,14 @@ describe('honest times on the Today page', () => {
     expect(next).toHaveTextContent(
       "Topics you've proven took you about 2.0× their estimate, so the times on this page are stretched to match.",
     )
-    expect(next).toHaveTextContent(/reading before it isn't included/)
+    // What the measure leaves out is under "How this works", closed until
+    // asked for, not in the section itself.
+    expect(next).not.toHaveTextContent(/reading before it isn't included/)
+    const how = screen.getByText('How this works').closest('details')!
+    expect(how).not.toHaveAttribute('open')
+    expect(how).toHaveTextContent(/reading before it isn't included/)
+    expect(how).toHaveTextContent(/No hints here/)
+    expect(how).toHaveTextContent(/not time with the site open/)
     const session = await screen.findByRole('region', {
       name: "Today's session",
     })

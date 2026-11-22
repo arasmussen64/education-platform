@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
+- Today explains itself less. Each section keeps the line that says what to do; the reasons (the order of the day, how reviews and memory work, how times are stretched to your pace, what practice hours count) moved into one "How this works" box at the bottom of the page, closed until opened.
 - A visual lift across the app, inside the Momentum design (same colours, fonts and the rule that lime means "forward"). Cards are rounder with a soft shadow; buttons, fields and links share one focus ring and ease on hover; page titles are larger; the header stays at the top of the window and carries the app's mark. Progress bars and memory bars are drawn the same in every browser (a rounded track, a lime fill, amber for a memory under its target) instead of the browser's grey ones.
 - Today opens on the date and a session card with the day's numbers large (reviews due, mistakes back, minutes). "Next up" and "Practice hours" are a grid of cards, one per track, each with a progress bar.
 - The map's topics are cards with a status label (lime for Learned, Mastered and Passed), and each module shows a bar for how much of it is proven.
