@@ -79,18 +79,30 @@ export function PlacementPage() {
     <section className="space-y-8">
       <header className="space-y-2">
         <h1 className="text-3xl font-bold sm:text-4xl">Placement test</h1>
-        <p className="text-muted">
+        <p className="max-w-2xl text-muted">
           Already know some of this? The placement test finds where your
-          knowledge runs out, so you can start there. It picks a topic in the
-          middle of a track and asks a few of its questions; each answer rules
-          out half of what's left, so a whole track takes about five topics'
-          worth of questions, ten minutes or so. It doesn't say which answers
-          were right until the end, and it ticks nothing off: the topics you
-          seem to know become a short list to prove, in order, with "Prove it
-          now". Every question has an "I don't know this" answer: use it rather
-          than guess, because a lucky guess would place you past what you know
-          and cost you time later.
+          knowledge runs out, so you can start there. A whole track takes ten
+          minutes or so.
         </p>
+        <p className="max-w-2xl font-medium">
+          Every question has an "I don't know this" answer: use it rather than
+          guess.
+        </p>
+        {/* The reasons, closed until asked for, as on Today. */}
+        <details className="max-w-2xl text-base text-muted">
+          <summary className="cursor-pointer font-medium text-ink">
+            How it works
+          </summary>
+          <p className="mt-2">
+            It picks a topic in the middle of a track and asks a few of its
+            questions; each answer rules out half of what's left, so a whole
+            track takes about five topics' worth of questions. It doesn't say
+            which answers were right until the end, and it ticks nothing off:
+            the topics you seem to know become a short list to prove, in order,
+            with "Prove it now". A lucky guess would place you past what you
+            know and cost you time later.
+          </p>
+        </details>
       </header>
       {asked && !scope && (
         <p>

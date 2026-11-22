@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
+- On a phone the header no longer stays stuck to the top of the screen, where it covered about a sixth of it; it does from tablet width up. A long name in the header is cut short with "…". The sign-in page is one card in the middle of the page. The placement test's long introduction is two lines, with the rest under "How it works".
+- "Start everything over" now deletes your history for good ([ADR-0029](docs/decisions/0029-starting-a-track-over.md), second amendment), where before it hid it. The button says it can't be undone and points at "Download my data" first. It works on the live site once the migration `20261122200000_erase_my_history.sql` is applied there; until then it says it couldn't erase and changes nothing. Starting one track over is unchanged.
 - Today explains itself less. Each section keeps the line that says what to do; the reasons (the order of the day, how reviews and memory work, how times are stretched to your pace, what practice hours count) moved into one "How this works" box at the bottom of the page, closed until opened.
 - A visual lift across the app, inside the Momentum design (same colours, fonts and the rule that lime means "forward"). Cards are rounder with a soft shadow; buttons, fields and links share one focus ring and ease on hover; page titles are larger; the header stays at the top of the window and carries the app's mark. Progress bars and memory bars are drawn the same in every browser (a rounded track, a lime fill, amber for a memory under its target) instead of the browser's grey ones.
 - Today opens on the date and a session card with the day's numbers large (reviews due, mistakes back, minutes). "Next up" and "Practice hours" are a grid of cards, one per track, each with a progress bar.
@@ -39,6 +41,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- The 24 lessons rewritten for ADR-0031's step 3 were read start to finish by fresh readers, who ran their code. Fixed: two question explanations that contradicted their lessons (which number comes off a stack first; how fast the naive Fibonacci grows), a code sample that used a name it never defined, a rounding slip, an exercise that needed lists before lists are taught, an exercise that needed a NumPy function nothing had shown (now a hint), a wrong "most of it came in 2022" in the inflation question, and prerequisites three topics relied on without listing (`py.arithmetic`, `ml.calc.chain-rule`, sorting and graphs). The graphs lesson now shows the cycle check as code, where it had only described it.
+- Fourteen sentences in those lessons named the exact bug their topic's debug exercise hides. Each now teaches the idea without describing the exercise's line, so the debug proof is still a proof.
 - Tables in lessons and questions are drawn as tables. Plain Markdown has none, so 41 lessons showed theirs as a paragraph of `|` characters. Only tables were added to the parser, so nothing else in a lesson reads differently.
 - A lesson's glossary links now come only from its own track. Before, a word was linked to its definition wherever any ready topic defined it, so a Python lesson's "frame" would have shown the networking definition and a decision-tree lesson's "forest" the Active Directory one.
 - Two Python worked examples told the learner to open Python Tutor on another site; they now point at the app's own Step through.

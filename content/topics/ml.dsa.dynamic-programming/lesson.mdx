@@ -227,7 +227,7 @@ Check two cells by hand. Row `p`, column `sp` holds 1. Above it is 2, so deletin
 
 The answer to the whole question is the bottom-right corner, where both prefixes are the whole strings: 3. The work is one cell for each pair of prefixes, 5 × 5 = 25 here, and in general about the length of one string times the length of the other.
 
-Two mistakes each ruin every answer. Forget to fill in the first row and column, and they stay 0, as if any string could become nothing for free. Charge 1 on the diagonal even when the characters match, and a string is no longer at distance 0 from itself.
+Every cell is built from cells filled in before it, so one wrong cell spoils every cell after it, and the corner with them. When a distance looks wrong, try the smallest cases, the ones you can work out in your head, and follow the first wrong cell back to the rule that filled it.
 
 <Check item="mcq-one-cell-of-the-table" />
 
@@ -303,7 +303,7 @@ Take one away and a simpler tool is enough. Merge sort splits a list into halves
 
 <Recap>
 
-- **Overlapping subproblems.** `fib(n)` calls `fib(n - 1)` and `fib(n - 2)`, and `fib(n - 1)` calls `fib(n - 2)` again: the same small cases are solved many times, and the call tree roughly doubles at every level. The example's plain `fib_plain(25)` makes 242,785 calls for an answer that needs only 26 different values (`fib(0)` to `fib(25)`).
+- **Overlapping subproblems.** `fib(n)` calls `fib(n - 1)` and `fib(n - 2)`, and `fib(n - 1)` calls `fib(n - 2)` again: the same small cases are solved many times, and the number of calls multiplies by about 1.6 for every step up in `n`. The example's plain `fib_plain(25)` makes 242,785 calls for an answer that needs only 26 different values (`fib(0)` to `fib(25)`).
 - **Memoization** (top-down): keep a dict from arguments to answers, store each answer the first time, return it after that. `fib_memo(25)` makes 49 calls. `functools.lru_cache(maxsize=None)` does the same as a decorator (`cache_info()` shows 26 misses and 23 hits); its arguments must be **hashable**, because they are the dict's keys.
 - **Bottom-up tables**: fill the smallest cases first in a loop and build up. No recursion, so no recursion limit, and often only the last row (for Fibonacci, the last two values) is needed: `fib_bottom_up(90)` is a loop of ninety steps.
 - **Edit distance** (Levenshtein): the fewest single-character inserts, deletes and substitutions turning one string into another. `table[i][j]` is the distance between the first `i` characters of one and the first `j` of the other; the first row and column are lengths (all inserts or all deletes), and each other cell is the smallest of above plus one (delete), left plus one (insert) and diagonal plus one for a substitution, or plus nothing if the characters match. The corner is the answer; walking back along the choices lists the edits: kitten to sitting is 3 (substitute k with s, substitute e with i, insert g). It is the measure behind spell-checking, fuzzy matching and word error rate.

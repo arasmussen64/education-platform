@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { tracks } from '../content/content.ts'
 import { loadDraft, saveDraft } from '../drafts/drafts.ts'
@@ -10,7 +10,11 @@ import { recallPart, rememberPart } from '../parts/partMemory.ts'
 import { recallPlace, rememberPlace } from '../place/placeMemory.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { recordingEventLog } from '../test/fakeEvents.ts'
+import { eraseHistory } from './erase.ts'
 import { StartOver } from './StartOver.tsx'
+
+// The database isn't there in tests: the deletion is a stand-in.
+vi.mock('./erase.ts', () => ({ eraseHistory: vi.fn(async () => 0) }))
 
 // No history on the server: every track is not started.
 vi.mock('../followups/history.ts', async (importOriginal) => ({
@@ -101,7 +105,11 @@ describe('starting a track over', () => {
 })
 
 describe('starting everything over', () => {
-  it('asks first, says the hours go too, and records nothing on Cancel', async () => {
+  beforeEach(() => {
+    vi.mocked(eraseHistory).mockReset().mockResolvedValue(3)
+  })
+
+  it("asks first, says it can't be undone, and deletes nothing on Cancel", async () => {
     const user = userEvent.setup()
     const events = renderStartOver()
     await user.click(
@@ -109,14 +117,18 @@ describe('starting everything over', () => {
     )
     const ask = screen.getByRole('group', { name: 'Start everything over?' })
     expect(
+      within(ask).getByText(/deletes your history for good/),
+    ).toBeInTheDocument()
+    expect(
       within(ask).getByText(/practice hours and weeks go back to zero/),
     ).toBeInTheDocument()
-    expect(within(ask).getByText(/Nothing is deleted/)).toBeInTheDocument()
+    expect(within(ask).getByText(/Download my data/)).toBeInTheDocument()
     await user.click(within(ask).getByRole('button', { name: 'Cancel' }))
+    expect(eraseHistory).not.toHaveBeenCalled()
     expect(events).toEqual([])
   })
 
-  it("records one reset for everything and forgets every track's drafts, places and guesses on this device", async () => {
+  it("deletes the history, marks the fresh start, and forgets every track's drafts, places and guesses on this device", async () => {
     saveDraft({ topicId: 'py.variables', itemId: 'fill-swap', rev: 1 }, 'a = b')
     saveDraft(
       { topicId: 'csa.linux.triage', itemId: 'write-x', rev: 1 },
@@ -136,14 +148,18 @@ describe('starting everything over', () => {
       await screen.findByRole('button', { name: 'Start everything over…' }),
     )
     await user.click(
-      screen.getByRole('button', { name: 'Yes, start everything over' }),
+      screen.getByRole('button', {
+        name: 'Yes, delete everything and start over',
+      }),
     )
+    expect(
+      await screen.findByText(/Everything has been erased/),
+    ).toBeInTheDocument()
+    expect(eraseHistory).toHaveBeenCalledTimes(1)
+    // After the deletion, so it isn't deleted with the rest.
     expect(events).toEqual([
       { type: 'track_reset', topic_id: 'everything', context: 'learn' },
     ])
-    expect(
-      screen.getByText(/Everything has been started over/),
-    ).toBeInTheDocument()
     expect(
       loadDraft({ topicId: 'py.variables', itemId: 'fill-swap', rev: 1 }),
     ).toBeNull()
@@ -153,5 +169,28 @@ describe('starting everything over', () => {
     expect(recallPart('py.variables')).toBeNull()
     expect(recallPlace('py.variables')).toBeNull()
     expect(recallGuess('py.variables')).toBeNull()
+  })
+
+  it("says so and changes nothing when the history can't be erased", async () => {
+    vi.mocked(eraseHistory).mockRejectedValue(new Error('offline'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    saveDraft({ topicId: 'py.variables', itemId: 'fill-swap', rev: 1 }, 'a = b')
+    const user = userEvent.setup()
+    const events = renderStartOver()
+    await user.click(
+      await screen.findByRole('button', { name: 'Start everything over…' }),
+    )
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Yes, delete everything and start over',
+      }),
+    )
+    expect(
+      await screen.findByText(/couldn't be erased, and nothing was changed/),
+    ).toBeInTheDocument()
+    expect(events).toEqual([])
+    expect(
+      loadDraft({ topicId: 'py.variables', itemId: 'fill-swap', rev: 1 }),
+    ).toBe('a = b')
   })
 })

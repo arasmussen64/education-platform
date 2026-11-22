@@ -8,4 +8,4 @@ def test_the_table():
 
 def test_other_numbers():
     """Works for other numbers: 32 and 1024 give 5.0 and 10.0."""
-    assert run_with({"numbers": [32, 1024]}) == "32 5.0\n1024 10.0\n"
+    assert run_with({"numbers": (32, 1024)}) == "32 5.0\n1024 10.0\n"

@@ -2,6 +2,57 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, last: the 24 rewritten lessons, read start to finish
+
+**Why.** The lessons written for ADR-0031's step 3 had been sampled, not read. The owner said to work through what was left, so four helpers each read six of the 24 ML, Python and finance lessons as their first reader: every line, every item, and every code block run and compared with its shown output. They changed nothing. A fifth then applied their findings, re-checking each first.
+
+**What the read found.** No lesson had a wrong fact beyond one rounding slip (1.741 for 1.743). Every code block's output matched a real run, apart from timings that depend on the machine. The real findings were at the edges:
+
+- _Two explanations contradicted their lessons:_ a postfix question said the later-pushed number comes off second (it comes off first), and a Fibonacci question said the calls grow like 2 to the n where the lesson says about 1.6.
+- _Things used before they are taught:_ an exercise looped over a list before lists (now a tuple, `rev` 2); another needed `np.tile`, which nothing shows (now a hint); the first `for x in (1, 4, 9)` had no explanation; a code block used `shops` without defining it.
+- _Prerequisites relied on but not listed:_ `ml.math.arithmetic` says "you met this in Arithmetic" and now requires `py.arithmetic`; loss functions requires the chain rule; dynamic programming requires sorting and graphs. The ML spec's table says the same.
+- _The graphs lesson described the cycle check and never showed it,_ though two exercises ask for one. It now has a 23-line block on its own imports graph, with captured output.
+- _One finance explanation_ said most of four years' inflation came in 2022; it was the largest part, 8.0 points of 18.8.
+
+**The pattern: lessons that handed over their debug exercise.** In 19 places a lesson named, as "the mistake to avoid", the bug its topic's debug starter hides, sometimes with the same code. A debug exercise is one of the three proofs, so that sentence was doing the learner's proving for them. Fourteen were reworded to teach the idea without the exercise's line (the heap lesson now says what the heap's rule does and doesn't promise about positions, where it used to name `heap.pop()` and `heap[-1]`). Five were left, each because it teaches the principle on different code or is the definition the items test.
+
+**Author notes:**
+
+- _One finding was wrong and was left:_ a prompt says an interval is "0.006 wide"; the starter prints 0.847 and 0.853, which is what the learner sees.
+- _A new prerequisite changes what unlocks._ A learner on the ML track now needs Python's Arithmetic before the ML arithmetic refresher. One map test had to learn that topic too.
+- _Checked:_ the validator on all 499 topics (3,701 programs run), the test that compiles every lesson, and the full web suite.
+- _I read the reports and sampled the diff_ (the new graphs block, the heap and algebra rewordings); I did not re-read all 24 lessons myself.
+- _Not verified by anyone:_ a few figures with no script behind them (the V-curve network and car-model numbers in debugging training, the 2025 CPI value in rates, two tree-depth figures). The readers flagged them as consistent but unchecked.
+
+## 2026-11-22, later: the pages not yet looked at, and the deletion tried for real
+
+**Looked at, on my own dev server against the local database** (Docker was running this time; a made-up learner signed in through the local test inbox, with 112 invented events inserted): the session, placement, playground, account and sign-in pages at desktop width, and every page at phone width (a 390px frame, measured).
+
+**The deletion works end to end.** With the 112 events in the local database, "Start everything over" on the Account page left exactly one row, the marker event, and Today went back to a fresh start.
+
+**Found and fixed:**
+
+- _The sticky header was too tall on a phone:_ it wraps onto three rows there and held 143 of 800 pixels while scrolling. It now sticks only from tablet width up. A long name or address in it is cut short, not wrapped.
+- _The sign-in page_ was a bare column at the left edge; it is one card in the middle.
+- _The placement test's introduction_ was one paragraph of six sentences. It keeps what it is, how long it takes, and the one instruction that matters (use "I don't know this" rather than guess); the rest is under "How it works", closed, as on Today.
+
+**No page scrolls sideways at phone width.** Not seen: Firefox, and the light theme on these pages (they use the same named colours as the ones checked in light).
+
+## 2026-11-22, late: starting everything over is a true deletion
+
+**What the owner asked.** "with the deletion make it a true deletion", after reading that the first version only hid the history.
+
+**What changed.** The Account page's "Everything" row now deletes the learner's events from the database. A new database function, `erase_my_history()`, is the only way: it deletes the caller's own events, takes no arguments, and its permission ends with its transaction. The page sends anything still waiting on the device, calls the function, then records the one marker event and clears the device's drafts and places. The confirm step says in bold that it can't be undone and points at "Download my data". ADR-0029 has a second amendment, and CLAUDE.md's append-only rule names this one exception.
+
+**Checked.** Eight new database tests on the local database (only the caller's rows go; another learner's stay; a visitor can't call it; a learner and an admin still can't delete directly afterwards). Three web tests (Cancel deletes nothing; success deletes, then marks, then clears the device; failure changes nothing and says so).
+
+**Author notes:**
+
+- _The live database needs the migration applied by the owner._ Merging deploys the page but not the function. Until then the button fails safely with a message. It is in the owner queue.
+- _The marker event is kept on purpose._ Without it, an old answer still in another device's outbox would arrive after the deletion and count.
+- _Not deleted:_ the AI spending ledger (the monthly cap is counted from it), problem reports, the profile. Backups made before the deletion still contain the old events.
+- _Owed from earlier today:_ pull request #355 (Today's shorter explanations) was merged seconds after it opened, before its checks had started, because my gate treated "no checks listed yet" as "none failing". The checks passed afterwards and nothing broke. The gate now needs at least five checks listed, none failing, and never runs in the command that opens the pull request.
+
 ## 2026-11-22, night: Today explains itself less
 
 **What the owner asked.** "cut down the explanations." (The question was in the queue from the visual lift.)

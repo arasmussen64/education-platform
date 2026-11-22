@@ -61,7 +61,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Every exercise must be machine-verifiable: its reference solution passes the tests and known-wrong solutions fail ([ADR-0004](docs/decisions/0004-content-model.md)).
 - Record every external resource's license. Never copy text from sources that don't allow it ([ADR-0004](docs/decisions/0004-content-model.md)). A lesson brings its resource into the page in this order ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md)): an embedded video, else a copy of the reading where its licence allows (`tools/import_reading.py`), else our own text with a link.
 - The Python harness (`harness/`) runs learner code in both the browser and CI. Its scenario results are a contract both runtimes must match; read [harness/README.md](harness/README.md) before changing it.
-- Learner answer and review logs are future ML training data. Append only: never delete or rewrite them.
+- Learner answer and review logs are future ML training data. Append only: never delete or rewrite them. The one exception is the learner's own "Start everything over", which deletes their history through `erase_my_history()` ([ADR-0029](docs/decisions/0029-starting-a-track-over.md), second amendment).
 - For Claude API work, look up current model IDs and pricing in the official docs instead of relying on memory.
 
 ## Commands
