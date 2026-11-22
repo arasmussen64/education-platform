@@ -186,8 +186,12 @@ describe('a prerequisite in another track', () => {
   })
 
   it('unlocks it once the other track has learned it', async () => {
+    // The topic needs two Python topics (its lesson leans on Arithmetic too).
     renderMap(
       [
+        attempt('py.arithmetic', 'build-pizza-party', 'code_check', true),
+        attempt('py.arithmetic', 'debug-split-bill', 'code_check', true),
+        attempt('py.arithmetic', 'explain', 'explain_submit', true),
         attempt(
           'py.strings-and-input',
           'build-km-to-miles',

@@ -1,3 +1,3 @@
 import math
 
-numbers = [1, 2, 4, 8, 16]
+numbers = (1, 2, 4, 8, 16)

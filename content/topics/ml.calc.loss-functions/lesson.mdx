@@ -25,7 +25,7 @@ print(np.mean(miss**2))
 
 The **target** is the true answer, and each **miss** is the prediction minus its target. Square every miss, take the mean, and that is the **mean squared error**: 16.25 here. (It is the "mean of the squared errors" from Probability and statistics, with its proper name.)
 
-The squaring does two jobs. It makes every miss positive, so a prediction that is 6 too low can't cancel one that is 6 too high. And it makes large misses count for far more than small ones: the miss of 2 costs 4, and the miss of 6, three times as far off, costs 36, nine times as much. Twice the miss is always four times the cost. So this loss cares most about the worst predictions, which is usually what you want for a number. Leave the squaring out and take the mean of the misses' sizes, `np.mean(np.abs(miss))`, and you have a different loss, the mean absolute error (3.25 here), which charges a miss of 6 only three times a miss of 2.
+The squaring does two jobs. It makes every miss positive, so a prediction that is 6 too low can't cancel one that is 6 too high. And it makes large misses count for far more than small ones: the miss of 2 costs 4, and the miss of 6, three times as far off, costs 36, nine times as much. Twice the miss is always four times the cost. So this loss cares most about the worst predictions, which is usually what you want for a number. Take the mean of the misses' sizes instead, with their signs dropped and nothing squared, and you have a different loss, the mean absolute error (3.25 here), which charges a miss of 6 only three times a miss of 2.
 
 **The gradient of mean squared error.** Write the four misses as `m1` to `m4`. The loss is `(m1² + m2² + m3² + m4²) / 4`. Move the third prediction alone and only `m3²` changes; the other three terms are constants. The power rule from Derivatives says the derivative of `m²` is `2m`, and moving a prediction by some amount moves its miss by the same amount. So the slope of the loss with respect to the third prediction is `2 * m3 / 4`. The same holds for each one, and the whole gradient is `2 * miss / n`, where `n` is how many predictions there are:
 
@@ -84,7 +84,7 @@ In code the choice between `p` and `1 - p` is usually written with the label as 
 
 Two practical points:
 
-- **The log is the natural log,** `np.log`. `np.log10` is the base-10 log, and using it makes every cost 2.303 times too small.
+- **The log is the natural log,** `np.log`. Every cost in this lesson is a natural log, and a log to any other base gives costs of a different size, so none of these numbers would come out.
 - **Clip before the log.** A model that says exactly 0 for something that then happens costs `-np.log(0)`, which NumPy gives as `inf`, infinity, and one infinite cost makes the whole mean infinite. `np.clip(values, low, high)` returns a copy of an array with everything below `low` raised to `low` and everything above `high` lowered to `high`:
 
 ```python
@@ -155,7 +155,7 @@ Under cross-entropy, the more wrong the model is, the harder the push. Under squ
 | bug     | 2.0   | 7.389              | 0.786                       |
 | other   | -1.0  | 0.368              | 0.039                       |
 
-The loss is the same idea as before: minus the log of the probability given to the true class. If the email really was a bug report, the cost is `-log(0.786)`, which is 0.241. If it was about billing, the cost is `-log(0.175)`, which is 1.741.
+The loss is the same idea as before: minus the log of the probability given to the true class. If the email really was a bug report, the cost is `-log(0.786)`, which is 0.241. If it was about billing, the cost is `-log(0.175)`, which is about 1.74.
 
 The gradient with respect to the scores is the same shape too. Write the target as a list with a 1 in the true class's place and 0 everywhere else, which is called **one-hot**: `[1, 0, 0]` for billing. Then the gradient is the probabilities minus that list. For the billing email it is `[-0.825, 0.786, 0.039]`: descent raises the true class's score and lowers the others, each in proportion to how much probability it wrongly holds.
 

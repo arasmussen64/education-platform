@@ -1,6 +1,6 @@
 <Intro>
 
-A **graph** is nodes joined by edges with no rule about shape: a road map, a social network, the steps of a data pipeline, the operations of a neural network. This topic stores one as a dict, walks it with the queue and the stack from two topics ago, finds the cheapest route with the heap from the last one, and ends with the order a pipeline's steps and a network's operations must run in, which is also the order backpropagation walks backwards. The worked example does all of that on a six-city road map and a six-step pipeline; this lesson builds each idea first, on a small map of walking trails and on a spreadsheet.
+A **graph** is nodes joined by edges with no rule about shape: a road map, a social network, the steps of a data pipeline, the operations of a neural network. This topic stores one as a dict, walks it with the queue and the stack from earlier in this module, finds the cheapest route with the heap from the last one, and ends with the order a pipeline's steps and a network's operations must run in, which is also the order backpropagation walks backwards. The worked example does all of that on a six-city road map and a six-step pipeline; this lesson builds each idea first, on a small map of walking trails and on a spreadsheet.
 
 **The words.** A **node** (also called a **vertex**) is a thing: a place, a person, a step. An **edge** joins two nodes: a trail, a friendship, "this step needs that one". Two nodes joined by an edge are **neighbours**, and the number of neighbours a node has is its **degree**. The last topic's tree is a graph with rules: one root, one parent for every other node, no way of walking back to where you started. A graph drops the rules, so any node may be joined to any other.
 
@@ -51,7 +51,7 @@ An adjacency list holds one entry for each end of each edge, so its memory grows
 
 <Check item="predict-an-adjacency-list" />
 
-**Breadth-first search: the nearest places first.** Two questions about the park. Which places can you get to from the gate at all? Those are the places **reachable** from it. And what is the smallest number of trails to each one, its distance in **hops**? **Breadth-first search** answers both by exploring in rings: the start, then everything one trail away, then everything two away. The tool is the queue from two topics ago, a `deque`, where the first thing in is the first thing out.
+**Breadth-first search: the nearest places first.** Two questions about the park. Which places can you get to from the gate at all? Those are the places **reachable** from it. And what is the smallest number of trails to each one, its distance in **hops**? **Breadth-first search** answers both by exploring in rings: the start, then everything one trail away, then everything two away. The tool is the queue from earlier in this module, a `deque`, where the first thing in is the first thing out.
 
 ```python
 from collections import deque
@@ -117,6 +117,41 @@ print(path[::-1])
 **Depth-first search: one route to its end.** Keep everything else the same and take the newest discovery instead of the oldest, with a stack (a list and `pop()`), or with a function that calls itself on each neighbour. That is **depth-first search**. It follows one route until nothing new is ahead, then backs up to the last place that had an unexplored neighbour. From the gate, the stack version visits the gate, the ridge, the peak, the hut and then the lake. It reaches exactly the same set of nodes as breadth-first search, at the same `O(V + E)` cost, and needs its visited set for the same reason. But the route by which it first reaches a node is whatever it happened to follow, not the shortest, so use it for "can I get there?" and never for "what is the shortest way?".
 
 **Finding a cycle** is the job depth-first search does best. Take a directed graph of which Python file imports which: `app` imports `db` and `report`, and each of those imports `config`. Is there a circular import, a chain of imports that leads back to the file it started from? Walk depth-first and keep **two** sets: the nodes **on the current path**, the route from where you began down to where you are now, and the nodes that are **finished**, with everything below them explored. From `app` go to `db`, then to `config`. Nothing is below `config`, so it leaves the path and is finished; then `db` is too. Next `report`, which also points at `config`. `config` is finished, not on the path, so this is only a second way to reach it, and there is no cycle. Now add one import, `config` imports `app`. This time, at `config`, the arrow leads to `app`, which is still on the current path (`app`, `db`, `config`). An arrow to a node on the current path closes a loop. That is a cycle.
+
+Here is that walk as a function that calls itself on each file a file imports, run on both versions of the graph:
+
+```python
+imports = {"app": ["db", "report"], "db": ["config"], "report": ["config"], "config": []}
+on_path = set()
+finished = set()
+
+
+def leads_back(file):
+    if file in on_path:  # an arrow to the path being walked: a cycle
+        return True
+    if file in finished:  # explored before, another way: nothing new here
+        return False
+    on_path.add(file)
+    for imported in imports[file]:
+        if leads_back(imported):
+            return True
+    on_path.remove(file)  # everything below this file is explored
+    finished.add(file)
+    return False
+
+
+print(leads_back("app"), sorted(finished))
+imports["config"].append("app")
+finished = set()  # a changed graph: start with nothing finished
+print(leads_back("app"))
+```
+
+```
+False ['app', 'config', 'db', 'report']
+True
+```
+
+The two tests at the top are the two sets doing their two jobs, and the order matters: a file joins `on_path` before its imports are walked and leaves it only after all of them are, so `on_path` always holds exactly the route from the start to here. As soon as one call finds a cycle, every call above it passes the `True` straight up.
 
 The mistake to avoid is using one set for both jobs. "I have seen this node before" is true of `config` on the second visit in the first graph, which has no cycle. Only "this node is on the path I am walking right now" means a cycle. And start a walk from every node, not just the first, or a cycle in a part of the graph the first node can't reach goes unnoticed.
 
