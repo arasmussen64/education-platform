@@ -134,11 +134,12 @@ print(len(shops), len(shops[0]))
 
 `shops[i][j]` is the entry in row `i`, column `j`: the row comes first, and both count from 0. So `shops[1][0]` is the second café's coffees, `10`.
 
-A matrix's **shape** is its number of rows, then its number of columns, written with a ×: this one is 2×3, read "two by three". In code the number of rows is `len(shops)`, the length of the outer list, and the number of columns is `len(shops[0])`, the length of one row. These are two different numbers, and using one where the other belongs is a classic bug: a loop that should count columns but counts rows will either stop too early or run off the end of a row with an `IndexError`.
+A matrix's **shape** is its number of rows, then its number of columns, written with a ×: this one is 2×3, read "two by three". In code the number of rows is `len(shops)`, the length of the outer list, and the number of columns is `len(shops[0])`, the length of one row. These are two different numbers, and they are easy to swap without noticing. Each time you write `len(...)` over a matrix, say which of the two you mean, rows or columns, and check it against the shape: for this matrix, a 2 or a 3.
 
 Each row of a matrix is a vector, and so is each **column**, though a column isn't stored as a list of its own: to read column `j` you take entry `j` from every row. Here that is used to total each product across the cafés. The outer loop counts columns, the inner one walks the rows:
 
 ```python
+shops = [[40, 15, 22], [10, 30, 5]]
 totals = []
 for j in range(len(shops[0])):
     total = 0
@@ -152,7 +153,7 @@ print(totals)
 [50, 45, 27]
 ```
 
-One more word for later: the **mean** of some numbers is their total divided by how many numbers there are. The mean coffee sales of the two cafés is `50 / 2`, which is `25.0`: divide by the number of values that went into the total, here the number of rows.
+One more word for later: the **mean** of some numbers is their total divided by how many numbers there are. The mean coffee sales of the two cafés is `50 / 2`, which is `25.0`: the total, divided by the count of the values that were added up to make it.
 
 **A matrix times a vector: one dot product for each row.** What did each café take that day? Each row of `shops` is a vector of counts, and the prices are still `[3, 2, 4]`. Take the dot product of each row with the prices:
 
