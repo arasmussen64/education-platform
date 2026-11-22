@@ -37,7 +37,7 @@ RUN apt-get update \
 # ordinary resolver, this machine's Kerberos settings, the on-dc command,
 # and the story so far (lab-story.service: the names forwarded, the
 # warehouse's group, and svc-report's keytab).
-COPY network.sh dc-enter dc-provision.sh dc-seed.sh story.sh /usr/local/lib/lab/
+COPY network.sh dc-enter dc-ready.sh dc-provision.sh dc-seed.sh story.sh /usr/local/lib/lab/
 COPY on-dc /usr/local/bin/
 COPY lab-network.service lab-dc.service lab-story.service /etc/systemd/system/
 COPY dnsmasq-lab.conf /etc/systemd/system/dnsmasq.service.d/lab.conf

@@ -38,7 +38,7 @@ RUN apt-get update \
 # to ask) and the on-dc command. dc1 is a machine with Samba installed and
 # no domain yet: its service, dc1.service, isn't enabled, and creates
 # nothing by itself. lab isn't joined to anything.
-COPY network.sh dc-enter /usr/local/lib/lab/
+COPY network.sh dc-enter dc-ready.sh /usr/local/lib/lab/
 COPY on-dc /usr/local/bin/
 COPY lab-network.service dc1.service /etc/systemd/system/
 COPY dnsmasq-lab.conf /etc/systemd/system/dnsmasq.service.d/lab.conf

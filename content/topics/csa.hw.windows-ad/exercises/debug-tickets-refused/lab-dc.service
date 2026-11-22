@@ -1,5 +1,9 @@
 # dc1, the lab's domain controller: Samba running as an Active Directory
 # domain controller in namespaces of its own. Part of the lab's scenery.
+#
+# It counts as started only once it answers (dc-ready.sh): Samba says it is
+# ready a moment before its name server, directory and ticket service do,
+# and a check or a command run in that moment got nothing.
 [Unit]
 Description=dc1: the domain controller for ad.shop.test
 After=lab-network.service dnsmasq.service
@@ -12,6 +16,7 @@ LimitNOFILE=16384
 TimeoutStartSec=300
 ExecStartPre=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/local/lib/lab/dc-provision.sh
 ExecStart=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/sbin/samba --foreground --no-process-group
+ExecStartPost=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/local/lib/lab/dc-ready.sh
 ExecStartPost=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/local/lib/lab/dc-seed.sh
 
 [Install]

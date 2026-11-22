@@ -1,9 +1,17 @@
 # dc1's Samba service: an Active Directory domain controller once a domain has
 # been provisioned. dc1 has no init system of its own in this lab, so its
 # service is managed from here.
+#
+# It counts as started only once it answers (dc-ready.sh), and SSSD starts
+# after it (Before=sssd.service). On a real network the domain controller
+# is another machine that was up long before this one booted; here the two
+# boot together, and an SSSD that starts before dc1 answers goes offline
+# and logs people in from its cache, without a Kerberos ticket, until it
+# tries the domain again.
 [Unit]
 Description=dc1: Samba as an Active Directory domain controller
 After=lab-network.service dnsmasq.service
+Before=sssd.service
 Requires=lab-network.service
 
 [Service]
@@ -12,6 +20,7 @@ NotifyAccess=all
 LimitNOFILE=16384
 TimeoutStartSec=300
 ExecStart=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/sbin/samba --foreground --no-process-group
+ExecStartPost=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/local/lib/lab/dc-ready.sh
 
 [Install]
 WantedBy=multi-user.target

@@ -37,7 +37,7 @@ RUN apt-get update \
 # ordinary resolver, this machine's Kerberos settings, the on-dc command,
 # the shop's nightly directory report with its settings, service and timer,
 # and the story so far (lab-story.service).
-COPY network.sh dc-enter dc-provision.sh dc-seed.sh story.sh /usr/local/lib/lab/
+COPY network.sh dc-enter dc-ready.sh dc-provision.sh dc-seed.sh story.sh /usr/local/lib/lab/
 COPY on-dc directory-report /usr/local/bin/
 COPY lab-network.service lab-dc.service lab-story.service directory-report.service directory-report.timer /etc/systemd/system/
 COPY dnsmasq-lab.conf /etc/systemd/system/dnsmasq.service.d/lab.conf
