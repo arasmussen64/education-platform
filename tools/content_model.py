@@ -65,6 +65,18 @@ class Resource(Strict):
             raise ValueError("start and end are only for videos")
         if self.start is not None and self.end is not None and self.end <= self.start:
             raise ValueError("end must come after start")
+        # The app can only play YouTube videos in the page; anything else
+        # marked "embed" would silently show as a plain link.
+        if self.use == "embed" and not (
+            self.type == "video"
+            and re.match(
+                r"^https://(www\.youtube\.com/watch\?(.*&)?v=|youtu\.be/)[\w-]{11}",
+                self.url,
+            )
+        ):
+            raise ValueError(
+                "use: embed is only for a YouTube video (youtube.com/watch?v=...)"
+            )
         return self
 
 

@@ -216,6 +216,47 @@ describe('the topic page', () => {
     expect(within(learn).getAllByText(/A good chapter/)).toHaveLength(1)
   })
 
+  it('plays a further video in the page, and lists what it cannot embed', () => {
+    renderTopic(
+      fakeTopic({
+        resources: [
+          {
+            title: 'A good chapter',
+            url: 'https://example.com/chapter',
+            type: 'reading',
+            use: 'link',
+            license: 'CC BY 4.0',
+          },
+          {
+            title: 'The same idea, drawn',
+            url: 'https://www.youtube.com/watch?v=drawn123',
+            type: 'video',
+            use: 'embed',
+            license: 'Standard YouTube licence (official embed)',
+          },
+          {
+            title: 'A talk that may not be embedded',
+            url: 'https://www.youtube.com/watch?v=talk456',
+            type: 'video',
+            use: 'link',
+            license: 'Standard YouTube licence (linked, not embedded)',
+          },
+        ],
+      }),
+    )
+    const learn = screen.getByRole('region', { name: 'Learn' })
+    expect(within(learn).getByTitle('The same idea, drawn')).toHaveAttribute(
+      'src',
+      'https://www.youtube-nocookie.com/embed/drawn123?rel=0',
+    )
+    expect(
+      within(learn).getByRole('link', {
+        name: 'A talk that may not be embedded',
+      }),
+    ).toHaveAttribute('href', 'https://www.youtube.com/watch?v=talk456')
+    expect(within(learn).getAllByRole('list')).toHaveLength(1)
+  })
+
   it('lists the practice ladder in order', () => {
     renderTopic(fakeTopic(), fakeContent(), { at: 'practice' })
     const practice = screen.getByRole('region', { name: 'Practice' })

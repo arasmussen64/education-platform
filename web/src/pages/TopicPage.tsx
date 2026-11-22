@@ -36,11 +36,13 @@ import {
   trackFoundations,
 } from '../content/foundations.ts'
 import { practiceOutsideLesson } from '../content/lessonChecks.ts'
+import { playsInPage } from '../content/resources.ts'
 import { STAGES } from '../content/stages.ts'
 import type { Explain, Topic, TopicContent, Track } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
+import { ResourceView } from '../components/ResourceView.tsx'
 import {
   CARD,
   PRIMARY_BUTTON,
@@ -1202,6 +1204,10 @@ function Learn({
   // The first resource is the main one, placed in the lesson; the rest are
   // listed after it (content/README.md), where the lesson ends.
   const moreResources = part.tail ? topic.resources.slice(1) : []
+  // A video plays here too, like the main one, so nobody has to leave the
+  // page to watch it. Readings and pages we can't embed stay links.
+  const moreVideos = moreResources.filter(playsInPage)
+  const moreLinks = moreResources.filter((resource) => !playsInPage(resource))
   const anchor = partAnchor(part)
 
   return (
@@ -1225,23 +1231,28 @@ function Learn({
       {moreResources.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-semibold">More resources</h3>
-          <ul className="list-disc space-y-1 pl-6">
-            {moreResources.map((resource) => (
-              <li key={resource.url}>
-                <a
-                  href={resource.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline"
-                >
-                  {resource.title}
-                </a>{' '}
-                <span className="text-sm text-muted">
-                  ({resource.type}; license: {resource.license})
-                </span>
-              </li>
-            ))}
-          </ul>
+          {moreVideos.map((resource) => (
+            <ResourceView key={resource.url} resource={resource} />
+          ))}
+          {moreLinks.length > 0 && (
+            <ul className="list-disc space-y-1 pl-6">
+              {moreLinks.map((resource) => (
+                <li key={resource.url}>
+                  <a
+                    href={resource.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    {resource.title}
+                  </a>{' '}
+                  <span className="text-sm text-muted">
+                    ({resource.type}; license: {resource.license})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </section>

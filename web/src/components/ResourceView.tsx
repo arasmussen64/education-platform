@@ -1,5 +1,9 @@
 import { useId } from 'react'
-import { formatTime, youtubeEmbedUrl } from '../content/resources.ts'
+import {
+  formatTime,
+  playsInPage,
+  youtubeEmbedUrl,
+} from '../content/resources.ts'
 import type { Resource } from '../content/types.ts'
 
 /** The part of a video to watch, when the resource names one. */
@@ -19,10 +23,7 @@ function clipOf(resource: Resource) {
  */
 export function ResourceView({ resource }: { resource: Resource }) {
   const clipNoteId = useId()
-  const embed =
-    resource.type === 'video' && resource.use === 'embed'
-      ? youtubeEmbedUrl(resource)
-      : null
+  const embed = playsInPage(resource) ? youtubeEmbedUrl(resource) : null
   const clip = clipOf(resource)
 
   return (

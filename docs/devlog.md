@@ -2,6 +2,23 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-21, night: lessons inside the app, step 1: the videos
+
+**The owner's order** for bringing lessons into the app ("Do these in this priority"): embed a video when possible; else show the outside page's text in the app; else our own text. This entry is the first of the three.
+
+**What changed.** Every linked video was looked up and YouTube was asked whether it may be embedded (its oEmbed address: 200 yes, 401 no). 47 of 50 may, and now play in the lesson: 16 ML topics' main videos (3Blue1Brown, StatQuest, one MIT lecture), and 31 further videos. The 3Blue1Brown records pointed at lesson pages on 3blue1brown.com; they now point at the YouTube video each page shows. A video beyond the main one used to be a line under "More resources"; it now plays there (`TopicPage.tsx`, `playsInPage` in `content/resources.ts`). Players load only when scrolled near.
+
+**Author notes:**
+
+- _Three stay links._ Ned Batchelder's PyCon talk has embedding switched off (401). Two Khan Academy records are pages on khanacademy.org, one a whole unit; no single YouTube video stands for them.
+- _"Standard YouTube licence (linked, not embedded)" became "(official embed)"._ YouTube's own player shows the video, which its terms allow when the owner leaves embedding on, and nothing is copied. Four cloud topics already did this.
+- _The Python for Everybody lecture video was left as a link on 2026-11-07 because its times couldn't be checked._ It is now embedded whole, with no start or end, so there is no time to get wrong.
+- _Four lessons said "the link here"_ about a video that now plays; reworded.
+- _The validator now refuses `use: embed` on anything but a YouTube video,_ since the app would silently show it as a link.
+- _Not watched._ I can't watch a video. Each was matched by YouTube's own title and channel against the record's title.
+
+**Next:** find a video for the topics whose main resource is a reading, then the readings themselves.
+
 ## 2026-11-21, later: four reasons to come back
 
 **The owner asked** what would make the app "as addictive as possible", got a list of eight, and said: "Build 2, 3, 4, and 7." They are [ADR-0030](decisions/0030-reasons-to-come-back.md). Nothing in them changes what counts as learned, and there is no migration and no new event.
