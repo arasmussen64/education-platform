@@ -12,6 +12,13 @@ The short list of things only the owner can do or decide. It replaces the "Decis
 
 ## Open
 
+### 0. Optional: remove old lab images from Docker
+
+The Module 4 design left some images on your Docker that nothing uses now: `lab-base-idproto`, `lab-base-idnet`, `idlab-sso:dev`, `idlab-kcprobe` (two tags), `lab-csa.idproto-proto-sso` and `lab-csa.idproto4-sso-a` to `-d`. Claude doesn't remove images it can't show it made in the current session.
+
+- **Step:** say "remove them" and Claude does, by name, or leave them: they only take disk space (a few gigabytes).
+- **Holds up:** nothing.
+
 ### 1. Check the $10 spending limit in the Anthropic Console
 
 The AI proxy's fixes went live on 2026-11-21 (see _Answered_). One step of that item was always yours: in the Anthropic Console, check that the $10 monthly spending limit is set. It's the backstop [ADR-0013](decisions/0013-explain-grading.md) names, and nothing records it as set.
@@ -45,6 +52,15 @@ Module 2 is complete without them: every topic is proven locally, for free. Thes
 - **Holds up:** only the Azure lab's place among the proofs.
 
 ## Decided for you
+
+- **2026-11-22, cloud Module 4's plan** ([the plan](plans/cloud-module-4/MODULE-4-BRIEF.md), section 10 has all fifteen). The ones you'd most want to know:
+  - _Order:_ strong authentication is taught after single sign-on, because its labs read sign-in tokens.
+  - _One identity provider, Keycloak,_ for every sign-in lab, run locally and free. No real-cloud lab and no cost anywhere in the module; the clouds' paid identity features are taught from their documentation.
+  - _Five new lab bases,_ and the lab checker learns to build one base on another ([ADR-0018](decisions/0018-lab-checker-local-mode.md), a fourth amendment, to be proposed with that change).
+  - _Six programs downloaded from outside Ubuntu's own archive,_ each pinned to an exact version and checksum, all open source.
+  - _Checkpoint 4 gets a third part,_ answering a leak (find the secrets, rotate the key, replace the certificate, read the audit trail), if its prototype holds. Without it, secrets, certificates and audit logs would end the module with no hands-on proof.
+  - _No videos are assigned in Module 4;_ each lesson is the app's own text, as ADR-0031 asks.
+  - _About 59 hours of learning,_ and about 3.5 more hours of lab checks on each full CI run.
 
 Made under your message of 2026-11-11. Say the word to overturn any of them.
 

@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, cloud Module 4: the plan
+
+**The owner said** "Keep building the cloud track". Module 4, security and identity foundations, was next, and its design had been paused half-done on 2026-11-12: the eleven topic briefs existed on a local-only branch; the shared lab base, the checkpoint and the critic's review had never run.
+
+**What was done.** The design was finished the way Module 3's was. Two designers ran, each prototyping in Docker: one the identity-lab base, one Checkpoint 4. Then a critic read the fourteen briefs against each other, the house rules, Module 3 as written and a sample of their sources, and wrote one plan. The plan is in [docs/plans/cloud-module-4](plans/cloud-module-4/README.md); the spec's Module 4 section and the outlines on the map follow it.
+
+**The plan in short.**
+
+- _Eleven topics, one moved:_ strong authentication now comes after SAML, OAuth and OIDC, because its labs read tokens.
+- _One identity provider for every sign-in lab:_ Keycloak, running on the network-lab base Module 3 built. Measured on this machine: about 600 MB of memory a lab, ten seconds to start, a full lab contract in about four minutes with four running at once.
+- _Five new lab bases:_ `id` (Keycloak), `vault` (keys and secrets), `pay` (a payments server to audit, scan and assess), `policy` (access rules as code) and `tm` (a checker for threat models written as plain lines of text).
+- _Checkpoint 4 in three parts:_ a threat model of a card checkout, a staff sign-in that fails in three ways, and a leak to answer.
+- _No cloud account and no cost._
+
+**What has to be built before any topic is written:** the lab checker must build a base on top of another base; three small changes to the network base; the five bases; and a trial run on CI's machines, because nothing in this design has run there. CI's machines have four processors, and Keycloak's start-up went from 16 seconds to 55 when held to one.
+
+**Author notes:**
+
+- _The critic's review was partial, and says so._ It read five of the fourteen briefs in full and the rest in part, re-checked 14 facts where 55 were planned (all 14 held), and read six of the eleven incident stories at their source. Section 0 of its critique lists exactly what it did not read. Each topic's writer checks its own facts again on the day (section 11 of the plan).
+- _Problems the critic found that changed designs:_ the checkpoint's sign-in lab had been built on an older base image, not the final design; five debug prompts gave away what or where the fault was; six checks had holes a shortcut would pass; and the lessons had been designed around assigned reading, which ADR-0031 no longer allows.
+- _The prototypes are in a scratch folder, not the repository,_ and nine topic briefs cite prototypes that no longer exist. The plan's README says so. The identity base's prototype becomes the real base next, so its scratch copy doesn't have to last.
+- _Old design images are still on the owner's Docker._ They are listed in the owner queue; I don't remove images I didn't make in this session.
+- _The paused branch `wip/paused-2026-11-12` is still there,_ local only. Its briefs are now in the repository; its other files are Module 3 leftovers that were landed long ago.
+
+**Next:** the platform work, in the plan's order.
+
 ## 2026-11-22, closing: the deletion is live, and where the day ended
 
 **The owner said "push it".** A dry run of `npx supabase db push --remote` listed exactly one migration, `20261122200000_erase_my_history.sql`. It was applied to the live database, and a second dry run reports it up to date. "Start everything over" on the live site now deletes the learner's history for good. Nothing else on the live database was touched, and the button itself was not pressed there: that is the owner's.
