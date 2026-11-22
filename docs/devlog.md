@@ -2,6 +2,23 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22: lessons inside the app, step 1 continued: a video for topics that had none
+
+**What changed.** 80 ready topics had no video among their resources. Five helper agents each took a track and looked for one video per topic that could play in the lesson, to a written bar: a source a teacher would trust, on the topic by its own title, description and chapter list, 20 minutes or less (or cut to a published chapter), and embedding allowed by YouTube's oEmbed answer. They proposed 67. I removed 12 and kept **55**, each appended as the topic's last resource, so it plays under "More resources" and the lesson's main resource is unchanged.
+
+**Author notes:**
+
+- _Nobody watched these videos._ Neither the helpers nor I can. Each was judged from YouTube's own title and channel (oEmbed), and where it could be read, the description and chapter list. Every record's title says only what that evidence supports, often "this one objective only". The owner is the first person who will actually watch them; a wrong one is a one-line removal.
+- _The 12 removed:_ judged from a title alone or from a channel I couldn't place as a trusted educator (`csa.linux.boot`, `csa.linux.net-tools`, `csa.linux.packages`, `fin.money.diversification`, `ml.math.arithmetic`); half off the topic (`csa.linux.services`, `csa.net.http-semantics`); a preview from the middle of a paid course (`csa.net.certificates`); notation that differs from our lesson's (`ml.calc.optimizers`, `ml.nn.regularization`); and C code for learners who know only Python (`ml.dsa.arrays-and-hashing`, `ml.dsa.stacks-queues-recursion`).
+- _YouTube began refusing the helpers' page reads part-way_ (too many requests from one address). They stopped and did not work round it, so some descriptions went unread; those picks were the first candidates for removal.
+- _Cuts use the chapter times YouTube shows._ For the three Missing Semester lectures and Brendan Gregg's talk those chapters look automatic, not written by the uploader, so a cut may start or end a few seconds off.
+- _Licences._ Most are "Standard YouTube licence (official embed)": YouTube's player shows the video and nothing is copied. Where the video's page states Creative Commons, that is recorded. Three CS50 shorts are recorded as CC BY-NC-SA 4.0 from CS50's licence page, not read off the video page.
+- _25 topics still have no video,_ among them `csa.net.ipsec`, `csa.net.ipv6`, `csa.net.troubleshooting`, `csa.hw.cores-memory`, `csa.linux.cpu`, `csa.linux.hardening`, `ml.dsa.trees-and-heaps`, `ml.la.numpy-arrays`, `fin.money.returns`, `fin.money.costs` and `fin.markets.prices`. Two good candidates wait for someone to read their pages: NSRC's "IPv6 Addresses" (`qj5fIw0juoE`) and freeCodeCamp's NumPy tutorial cut to a chapter (`QUT1VHiLmmI`).
+
+**Where the owner's three steps stand,** over the 135 ready topics with a lesson: every topic that had a linked video now plays it (47); 55 more topics gained a video; 50 of the 87 main readings are read in the lesson. **Left for step 3 (our own text):** the topics whose main reading can't be shown and can't be copied, about 37, listed in the entry below.
+
+**Next:** step 3, topic by topic, starting with the cloud track's link-only readings.
+
 ## 2026-11-21, night: lessons inside the app, step 2 continued: 50 readings
 
 **What changed.** 34 more main readings are copied into their lessons, 50 of the 87 topics whose main resource is a reading. Six helper agents took a group of sources each, from one written brief (check the licence on the source today, copy exactly the assigned part, read the result, leave anything doubtful as a link), and did not touch git; the coordinator reviewed and committed.
@@ -26,7 +43,7 @@ A dated log of each working session: what changed, what was decided, what's next
 - _NumPy's beginner page lost two small grids of numbers_ (TeX again), leaving "like a list:" with nothing after it; the `changes` line says so.
 - _Not seen by eye._ None of the 34 was looked at in the app; the two kinds seen earlier (OpenStax, Wikipedia) are the same reader.
 
-**Next:** teach the importer TeX formulas (it unlocks about five more readings), then the videos for topics that have none, then our own text for the rest.
+**Later, if wanted:** teach the importer TeX formulas (it would unlock about five more readings).
 
 ## 2026-11-21, night: lessons inside the app, step 2: a reading's own words
 
