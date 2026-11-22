@@ -317,6 +317,31 @@ describe('the topic page', () => {
     expect(furtherLoads).toBe(1)
   })
 
+  it('says so when the outside page is only for going deeper (ADR-0031)', () => {
+    renderTopic(
+      fakeTopic({
+        resources: [
+          {
+            title: 'A good chapter',
+            url: 'https://example.com/chapter',
+            type: 'reading',
+            use: 'link',
+            license: 'Copyright Example; linked, not copied',
+            optional: true,
+          },
+        ],
+      }),
+    )
+    const learn = screen.getByRole('region', { name: 'Learn' })
+    expect(learn).toHaveTextContent('Go deeper (optional).')
+    expect(learn).toHaveTextContent(
+      'The lesson above covers everything this topic asks of you.',
+    )
+    expect(
+      within(learn).getByRole('link', { name: /A good chapter/ }),
+    ).toHaveAttribute('href', 'https://example.com/chapter')
+  })
+
   it('lists the practice ladder in order', () => {
     renderTopic(fakeTopic(), fakeContent(), { at: 'practice' })
     const practice = screen.getByRole('region', { name: 'Practice' })

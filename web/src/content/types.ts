@@ -54,6 +54,11 @@ export type Resource = {
   start?: number
   end?: number
   text?: ReadingCopy
+  /**
+   * The lesson's own text teaches everything the topic asks for; this page
+   * only goes deeper (ADR-0031, step 3). Its time isn't in the topic's.
+   */
+  optional?: boolean
 }
 
 export type Explain = {
