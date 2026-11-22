@@ -20,7 +20,7 @@ export function SignInPage() {
   if (auth.status === 'signed-in') {
     return (
       <section className="space-y-2">
-        <h1 className="text-2xl font-bold">Signed in</h1>
+        <h1 className="text-3xl font-bold sm:text-4xl">Signed in</h1>
         <p className="text-muted">
           Signed in as {displayName(auth.user)}.{' '}
           <Link to="/" className="underline">
@@ -33,7 +33,7 @@ export function SignInPage() {
 
   return (
     <section className="max-w-md space-y-4">
-      <h1 className="text-2xl font-bold">Sign in</h1>
+      <h1 className="text-3xl font-bold sm:text-4xl">Sign in</h1>
       <p className="text-muted">Sign in to save your progress.</p>
       {signInMethod() === 'github' ? <GitHubSignIn /> : <EmailLinkSignIn />}
     </section>

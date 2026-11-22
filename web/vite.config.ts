@@ -16,6 +16,7 @@ import {
 } from './src/tooling/remarkGlossary.ts'
 import { remarkLessonChecks } from './src/tooling/remarkLessonChecks.ts'
 import { remarkLessonShape } from './src/tooling/remarkLessonShape.ts'
+import { remarkTable } from './src/tooling/remarkTable.ts'
 import { APP_NAME } from './src/config.ts'
 
 // Adds the product name as the page <title>, so the name only ever has to be
@@ -247,6 +248,8 @@ export default defineConfig({
       enforce: 'pre',
       ...mdx({
         remarkPlugins: [
+          // First: it changes how the text is read, not the tree after.
+          remarkTable,
           remarkLessonChecks,
           // Before the glossary step, which adds tags around words.
           remarkLessonShape,

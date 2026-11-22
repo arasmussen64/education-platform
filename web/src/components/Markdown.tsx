@@ -1,5 +1,9 @@
 import ReactMarkdown, { type Components } from 'react-markdown'
+import { remarkTable } from '../tooling/remarkTable.ts'
 import { PROSE } from './styles.ts'
+
+// Tables, which plain Markdown lacks (tooling/remarkTable.ts).
+const PLUGINS = [remarkTable]
 
 // Inline mode drops the paragraph around the text, for short Markdown inside
 // another element, like a list item.
@@ -17,11 +21,15 @@ type Props = {
  */
 export function Markdown({ children, inline = false }: Props) {
   if (inline) {
-    return <ReactMarkdown components={INLINE}>{children}</ReactMarkdown>
+    return (
+      <ReactMarkdown components={INLINE} remarkPlugins={PLUGINS}>
+        {children}
+      </ReactMarkdown>
+    )
   }
   return (
     <div className={PROSE}>
-      <ReactMarkdown>{children}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={PLUGINS}>{children}</ReactMarkdown>
     </div>
   )
 }

@@ -1657,7 +1657,7 @@ function ProofProgress({
 function UnknownTopic() {
   return (
     <section>
-      <h1 className="text-2xl font-bold">Topic not found</h1>
+      <h1 className="text-3xl font-bold sm:text-4xl">Topic not found</h1>
       <p className="mt-2 text-muted">
         There's no topic at this address.{' '}
         <Link to="/map" className="underline">

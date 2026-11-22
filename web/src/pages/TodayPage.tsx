@@ -3,11 +3,17 @@ import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { Markdown } from '../components/Markdown.tsx'
 import {
+  BAR_FILL,
+  BAR_TRACK,
   BUTTON,
+  EYEBROW,
   INLINE_CODE,
   PRIMARY_BUTTON,
   PROGRESS_BAR,
   PROGRESS_FILL,
+  SECONDARY_BUTTON,
+  STAT_NUMBER,
+  TILE,
 } from '../components/styles.ts'
 import {
   diagnostics,
@@ -107,11 +113,20 @@ import {
 // relearned (ADR-0011), then the topic to work on.
 export function TodayPage() {
   const auth = useAuth()
+  // "Sunday, November 22", on the learner's own clock.
+  const [day] = useState(() =>
+    new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    }),
+  )
   return (
-    <section className="space-y-8">
+    <section className="space-y-10">
       <header className="space-y-2">
-        <h1 className="text-2xl font-bold">Today</h1>
-        <p className="text-muted">
+        <p className={EYEBROW}>{day}</p>
+        <h1 className="text-3xl font-bold sm:text-4xl">Today</h1>
+        <p className="max-w-2xl text-base text-muted">
           First the topics due for a review, timed to how fast you forget. Then
           skills you've missed, back as different questions until you've got
           them right on {CORRECT_DAYS_NEEDED} different days. Then the topic
@@ -128,11 +143,24 @@ export function TodayPage() {
         </p>
       )}
       <p>
-        <Link to="/map" className="underline">
+        <Link to="/map" className={`inline-block ${SECONDARY_BUTTON}`}>
           See every topic on the map
         </Link>
       </p>
     </section>
+  )
+}
+
+/**
+ * One number of the day's session, big, with its label under it. The
+ * sentence above it says the same, so screen readers skip these.
+ */
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="rounded-xl bg-sunken px-4 py-3">
+      <div className={STAT_NUMBER}>{value}</div>
+      <div className="mt-1 text-sm text-ink">{label}</div>
+    </div>
   )
 }
 
@@ -312,27 +340,47 @@ function StartSession({
       ? (memoryRows([reviews[0].topic], progress.progress, now)[0] ?? null)
       : null
 
+  const reviewTime = reviewMinutes(plan, attempts)
   return (
     <section
       aria-labelledby="session"
-      className="space-y-3 rounded-lg border border-line bg-card p-4"
+      className="space-y-4 rounded-3xl border border-line bg-card p-5 shadow-card sm:p-7"
     >
-      <h2 id="session" className="text-xl font-semibold">
+      <h2 id="session" className={EYEBROW}>
         Today's session
       </h2>
-      <p>
-        {summary} {time}
+      <p className="font-display text-xl leading-snug font-semibold sm:text-2xl">
+        {summary} <span className="font-sans text-lg font-normal">{time}</span>
       </p>
+      {due.length > 0 && (
+        // The sentence above says all of this; the tiles show it at a glance.
+        <div aria-hidden="true" className="grid grid-cols-3 gap-3 sm:max-w-lg">
+          <Stat
+            value={reviews.length}
+            label={reviews.length === 1 ? 'review due' : 'reviews due'}
+          />
+          <Stat
+            value={followUps.length}
+            label={followUps.length === 1 ? 'mistake back' : 'mistakes back'}
+          />
+          <Stat
+            value={reviewTime}
+            label={reviewTime === 1 ? 'minute or so' : 'minutes or so'}
+          />
+        </div>
+      )}
       {weakest && (
-        <p className="text-muted">
+        <p className="text-base text-muted">
           The most faded is {weakest.topic.title}, {describeDrop(weakest)}.
         </p>
       )}
-      {whereInModule && <p className="text-muted">{whereInModule}</p>}
+      {whereInModule && <p className="text-base text-muted">{whereInModule}</p>}
       {next && <WaitingGuess topic={next.topic} />}
-      <Link to={SESSION_PATH} className={PRIMARY_BUTTON}>
-        Start today's session
-      </Link>
+      <div className="pt-1">
+        <Link to={SESSION_PATH} className={PRIMARY_BUTTON}>
+          Start today's session <span aria-hidden="true">→</span>
+        </Link>
+      </div>
       {quick > 0 && (
         <p className="text-sm text-muted">
           Short on time or energy?{' '}
@@ -478,20 +526,27 @@ function PracticeHours({
       ) : (
         <>
           <p>
-            <span className="font-medium">{formatDuration(all.totalMs)}</span>{' '}
-            of deliberate practice so far, {recent}. Counting the time spent on
-            answers, Checks and reviews, not time with the site open.
+            <span className={`mb-1 block ${STAT_NUMBER}`}>
+              {formatDuration(all.totalMs)}
+            </span>{' '}
+            of deliberate practice so far, {recent}.{' '}
+            <span className="text-base text-muted">
+              Counting the time spent on answers, Checks and reviews, not time
+              with the site open.
+            </span>
           </p>
-          {split.tracks.map(({ trackId, time }) => (
-            <TrackHours
-              key={trackId}
-              title={getTrack(trackId)?.title ?? trackId}
-              time={time}
-            />
-          ))}
-          {split.other.attempts > 0 && (
-            <TrackHours title="Other" time={split.other} />
-          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {split.tracks.map(({ trackId, time }) => (
+              <TrackHours
+                key={trackId}
+                title={getTrack(trackId)?.title ?? trackId}
+                time={time}
+              />
+            ))}
+            {split.other.attempts > 0 && (
+              <TrackHours title="Other" time={split.other} />
+            )}
+          </div>
         </>
       )}
     </section>
@@ -518,7 +573,7 @@ function Weeks({ weeks }: { weeks: WeeksPractised }) {
             <span
               key={index}
               data-practised={practised}
-              className={`h-3 w-5 rounded-sm border ${
+              className={`h-3.5 w-6 rounded-full border ${
                 practised ? PROGRESS_FILL : 'border-line-strong'
               }`}
             />
@@ -543,10 +598,12 @@ function TrackHours({ title, time }: { title: string; time: PracticeTime }) {
           time.recentMs === 0 ? 'none' : formatDuration(time.recentMs)
         } in the last 7 days`
   return (
-    <div className="space-y-1">
+    <div className={`space-y-2 ${TILE}`}>
       <h3 className="font-semibold">
         {title}
-        <span className="ml-2 text-sm font-normal text-muted">{summary}</span>
+        <span className="block font-sans text-sm font-normal text-muted">
+          {summary}
+        </span>
       </h3>
       {milestone ? (
         <>
@@ -683,58 +740,76 @@ function NextUp({
       <h2 id="next-up" className="text-xl font-semibold">
         Next up
       </h2>
-      {tracks().map((track) => {
-        const own = topicIdsOf(track)
-          .map((id) => getTopic(id))
-          .filter(
-            (topic): topic is Topic =>
-              topic !== undefined && open.has(topic.id),
-          )
-        const learned = own.filter((topic) =>
-          LEARNED_STATES.has(stateOf(topic, progress.progress)),
-        ).length
-        const next = nextUp(own, progress.progress)
-        return (
-          <div key={track.id} className="space-y-1">
-            <h3 className="font-semibold">
-              {track.title}
-              <span className="ml-2 text-sm font-normal text-muted">
-                {learned} of {own.length} learned
-              </span>
-            </h3>
-            {own.length === 0 ? (
-              <p className="text-muted">Nothing written here yet.</p>
-            ) : next ? (
-              <p>
-                <span className="font-medium">
-                  {next.state === 'in-progress' ? 'Continue' : 'Start'}:
-                </span>{' '}
-                <Link to={`/topic/${next.topic.id}`} className="underline">
-                  {next.topic.title}
-                </Link>
-                {' · '}
-                {next.topic.summary}
-                <span className="text-sm text-muted">
-                  {' · about '}
-                  {paced(next.topic.estimated_minutes, pace)} minutes
-                  {stretches(pace) && ' at your pace'}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {tracks().map((track) => {
+          const own = topicIdsOf(track)
+            .map((id) => getTopic(id))
+            .filter(
+              (topic): topic is Topic =>
+                topic !== undefined && open.has(topic.id),
+            )
+          const learned = own.filter((topic) =>
+            LEARNED_STATES.has(stateOf(topic, progress.progress)),
+          ).length
+          const next = nextUp(own, progress.progress)
+          return (
+            <div key={track.id} className={`space-y-2 text-base ${TILE}`}>
+              <h3 className="flex flex-wrap items-baseline justify-between gap-x-3 font-semibold">
+                {track.title}
+                <span className="font-sans text-sm font-normal text-muted">
+                  {learned} of {own.length} learned
                 </span>
-              </p>
-            ) : learned === own.length ? (
-              <p className="text-muted">
-                You've learned everything written here so far. More is on the
-                way.
-              </p>
-            ) : (
-              <LockedNext
-                track={track}
-                topics={own}
-                progress={progress.progress}
-              />
-            )}
-          </div>
-        )
-      })}
+              </h3>
+              {own.length > 0 && (
+                // The count beside the title says the same.
+                <div aria-hidden="true" className={BAR_TRACK}>
+                  {learned > 0 && (
+                    <div
+                      className={BAR_FILL}
+                      style={{ width: `${(100 * learned) / own.length}%` }}
+                    />
+                  )}
+                </div>
+              )}
+              {own.length === 0 ? (
+                <p className="text-base text-muted">
+                  Nothing written here yet.
+                </p>
+              ) : next ? (
+                <p className="text-base">
+                  <span className="font-medium">
+                    {next.state === 'in-progress' ? 'Continue' : 'Start'}:
+                  </span>{' '}
+                  <Link
+                    to={`/topic/${next.topic.id}`}
+                    className="font-semibold underline"
+                  >
+                    {next.topic.title}
+                  </Link>
+                  {' · '}
+                  <span className="text-muted">{next.topic.summary}</span>
+                  <span className="text-sm text-muted">
+                    {' · about '}
+                    {paced(next.topic.estimated_minutes, pace)} minutes
+                    {stretches(pace) && ' at your pace'}
+                  </span>
+                </p>
+              ) : learned === own.length ? (
+                <p className="text-muted">
+                  You've learned everything written here so far. More is on the
+                  way.
+                </p>
+              ) : (
+                <LockedNext
+                  track={track}
+                  topics={own}
+                  progress={progress.progress}
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
       <PaceNote pace={pace} />
       <PlacementNote progress={progress.progress} />
     </section>

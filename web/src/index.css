@@ -63,6 +63,15 @@
      same in both themes: other sites draw their diagrams for a white page,
      often with a see-through background, and dark lines vanish on dark. */
   --picture: #fdfcf8;
+
+  /* A memory that has faded below its target: amber, the same in both
+     themes, always a fill beside words that say the same, never text. */
+  --fading: #e0a52b;
+
+  /* The soft shadow that lifts a card off the paper. Not a colour of its
+     own: pine ink, mostly see-through. */
+  --card-shadow:
+    0 1px 2px rgb(27 38 32 / 0.05), 0 6px 20px -6px rgb(27 38 32 / 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -75,6 +84,10 @@
     --line: #28322b;
     --line-strong: #3b443b;
     --code: #111914;
+    /* At night a shadow hardly shows, so the card also gets a faint light
+       edge along its top. */
+    --card-shadow:
+      inset 0 1px 0 rgb(237 234 224 / 0.04), 0 8px 24px -8px rgb(0 0 0 / 0.5);
   }
 }
 
@@ -97,6 +110,8 @@
   --color-on-code: var(--on-code);
   --color-on-code-muted: var(--on-code-muted);
   --color-picture: var(--picture);
+  --color-fading: var(--fading);
+  --shadow-card: var(--card-shadow);
 }
 
 @theme {
@@ -113,10 +128,120 @@
     color-scheme: light dark;
   }
 
+  html {
+    /* The header stays at the top of the window, so a jump to a place in
+       the page stops below it, not under it. */
+    scroll-padding-top: 5rem;
+  }
+
   body {
     /* Lesson and interface text: 18px with roomy lines, for long reading. */
     font-size: 1.125rem;
     line-height: 1.7;
+    background-color: var(--paper);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Paragraphs avoid a lone last word; headings break into even lines. */
+  p,
+  li {
+    text-wrap: pretty;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  h1 {
+    letter-spacing: -0.02em;
+  }
+
+  /* One focus ring everywhere, for keyboard use: pine ink (limestone at
+     night), clear of the element's own edge. */
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--forward);
+    color: var(--on-forward);
+  }
+
+  /* Underlines sit a little lower and lighter than the browser's. */
+  a {
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: from-font;
+  }
+
+  /* Hover and press changes ease in, unless the learner asked their
+     system for less motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    a,
+    button,
+    summary,
+    input,
+    textarea,
+    select {
+      transition:
+        background-color 150ms,
+        border-color 150ms,
+        box-shadow 150ms,
+        transform 100ms;
+    }
+  }
+
+  /* Progress bars and memory bars. The browser's own are grey and square
+     and differ from one browser to the next; these are a rounded track with
+     a lime fill ("forward": a progress fill). The darker edge keeps the
+     fill's shape visible on paper. */
+  progress,
+  meter {
+    appearance: none;
+    display: inline-block;
+    height: 0.5rem;
+    overflow: hidden;
+    border: 0;
+    border-radius: 999px;
+    background: var(--line);
+    vertical-align: middle;
+  }
+
+  progress::-webkit-progress-bar,
+  meter::-webkit-meter-bar {
+    height: 100%;
+    border: 0;
+    border-radius: 999px;
+    background: var(--line);
+  }
+
+  progress::-webkit-progress-value,
+  meter::-webkit-meter-optimum-value {
+    border-radius: 999px;
+    background: var(--forward);
+    box-shadow: inset 0 0 0 1px var(--forward-edge);
+  }
+
+  progress::-moz-progress-bar,
+  meter:-moz-meter-optimum::-moz-meter-bar {
+    border-radius: 999px;
+    background: var(--forward);
+    box-shadow: inset 0 0 0 1px var(--forward-edge);
+  }
+
+  /* A memory under its target is amber, not lime. */
+  meter::-webkit-meter-suboptimum-value,
+  meter::-webkit-meter-even-less-good-value {
+    border-radius: 999px;
+    background: var(--fading);
+  }
+
+  meter:-moz-meter-sub-optimum::-moz-meter-bar,
+  meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
+    border-radius: 999px;
+    background: var(--fading);
   }
 
   /* Headings and big numbers use Gabarito. */

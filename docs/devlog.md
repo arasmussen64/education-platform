@@ -2,6 +2,33 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, evening: a visual lift, and lesson tables that were broken
+
+**What the owner asked.** "Act as a UI/UX expert. Make this app pretty and top tier."
+
+**How I looked first.** Docker wasn't running, so there was no local database to sign in to. I ran my own dev server (port 5199, stops itself) beside a small pretend database on the local Supabase address, serving an invented learner's five weeks of history from memory. That showed every signed-in page with real-looking numbers, in dark and light. Nothing real was read or written; the script lives outside the repository.
+
+**What I found.** The app was clean but read like a document: sentences where numbers belong, flat cards, 12px grey notes, the browser's own grey progress bars, a title no bigger than a section heading. And one real fault: **tables in lessons showed as a line of `|` characters**, in 41 lessons, many of them the ones written for ADR-0031's step 3.
+
+**What changed.** All inside Momentum: same colours, same fonts, lime still only "forward".
+
+- _Foundation_ (`index.css`, `styles.ts`): rounder cards with a soft shadow, one focus ring, eased hover and press, larger page titles, small capital labels, lower underlines, a lime text selection. `<progress>` and `<meter>` are styled once in CSS, so every bar in the app is a rounded track with a lime fill, and a memory under its 90% target is amber (a new colour, `fading`, used only as a fill).
+- _Header_: stays at the top of the window, slightly see-through, with the favicon's mark beside the name and the tabs in one rounded group.
+- _Today_: the date, then a session card whose sentence is a headline and whose numbers (reviews due, mistakes back, minutes) are large tiles. Next up and Practice hours are grids of cards per track with progress bars. The total practice time is a big number.
+- _Map_: topics are cards with a status label, lime for Learned, Mastered and Passed; each module has a bar for how much is proven; unopened topics have a dashed edge.
+- _Tables_: a small parser step, `tooling/remarkTable.ts`, used by lessons and by the Markdown in questions, with styles in `PROSE`.
+
+**Author notes:**
+
+- _No words were removed._ Every sentence the pages had is still there, so screen readers and tests read what they read before; the new tiles and bars are hidden from screen readers because the sentence beside each says the same. Cutting the Today page's explanations would be the next real gain, and that is a product choice, noted in the owner queue.
+- _Tables only, not all of GitHub's Markdown._ The full extension would also strike through `~text~` and link bare addresses in 499 topics written without either in mind. A test holds both as they were.
+- _Two new packages_, `micromark-extension-gfm-table` and `mdast-util-gfm-table` (MIT, free). **A running dev server needs a restart** (Ctrl+C, then `npm run dev`).
+- _The lime status label_ on the map counts as a progress fill, which the lime rule allows; it is a constant in `styles.ts` like the others, and the test that guards lime still passes unchanged.
+- _Amber is a fill beside words,_ never text and never the only signal: each bar sits next to "81%" or "Fading: review due".
+- _Seen:_ Today, the map, a lesson with tables and the account page, dark and light (light by overriding the colour values in the page, since the browser follows the system). _Not seen:_ a phone-width screen, the session and placement pages, the sign-in page, and Firefox, where the bar styles use different selectors that I wrote but did not view.
+
+**Next:** the owner's look at it; then the pages not yet touched (session, placement, account, sign-in) and phone width; then the directory-join lab and cloud Module 4.
+
 ## 2026-11-22, after step 3: start everything over
 
 **What the owner asked.** "I reset all my tracks but the today page still shows tracked time for practice hours. I want to wipe everything so I start fresh."

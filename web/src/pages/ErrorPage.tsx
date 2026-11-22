@@ -15,7 +15,7 @@ export function ErrorPage() {
 
   return (
     <section className="space-y-3">
-      <h1 className="text-2xl font-bold">Something went wrong</h1>
+      <h1 className="text-3xl font-bold sm:text-4xl">Something went wrong</h1>
       <p className="text-muted">
         This page couldn't load. If the app was updated since you opened it,
         reloading fixes it.

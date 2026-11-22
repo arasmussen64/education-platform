@@ -6,7 +6,24 @@
 // which exists only in dark mode, where the box is nearly the page's colour.
 
 export const BUTTON =
-  'rounded-md bg-ink px-4 py-2 text-sm font-medium text-card hover:bg-ink/85 disabled:opacity-50'
+  'rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-card shadow-sm hover:bg-ink/85 active:translate-y-px disabled:opacity-50'
+
+/** A page's title: the one big heading at its top. */
+export const PAGE_TITLE = 'text-3xl font-bold sm:text-4xl'
+
+/**
+ * A small label in capitals above a heading or a number: "Today's session",
+ * "Reviews due". Quiet, so the thing it names stands out.
+ */
+export const EYEBROW =
+  'text-xs font-semibold tracking-widest text-muted uppercase'
+
+/** A big number with its label under it: Gabarito, like a heading. */
+export const STAT_NUMBER = 'font-display text-3xl leading-none font-bold'
+
+/** A small rounded label: a state, a count, a time. */
+export const CHIP =
+  'inline-flex items-center gap-1 rounded-full border border-line bg-sunken px-2.5 py-0.5 text-sm font-medium whitespace-nowrap text-ink'
 
 /**
  * Code inside a line of text (Markdown `like this`), shaded and monospaced.
@@ -25,7 +42,7 @@ export const CODE_BOX =
 
 /** Readable text from Markdown or MDX: paragraphs, lists, inline and block code. */
 export const PROSE =
-  'space-y-3 leading-relaxed [&_a]:underline [&_code]:rounded [&_code]:bg-line [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-ink [&_:not(pre)>code]:wrap-anywhere [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-code [&_pre]:p-3 [&_pre]:text-sm [&_pre]:text-on-code dark:[&_pre]:border dark:[&_pre]:border-line-strong [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-on-code [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6'
+  'space-y-3 leading-relaxed [&_table]:block [&_table]:w-fit [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:rounded-lg [&_table]:border [&_table]:border-line-strong [&_table]:text-[0.95em] [&_th]:border-b [&_th]:border-line-strong [&_th]:bg-sunken [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-semibold [&_td]:border-t [&_td]:border-line [&_td]:px-3 [&_td]:py-1.5 [&_td]:align-top [&_a]:underline [&_code]:rounded [&_code]:bg-line [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-ink [&_:not(pre)>code]:wrap-anywhere [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-code [&_pre]:p-3 [&_pre]:text-sm [&_pre]:text-on-code dark:[&_pre]:border dark:[&_pre]:border-line-strong [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-on-code [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6'
 
 /**
  * A reading copied in from another site (ADR-0031): the prose styles, plus
@@ -33,10 +50,14 @@ export const PROSE =
  * page's own, a wide table or formula scrolls inside its box, and a picture
  * gets a light ground, since most diagrams are drawn for a white page.
  */
-export const READING = `${PROSE} [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_h4]:font-semibold [&_h5]:font-semibold [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_th]:border [&_th]:border-line-strong [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_td]:border [&_td]:border-line-strong [&_td]:px-2 [&_td]:py-1 [&_td]:align-top [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded [&_img]:bg-picture [&_blockquote]:border-l-2 [&_blockquote]:border-line-strong [&_blockquote]:pl-3 [&_dt]:font-semibold [&_dd]:pl-6 [&_math]:max-w-full [&_figcaption]:text-sm [&_figcaption]:text-muted`
+export const READING = `${PROSE} [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_h4]:font-semibold [&_h5]:font-semibold [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded [&_img]:bg-picture [&_blockquote]:border-l-2 [&_blockquote]:border-line-strong [&_blockquote]:pl-3 [&_dt]:font-semibold [&_dd]:pl-6 [&_math]:max-w-full [&_figcaption]:text-sm [&_figcaption]:text-muted`
 
 /** A bordered box for one practice item or exercise. */
-export const CARD = 'space-y-3 rounded-lg border border-line bg-card p-4'
+export const CARD =
+  'space-y-3 rounded-2xl border border-line bg-card p-4 shadow-card sm:p-5'
+
+/** The same surface without the spacing between children, for a grid tile. */
+export const TILE = 'rounded-2xl border border-line bg-card p-4 shadow-card'
 
 /**
  * Momentum's lime means "forward" and nothing else. Its classes are the
@@ -54,7 +75,7 @@ export const CARD = 'space-y-3 rounded-lg border border-line bg-card p-4'
  * session or the next part. Never two on one card.
  */
 export const PRIMARY_BUTTON =
-  'inline-block rounded-md bg-forward px-5 py-2.5 font-semibold text-on-forward hover:bg-forward-hover disabled:opacity-50'
+  'inline-block rounded-xl bg-forward px-6 py-3 font-semibold text-on-forward shadow-sm ring-1 ring-forward-edge/40 ring-inset hover:bg-forward-hover active:translate-y-px disabled:opacity-50'
 
 /**
  * The filled part of something that shows progress: a week practised, a
@@ -75,8 +96,19 @@ export const PROGRESS_BAR = 'accent-forward'
 export const YOU_ARE_HERE =
   'border-forward-edge bg-forward font-medium text-on-forward'
 
+/**
+ * A progress fill drawn by the page itself: a rounded track with a lime
+ * fill whose width is set inline. For a bar that only repeats a count the
+ * words beside it give, so it is hidden from screen readers.
+ */
+export const BAR_TRACK = 'h-2 overflow-hidden rounded-full bg-line'
+export const BAR_FILL = `h-full rounded-full border ${PROGRESS_FILL}`
+
+/** The label of something done: Learned, Mastered, Passed. A progress fill. */
+export const DONE_CHIP = `inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-sm font-medium whitespace-nowrap ${PROGRESS_FILL}`
+
 export const SECONDARY_BUTTON =
-  'rounded-md border border-line-strong px-3 py-1.5 text-sm font-medium text-ink hover:bg-sunken disabled:opacity-50'
+  'rounded-lg border border-line-strong bg-card px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-sunken active:translate-y-px disabled:opacity-50'
 
 export const TEXT_INPUT =
-  'mt-1 block w-full rounded-md border border-line-strong bg-card px-3 py-2 text-sm text-ink'
+  'mt-1 block w-full rounded-lg border border-line-strong bg-card px-3 py-2 text-sm text-ink'
