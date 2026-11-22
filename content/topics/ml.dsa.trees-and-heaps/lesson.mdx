@@ -2,11 +2,265 @@
 
 A **tree** is the shape of anything nested: a file system, a company, a JSON document, a decision. This topic builds one from nodes with children and walks it two ways; then meets the two trees that algorithms lean on, the **binary search tree**, whose shape decides whether a search is 10 steps or 1,000, and the **heap**, which keeps the best few of a stream without sorting it; and ends with a **decision tree**, the first machine-learning model that is a data structure you can read.
 
-The main resource is **_Problem Solving with Algorithms and Data Structures using Python_, chapter 6**: examples and vocabulary (6.2, 6.3), tree traversals (6.8), binary heaps (6.9 to 6.11) and binary search trees (6.12 to 6.14); about 45 minutes. The `heapq` documentation's theory section is the clearest short account of the heap invariant. Watch for:
+The worked example does all of that on a tree of eight nodes, a thousand numbers, a stream of ten thousand and three flowers; this lesson builds each idea first, on a shop's categories, a handful of numbers, a list of waiting times and the question of how to get to work.
 
-- **Parent, child, leaf, depth**: the vocabulary everything else uses.
-- **Pre-order** is the book's name for the depth-first walk; the book's traversal section has no breadth-first (level-by-level) walk, so the worked example teaches that one.
-- **The heap invariant** (a rule that stays true after every push and pop): every parent is no larger than its children.
+**The words.** A tree is made of **nodes**. Each node holds something (a name, a number) and has zero or more **children**, the nodes directly under it; it is their **parent**. One node, the **root**, has no parent and is where the tree starts; trees are drawn with the root at the top. Every other node has exactly one parent. A node with no children is a **leaf**. A node together with everything under it is a **subtree**, and it is a tree in its own right, with that node as its root. That fact is why recursion fits trees so well.
+
+Because every node has one parent, there is exactly one way down from the root to any node, and following children never brings you back to a node you have already visited: a tree has no **cycles**. The root is on level 1, its children on level 2, their children on level 3. The **depth** of a tree is its number of levels, so a tree that is only a root has depth 1. (Some books count the steps between levels instead of the levels, and get a number one smaller. This topic counts levels.)
+
+**A tree in Python** is nodes that hold their children. A node can be a dict with a list of child dicts, or an object of a small class with a `children` list; the two work the same way. Here are a hardware shop's categories, each with the number of products filed directly under it:
+
+```python
+def node(name, products, children=()):
+    return {"name": name, "products": products, "children": list(children)}
+
+
+shop = node(
+    "shop",
+    0,
+    [
+        node("tools", 4, [node("saws", 12), node("drills", 9, [node("cordless", 6)])]),
+        node("paint", 30),
+        node("garden", 2, [node("seeds", 45), node("hoses", 8)]),
+    ],
+)
+```
+
+`shop` is the root. It has three children; `paint` and four others are leaves, with an empty `children` list; and the longest way down is shop, tools, drills, cordless, so the depth is 4.
+
+**Depth-first: a node, then everything under it.** A **traversal** is a walk that visits every node once. The first kind follows the nesting: visit a node, then the whole subtree of its first child, then the whole subtree of its second child, and so on. Since each subtree is a tree, the function that does it calls itself on each child:
+
+```python
+def show(node, level=0):
+    print("    " * level + node["name"])
+    for child in node["children"]:
+        show(child, level + 1)  # this child's whole subtree, then the next child
+
+
+show(shop)
+```
+
+```
+shop
+    tools
+        saws
+        drills
+            cordless
+    paint
+    garden
+        seeds
+        hoses
+```
+
+Read the order down the page: after `tools` comes everything inside tools, `cordless` included, before `paint` gets a turn. That is **depth-first** traversal: it goes as deep as it can before it moves sideways. The base case, the call that doesn't call itself, is a leaf: its `children` list is empty, so the loop does nothing. The call stack from the last topic remembers, at every level, which child comes next. An indented listing like this one, a folder followed by all that is in it, is always a depth-first walk. The same walk can be written as a loop with a list used as a stack: pop a node, handle it, push its children.
+
+**Breadth-first: level by level.** The other walk visits the root, then all of its children, then all of their children: one level at a time. It can't be done by following the nesting, because `paint` has to come before `saws`, which is inside `tools`. It needs a waiting line, and that is the queue from the last topic, a `deque`: take a node from the front, and put its children at the back.
+
+```python
+from collections import deque
+
+
+def level_by_level(root):
+    order = []
+    queue = deque([root])
+    while queue:
+        node = queue.popleft()  # the front: the node that has waited longest
+        order.append(node["name"])
+        queue.extend(node["children"])  # the back: behind everything already waiting
+    return order
+
+
+print(level_by_level(shop))
+```
+
+```
+['shop', 'tools', 'paint', 'garden', 'saws', 'drills', 'seeds', 'hoses', 'cordless']
+```
+
+Follow the queue. It starts holding the shop. Taking the shop puts tools, paint and garden at the back. Taking tools puts saws and drills behind garden, so paint and garden, which were already waiting, come out first. That is the whole trick: a node's children wait behind every node of the level above them. This is **breadth-first** traversal. Because it meets the levels in order, the first node it finds that matches some test is the one nearest the root, so it is the walk to use for "the shallowest thing that...".
+
+Both walks visit every node once; only the order differs, and the order is the point. One small change turns one into the other: write `queue.pop()` instead of `queue.popleft()` and the newest node is taken instead of the oldest, the queue has become a stack, and the walk runs down one branch (the last child's, this way round) before it looks at the others. That is depth-first again.
+
+<Check item="predict-a-walk" />
+
+**Adding up over a tree.** Many questions about a tree have the same recursive answer: something about this node, combined with the answers for each child's subtree. How many products does a category hold, counting everything under it?
+
+```python
+def total(node):
+    return node["products"] + sum(total(child) for child in node["children"])
+
+
+print(total(shop), total(shop["children"][0]), total(shop["children"][1]))
+```
+
+```
+116 31 30
+```
+
+`total(child) for child in node["children"]` inside `sum(...)` is a generator expression: it hands `sum` each child's total in turn. Tools holds 4 of its own, plus 12 for saws, plus 15 for drills (9 and the 6 under cordless): 31. For a leaf such as paint the generator yields nothing, `sum` of nothing is 0, and the answer is the leaf's own 30. So the base case needs no `if`.
+
+The number of nodes in a tree has the same shape (this node, plus the count for each child's subtree), and so does the depth (one level for this node, on top of the deepest child's subtree). The deepest child is a job for `max`, and `max` has a catch that `sum` doesn't: it raises `ValueError` when it is given nothing, as it would be at a leaf. Its `default=` argument says what to answer then:
+
+```python
+print(max([4, 9, 2]), max([], default=0))
+```
+
+```
+9 0
+```
+
+**A binary search tree.** A **binary tree** is a tree in which every node has at most two children, kept in two named places, `left` and `right`, instead of a list. A **binary search tree** adds one rule about what goes where: everything in a node's left subtree is smaller than the node's value, and everything in its right subtree is larger. The rule holds at every node, not only at the root. Here is one holding eight numbers:
+
+```
+            41
+          /    \
+        17      68
+       /  \    /  \
+      9    30 52   77
+          /
+        25
+```
+
+Everything to the left of 41 is below 41. Within that, 9 is left of 17 and 30 is right of it; 25 is right of 17 but left of 30.
+
+**Searching is one walk down.** To look for 25, start at the root and compare. 25 is smaller than 41, so if it is here at all it is in the left subtree: go left, and forget the whole right half. 25 is larger than 17: go right. Smaller than 30: go left. There it is, after 4 comparisons in a tree of 8. To look for 60: larger than 41, go right; smaller than 68, go left; larger than 52, go right, and there is nothing there. The walk has fallen off the tree, and that proves 60 is absent, because the rule left it nowhere else to be. In code the walk is a loop that holds one node at a time, stops when the value matches, and otherwise replaces the node by its left or right child until the node is `None`.
+
+**Inserting is the same walk.** Walk down as if searching, and where the walk would fall off, hang the new node:
+
+```python
+class Node:
+    def __init__(self, value):
+        self.value = value
+        self.left = None  # no child on this side yet
+        self.right = None
+
+
+def insert(root, value):
+    if root is None:
+        return Node(value)  # an empty tree: the new node is the root
+    node = root
+    while True:
+        if value < node.value:
+            if node.left is None:
+                node.left = Node(value)  # an empty place: hang it here
+                return root
+            node = node.left
+        else:
+            if node.right is None:
+                node.right = Node(value)
+                return root
+            node = node.right
+
+
+root = None
+for value in (41, 17, 68, 9, 30, 52, 77, 25):
+    root = insert(root, value)
+print(root.value, root.left.value, root.right.value, root.left.right.left.value)
+```
+
+```
+41 17 68 25
+```
+
+That built the tree in the drawing: 41 went in first and became the root, and 25, last, walked left, right, left to its place. `None` is Python's "nothing here", and `is None` is the way to test for it. The function returns the root so that the first call, on an empty tree, has a way to hand the new root back; that is why the loop says `root = insert(root, value)`. The `else` side takes a value equal to the node's as well, so duplicates go right.
+
+Two pieces of Python you will see in other versions of this code. `a if test else b` is an expression: its value is `a` when the test is true and `b` when it isn't, so `"left" if value < node.value else "right"` is one of two strings. And `getattr(node, "left")` means `node.left`, with the attribute's name given as a string, while `setattr(node, "left", new)` means `node.left = new`. Together they let one piece of code serve both sides.
+
+Notice that both walks are loops, though recursion would be natural. The next part shows a tree that is thousands of levels deep, and the last topic's limit of about 1,000 nested calls would stop a recursive walk with `RecursionError`.
+
+**The shape decides the cost.** A search makes one comparison on each level it passes, so its cost is at most the depth of the tree. How deep is a tree of `n` values? That depends on its shape. At best every level is full: 1 node, then 2, then 4, doubling each time. Such a tree is **balanced**, and 20 full levels hold 1,048,575 values. So a balanced tree of a million values is 20 levels deep and a search takes at most 20 comparisons: each step down throws away half of what is left, exactly as binary search does on a sorted list. That is `log2 n`, and a balanced search tree is `O(log n)` to search and to insert into.
+
+Nothing in `insert` keeps the tree balanced. The order in which the values arrive decides the shape. Insert the same eight numbers in increasing order:
+
+```python
+chain = None
+for value in (9, 17, 25, 30, 41, 52, 68, 77):
+    chain = insert(chain, value)
+print(chain.value, chain.left, chain.right.value, chain.right.right.value)
+```
+
+```
+9 None 17 25
+```
+
+Every value is larger than all the ones before it, so it walks right at every node and hangs off the right of the one before. No node has a left child. The "tree" is a chain 8 levels deep, and finding 77 takes 8 comparisons: a scan of a list, with the extra cost of following a reference at each step. With a million sorted ids the chain is a million deep, and so is every search for a large id. And **already sorted** is not a rare order: ids, timestamps and anything read from a sorted file arrive that way.
+
+There are two cures. The cheap one is to shuffle the values before inserting them. A shuffled order doesn't give a perfect tree, but it gives a good one: of 100,000 values inserted in three different shuffled orders, the deepest sat between level 39 and level 42, and the average value on about level 21, where a perfect tree would have 17 levels and the sorted order makes 100,000. The lasting cure is a **self-balancing tree**, which rearranges itself a little on every insert so that it can never become a chain. AVL trees and red-black trees are two kinds, and the B-trees inside databases are a third. For now their names are enough.
+
+Python has no search tree built in, because two things you know cover most of its work. A dict finds an exact key in about one step, but keeps nothing in order of size. A sorted list with binary search finds a value in the same `log2 n` steps as a balanced tree. What the tree does better than the sorted list is take new values: it hangs one node, where a list has to shift everything after the insertion point.
+
+<Check item="mcq-a-tree-that-became-a-chain" />
+
+**A heap: the smallest, always on top.** Some jobs never look anything up; they only ever ask for the smallest thing they hold. Which task is most urgent, which event comes next. A **heap** is a binary tree built for that one question, with a looser rule than a search tree's: every parent is no larger than its children. Nothing is said about left against right. A rule that stays true after every operation is called an **invariant**, and this one is the heap invariant. It puts the smallest value at the root, since no value can sit above a smaller one.
+
+Python's `heapq` module keeps a heap inside an ordinary list, with no node objects. The root is at index 0, and the children of the value at index `i` are at indexes `2 * i + 1` and `2 * i + 2`. Here are six waiting times in minutes, pushed one at a time:
+
+```python
+import heapq
+
+heap = []
+for minutes in (31, 47, 12, 8, 25, 19):
+    heapq.heappush(heap, minutes)
+print(heap)
+print(heap[0])
+print(heapq.heappop(heap), heapq.heappop(heap), heapq.heappop(heap))
+print(heap)
+```
+
+```
+[8, 12, 19, 47, 25, 31]
+8
+8 12 19
+[25, 47, 31]
+```
+
+Read the first list as a tree, level by level:
+
+```
+         8
+       /   \
+     12     19
+    /  \    /
+  47    25 31
+```
+
+8 is at index 0. Its children are at indexes 1 and 2: 12 and 19. The children of 12 are at indexes 3 and 4 (47 and 25), and the one child of 19 is at index 5 (31). Every parent is no larger than its children, and that is all. The list is **not sorted**: 47 comes before 25, and the largest value is in the middle. The only position a heap promises is `heap[0]`, the smallest.
+
+`heapq.heappush(heap, value)` adds a value and `heapq.heappop(heap)` removes and returns the smallest, and each repairs the invariant on the way. A push puts the new value at the end of the list and swaps it with its parent for as long as it is the smaller of the two. When 8 was pushed onto `[12, 47, 31]` it went in at index 3, swapped with its parent 47, then with 12, and reached the top. A pop takes the root, moves the last value into its place, and swaps that value down with its smaller child until it fits. Either way one value travels along one path between the top and the bottom. The list has no gaps, so the tree's levels are always full except the last, and a heap is always balanced: a push or a pop costs at most about `log2 n` swaps, 20 for a heap of a million. Reading `heap[0]` costs one step.
+
+Popping again and again hands the values out in increasing order, 8, 12, 19 above. That is the only way a heap gives you order. It makes a heap a **priority queue**: a queue where what comes out next is not the oldest item but the smallest. Push tuples such as `(2, "email the team")` and the smallest first item comes out first, because Python compares tuples by their first items. The next topic's shortest-path search runs on one.
+
+The mistake to avoid: the heap is a plain list, so every list method still works on it, and none of them knows the rule. `heap.pop()` removes the last item in the list, which is whatever happens to be at the end, not the smallest. `heap[-1]` is not the largest. A `for` loop over the heap doesn't go in order. Add with `heappush`, remove with `heappop`, and when you want the contents in order, sort a copy with `sorted(heap)`.
+
+`heapq` makes **min-heaps**, with the smallest on top. A **max-heap** is the mirror image, with the largest on top; the usual way to get one from `heapq` is to push each value negated.
+
+<Check item="mcq-what-a-heap-promises" />
+
+**The top k of a stream.** A **stream** is data that arrives one value at a time, often too much to keep. Suppose you want the 3 largest of the values going by. You are keeping a shortlist of 3, and for each new value the question is: does it beat the worst value on my shortlist? The worst of the best 3 is the **smallest** of them. So the shortlist is a min-heap, which is a surprise the first time: to keep the largest values, you keep the smallest on top, because the smallest is the one you compare against and throw out.
+
+The method: push each value onto the heap, and whenever the heap holds more than `k` values, pop the smallest. Follow it with `k` as 3 on the stream 14, 52, 7, 33, 61, 20, 45. The first three go in, and the heap holds 7, 14 and 52. Push 33: four values, so pop the smallest, 7. Push 61 and pop 14. Push 20: it is now the smallest itself, and it is popped straight back out. Push 45 and pop 33. The heap ends holding 45, 52 and 61, the three largest, and its list reads `[45, 61, 52]`: smallest first, the rest in no order. So the last step is to sort those `k` values, largest first, which costs almost nothing when `k` is small.
+
+**What it saves.** The heap never holds more than `k + 1` values, so each push and each pop costs about `log2 k` steps, and only `k` values are in memory, however long the stream. For ten million scores and the best 10 that is about 3.3 steps for each push or pop, some tens of millions of steps altogether: `O(n log k)`. Sorting everything to read off the top 10 costs about `n * log2 n`, which is about 233 million comparisons, and needs all ten million in memory at once. Sorting again each time a new score arrives pays that price over and over. The standard library wraps the job up as `heapq.nlargest(k, values)`.
+
+**A decision tree** is a model you can read: a tree of questions about a record's **features** (its measured values), with an answer at each leaf. Should you cycle to work today?
+
+```python
+tree = ("rain_mm", 1.0, "bus", ("wind_kmh", 35, "bus", "bike"))
+feature, threshold, if_greater, if_not = tree
+print(feature, threshold, if_greater, if_not)
+```
+
+```
+rain_mm 1.0 bus ('wind_kmh', 35, 'bus', 'bike')
+```
+
+Each question is a tuple of four things: the feature to look at, a **threshold** to compare it with, what to do if the feature is greater than the threshold, and what to do if it isn't. Each of those last two is either a string, which is an answer and a leaf, or another tuple, which is the next question. The second line unpacks the root question into four names.
+
+To decide for a day with no rain and a 50 km/h wind, start at the root. Is 0.0 greater than 1.0? No, so take the `if_not` branch, which is a tuple: another question. Is 50 greater than 35? Yes: `"bus"`. Two questions. For a day with 6.5 mm of rain, the first question answers yes and its branch is the string `"bus"`: one question. For a day with exactly 1.0 mm of rain and a wind of exactly 35, neither value is **greater** than its threshold, so both answers are no, and the result is `"bike"`. A value equal to the threshold goes to the "not greater" side. As code, this is a loop: while the thing in hand is a tuple, which `isinstance(tree, tuple)` tests, unpack it, compare, and replace it with the branch chosen; when it is a string, that is the answer.
+
+**The cost of a prediction is the depth, not the size.** Each question sends the record to one child, never both, so a prediction visits one node on each level and stops at a leaf. It walks one path. A tree with 10,000 nodes sounds like 10,000 rules to check, but if it is balanced it has only 14 levels (13 full levels hold 8,191 nodes and 14 hold 16,383), so a prediction asks at most a dozen or so questions. Trees that are trained from data are usually given a limit on depth as well, a few dozen levels at most. The number of nodes matters for memory and for how long training takes. How the questions are learned from data is a later module; reading and walking the tree is this one.
+
+**Going deeper (optional).** The lesson above covers everything this topic's questions, exercises and explanation ask, so none of the outside pages is needed. Chapter 6 of _Problem Solving with Algorithms and Data Structures using Python_, offered below, goes through trees, binary heaps and binary search trees at more length, writes a heap's push and pop from scratch, and shows how to delete from a search tree; it calls the depth-first walk used here **pre-order** and gives two other orders beside it. The `heapq` page in the Python documentation lists the module's other functions, and its theory section pictures the heap as a tournament and says where heaps are used. Chapter 6 of _Open Data Structures_ treats binary trees and binary search trees more formally, and counts depth in steps from the root, so its numbers are one smaller than this lesson's.
 
 </Intro>
 

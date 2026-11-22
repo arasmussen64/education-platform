@@ -2,13 +2,224 @@
 
 Here's a surprise waiting for every new programmer: you make a list, give it a second name, change the second one, and the first one changes too. It isn't a bug. It's how Python's names work, and once you see it clearly it never surprises you again. It matters more and more from here: in Module 6 and in machine learning, where huge arrays are passed around, a hidden shared list is one of the most common bugs there is.
 
-This topic has no lecture clip. Instead:
+This topic has no lecture clip: the lesson is this page. Read it with the examples in mind, then the worked example straight after it runs the same ideas for you.
 
-1. **Open the first Python Tutor link** (below) and press **Next >** one step at a time. Watch the arrows on the right: `b = a` draws a second arrow to the *same* list, and `b.append(4)` grows the one list both arrows point at. Then `c = a[:]` makes a *new* list, and `c.append(5)` touches only that.
-2. **Read Ned Batchelder's article** (under *More resources*), at least as far as "Python passes function arguments by assigning to them". Each idea is labelled a *fact* or a *myth*; the facts about names referring to values, assignment never copying, and changes showing through every name are the ones to take away. The diagrams are the same arrows Python Tutor draws.
-3. **Open the second Python Tutor link** and watch two functions: one that *changes* the caller's list through its parameter, and one that only points its own name at a new list, leaving the caller's list alone.
+**A name is a label on a value, not a box that holds it.** When Python runs `guests = ["Ana", "Ben"]`, it does two separate things. First it builds the list, somewhere in the computer's memory. Then it makes the name `guests` refer to that list. A **reference** is that link from a name to a value: the name says where the value is, and it doesn't contain it. Drawn as a picture, with an arrow for the reference:
 
-The PyCon talk is the same material as the article, as a half-hour video, if you'd rather watch.
+```
+guests ----> ["Ana", "Ben"]
+```
+
+Until now you could think of a variable as a box with a value inside, and nothing went wrong. From here on, the arrow is the picture to keep.
+
+**Assignment never copies.** Here is the line that surprises people:
+
+```python
+guests = ["Ana", "Ben"]
+invited = guests
+```
+
+`invited = guests` does not build a second list. It reads "make the name `invited` refer to whatever `guests` refers to". There is still one list, and now it has two names:
+
+```
+guests ----+
+           +----> ["Ana", "Ben"]
+invited ---+
+```
+
+A second name for the same value is called an **alias**. Neither name is the "real" one; they are equals. So when the list is changed through one name, the other name shows the change, because there is only one list to change:
+
+```python
+guests = ["Ana", "Ben"]
+invited = guests
+invited.append("Cleo")
+print(guests)
+```
+
+```
+['Ana', 'Ben', 'Cleo']
+```
+
+Nobody touched `guests` by name, and it still grew. The mistake to avoid is reading `invited = guests` as "make a copy called `invited`". No `=` in Python ever copies a list.
+
+<Check item="mcq-alias" />
+
+**Changing the list, or pointing the name somewhere else.** Two things look alike here and are opposites.
+
+Changing a value itself, without making a new one, is called **mutation**, and the value is said to change **in place**. Everything you learned to do to a list is a mutation: `append`, `del items[0]`, `items[0] = ...`, `items.sort()`. A mutation shows through every name that refers to the list.
+
+Assigning to a name is not a mutation. `invited = ["Zoe"]` builds a new list and moves the `invited` arrow to it. The old list is not touched, and `guests` still refers to it:
+
+```python
+guests = ["Ana", "Ben"]
+invited = guests
+invited = ["Zoe"]
+print(guests)
+print(invited)
+```
+
+```
+['Ana', 'Ben']
+['Zoe']
+```
+
+```
+guests ----> ["Ana", "Ben"]
+
+invited ---> ["Zoe"]
+```
+
+To tell them apart, look at what is on the left of the `=`. A bare name (`invited = ...`) moves that name's arrow and changes no list. A name with square brackets (`invited[0] = ...`), or a method call such as `invited.append(...)`, changes the list the name refers to, and every alias sees it.
+
+**Why this never showed up with numbers and strings.** Names work the same way for every kind of value: `saved = count` also makes two names for one number. The difference is that a number or a string has nothing you can change in place. There is no `append` for the number 5. Every operation on a number or a string builds a new value, and the name is moved to it:
+
+```python
+count = 5
+saved = count
+count += 1
+print(saved)
+print(count)
+```
+
+```
+5
+6
+```
+
+`count += 1` worked out a new number, 6, and pointed `count` at it. `saved` still refers to 5. Strings are the same: `word.upper()` gives back a new string and leaves `word` as it was, which is why you always had to write `word = word.upper()` to keep the result. A value that can be changed in place, like a list, is called _mutable_; one that can't, like a number or a string, is _immutable_. Sharing only matters for mutable values, so lists are where you first meet it. Dictionaries, next topic, are mutable too.
+
+**Making a real copy.** Sometimes you do want a second list: one to change while the first stays as it was. You have to ask for it. Three ways, all doing the same thing:
+
+- `list(temps)` builds a new list from the items of `temps`.
+- `temps[:]` is a slice from the start to the end, and a slice of a list is always a new list.
+- `temps.copy()` says it in a word.
+
+```python
+temps = [18, 21, 25]
+morning = list(temps)
+del morning[2]
+print(temps)
+print(morning)
+```
+
+```
+[18, 21, 25]
+[18, 21]
+```
+
+```
+temps -----> [18, 21, 25]
+
+morning ---> [18, 21]
+```
+
+Two lists, one name each. They started with the same items, and from then on each goes its own way. The classic mistake is a "backup" made with `backup = temps`: that is an alias, so the backup changes along with the thing it was meant to protect. A copy is also taken at one moment: it holds the items the list had when the copy was made, and never hears about later changes.
+
+Adding two lists with `+` also builds a new list: `first + ["c"]` gives a new list with the items of `first` and then `"c"`, and `first` itself stays as it was.
+
+**Equal, or the very same list?** Two questions can be asked about two lists, and Python has an operator for each. `==` asks whether they have the same contents: the same items in the same order. `is` asks whether they are one and the same list: two arrows ending at one place.
+
+```python
+red = ["cherry", "plum"]
+also_red = red
+twin = ["cherry", "plum"]
+print(red == also_red, red is also_red)
+print(red == twin, red is twin)
+```
+
+```
+True True
+True False
+```
+
+`also_red` is an alias, so it is equal to `red` (one list always equals itself) and it is `red`. `twin` was built by its own pair of square brackets, so it is a different list that happens to match: equal, but not the same one. That gives you a test for the question this whole topic turns on. If `x is y` is `True`, a change through `x` will show in `y`. If it is `False`, it won't, however alike the two lists look. For everyday comparing ("are these the same scores?"), `==` is the one you want.
+
+**Calling a function is an assignment.** When you call `mark_done(chores)`, Python does for the parameter what `=` does: it makes the parameter name refer to the value that was passed in. Nothing is copied. While the function runs, its parameter is an alias for the caller's list:
+
+```
+chores (the main program) ---+
+                             +----> ["dishes", "laundry"]
+tasks (inside mark_done) ----+
+```
+
+So everything above applies inside a function, and the same two cases appear:
+
+```python
+def mark_done(tasks):
+    tasks[0] = "done"
+
+
+def start_over(tasks):
+    tasks = []
+
+
+chores = ["dishes", "laundry"]
+mark_done(chores)
+print(chores)
+start_over(chores)
+print(chores)
+```
+
+```
+['done', 'laundry']
+['done', 'laundry']
+```
+
+`mark_done` mutates the list that `tasks` refers to, and that list is the caller's `chores`, so the caller sees the change after the function has returned. `start_over` assigns to the bare name `tasks`: it moves the function's own arrow to a new empty list, and that name vanishes when the function returns (it is local, as in Scope and the call stack). The caller's list was never touched. A line like `tasks = tasks + ["iron"]` inside a function is the second kind too: `+` builds a new list, and only the local name is pointed at it. A function that only reads its list (`len(tasks)`, a `for` loop over it, `sum` of a list of numbers) changes nothing either.
+
+<Check item="mcq-function-changes" />
+
+**`return` doesn't copy either.** Returning a list hands back a reference to it, the same as assignment does. A function that mutates its parameter and then returns it gives the caller back their own list:
+
+```python
+def in_order(names):
+    names.sort()
+    return names
+
+
+team = ["Mo", "Al", "Jo"]
+result = in_order(team)
+print(team)
+print(result is team)
+```
+
+```
+['Al', 'Jo', 'Mo']
+True
+```
+
+The caller got a sorted `result` and probably believes `team` is still in its old order. It isn't: `result` and `team` are one list, and it has been sorted.
+
+**Two honest kinds of function.** A function that works on a list should be clearly one kind or the other:
+
+- It **changes the list it's given** and returns `None`, as `append` and `sort` do. The `None` is a signal: there is no new list to collect, the change has already happened.
+- It **returns a new list and leaves the one it's given alone**, as `sorted` does.
+
+Prefer writing the second kind. The caller keeps the original, nothing far away changes behind anyone's back, and the function is easy to test: same list in, same answer out. There are two ways to write one. Either build the result from nothing, with the empty list, loop and `append` pattern from List algorithms, which never touches the argument. Or copy first and then change the copy:
+
+```python
+def in_order(names):
+    """Return a new sorted list; the list given is unchanged."""
+    result = list(names)
+    result.sort()
+    return result
+
+
+team = ["Mo", "Al", "Jo"]
+print(in_order(team))
+print(team)
+```
+
+```
+['Al', 'Jo', 'Mo']
+['Mo', 'Al', 'Jo']
+```
+
+(`sorted(names)` does exactly this in one step.) Either way, say which kind the function is in its docstring, as this one does, so that whoever calls it doesn't have to read the body to find out.
+
+**Watch it happen.** The worked example that follows has a **Step through** button beside Run. It plays the program one line at a time and shows every variable's value after each line. Watch for the step where a single `append` changes two variables at once: those two names are aliases. Step through shows values, not arrows, so two equal lists look the same there as one shared list; when you need to know which you have, add a line such as `print(a is b)`. The Playground, in the menu at the top, has the same button for any program you paste in, including the examples on this page.
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. The two Python Tutor pages (the first is linked below) run short programs like the ones here and draw the arrows for you as boxes and pointers, one step at a time: the first shows an alias and a copy, the second a function that changes its caller's list beside one that only moves its own name. Ned Batchelder's article "Facts and myths about Python names and values" goes further into how names work, including that the items inside a list are references too, and his PyCon talk is the same material as a half-hour video.
 
 </Intro>
 

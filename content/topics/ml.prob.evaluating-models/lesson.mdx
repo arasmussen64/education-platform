@@ -2,11 +2,183 @@
 
 A model is only as good as the number you can honestly report for it, and this topic is how to earn that number. Three **splits** keep fitting, choosing and reporting apart; the **confusion matrix** turns a classifier's answers into four counts and the metrics that come from them, because accuracy alone can hide a useless model; the sampling topic's standard error puts an interval on an accuracy; and a **paired bootstrap** says whether one model really beats another on the same examples. The worked example judges two classifiers on 200 held-out examples with every tool in the module.
 
-The main resource is **Google's Machine Learning Crash Course, the classification pages** on thresholds, the confusion matrix, and accuracy, recall and precision; about 30 minutes of reading with small interactive exercises. Wikipedia's _Precision and recall_ has the definitions and the standard picture. Watch for:
+**A score, a threshold, a yes or no.** A **classifier** is a model that sorts examples into classes, and this topic is about the kind with two: yes or no. Say a help desk trains one to read each incoming ticket and flag the urgent ones. The class the model is looking for is called **positive** (here, urgent) and the other **negative**. The words say nothing about good or bad: for a fraud detector, a positive is a fraud.
 
-- **Four counts** behind every classification metric.
-- **Which mistake costs more** decides which metric to watch.
-- **The threshold is a choice**, made on validation data.
+As Loss functions showed, such a model doesn't answer yes or no directly. It gives each example a **score**, here a number from 0 to 1, higher the surer it is of a yes. Somebody then picks a **threshold**: the model says yes when the score is above it. Twelve tickets, their scores, and what a person later said each one really was (the **labels**, 1 for urgent):
+
+```python
+import numpy as np
+
+score = np.array([0.95, 0.1, 0.7, 0.62, 0.45, 0.05, 0.8, 0.3, 0.55, 0.35, 0.2, 0.4])
+y = np.array([1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0])
+pred = (score > 0.5).astype(int)
+print(pred)
+print(y)
+```
+
+```
+[1 0 1 1 0 0 1 0 1 0 0 0]
+[1 0 0 1 0 0 1 0 0 1 0 0]
+```
+
+`score > 0.5` gives an array of `True` and `False`, and `.astype(int)` turns those into 1s and 0s: the model's **predictions** at a threshold of 0.5. Comparing the two printed rows, position by position, is all of evaluation. The rest of this topic is how to count the comparison honestly.
+
+**Four kinds of answer.** Each prediction can be right or wrong in two ways, which makes four kinds:
+
+|                 | Really urgent                               | Really not urgent                        |
+| --------------- | ------------------------------------------- | ---------------------------------------- |
+| **Flagged**     | **true positive**: 3 tickets                | **false positive**: 2, a false alarm     |
+| **Not flagged** | **false negative**: 1, an urgent one missed | **true negative**: 6, rightly left alone |
+
+Read each name backwards. The second word is what the model said (positive means it flagged the ticket). The first word is whether that was right. So a false negative is a "no" that was wrong: a real case, missed. The four counts are written `tp`, `fp`, `fn` and `tn`, and the table that holds them is the **confusion matrix**. It shows which answers the model confuses with which.
+
+To count one box in NumPy, write the two conditions and join them with `&`, which is "and" for arrays: `True` only where both sides are `True`. Summing counts the `True`s, because `True` counts as 1:
+
+```python
+hit = (pred == 1) & (y == 1)
+print(hit)
+print(hit.sum())
+```
+
+```
+[ True False False  True False False  True False False False False False]
+3
+```
+
+That is `tp`. The other three boxes are the same line with a different pair of conditions: flagged and really 0 for `fp`, not flagged and really 1 for `fn`, not flagged and really 0 for `tn`. The brackets round each condition are needed, because `&` binds more tightly than `==`. The sum is a NumPy number, so wrap it in `int()` when you want a plain one. The four counts always add up to the number of examples, here 3 + 2 + 1 + 6 = 12, which makes a quick check.
+
+**Accuracy, and how it flatters.** **Accuracy** is the fraction of answers that were right: `(tp + tn) / n`, where `n` is the number of examples. For the twelve tickets it is 9 of 12, 0.75.
+
+Accuracy counts every example alike, and that is its weakness when one class is rare. Suppose that out of 1,000 tickets only 50 are urgent, and a model flags 60 of the 1,000, 36 of them rightly. Its counts are `tp` 36, `fp` 24, `fn` 14 and `tn` 926, so its accuracy is 962 of 1,000, or 0.962. That sounds excellent until you score a "model" that never flags anything. It gets all 950 ordinary tickets right and all 50 urgent ones wrong: an accuracy of 0.95, for finding nothing. This do-nothing score is the **baseline**: the fraction of examples in the larger class. An accuracy means little until you know the baseline it has to beat, and the rarer the positive class, the higher that baseline sits.
+
+**Precision and recall: two different questions.** Accuracy hides the mistakes inside the big pile of easy negatives. Two other numbers look only at the positives, each from one side:
+
+- **Precision** starts from what the model flagged: of the tickets it flagged, what fraction really were urgent? That is `tp / (tp + fp)`, since everything flagged is either a true or a false positive. The model above flagged 60 and was right about 36: 0.6.
+- **Recall** starts from what was really there: of the tickets that really were urgent, what fraction did the model find? That is `tp / (tp + fn)`, since every real positive was either found or missed. There were 50 urgent tickets and it found 36: 0.72.
+
+The top of both fractions is `tp`. Only the bottom differs, and swapping the two bottoms is the classic slip. A way to keep them apart: precision is about the model's alarms (can I believe a flag?), recall is about the real cases (did any get away?). The never-flags model has a recall of 0, which exposes it at once. Its precision is 0 divided by 0, which has no value at all; with plain numbers, Python stops with a `ZeroDivisionError`.
+
+Neither number is enough alone. Flag every ticket and recall is a perfect 1, with a precision of only 0.05, because 50 of the 1,000 flags are right. Flag only the single ticket you are surest of and precision is probably 1, while recall is 1 in 50.
+
+<Check item="predict-a-confusion-matrix" />
+
+**The threshold trades one for the other.** Go back to the twelve tickets and move the threshold:
+
+| Threshold | Flagged | `tp` | `fp` | `fn` | `tn` | Precision | Recall | Accuracy |
+| --------- | ------- | ---- | ---- | ---- | ---- | --------- | ------ | -------- |
+| 0.25      | 9       | 4    | 5    | 0    | 3    | 0.444     | 1.0    | 0.583    |
+| 0.5       | 5       | 3    | 2    | 1    | 6    | 0.6       | 0.75   | 0.75     |
+| 0.75      | 2       | 2    | 0    | 2    | 8    | 1.0       | 0.5    | 0.833    |
+
+A low threshold flags freely: nothing urgent is missed, and more than half the flags are false alarms. A high threshold flags only the sure ones: every flag is right, and half the urgent tickets slip by. Raising the threshold can never raise recall, because a ticket that was missed stays missed; precision usually rises, though it isn't guaranteed to. The model is the same in all three rows. Only the choice of threshold changed, and every metric moved with it.
+
+So which row is best? **Ask which mistake costs more.** If a flagged ticket is simply read sooner by a person, a false alarm costs a minute and a miss leaves a customer stuck for hours: protect recall, and accept a low threshold. If instead a model's flag automatically closes an account it believes is fake, a false positive locks out a real customer and nobody checks: protect precision, with a high threshold. The threshold is a decision about costs, not a fact about the model. (Note that accuracy would have picked the threshold of 0.75 here, the row that misses half the urgent tickets.)
+
+**F1: one number from the two.** When both mistakes matter about equally, precision and recall are combined into the **F1 score**, `2 * p * r / (p + r)`, with `p` the precision and `r` the recall. This is their **harmonic mean**, a kind of average that is never above the plain one and is pulled towards the smaller of its two numbers. For the 1,000-ticket model, with 0.6 and 0.72, it is 0.655, a little under the plain average of 0.66. When the two are equal, F1 equals them. When they are far apart, the difference from a plain average is the whole point. The flag-everything model has precision 0.05 and recall 1: a plain average would give it 0.525, a respectable-looking score for a model that does nothing, while its F1 is 0.095. F1 is high only when precision and recall are both high, so neither can hide behind the other.
+
+**Three splits: fit, choose, report.** Now the honest part. Loss functions kept some examples back, the held-out set, because a model can memorize what it trains on. Evaluation needs that idea twice, so the labelled data is cut into three parts, called **splits**:
+
+- The **training set** fits the model's weights.
+- The **validation set** makes every choice that training can't make for itself: the threshold, the learning rate, when to stop training, which of several models to keep. (The held-out set that picked the best epoch in Loss functions was doing a validation set's job.)
+- The **test set** is used once, at the very end, to report a number. No choice is ever made by looking at it.
+
+The cut is made at random, because stored data is often in some order (by date, or all of one class first). `rng.permutation(1000)` returns the numbers 0 to 999 in a shuffled order, and slices of it are the three sets of row numbers. Six parts in ten for training and two each for the others is a common cut, not a law:
+
+```python
+rng = np.random.default_rng(7)
+order = rng.permutation(1000)
+train, validation, test = order[:600], order[600:800], order[800:]
+print(order[:8])
+print(len(train), len(validation), len(test))
+```
+
+```
+[816 923 151 900 213 100 851 503]
+600 200 200
+```
+
+Why does choosing need data of its own? Because **the best of many tries flatters**, even when there is nothing to find. Here are 20 "models" that guess by coin flip, scored on the same 100 examples. Every one of them has a true accuracy of exactly a half:
+
+```python
+rng = np.random.default_rng(3)
+y = rng.integers(0, 2, size=100)
+guesses = rng.integers(0, 2, size=(20, 100))
+accuracy = (guesses == y).mean(axis=1)
+print(round(float(accuracy.mean()), 3), accuracy.max())
+```
+
+```
+0.496 0.59
+```
+
+`rng.integers(0, 2, size=100)` draws 100 whole numbers that are each 0 or 1 (the 2 itself is left out): the labels. Each row of `guesses` is one model's 100 answers, `guesses == y` compares every row with the labels, and `.mean(axis=1)` takes the mean along each row, giving 20 accuracies. On average they score 0.496, as coin flips should. But the best of the 20 scores 0.59. Pick that one because it won, report its 0.59, and you have reported nine points of luck. On new examples it will score about a half again.
+
+Trying ten thresholds, or three models, and keeping the winner is the same thing in a milder form: the winner is partly good and partly lucky on those particular examples, and its winning score includes the luck. So the choosing is done on the validation set, where a flattering number does no harm, and the winner is then scored once on test examples that played no part in picking it. Using the test set to choose anything is called **leakage**: information about the test examples has leaked into the model's choices, and the reported number stops being an estimate of how the model does on data it has never seen. Trying more options makes it worse, not better, because the best of more tries is luckier still.
+
+Two more mistakes to know. Choosing the threshold on the training set is no cure: the model has already fitted those examples, so its scores there look better than they will anywhere else. And after an accidental peek at the test set, the only real fix is fresh test data.
+
+<Check item="mcq-what-each-split-is-for" />
+
+**How sure is an accuracy?** Even an honestly reported test accuracy comes from a sample: these test examples, where others would have given a slightly different number. Sampling and confidence has the tool, once you see an accuracy for what it is. Mark each test example 1 if the model got it right and 0 if it got it wrong. The accuracy is the mean of that array. So it has a standard error, the spread of the values divided by the square root of how many there are, and a mean of zeros and ones has a spread that needs no measuring. If the mean is `p`, the standard deviation is `sqrt(p * (1 - p))` (the plain one, dividing by `n`; with a hundred examples or more the `n - 1` version differs by a hair):
+
+```python
+correct = np.array([1] * 80 + [0] * 20)
+p = correct.mean()
+print(p, round(float(correct.std()), 3), round(float(np.sqrt(p * (1 - p))), 3))
+```
+
+```
+0.8 0.4 0.4
+```
+
+Divide that spread by `sqrt(n)` and the **standard error of an accuracy** is `sqrt(p * (1 - p) / n)`, with the whole fraction under the root. For 0.8 on 100 examples that is the square root of 0.0016, which is 0.04. The 95 percent interval is the accuracy plus and minus 1.96 standard errors, as before: 0.722 to 0.878. A "model with 80 percent accuracy", measured on 100 examples, is really a model somewhere between 72 and 88 percent.
+
+The test set's size is what controls this:
+
+| Test examples | Standard error of an accuracy of 0.8 | 95 percent interval |
+| ------------- | ------------------------------------ | ------------------- |
+| 100           | 0.04                                 | 0.722 to 0.878      |
+| 400           | 0.02                                 | 0.761 to 0.839      |
+| 1,600         | 0.01                                 | 0.78 to 0.82        |
+
+Four times the examples halves the width, the square-root rule from the sampling topic. This is how a test set can be **too small to tell**: on 400 examples a rival model scoring 0.82 sits one standard error away, well inside the interval, and the data can't separate the two. No cleverer metric repairs that. Only more test examples do.
+
+One weakness: at the very edges the formula breaks. A model that gets all of 50 examples right has `p` of 1, so `p * (1 - p)` is 0 and the interval has no width, as if 50 examples had proved the model perfect. They haven't; treat an interval near 0 or 1 on a small test set with suspicion.
+
+**Is one model really better than another?** Two models, A and B, are scored on the same 300 test examples. The data below is made up to behave like real models do: every example has a hardness, and both models tend to fail on the hard ones.
+
+```python
+rng = np.random.default_rng(22)
+n = 300
+hardness = rng.random(n)
+correct_a = (hardness + rng.normal(0, 0.08, size=n) < 0.82).astype(int)
+correct_b = (hardness + rng.normal(0, 0.08, size=n) < 0.76).astype(int)
+print(round(float(correct_a.mean()), 3), round(float(correct_b.mean()), 3))
+
+diff = correct_a - correct_b
+print((diff == 1).sum(), (diff == 0).sum(), (diff == -1).sum())
+print(round(float(diff.mean()), 3))
+```
+
+```
+0.847 0.783
+27 265 8
+0.063
+```
+
+A scores 0.847 and B 0.783. The obvious check is an interval for each: A's is 0.806 to 0.887 and B's is 0.737 to 0.83. They overlap, which seems to say the data can't tell the models apart. That check throws away something valuable: both models answered **the same examples**.
+
+So compare them **paired**, example by example. `diff` is A's correctness minus B's: 1 where only A was right, -1 where only B was right, and 0 where they agreed. They agreed on 265 of the 300 (both right on 227, both wrong on 38). Those examples say nothing about which model is better, and in `diff` they are zeros. The whole comparison rests on the 35 where the models disagree: A won 27 and B won 8. The mean of `diff` is the gap between the two accuracies, 0.063.
+
+Now ask how sure that 0.063 is, with the **bootstrap** from Sampling and confidence, applied to `diff`. Resample the 300 differences with replacement to the same size (`rng.choice(diff, size=n)`), take the mean, do that 2,000 times, and read off the 2.5th and 97.5th percentiles of the 2,000 means with `np.percentile(means, [2.5, 97.5])`. This is a **paired bootstrap**: what gets resampled is the differences, so each example's two results always stay together. Run after the code above, it gives an interval of 0.027 to 0.1. The interval **stays above zero**, so even allowing for the luck of which examples landed in the test set, A is better than B.
+
+Why does pairing see what two separate intervals missed? Each model's accuracy wobbles with how many hard examples happened to be in the test set, and since the hard ones are hard for both, the two accuracies wobble together. Subtracting example by example cancels that shared noise and leaves only the disagreements.
+
+Read the result in three ways. An interval that excludes zero: the difference is established on this evidence. An interval that includes zero: **not established**, which is not the same as "the models are equal"; the data can't tell. And the cure for that is again more data: on only the first 60 of these examples the gap is 0.05 and the paired interval runs from -0.05 to 0.15, straddling zero, though A is the better model all along.
+
+<Check item="mcq-why-paired" />
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. Google's Machine Learning Crash Course, the classification pages (the main resource below), have a slider that moves a threshold while the four counts change under it, short self-check questions, and one more rate this topic doesn't use, the false positive rate. Wikipedia's _Precision and recall_ has the standard picture of the two and a table of the many related rates and their other names (sensitivity, specificity and more). NumPy's page for `numpy.percentile` lists everything that function accepts. The StatQuest video under "More resources" goes through the confusion matrix once more, slowly.
 
 </Intro>
 

@@ -2,13 +2,224 @@
 
 The derivative of a function is its slope at a point: how fast the output changes when the input moves a little. A computer can estimate it without any rules, by moving the input a little and dividing. That estimate, and the idea of walking downhill against it, is how every machine-learning model is trained; this topic builds both from scratch.
 
-The main resource is the free textbook *OpenStax Calculus Volume 1*: **section 3.1** (what a derivative is, up to the first examples), **section 3.3** (the differentiation rules, as far as the power rule) and **section 4.3** (maxima and minima, the first page or two). About 30 minutes; the proofs can wait, the pictures can't. If you'd rather watch, the first three chapters of 3Blue1Brown's *Essence of calculus* are linked below the lesson. Watch for:
+**A line has one slope. A curve has a different one at every point.** Functions gave a line's slope as rise over run: the change in the output divided by the change in the input. The line `y = 3 * x + 2` rises 3 for every 1 of x, wherever you measure it. A curve isn't like that: it is steeper in some places than in others.
 
-- **The slope at a point** is what the slope between two points becomes as they get close together.
-- **The power rule:** the derivative of xⁿ is n·xⁿ⁻¹. You'll check it with code.
-- **The sign of the derivative** says whether the function is going up or down there, and a minimum is where the slope is zero.
+Here is a curve to measure. Drop a stone from a high bridge. Physics says that after `t` seconds it has fallen about `5 * t ** 2` metres (take that on trust):
 
-Everything here runs: `(f(x + h) - f(x)) / h` with a small `h` is a derivative you can print.
+```python
+def fallen(t):
+    return 5 * t**2
+
+
+print(fallen(2))
+print(fallen(3))
+```
+
+```
+20
+45
+```
+
+After 2 seconds the stone has fallen 20 metres, and after 3 seconds, 45. So during that one second it fell 25 metres: a speed of 25 metres per second. That is rise over run between two points of the curve, `(45 - 20) / (3 - 2)`. But the stone was speeding up for the whole of that second, so 25 is its average speed over the second, not its speed at the 2-second mark. At that moment it was going slower.
+
+**The slope at a point.** How fast was it going at exactly 2 seconds? One point alone can't answer: no time passes and no distance is covered, and 0 divided by 0 is an error, not a speed. So take a second point very close to the first, at `2 + h` where `h` is a small number, and then make `h` smaller:
+
+```python
+def fallen(t):
+    return 5 * t**2
+
+
+h = 1
+while h > 0.0001:
+    print(h, round((fallen(2 + h) - fallen(2)) / h, 4))
+    h = h / 10
+```
+
+```
+1 25.0
+0.1 20.5
+0.01 20.05
+0.001 20.005
+```
+
+Each row shows `h`, then the slope between the points at 2 and at `2 + h`. As the second point closes in, the slopes settle on one number: 20. That number is the **derivative** of the function at 2. It is the slope of the curve at that single point, and it says how fast the output is changing there. Here it is the stone's speed at the 2-second mark, 20 metres per second. A car's speedometer shows a derivative: how fast the distance is changing right now.
+
+The recipe works for any function `f` and any point `x`:
+
+```python
+slope = (f(x + h) - f(x)) / h
+```
+
+The top is the rise, how much the output changed. The bottom is the run, how far the input moved. Two mistakes are common:
+
+- **Multiplying by `h` instead of dividing.** A tiny rise times a tiny step is nearly 0, whatever the curve is doing.
+- **An `h` that isn't small.** Look at the rows again: each estimate is too high by 5 times `h`. The curve bends upward, so the straight line to a point further along is steeper than the curve is at 2. With `h = 1` the answer is wrong by a whole 5. With `h = 0.001` it is wrong by 0.005.
+
+The programs in this topic use `h = 0.000001`, where the error is far smaller than anything you'll print. Don't go much smaller, though. Python keeps only about 16 digits of a number, so with an `h` like 0.00000000000000001 it can't tell `2 + h` from 2, and the estimate comes out as 0. The estimate is always a float, because of the division, and `round` tidies it for printing.
+
+<Check item="parsons-numeric-derivative" />
+
+**The power rule.** Estimating works on any function. For powers of x there is also a shortcut that gives the exact answer. To find it, estimate the slope of `x ** 2` at several points and look for a pattern:
+
+```python
+def f(x):
+    return x**2
+
+
+h = 0.000001
+x = 1
+while x <= 5:
+    print(x, round((f(x + h) - f(x)) / h, 3))
+    x = x + 1
+```
+
+```
+1 2.0
+2 4.0
+3 6.0
+4 8.0
+5 10.0
+```
+
+The slope at each x is twice x. So the derivative of `x ** 2` is `2 * x`: a new function, which gives the slope of the old one at any point you ask about.
+
+A few lines of algebra show why. Move from `x` to `x + h`. The new output is `(x + h) * (x + h)`, which multiplies out to `x * x + 2 * x * h + h * h`. Take away the old output, `x * x`, and the rise is `2 * x * h + h * h`. Divide by the run, `h`, and the slope is `2 * x + h`. As `h` shrinks towards nothing, that settles on `2 * x`. (It also shows the estimate for this curve is off by exactly `h`.)
+
+The same working on higher powers gives the **power rule**: the derivative of `x ** n` is `n * x ** (n - 1)`. In words: bring the exponent down in front as a multiplier, then lower the exponent by one. For `x ** 2` that gives `2 * x ** 1`, which is `2 * x`, as the table found. For `x ** 4` it gives `4 * x ** 3`. Don't take a rule on trust when you can test it:
+
+```python
+def f(x):
+    return x**4
+
+
+def rule(x):
+    return 4 * x**3
+
+
+h = 0.000001
+x = 1
+while x <= 3:
+    print(x, rule(x), round((f(x + h) - f(x)) / h, 3))
+    x = x + 1
+```
+
+```
+1 4 4.0
+2 32 32.0
+3 108 108.0
+```
+
+The middle column is the rule and the last is the numeric slope. They agree at every point tried. That is the habit to keep: any derivative rule you are told can be checked against the numeric slope at a few points.
+
+Most functions are built from several pieces, and four small facts cover the ones in this topic:
+
+- **A number multiplying a power stays where it is.** The derivative of `5 * t ** 2` is `5 * 2 * t`, which is `10 * t`. At `t = 2` that is 20, the stone's speed, this time with no estimating.
+- **Plain `x` has derivative 1,** so `10 * x` has derivative 10. That is a line's slope, as in Functions.
+- **A number on its own has derivative 0.** It never changes, so its slope is flat.
+- **Pieces added or subtracted are done one at a time.** The derivative of `x ** 2 - 10 * x + 30` is `2 * x - 10`.
+
+Going the other way, from a slope back to the function it came from, is called integration. This topic doesn't need it.
+
+<Check item="mcq-derivative-of-a-power" />
+
+**The sign says which way the curve is going.** Take that last function and call it a cost: some setting `x` of a machine, and what it costs to run at that setting. Print each `x` with its cost and with the slope from the rule:
+
+```python
+def cost(x):
+    return x**2 - 10 * x + 30
+
+
+def slope(x):
+    return 2 * x - 10
+
+
+x = 1
+while x <= 9:
+    print(x, cost(x), slope(x))
+    x = x + 1
+```
+
+```
+1 21 -8
+2 14 -6
+3 9 -4
+4 6 -2
+5 5 0
+6 6 2
+7 9 4
+8 14 6
+9 21 8
+```
+
+Read the last column against the middle one:
+
+- **Where the slope is negative** (x from 1 to 4), the cost falls as x increases. The curve is going down.
+- **Where the slope is positive** (x from 6 to 9), the cost rises as x increases. The curve is going up.
+- **Where the slope is zero** (x = 5), the curve is flat. Here that is the bottom of the valley, the lowest cost there is. The lowest point is called the **minimum**.
+
+The size of the slope says how steep the curve is: far from the bottom the cost changes by a lot per step, near it by a little.
+
+Two cautions. The sign of the derivative is about direction, not about the function's own value: the cost is positive in every row, yet its slope is negative in four of them. And a flat spot isn't always a bottom. The top of a hill is flat too. Every curve you walk down in this topic is a single valley, so here flat means lowest.
+
+<Check item="mcq-sign-of-the-derivative" />
+
+**Walking downhill.** Now suppose you can't print the whole table. You know only where you stand and the slope under your feet, like a walker on a hillside in fog. The sign of the slope is enough to say which way is down:
+
+- A negative slope means the curve falls to the right. The bottom is to the right, so `x` should grow.
+- A positive slope means the curve rises to the right. The bottom is to the left, so `x` should shrink.
+
+One line of code does the right thing in both cases:
+
+```python
+x = x - rate * slope
+```
+
+`rate` is a small positive number you choose; it scales the step. Stand at `x = 1` on the cost curve, where the slope is -8, with a rate of 0.2. The step is `1 - 0.2 * -8`. Subtracting a negative number adds, so that is `1 + 1.6`, and `x` becomes 2.6: a move to the right, towards 5. Stand at `x = 9` instead, where the slope is 8, and the step is `9 - 1.6`, which is 7.4: a move to the left, towards 5 again. The step always goes against the slope, and against the slope is downhill. Write `+` in place of `-` and every step goes uphill, away from the bottom.
+
+One step isn't enough, so repeat it:
+
+```python
+x = 1.0
+rate = 0.2
+for step in range(6):
+    slope = 2 * x - 10
+    x = x - rate * slope
+    print(round(slope, 3), round(x, 3))
+```
+
+```
+-8.0 2.6
+-4.8 3.56
+-2.88 4.136
+-1.728 4.482
+-1.037 4.689
+-0.622 4.813
+```
+
+Each row is the slope before a step and `x` after it. Two things to see:
+
+- **The slope is worked out again inside the loop, every time round.** The slope depends on where you are, and you have just moved. Work it out once, before the loop, and every step reuses the old -8: `x` goes up by 1.6 each time and marches straight past the bottom.
+- **The steps shrink by themselves.** They are 1.6, then 0.96, then 0.576, and so on. Nobody told them to shrink. The step is `rate * slope`, and the slope gets closer to zero as the curve flattens near the bottom.
+
+This walk is called **gradient descent**. "Gradient" is the name the slope gets when a function has many inputs, and "descent" means going down. The walk above used the rule for the slope, but it doesn't need one: the numeric estimate from the start of this lesson, with its tiny `h`, does the same job. That means a computer can walk down a curve whose derivative nobody has worked out.
+
+**When to stop.** You can take a fixed number of steps, as above. Or you can keep going until the ground is nearly flat. The slope may be negative or positive, so test its size with `abs`, which gives a number without its sign: `abs(-6)` is 6 and `abs(6)` is 6. A walk that repeats while `abs(slope) > 0.01`, adding one to a counter each time round, takes 14 steps on the curve above and stops at 4.997. It never lands exactly on 5. It stops as close as the test asks for.
+
+**The rate matters.** Too small a rate is only slow: with a rate of 0.01, six steps from 1 get no further than 1.457. Too large a rate is worse. Here are the same six lines of program with five steps and `rate = 1.1`:
+
+```
+-8.0 9.8
+9.6 -0.76
+-11.52 11.912
+13.824 -3.294
+-16.589 14.953
+```
+
+The first step jumps from 1 right over the bottom and lands at 9.8, which is further from 5, and higher up, than where it started. The slope there is bigger than before, so the next jump is bigger too, back over the bottom to -0.76. Each step **overshoots** by more than the last, and the walk bounces out of the valley instead of settling in it.
+
+**Why machine learning cares.** A model is a function with knobs, like the slope and intercept of a line in Functions. Its **loss** is one number that says how wrong its predictions are, and it changes as the knobs are turned, so the loss is a function of the knobs. Training a model is gradient descent on the loss: find the slope for each knob, turn each knob a little against its slope, and repeat. The `rate` here is what every training script calls the **learning rate**.
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. _OpenStax Calculus Volume 1_, the main resource below, is the textbook treatment: section 3.1 defines the derivative formally, with limits and tangent lines, section 3.3 proves the power rule and adds the rules for products and quotients, and section 4.3 is about finding the highest and lowest points of a function exactly. The three 3Blue1Brown videos under "More resources" play in the page and draw what this lesson could only describe: what a slope at a single point means, and why the power rule looks the way it does. Khan Academy's differential calculus course has practice problems of its own.
 
 </Intro>
 

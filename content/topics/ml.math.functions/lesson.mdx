@@ -2,14 +2,160 @@
 
 You already write functions in Python. The math word means the same thing: a rule that takes an input and gives back exactly one output. `f(x) = 2x + 1` and `def f(x): return 2 * x + 1` are one rule in two notations, and everything machine learning fits is a function: inputs in, a prediction out.
 
-The main resource is the free textbook *OpenStax Intermediate Algebra 2e*, **chapter 3, Graphs and Functions**, sections 3.1 to 3.3, 3.5 and 3.6. Read them lightly; the ideas matter more than the notation. About 25 minutes. Watch for:
+**A function is a rule.** Think of a machine with a slot at one end and a tray at the other. A number goes in, the machine does the same fixed thing to it every time, and one number comes out. "Multiply by 4, then take away 3" is such a rule. Put in 2 and out comes 5. Put in 2 again tomorrow and out comes 5 again. That is the whole idea of a **function**: each input has exactly one output, and the same input always gives the same one.
 
-- **A line's rule has two numbers.** In `y = mx + b`, `m` is the slope (how much y changes for each step of 1 in x) and `b` is where the line crosses the y-axis (the value when x is 0).
-- **Slope from two points:** rise over run, the change in y divided by the change in x.
-- **Function notation.** `f(3)` means "the output of f when the input is 3". A function inside a function, `f(g(x))`, is worked out from the inside.
-- **A graph is a table of values,** one row per x, drawn.
+Math writes that rule as `f(x) = 4x - 3`. Read it piece by piece:
 
-Everything here runs in Python: you'll evaluate, compose and tabulate functions with code, and check the book's pictures with numbers.
+- `f` is the function's name. Any name will do; `f`, `g` and `h` are only habits.
+- `x` is a placeholder for the input, the same job a parameter does in a Python `def`.
+- `4x` means 4 times `x`. Math leaves the multiplication sign out; Python never lets you, so there it is `4 * x`.
+- Everything after the `=` is the rule: what to do with the input.
+
+To **evaluate** a function is to work out its output for one particular input. `f(2)` is read "f of 2" and means: wherever the rule says `x`, use 2. So `f(2)` is 4 × 2 − 3, which is 5. The brackets here do not mean multiplication: `f(2)` is not "f times 2". They mean "put this in".
+
+The Python version is the same rule with the multiplication written out. The call `f(2)` puts 2 in for `x`, and `return` hands the output back, as in Return values:
+
+```python
+def f(x):
+    return 4 * x - 3
+
+
+print(f(2))
+print(f(5))
+print(f(0))
+print(f(-1))
+```
+
+```
+5
+17
+-3
+-7
+```
+
+Check one by hand: `f(-1)` is 4 × (−1) − 3, which is −4 − 3, or −7.
+
+One more word on "exactly one output". Two different inputs may share an output: with the rule `x * x`, both 3 and −3 give 9, and that is fine. What a function never does is give two different outputs for one input. "A number whose square is 9" is not a function of 9, because it can't decide between 3 and −3.
+
+**A table of values.** One output tells you little about a function. To see how it behaves, evaluate it for a run of inputs and write the results in two columns, input beside output. That is a **table of values**, and in Python it is a loop. Here is a function that is not a straight line, `q(x) = x² - 4`, for the whole numbers from −3 to 3:
+
+```python
+def q(x):
+    return x * x - 4
+
+
+for x in range(-3, 4):
+    print(x, q(x))
+```
+
+```
+-3 5
+-2 0
+-1 -3
+0 -4
+1 -3
+2 0
+3 5
+```
+
+The function is defined first, so the loop has something to call, and each pass of the loop prints one row: the input, then the output. Remember that `range` stops **before** its second number: `range(-3, 4)` counts −3, −2, and so on up to 3, never 4. A table that is one row short is nearly always a `range` whose end is one too small, so count the rows you expect before you run the loop. A third number in `range` is the step, so `range(0, 31, 10)` counts 0, 10, 20, 30. When the inputs you want aren't evenly spaced, loop over them directly: `for x in (1, 4, 9):`.
+
+**A graph is a table, drawn.** A graph has two number lines at right angles. The one running left to right is the **x-axis**, for inputs. The one running up and down is the **y-axis**, for outputs, which is why a function's output is often called `y`. Each row of a table becomes one dot: go along to the input, then up (or down, if it is negative) to the output. The row `2 0` is the dot written `(2, 0)`, input first, and a dot is called a **point**. Join the points of a finely spaced table and you have the function's graph.
+
+You can read a shape from the table without drawing anything. In the table above the outputs fall from 5 to −4 and climb back to 5: a valley, with its lowest point at `x = 0`. A lesson in text can't show you the picture, but the numbers are the picture, and whenever a book shows a graph, a table of values lets you check it.
+
+<Check item="parsons-table-of-squares" />
+
+**Lines: a slope and an intercept.** The simplest useful functions are the ones whose graph is a straight line. A water tank holds 60 litres, and a hose adds 15 litres every minute. The amount in the tank is a function of the minutes passed: `litres = 15 * minutes + 60`.
+
+| minutes | litres |
+| ------- | ------ |
+| 0       | 60     |
+| 1       | 75     |
+| 2       | 90     |
+| 3       | 105    |
+| 4       | 120    |
+
+Look down the right-hand column. Every step of 1 minute adds the same amount, 15. That steady step is what makes a line a line, and it has a name: the **slope**. The other number, 60, is the output when the input is 0, the first row of the table. It is called the **intercept**, because on a graph it is where the line meets (intercepts) the y-axis: the y-axis stands at `x = 0`.
+
+Every line has a rule of this shape, which textbooks write as `y = m * x + b`:
+
+- `m`, the number that **multiplies** the input, is the slope: how much `y` changes when `x` goes up by 1. It is a rate, so in a real problem it comes with "per": litres per minute here.
+- `b`, the number **on its own**, is the intercept: the value of `y` when `x` is 0. In a real problem it is the starting amount, what you have before anything has happened.
+
+This reading works in both directions. Given a rule, you can say what its two numbers mean. Given a description in words ("starts at 60, gains 15 a minute"), you can write the rule: the per-something number multiplies the input, and the starting amount is added.
+
+Three things trip people up:
+
+- **Position doesn't decide which is which.** A candle 18 cm tall that burns down 2 cm an hour has height `18 - 2 * hours`. The slope is still the number multiplying the input, and it carries its sign: −2. The intercept is 18, even though it is written first.
+- **A negative slope means the line goes down** as you read from left to right: the candle gets shorter. A slope of 0 means a flat line, the same output whatever the input.
+- **A bigger slope is a steeper line,** not a higher one. The intercept moves the whole line up or down; the slope tilts it.
+
+<Check item="mcq-slope-and-intercept" />
+
+**The line through two points.** Often you don't have the rule, only two measurements, and two points are enough to pin a line down. Say a line passes through `(2, 8)` and `(6, 14)`.
+
+Start with the slope. Going from the first point to the second, `y` went from 8 to 14, a change of 6. That is the **rise**. Meanwhile `x` went from 2 to 6, a change of 4. That is the **run**. The slope is the change in `y` for each 1 of `x`, so share the rise out over the run: 6 ÷ 4 is 1.5. People remember it as **rise over run**: the change in `y` divided by the change in `x`.
+
+Now the intercept. The line reaches `y = 8` at `x = 2`. Getting from `x = 0` to `x = 2` took two steps of 1, each adding 1.5, so the slope contributed 1.5 × 2 = 3 of that 8. Take it away and what is left, 5, is where the line started. In words: the intercept is the `y` of a point you know, minus the slope times that point's `x`. Either point will do; from the other one, 14 − 1.5 × 6 is also 5. So the rule is `y = 1.5 * x + 5`.
+
+A rule worked out this way is a claim, and a table tests it. The line must pass through both points it was built from:
+
+```python
+def line(x):
+    return 1.5 * x + 5
+
+
+for x in (0, 2, 6):
+    print(x, line(x))
+```
+
+```
+0 5.0
+2 8.0
+6 14.0
+```
+
+The rows for 2 and 6 give 8 and 14, the two points, and the row for 0 shows the intercept. The outputs print as `8.0` and not `8` because 1.5 is a float. A slope found by dividing is always a float, since `/` always gives one, as Arithmetic showed. (`//` would throw the fraction away, which is almost never what you want from a slope.)
+
+Two slips are common here:
+
+- **Upside down.** Run over rise, 4 ÷ 6, gives 0.67. The change in `y` goes on top.
+- **Mixed order.** Subtract the points in the same order top and bottom. Second minus first on top and first minus second underneath, 6 ÷ (2 − 6), gives −1.5: the right size with the wrong sign.
+
+**One function inside another.** The output of a function is a number, so it can be the input of another function. Here are two small rules:
+
+```python
+def double(x):
+    return 2 * x
+
+
+def minus_three(x):
+    return x - 3
+
+
+print(double(minus_three(10)))
+print(minus_three(double(10)))
+print(double(double(5)))
+```
+
+```
+14
+17
+20
+```
+
+Using one function's output as another's input is called **composition**, and math writes it `f(g(x))`. Work it **from the inside out**, the way Python does. In `double(minus_three(10))` the inner call goes first: `minus_three(10)` is 7. The line is now `double(7)`, which is 14.
+
+Swap the two and the answer changes. `minus_three(double(10))` doubles first, giving 20, and then takes 3 away: 17. "Take 3 off, then double" and "double, then take 3 off" are different instructions, so **the order matters**. The mistake to avoid is reading left to right, as if the function written first were applied first. The function written on the outside is applied **last**.
+
+A function can also be fed its own output. `double(double(5))` is `double(10)`, which is 20. Nothing new is needed: it is a call inside a call, evaluated inside out.
+
+Composition and tables go together. To tabulate a composition, call it inside the loop, then check a row or two against a sum done by hand. A table whose rows look plausible can still be wrong in every row.
+
+**Later, in machine learning,** a model is a function with adjustable numbers in its rule. The first model you'll fit is a line, and its two adjustable numbers are a slope and an intercept. Training means changing those numbers until the model's table of outputs is close to the data. A neural network is many simple functions composed, each one's output the next one's input.
+
+**Going further (optional).** The lesson above covers everything this topic's questions and exercises ask of you; the outside pages are for when you want more. _OpenStax Intermediate Algebra 2e_, chapter 3 (the main resource below), has what a lesson in text can't: the graphs themselves, drawn, with many worked problems on plotting points, slopes and lines. It also goes beyond this topic, into vertical lines, parallel and perpendicular lines, and the words "domain" and "range" for a function's possible inputs and outputs. Its sections don't cover composition. Khan Academy's short video _What is a function?_, under More resources, goes over the idea of a function as a rule, and its College Algebra course has practice problems that mark themselves.
 
 </Intro>
 

@@ -1,12 +1,191 @@
 <Intro>
 
-The last topic found that a set turns a quadratic search into a linear one. This topic is why. A **list** is an **array**, one block of memory with its items in order, which makes some operations one step and others a shift of everything. A **dict** or **set** is a **hash table**, which turns a key into a bucket number and looks only there. The worked example builds a hash table by hand, with a hash function you can read, and counts the comparisons it makes against a list scan; then a bad hash function shows what "constant time on average" depends on.
+The last topic found that a set turns a quadratic search into a linear one. This topic is why. A **list** is an **array**, one block of memory with its items in order, which makes some operations one step and others a shift of everything. A **dict** or **set** is a **hash table**, which turns a key into a bucket number and looks only there. The worked example builds a hash table by hand, with a hash function you can read, and counts the comparisons it makes against a list scan; then a bad hash function shows what "constant time on average" depends on. This lesson builds each idea first, on smaller examples.
 
-The main resource is **_Problem Solving with Algorithms and Data Structures using Python_, section 5.5, Hashing**, with the book's sections 2.6 and 2.7 on what list and dict operations cost; about 30 minutes. The Python tutorial's chapter 5 is the reference for the operations themselves. Watch for:
+**A list is an array.** Think of the computer's memory as a very long row of numbered slots. A Python list takes one unbroken run of those slots, a **contiguous** block ("contiguous" means touching, with no gaps), and keeps its items there in order: item 0 in the block's first slot, item 1 in the next, and so on. That layout is called an **array**. Each slot holds a **reference**, a note of where the item's value lives, and not the value itself. References are all the same size, which is why one list can hold a number beside a string.
 
-- **The hash function** picks the bucket; nothing is searched.
-- **Collisions** are normal; a table grows to keep them rare.
-- **The table of costs** for lists and dicts, operation by operation.
+Because the slots are the same size and there are no gaps, Python finds item `i` by arithmetic: the start of the block, plus `i` slots. Nothing is walked through. `items[7]` in a list of ten costs the same as `items[700_000]` in a list of a million: one step, `O(1)`. The list also keeps its length written down, so `len(items)` is one step too.
+
+**What the block makes slow.** The no-gaps rule that makes indexing fast makes changes at the front slow. Picture a row of cinema seats filled from seat 0, with no empty seat between people. A latecomer who must sit in seat 0 makes everybody stand up and move one seat along. `items.insert(0, x)` is that: every item moves one slot to make room, `n` moves for a list of `n` items, so it is `O(n)`. `items.pop(0)` is the reverse: taking the first item leaves a gap at the front, and every other item moves down one slot to close it. Inserting in the middle moves only the items after that place, which still grows with the list. At the end, nothing has to move: `items.pop()` is one step, and `items.append(x)` nearly always is (the next part says why "nearly").
+
+Here is the difference, measured. A list of `n` numbers is built two ways, adding each number at the end or at the front. The times are in milliseconds, on the computer this lesson was written on:
+
+| Numbers added | `append(x)` each time | `insert(0, x)` each time |
+| ------------- | --------------------- | ------------------------ |
+| 50,000        | 1.3                   | 281                      |
+| 100,000       | 3.1                   | 1,100                    |
+| 200,000       | 8.9                   | 4,462                    |
+
+Read it with the doubling test. The front column goes up about four times at each doubling, which is quadratic: `n` inserts, each moving up to `n` items. The end column goes up two to three times (times this small are noisy), which is linear: `n` appends at about one step each. At 200,000 numbers the front is 500 times slower.
+
+Searching is the other slow thing. An array knows where position 7 is, but it has no idea where the value `"Oslo"` is. So `x in items`, `items.index(x)` and `items.count(x)` walk the list from the front, comparing as they go: `O(n)`, as the last topic showed.
+
+<Check item="mcq-why-pop-zero-is-slow" />
+
+**Why `append` is cheap: spare room.** If a list's block has no gaps, and the memory just after it may belong to something else, where does an appended item go? Python plans for it. It asks for a block somewhat bigger than the list needs, so there are spare slots at the end, and an append writes into the next spare slot: one step. When the spare room runs out, Python gets a new, bigger block, copies every reference across (`n` steps), and carries on with new spare room. So an append is usually one step and occasionally `n`.
+
+Is that affordable? Count it. Suppose a list starts with room for one item and doubles its block whenever it is full. This counts the copying that 1,000 appends cause:
+
+```python
+capacity, size, copies = 1, 0, 0
+for _ in range(1000):
+    if size == capacity:  # full: move everything to a block twice the size
+        copies += size
+        capacity *= 2
+    size += 1
+print(capacity, copies)
+```
+
+```
+1024 1023
+```
+
+The block was copied ten times, at sizes 1, 2, 4 and so on up to 512, which is 1,023 copied items in all. Add the 1,000 writes and the total is 2,023 steps for 1,000 appends: about 2 each. It stays about 2 however long the list gets, because each copy is twice as big as the one before but comes after twice as many cheap appends. That is **amortized** constant time. "Amortized" means averaged over a long run of operations: the rare expensive one is paid for by the many cheap ones. Python's real lists grow by a smaller share than doubling (about an eighth, once the list is long), and the same reasoning holds: the average cost of an append is a constant, whatever the length.
+
+**A hash table goes straight to where the key must be.** A list finds an item by its position in one step, but not by its value. A hash table finds an item by its value in about one step, and it does it by turning the value into a position. It has three parts:
+
+- A **key** is the thing you look up by: a dict's key, or an item of a set.
+- A **hash function** turns a key into a whole number, called the key's **hash**. Its one rule: the same key gives the same number, every time. Python's built-in one is `hash()`. For a small whole number the hash is the number itself, so `hash(4217)` is 4217. For text, the function does arithmetic on the codes of the characters (`ord("a")` is 97, the number the computer stores for the letter `a`); the worked example writes one out.
+- A list of **buckets**. Each bucket is a small list, empty to begin with. A key lives in bucket number `hash % number_of_buckets`. The `%` is modulo, the remainder after dividing, so the answer always runs from 0 to one less than the number of buckets: a valid index.
+
+Six visitors' badge numbers, filed into a table of 8 buckets:
+
+```python
+buckets = [[] for _ in range(8)]
+for badge in (4217, 1630, 9055, 2748, 5121, 3306):
+    buckets[hash(badge) % 8].append(badge)
+print(buckets)
+```
+
+```
+[[], [4217, 5121], [3306], [], [2748], [], [1630], [9055]]
+```
+
+Badge 4217 went to bucket 1 because `4217 % 8` is 1 (4217 is `8 * 527 + 1`). Now look a badge up. Is 5121 in the table? `5121 % 8` is 1, so go to bucket 1 and compare with what is there: 4217, no; 5121, yes. Two comparisons, and the other four badges were never looked at. Is 7777 in the table? `7777 % 8` is also 1; compare with both keys in bucket 1; neither matches, so it isn't there, and that took two comparisons as well. This is the whole trick: the key's own number says where the key would be, so the search covers one bucket and not the whole table. The array underneath does its part, because going to bucket 1 is an index, one step.
+
+A set stores its items like this. A dict stores a `(key, value)` pair in the bucket, finds the pair by its key, and hands back the value.
+
+**Collisions.** 4217 and 5121 are different keys in the same bucket. That is a **collision**. It isn't an error and nothing is lost: the bucket keeps both, and a lookup compares its key with each of them to tell them apart. Collisions can't be avoided, because there are far more possible keys than buckets. What matters is that the buckets stay short, since a lookup costs one comparison for each key in its bucket.
+
+**Growing keeps the buckets short.** Put 6,000 badges into those 8 buckets and each bucket holds about 750, so every lookup is a scan of 750 keys. A hash table therefore watches how full it is (the number of keys divided by the number of buckets is its **load factor**), and past a limit it **grows**: it makes a new list with twice as many buckets and files every key again. Every key has to be filed again because its bucket number was `hash % 8` and is now `hash % 16`. Badge 4217 moves to bucket 9 while 5121 stays in bucket 1, and that collision is gone. The worked example's table grows once it holds more than two-thirds as many keys as it has buckets, and Python's dict uses the same two-thirds limit. Growing costs a step for every key, like a list copying itself to a bigger block, and it is rare in the same way, so storing a key is amortized constant time too.
+
+Python's real dict differs in one detail. Instead of a list for each bucket, it keeps one row of slots, and a key whose slot is taken goes to another free slot in the row. That is called **open addressing**. The costs and the reasons for them are the same.
+
+<Check item="mcq-what-a-collision-is" />
+
+**Constant time "on average".** With the keys spread evenly and the table grown to fit, a bucket holds about one key. A lookup is then about one comparison whether the table holds a hundred keys or a hundred million: `O(1)`. But that depends on the spread, and the spread is the hash function's job.
+
+Suppose the badge table used a lazy hash function: the last digit of the badge number. Only ten different hashes exist, so at most ten buckets are ever used, however many the table has. With 6,000 badges, each of those ten holds about 600, and every lookup is a scan of about 600 keys. Growing doesn't help, because the lazy hash sends the keys to the same few buckets of the bigger table. The table has become a list in disguise, and lookups are `O(n)` again.
+
+So the honest claim is `O(1)` **on average**, given a hash function that spreads the keys. The worst case, every key in one bucket, is `O(n)`. Python's own hash functions spread keys well. They also guard against attack: someone who knew the exact hash function could send a program thousands of keys chosen to collide, so Python mixes a random number, new each time it starts, into the hashes of text.
+
+**Keys must be hashable.** A key is filed in the bucket its hash picked. If the key could change afterwards, its hash would change with it, and a lookup would go to a different bucket from the one the key is filed in. So Python accepts only keys that can't change, which it calls **hashable**: strings, numbers, and tuples of those. A list can change, so it can't be a key. `seats[["row", 3]] = "taken"` stops with a `TypeError` that says `unhashable type: 'list'`; the tuple `("row", 3)` works. The same goes for the items of a set.
+
+**The costs, side by side.** `n` is the number of items held.
+
+| Operation                                    | List              | Dict or set        |
+| -------------------------------------------- | ----------------- | ------------------ |
+| Read by position, `items[i]`                 | `O(1)`            | (has no positions) |
+| Add: `append(x)`, `a_set.add(x)`, `d[k] = v` | `O(1)`, amortized | `O(1)` on average  |
+| Remove the last item, `pop()`                | `O(1)`            |                    |
+| `insert(0, x)`, `pop(0)`                     | `O(n)`            |                    |
+| Is it there? `x in ...`                      | `O(n)`            | `O(1)` on average  |
+| Look up by key, `d[k]`, `d.get(k)`           |                   | `O(1)` on average  |
+| `index(x)`, `count(x)`                       | `O(n)`            |                    |
+| `len(...)`                                   | `O(1)`            | `O(1)`             |
+
+Three things the table doesn't show. A dict's `in` asks about its keys: `x in prices` is one step, but `x in prices.values()` is a scan. A dict hands its keys back in the order they were first stored, while a set promises no order at all. And a hash table buys its speed with memory, because it always keeps spare buckets.
+
+**Replace the scan, and measure.** The last topic's warning was `x in a_list` inside a loop: a loop inside a loop that you didn't type. The cure has one rule: build the set or dict **once, before the loop**, so that each test inside the loop is a lookup. A newsletter is about to go out, and every address must be checked against the people who unsubscribed. Here it is both ways, with whole numbers standing in for addresses and `best_time` from the last topic doing the timing:
+
+```python
+def with_list(n):
+    unsubscribed = list(range(0, 2 * n, 2))
+    return [address for address in range(n) if address not in unsubscribed]
+
+
+def with_set(n):
+    unsubscribed = set(range(0, 2 * n, 2))
+    return [address for address in range(n) if address not in unsubscribed]
+
+
+for function, sizes in (
+    (with_list, (2000, 4000, 8000)),
+    (with_set, (200_000, 400_000, 800_000)),
+):
+    times = [best_time(function, n) for n in sizes]
+    print(function.__name__, [round(t * 1000, 1) for t in times])
+    print(round(times[1] / times[0], 1), round(times[2] / times[1], 1))
+```
+
+```
+with_list [12.4, 50.4, 201.2]
+4.1 4.0
+with_set [16.9, 40.0, 81.6]
+2.4 2.0
+```
+
+The two functions differ by one word. The list version's time goes up four times at each doubling: quadratic. The set version's goes up about twice: linear. And look at the sizes: the set version was given a hundred times as many addresses, because at the list's sizes it is too quick to time well. It checked 800,000 addresses in less than half the time the list took for 8,000. (The times are from the computer this lesson was written on; read the ratios.)
+
+When you need more than yes or no (where is it? what goes with it?), use a dict. `vocabulary.index(word)` scans a list for the word's position. Build `position = {word: i for i, word in enumerate(vocabulary)}` once, and `position[word]` is one step.
+
+<Check item="mcq-set-or-list" />
+
+**Five patterns that one-step lookup makes possible.** Each makes a single pass over the data.
+
+_Count._ A dict from each value to how many times it has appeared. `counts.get(vote, 0)` is the count so far, or 0 for a value not seen before:
+
+```python
+votes = ["pizza", "curry", "pizza", "salad", "curry", "pizza"]
+counts = {}
+for vote in votes:
+    counts[vote] = counts.get(vote, 0) + 1
+print(counts)
+```
+
+```
+{'pizza': 3, 'curry': 2, 'salad': 1}
+```
+
+The slow way asks `votes.count(vote)` for each vote, a scan inside a loop. Python's `collections.Counter(votes)` builds the same counts for you.
+
+_Deduplicate, keeping the order._ `set(votes)` removes the repeats but forgets the order. To keep each value's first appearance in place, keep two things side by side: a list for the result and a set of what has been seen. For each item, ask the set whether it is new; if it is, add it to both. The set answers "seen before?" in one step, and the list keeps the order: `['pizza', 'curry', 'salad']` here. Asking the result list itself (`if vote not in result`) gives the same answer by scanning, which is the quadratic again.
+
+_Group._ A dict from each key to the list of things that share it. The first time a key appears it needs an empty list to append to:
+
+```python
+readings = [("north", 14), ("quay", 17), ("north", 15), ("hill", 9), ("quay", 18)]
+by_station = {}
+for station, degrees in readings:
+    if station not in by_station:
+        by_station[station] = []
+    by_station[station].append(degrees)
+print(by_station)
+```
+
+```
+{'north': [14, 15], 'quay': [17, 18], 'hill': [9]}
+```
+
+The mistake to avoid is `by_station[station] = [degrees]` on every turn, which replaces a station's list each time and keeps only its last reading. Python has a shorter spelling for the `if` and the line after it. `a_dict.setdefault(key, default)` returns the value stored under `key`, and if the key is new it stores `default` there first. With an empty list as the default, it hands back the key's list whether or not the key was there, ready for `.append(...)`. `collections.defaultdict(list)` is a dict that makes the empty list by itself.
+
+_Join._ Two tables share a field. Say there is a table of stations, each with its city, beside the readings above, each with its station. A **join** makes one row for each matching pair: every reading together with its station's city. The slow way compares every station with every reading, a loop inside a loop. The fast way is a **hash join**. Group one table by the shared field; `by_station` is exactly that index. Then go through the other table once, look each row's field up in the index, and pair the row with every match found there. Look it up with `.get(name, [])`, so that a row with no match gets an empty list and adds nothing. With the stations quay (Bergen), hill (Tromso), pier (Bergen) and north (Oslo), the join gives five rows in the stations' order: two for quay, one for hill, none for pier, which has no readings, and two for north.
+
+When the rows are dicts, a matching pair is merged into one row with `{**a, **b}`: a new dict holding everything in `a`, then everything in `b`. Where both have a field, `b`'s value wins:
+
+```python
+station = {"id": 7, "unit": "C"}
+reading = {"id": 7, "unit": "F", "degrees": 63}
+print({**station, **reading})
+```
+
+```
+{'id': 7, 'unit': 'F', 'degrees': 63}
+```
+
+_Remember what you've seen._ Some questions about pairs don't need every pair. Do any two prices in `[40, 15, 60, 25]` add up to a 75 voucher? For each price there is only one partner that would do, 75 minus the price. So go through once with a set of the prices seen so far, and ask of each price whether its partner is already in the set. At 60 the partner is 15, which is there: 15 and 60. Ask first and add the price to the set afterwards, or a price could be paired with itself.
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. Section 5.5 of _Problem Solving with Algorithms and Data Structures using Python_, the main resource below, shows more hash functions and the open-addressing way of handling collisions step by step, and the book's sections 2.6 and 2.7 time list and dict operations in experiments of their own. The start of chapter 5 of Open Data Structures takes a table with a list in each bucket, the kind built here, through the mathematics of why it is fast on average. The Python tutorial's chapter 5 is the reference for lists, sets and dicts and what you can do with them.
 
 </Intro>
 

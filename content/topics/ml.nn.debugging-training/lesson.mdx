@@ -2,11 +2,181 @@
 
 Every network that fails to learn fails quietly: the loss sits still, or climbs, or turns to NaN, and nothing says why. The temptation is to change the model, the optimizer and the epochs at once. This topic is the checklist that practitioners use instead, each step cheap and each one ruling something in or out: the first loss, one batch, the gradient check, the curve, the dead units, the gradient norm, the data, and one change at a time. Every failure in it is produced on purpose so that the signs are seen before they're met.
 
-The main resource is **Andrej Karpathy's _A Recipe for Training Neural Networks_** (a blog post, about 20 minutes), the checklist this topic follows; read step 2 of the recipe (the tips "verify loss @ init" and "overfit one batch") and its advice to add complexity one thing at a time. Wikipedia's _Rectified linear unit_ page has the dying-ReLU problem under _Potential problems_, and its _Vanishing gradient problem_ page covers exploding gradients and the fixes. Watch for:
+**Bug, setup or data.** A run that won't learn has one of three kinds of cause. The code is wrong: a bug in the loss, in a `backward`, or in the update. Or the code is right and the **setup** is wrong: the learning rate, the starting weights. A setting like these, chosen by hand and not learned, is called a **hyperparameter**. Or code and setup are both fine and the **data** is wrong. The checklist goes in that order, because a bug can't be tuned away: no rate rescues a network whose gradients are wrong. So the first three checks ask only "does the code work?", and each takes seconds.
 
-- **The loss at init**: what the first loss should be before any training.
-- **Overfit one batch**: the test that separates a broken network from a hard problem.
-- **Gradient clipping**: bounding the step when the gradient blows up.
+**Check 1: the first loss.** Before any training, a classifier knows nothing, so the honest thing for it to do is give every class the same probability. With 5 classes that is 0.2 each. Cross-entropy is minus the log of the probability given to the true class, so the loss of an even guess is `-log(0.2)`, which is `log(5)`, 1.61. In general the first loss should be about **`log(classes)`**: 0.69 for two classes, 1.61 for five, 2.30 for ten.
+
+A network guesses evenly when its logits (the numbers that go into softmax) are all close to zero, and they are when the output layer's weights start small. Here are random logits for 200 rows and 5 classes at three sizes, with the cross-entropy written as Layers that carry their gradient wrote it:
+
+```python
+import numpy as np
+
+
+def cross_entropy(logits, labels):
+    shifted = logits - logits.max(axis=1, keepdims=True)
+    log_probs = shifted - np.log(np.exp(shifted).sum(axis=1, keepdims=True))
+    return float(-log_probs[np.arange(len(labels)), labels].mean())
+
+
+rng = np.random.default_rng(0)
+labels = rng.integers(0, 5, size=200)
+noise = rng.standard_normal((200, 5))
+print(round(float(np.log(5)), 2))
+for scale in (0.01, 1.0, 4.0):
+    print(scale, round(cross_entropy(scale * noise, labels), 2))
+```
+
+```
+1.61
+0.01 1.61
+1.0 2.0
+4.0 4.91
+```
+
+Logits of size 0.01 give the even guess, 1.61. Larger logits give a higher loss, though nothing has been learned: big logits are confident guesses, most of them wrong, and cross-entropy charges heavily for a confident wrong answer. So start the output layer small (a `scale` of 0.01 on the last `Dense`), compute the loss once before training, and compare it with `log(classes)`. A first loss far from that number means something isn't what you think it is: the output layer's scale, the loss function, or the labels (the wrong number of classes, say).
+
+**Check 2: overfit one batch.** Take eight rows of the training set. Train a fresh network on those eight alone, all eight at every step, with no shuffling and no mini-batches, for a few hundred steps of plain `SGD`. Write down the loss before the first step and after the last.
+
+Eight rows are trivial to memorize. A network with a working forward pass, loss, backward pass and update will push their loss to nearly zero. This is overfitting on purpose: nobody wants the memorized network, only the proof that the loop can learn. If the loss does not get near zero, at a rate and a start you know are sensible (zero biases, He-scaled weights), then the code is broken. Stop there. A bigger model, more data or another rate will not help, because none of them touches the bug.
+
+A small network of this lesson's own shows it: one hidden layer of 8 ReLU units, fitting a V-shaped curve with mean squared error. Trained on 8 of its rows for 500 steps at a rate of 0.05, its loss goes from 0.367 to 0.0000003. Give the update the wrong sign, so it adds the gradient where it should subtract, and the same test ends in NaN. Make the update write to a copy of the weights, so the real ones never change, and the loss is 0.367 before and 0.367 after. Either way the test fails in a second, long before a full run would have.
+
+What the test does not prove matters as much. It says the code can learn. It says nothing about whether the labels are right: eight rows with wrong labels can be memorized just as easily as eight with right ones.
+
+<Check item="mcq-overfit-one-batch" />
+
+**Check 3: the gradient check.** Layers that carry their gradient built this one. For each number in each parameter, nudge it up by a tiny `h` (a millionth), then down by `h`, and measure the loss both times. `(up - down) / (2 * h)` is a **central difference**: the slope measured directly, with no backward pass. Compare it with the gradient `backward` stored. In float64 the largest gap over a whole network should be under about a millionth. A bigger gap means a `backward` method is wrong, and the parameter with the gap says which layer.
+
+The two checks catch different bugs. In the small network above, drop the ReLU's mask from the backward pass, so gradient flows through units that were switched off. The one-batch test still passes (0.367 to 0.0005), because the gradient is only partly wrong. The gradient check does not: the gap is 0.004, where the correct code gives 0.00000000002. The other way round, an update with the wrong sign passes the gradient check, since the gradients themselves are right, and fails the one-batch test. Run both.
+
+When both pass, the code is cleared: `backward` matches the loss, and the loop can learn. Neither check says anything about the learning rate or the data. If the full run still won't learn, the cause is in the setup or the data, and the rest of the checklist is for those.
+
+**The learning rate, read from the curve.** The training loop gave a loss curve one of three names, and this topic uses the same rule, from the first and the last loss only:
+
+- **diverging**: the last loss is not a finite number (NaN or infinity; `np.isfinite` tests for that), or it is more than 1.5 times the first;
+- **stalled**: otherwise, the last loss is more than 0.9 times the first, so it fell by less than a tenth;
+- **converging**: anything else.
+
+The order matters: the test for diverging comes first. For the rule to be fair, the first value has to be the loss **before any training**. So this topic's `fit` records the losses once before the first step, as entry 0 of its history, and then once after each epoch: 10 epochs give 11 entries.
+
+Here is the small V-curve network again, trained on all 40 of its rows for 300 steps at four rates:
+
+| Rate   | First loss | Last loss | Curve      | Dead units  |
+| ------ | ---------- | --------- | ---------- | ----------- |
+| 0.0001 | 0.348      | 0.322     | stalled    | 0 of 8      |
+| 0.05   | 0.348      | 0.000     | converging | 0 of 8      |
+| 0.5    | 0.348      | 0.350     | stalled    | 8 of 8      |
+| 5      | 0.348      | NaN       | diverging  | (see below) |
+
+The first, second and fourth rows are what The training loop taught. A rate that is too low takes steps too small to get anywhere: stalled. A rate that is too high overshoots further every step until the numbers overflow: diverging. The fix for either is to change the rate by a **factor of ten**, not by a little, and read the curve again.
+
+The third row is the trap. A rate of 0.5 is ten times the rate that worked, far too high, yet the run did not diverge. Its loss went 0.348, 0.595, 2.981, 6.985, 3.900, and then 0.350, where it stayed: it is still 0.350 after 3,000 steps. Read by its first and last loss, it looks exactly like the first row, and the fix for the first row is to raise the rate. The last column tells them apart.
+
+**Dead ReLUs.** A ReLU unit outputs its input when the input is positive, and 0 otherwise. Its `backward` passes gradient only where the input was positive. Now suppose a unit's input (its **pre-activation**: the weighted sum plus the bias, before the ReLU) is negative or zero on every row of the data. Its output is 0 on every row. No gradient passes through it on any row, so the gradient for its own weights and bias is exactly zero, and an update of `rate * 0` changes nothing. The unit is **dead**, and it stays dead: the only thing that could move its weights is a gradient, and it will never get one.
+
+Two things kill units. One is a start that puts them below zero, such as a large negative bias. The other is a single oversized step. Take a unit with weight 0.5 and bias 0.2, on inputs 1, 2 and 3: its pre-activations are 0.7, 1.2 and 1.7, all alive. Say the gradients are 0.6 for the weight and 0.3 for the bias. At a rate of 0.1 the step leaves the weight at 0.44 and the bias at 0.17, and nothing much has changed. At a rate of 10 the weight becomes `0.5 - 6 = -5.5` and the bias `0.2 - 3 = -2.8`, and the pre-activations are -8.3, -13.8 and -19.3. The unit is now off for every input, for good. That is what happened in the table's third row: the first three steps threw the loss up to 6.985, the fourth switched off all 8 hidden units at once, and from then on the network could only output one constant. The curve went flat because nothing was left to learn with.
+
+So the rule: **a stalled run gets its dead units counted before its rate is raised.** Stalled with no dead units usually means the rate is too low. Stalled with most units dead means the rate was too high, or the start was bad, and raising the rate would make it worse.
+
+Counting them takes the masks. This module's `ReLU` layer keeps `mask` from its last forward pass: one row per data row, one column per unit, `True` where the input was positive. A unit is dead on that data if its column has no `True` in it at all.
+
+```python
+import numpy as np
+
+pre = np.array(
+    [[0.4, -1.0, -0.2], [1.5, -3.0, 0.0], [-0.7, -0.1, -2.0], [0.9, -2.2, -1.1]]
+)
+fired = pre > 0
+print(fired.any(axis=0).tolist())
+print(int((~fired.any(axis=0)).sum()), "dead of", pre.shape[1])
+print(fired.any(axis=1).tolist())
+```
+
+```
+[True, False, False]
+2 dead of 3
+[True, True, False, True]
+```
+
+`fired.any(axis=0)` collapses the rows: for each column (each unit) it answers "was any row `True`?" The first unit fired, the other two never did. The third unit's best input was 0.0, and zero is not greater than zero, so it counts as dead. `~` flips every `True` and `False`, turning "fired somewhere" into "dead", and `sum` counts the `True`s. The axis matters: `axis=1` collapses the columns and answers a different question, per row: "did any unit fire for this row?" That is a count of rows, not of units.
+
+For a whole network, run one forward pass on the data so that every `ReLU` layer holds a fresh mask, count the dead columns in each `ReLU` layer's mask, and add the counts up. Only the `ReLU` layers have a mask; the `Dense` layers are skipped.
+
+One warning about the count. A run that diverged to NaN reads as all dead, because NaN is never greater than zero, so every mask is `False`. That is the last row of the table. Those units weren't killed one by one; the whole network is full of NaN. When the loss is NaN, fix that first and count again.
+
+A dead unit can't be revived, so the fix is a restart that doesn't kill it: biases at zero and He-scaled weights (from Starting weights and activation functions), and a lower rate. Libraries also offer the **leaky ReLU**, which gives negative inputs a small slope where ReLU gives none, so some gradient always gets through and no unit is ever fully dead.
+
+<Check item="predict-dead-units" />
+
+**The gradient norm.** Dead units are gradients that became zero. The opposite failure is gradients that grow without limit, and to see it you need one number for "how big is the gradient right now?" A network's gradients are a list of arrays, one for each weight matrix and each bias. Lay every number in every array end to end and you have one long vector. Its length is the **gradient norm**: square every entry of every array, add all the squares into one total, and take the square root. For the two arrays `[2, 4]` and `[4]` the squares are 4, 16 and 16, the total is 36, and the norm is 6. Because the update is `rate * gradient`, the norm also says how far a step of plain descent moves the weights: the rate times the norm.
+
+This topic's `fit` computes the norm at every step, straight after `backward`, and keeps them all in its history as `grad_norms`. That is one number per step, not per epoch: 100 training rows in batches of 32 make 4 steps an epoch (three batches of 32 and one of 4), so 10 epochs record 40 norms.
+
+**Exploding gradients.** Here is what the norm looks like in a healthy run and in a sick one. The model is a small linear one that predicts a used car's price from two inputs, its distance driven and its age, with the inputs put on a sensible scale first. Only the rate differs:
+
+| Rate | Norm at step 1 | Step 2 | Step 3 | Step 4 | Step 5 | Loss after 200 steps |
+| ---- | -------------- | ------ | ------ | ------ | ------ | -------------------- |
+| 0.1  | 32.4           | 26.0   | 20.8   | 16.6   | 13.3   | 0.82                 |
+| 1.5  | 32.4           | 64.7   | 129    | 257    | 513    | about 10^126         |
+
+In the healthy run the norm shrinks as the loss falls: the closer to the bottom, the gentler the slope. In the other, the norm doubles at every step. Each step is so long that it lands further from the bottom than it started, where the slope is steeper, so the next gradient is bigger and the next step longer still. That is an **exploding gradient**, and a norm that grows step over step is its signature. Left alone, it ends when the numbers pass the largest value float64 can hold (about 1.8 times 10^308): they become `inf`, infinity, and the first sum that subtracts one infinity from another gives NaN. A list of norms that reads 0.9, 3, 40, 2,000, `inf`, `nan` is the whole story in one line.
+
+Two things cause it. A **rate that is too high**, as here, takes a few steps to build up. **Starting weights that are too big** do it from the very first step in a deep network, for the reason Starting weights and activation functions gave: every layer multiplies the signal and the gradient by some factor, and a stack applies the factor once per layer. A factor of 3 through 8 layers is `3 ** 8`, 6,561 times.
+
+The fixes follow the causes: He-scaled starting weights, and a lower rate. There is a third, which treats the symptom directly.
+
+**Gradient clipping** puts a ceiling on the norm. Choose a limit, `max_norm`. After `backward`, measure the norm. If it is at or under the limit, use the gradients exactly as they are. If it is over, multiply **every array by the same factor**, `max_norm / norm`, which brings the norm down to exactly the limit. Clip `[2, 4]` and `[4]`, norm 6, to a limit of 3: the factor is `3 / 6`, a half, and the gradients become `[1, 2]` and `[2]`, norm 3. Clip them to a limit of 10 and nothing happens, because 6 is already under it. Clipping only ever shrinks.
+
+One factor for all the arrays is the point. It keeps the step's direction and shortens only its length. Clipping each array on its own would be a different thing: `[2, 4]` alone has norm 4.47 and `[4]` has norm 4, so a limit of 3 would shrink the first by a third and the second by a quarter, and the step would point somewhere the gradient never did.
+
+With clipping, a step of plain descent can never move the weights further than `rate * max_norm`, however large the gradient gets, so one bad step can't throw the run away. In the table's second run, at the same rate of 1.5 with the norm clipped to 1, the loss after 200 steps is between 1.08 and 1.83 where the unclipped run reached 10^126. Notice that it is not 0.82: clipping lets a run survive a rate that is too high, and the cure is still the rate.
+
+Two details about how `fit` does it. The norm it records is the one **before** clipping, because the history is there to show what the gradients were doing, and a clipped norm would hide the explosion. And the training loop runs inside `with np.errstate(all="ignore"):`. NumPy normally prints a warning when a calculation overflows or produces NaN; inside that block it stays quiet and the `inf` and NaN simply appear in the history, where the curve reader can call the run diverging.
+
+<Check item="predict-clip-gradients" />
+
+**Data bug 1: labels that don't match their rows.** Suppose the checks pass, no unit is dead, the rate is one that worked before, and the run still stalls. What is left is the data. The classic bug is in the shuffle. Rows get shuffled all the time: once for the split, again every epoch. The inputs `X` and the labels `y` are two separate arrays, and a shuffle that reorders one without the other, or reorders each in its own random order, leaves every input paired with some other row's label. The safe way is the one The training loop used: draw one random order and index both arrays with it.
+
+The signs are a particular combination:
+
+- **The one-batch test still passes.** Eight rows with random labels can be memorized like any eight rows.
+- **The full run stalls.** Across hundreds of rows, similar inputs carry different labels, so there is no pattern to fit and the loss barely moves from `log(classes)`.
+- **Validation accuracy sits at chance.** **Chance** is what guessing scores: 1 divided by the number of classes, 0.25 for four classes. A network that has found no pattern does no better.
+
+A low rate also stalls, but lowering or raising the rate changes nothing here, and a passing one-batch test with a known-good rate points away from the code. Stalled, healthy code, accuracy at chance: look at how the rows and labels were put together.
+
+**Data bug 2: inputs on the wrong scale.** The car model's inputs were a distance in kilometres (tens of thousands) and an age in years (single figures). Feed those raw numbers to the same model at the rate of 0.1 that converged above, and the gradient norm reads 2,210,000 at the first step, then about 10^15, then 10^24, and it stops being a finite number at step 18. The loss ends as NaN: diverging, at a rate that was fine.
+
+The reason is in `Dense.backward`: `dW = X.T @ grad_out`. A dense layer's weight gradient is its **input** multiplied by the gradient coming back. Make the inputs a thousand times larger and the gradient is a thousand times larger, so a rate that was right is now a thousand times too high. Lowering the rate to match would starve any column that was small to begin with. Clipping doesn't rescue it either: the same raw run clipped to a norm of 1 stays finite and stalls (264.229 to 264.223 in 200 steps). The fix is to put the inputs on a common scale.
+
+To **standardize** a column, subtract its mean and divide by its **spread** (its standard deviation, `std`). Afterwards the column has mean 0 and spread 1, so every input is a number of about size 1 whatever its unit was. With `axis=0`, NumPy measures every column in one call:
+
+```python
+import numpy as np
+
+X_train = np.array([[20000.0, 4.0], [60000.0, 10.0], [100000.0, 7.0]])
+X_val = np.array([[90000.0, 3.0]])
+mean, std = X_train.mean(axis=0), X_train.std(axis=0)
+print(mean.tolist(), std.round(1).tolist())
+print(((X_train - mean) / std).round(2).tolist())
+print(((X_val - mean) / std).round(2).tolist())
+```
+
+```
+[60000.0, 7.0] [32659.9, 2.4]
+[[-1.22, -1.22], [0.0, 1.22], [1.22, 0.0]]
+[[0.92, -1.63]]
+```
+
+Look at where the mean and spread come from: the **training rows only**. The validation row is shifted and scaled with those same two numbers, not with a mean and spread of its own. There are two reasons. The network learns what "0.92" means from the training set's scale, so a 90,000 km car must come out as 0.92 in every set; measured against a different mean it would be a different number, and the network would be looking at a different car. And the validation set stands in for data you haven't seen yet, so nothing measured on it may shape the training. (Here it would also simply break: one row has a spread of 0, and dividing by it gives NaN.)
+
+<Check item="mcq-inputs-on-the-wrong-scale" />
+
+**One change at a time.** Every check above works by ruling one thing out. That only holds if runs can be compared, and two runs can be compared only when they differ in **one** way. Change the model, the optimizer and the number of epochs together, and if the run improves you don't know which change did it; if it gets worse you don't know which to undo. You have one result and three explanations. So change one setting per run, and keep the **seed fixed**. The seed decides the starting weights and the shuffles, and two runs with different seeds give different curves even when nothing else changed. A different seed is a second change.
+
+Last, the topic's code sums a run up in a phrase, checking in a fixed order. First read the training curve: if it is diverging or stalled, that is the verdict. If it is converging, look at the last validation accuracy: within a tenth of chance (below `1 / classes + 0.1`) the verdict is "at chance", because a falling training loss with held-out accuracy at chance is memorizing, not learning. Otherwise it is "learning". The phrase names the symptom. "Stalled" alone could be a low rate, dead units or mismatched labels, and telling those apart is what the checklist is for.
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. Andrej Karpathy's _A Recipe for Training Neural Networks_, the main resource below, is one practitioner's whole routine for a new project, far wider than this topic: getting to know the data before writing any model, simple baselines, and when to add regularization and tuning. Wikipedia's _Rectified linear unit_ page lists the dying-ReLU problem under _Potential problems_, along with the leaky ReLU and the other variants made to avoid it. Its _Vanishing gradient problem_ page tells the history of gradients that shrink or explode with depth and the fixes found for them. The video under More resources is Andrew Ng working through the gradient check.
 
 </Intro>
 

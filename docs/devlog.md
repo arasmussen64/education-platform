@@ -2,6 +2,56 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, end: step 3 finished: the 24 lessons outside the cloud track
+
+**What changed.** The last 24 topics whose main resource sent the learner to another site now teach themselves: 20 in the ML track, three in Python Foundations, one in finance. With the 19 cloud lessons, that is all 43. **No ready topic's main resource now requires leaving the app:** it is a video that plays in the page, a reading shown in the page, or an optional "go deeper" link under a lesson that covers everything.
+
+**These were a different job from the cloud lessons.** There the lesson already taught nearly everything. Here the `<Intro>` was a 150 to 250 word "what to watch for", a textbook chapter did the teaching and the recap summarised. So each `<Intro>` was written as the lesson: each idea from the start, for a beginner, with the helper's own examples (never the reading's, the worked example's or an exercise's), every code sample run with the project's Python and its output captured, and two or three of the topic's existing quick questions placed where the lesson teaches them, which is also where a long lesson is cut into parts.
+
+| Topic | Lesson, words | Minutes |
+| --- | --- | --- |
+| `ml.math.arithmetic` | 510 to 2,490 | 45 to 67 |
+| `ml.math.algebra` | 450 to 2,020 | 45 to 64 |
+| `ml.math.functions` | 450 to 2,260 | 45 to 65 |
+| `ml.math.exponents-and-logs` | 520 to 2,970 | 45 to 71 |
+| `ml.math.probability-and-statistics` | 530 to 3,190 | 50 to 73 |
+| `ml.math.vectors-and-matrices` | 570 to 3,230 | 50 to 73 |
+| `ml.math.calculus` | 500 to 2,650 | 50 to 68 |
+| `ml.calc.partials-and-gradient` | 620 to 3,170 | 50 to 72 |
+| `ml.calc.loss-functions` | 680 to 3,840 | 55 to 78 |
+| `ml.calc.optimizers` | 750 to 3,370 | 50 to 74 |
+| `ml.prob.distributions` | 720 to 4,470 | 50 to 82 |
+| `ml.prob.evaluating-models` | 670 to 3,620 | 60 to 78 |
+| `ml.dsa.complexity` | 780 to 3,140 | 50 to 75 |
+| `ml.dsa.arrays-and-hashing` | 640 to 3,640 | 55 to 79 |
+| `ml.dsa.stacks-queues-recursion` | 680 to 4,150 | 50 to 85 |
+| `ml.dsa.sorting-and-searching` | 670 to 4,060 | 55 to 84 |
+| `ml.dsa.trees-and-heaps` | 750 to 4,370 | 55 to 86 |
+| `ml.dsa.dynamic-programming` | 670 to 5,040 | 60 to 90 |
+| `ml.dsa.graphs` | 700 to 3,940 | 60 to 83 |
+| `ml.nn.debugging-training` | 920 to 4,680 | 50 to 96 |
+| `py.tracing-code` | 370 to 2,270 | 40 to 65 |
+| `py.references-and-mutation` | 600 to 2,220 | 45 to 65 |
+| `py.spec-to-program` | 650 to 1,920 | 40 to 63 |
+| `fin.money.rates` | 1,320 to 2,320 | 75 to 87 |
+
+**Author notes:**
+
+- _The times went up, and that is the honest direction._ The old 40 to 60 minutes named 20 to 50 minutes of reading and left a quarter of an hour for a worked example, a fill-in, a write, a build, a debug, an explanation and the quick questions. Each estimate is rebuilt the README's way: the lesson at 130 words a minute, 1.5 minutes a quick question, and 5, 3, 7, 15, 6 and 6 minutes for those six. The allowances are my choice (one helper proposed them and I applied them to all); the learner's own pace adjusts them once three topics are proven.
+- _Several lessons are longer than the 1,200 to 2,500 words the brief asked for._ The helpers each said why (four separate skills, each with items), and I let them stand: nothing in them is padding that I could find by sampling. Dynamic programming, at 5,000 words, is the one to cut first if these read long.
+- _I read the first one closely and sampled the rest._ The complexity lesson I read in full and checked its arithmetic. For the other 23 I read the helper's report (what it taught, what it ran, what it could not check) and parts of the text. They compile, validate, and their code was run by their authors; nobody has read all 24 start to finish, and nobody has seen them in the app.
+- _What was run and what was not._ Every code block's output is a captured run, and the helpers recomputed the numbers in their prose and tables by script. Statements of standard maths and of how well-known libraries behave were often written from knowledge and checked by running, not against a cited source; each report lists them.
+- _The outside pages were mostly not read._ Runestone refuses automated fetches, Khan Academy and the videos can't be read, and OpenStax came through as summaries. The lessons were written from each topic's own objectives, items and recap, which is what they have to teach. The "going further" sentences describe those pages from their titles and from memory, and say no more than that.
+- _Things that had never been taught anywhere and are now:_ sets (in complexity), `global`, `is`, `+` on lists, `math.ceil`, `abs`, `zip`, `&` on boolean arrays, tuple comparison, the word "exponential", zero and negative exponents, composition of functions, the base-rate table. The items had been testing them.
+- _Debug exercises._ A few lessons now state, as a general pitfall, the very mistake their debug exercise hides (trees and heaps, dynamic programming, arithmetic). The learner still has to find it in the code. If a debug feels given away, soften the paragraph.
+- _Glossaries appeared in the ML and Python tracks_ (nine topics added one). That exposed a build flaw: links were not limited to the lesson's own track. Fixed, with a test. One term was dropped for not being used in its own lesson.
+- _Found and left:_ `neuralnetworksanddeeplearning.com` serves a wrong certificate over https (the link is optional now); several OpenStax links point at a book's details page, not the sections; `ml.calc.loss-functions` leans on the chain rule and the gradient, which are earlier in the track but not listed as prerequisites; the Playground page calls itself temporary and a lesson now points at it; a few fill-in prompts say "fails until every `...` is replaced" where the starter in fact runs and stops with a `TypeError`.
+- _Prerequisites whose main resource is a video_ (`ml.calc.derivatives`, `ml.la.vectors` and others) still have short intros. That is by the owner's order: a video that plays in the lesson comes first. Later lessons lean on them in a line each.
+
+**Where the three steps stand.** Videos play in the page (47 that were links, 55 added). 50 readings are shown in the page. 43 lessons stand on their own text. Left as possible follow-ups: the 25 topics with no video; the importer learning TeX formulas (about five more readings); the `strace -c` wording in two triage items and the `WORKDIR` claim in containers, which need a running Docker to settle; and a read-through of the new ML lessons by their first learner.
+
+**Next:** cloud Module 4, as before this detour.
+
 ## 2026-11-22, later still: step 3, the other fourteen cloud lessons
 
 **What changed.** The same method, one helper per topic, on the fourteen remaining cloud topics whose main resource sent the learner away. All nineteen cloud lessons now teach everything their items ask, and every linked page in them is optional.
@@ -32,8 +82,6 @@ A dated log of each working session: what changed, what was decided, what's next
 - _Two resource titles changed_ in `csa.net.layers`, which had said "watch this or read the chapter, one of the two".
 - _No command output was added anywhere._ Docker wasn't running. Helpers ran what they could in Git Bash (bash arithmetic, openssl) to check their own examples.
 - _Each helper's report lists what it could not check against a primary source._ I read the reports and sampled the new text; I did not re-verify each fact.
-
-**Next:** the 24 topics outside the cloud track (the ML track's maths, data structures and a few others, three Python topics, one finance topic). Their lessons are short and lean on their readings, so they need much more writing.
 
 ## 2026-11-22, later: lessons inside the app, step 3: the first five lessons on their own text
 

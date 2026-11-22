@@ -2,11 +2,147 @@
 
 Module 2 taught you to write Python; this module teaches you what it costs. The cost of a function is not seconds but **steps**: how many basic operations it does, and above all how that number grows as the input grows. This topic is that one idea, **order of growth**, written as **big-O**, found two ways: by counting the steps, and by doubling the input and watching. The worked example asks "does this list contain a duplicate?" twice, with a loop inside a loop and with a set, and counts and times both.
 
-The main resource is **_Problem Solving with Algorithms and Data Structures using Python_, chapter 2** (sections 2.2 to 2.4: what analysis is, big-O notation, and an anagram example solved four ways); about 30 minutes, with runnable code. Open Data Structures section 1.3 has the same definitions more tersely. Watch for:
+**Steps, not seconds.** Here is a function that counts how many readings are above a limit:
 
-- **Steps, not seconds:** the count is the thing that doesn't depend on the machine.
-- **The doubling test:** double the input and see what the cost does.
-- **The anagram example:** four programs, four orders, for one question.
+```python
+def count_above(values, limit):
+    count = 0
+    for value in values:
+        if value > limit:
+            count += 1
+    return count
+```
+
+How long does it take? In seconds, nobody can say: it depends on the computer, on what else the computer is doing, and on the version of Python. So count something that doesn't depend on any of that. Pick one **basic step**, a small operation that costs about the same every time it runs, such as comparing two values, adding two numbers, or reading one item of a list. Here the natural step is the comparison `value > limit`, and the loop makes exactly one for each value. Call the length of the list `n`, the **input size**. Then the cost is `n` comparisons: 10 for 10 readings, a million for a million, on any machine. The other work (setting `count` to 0, returning it) happens once whatever the size, so it barely moves the total.
+
+The number we want is never "how many steps for this list", but "how many steps, as a formula in `n`". The formula says what happens when the data grows, and that is the question that hurts later.
+
+**A loop inside a loop.** Six teams enter a league. To list every home-and-away pairing, one loop picks the home team and a second loop, inside it, picks the away team. Put a counter where the work happens and the program counts its own steps:
+
+```python
+def all_pairings(n):
+    steps = 0
+    for home in range(n):
+        for away in range(n):
+            steps += 1
+    return steps
+
+
+print(all_pairings(6), all_pairings(12))
+```
+
+```
+36 144
+```
+
+The inner loop runs `n` times for each of the outer loop's `n` turns, so the count is `n * n`, written `n²`: 36 for six teams. Twice the teams gave not twice the steps but four times as many, 144.
+
+That count includes each team "playing" itself, and counts every pair twice (A at home to B, and B at home to A). If each pair of teams should meet once, start the inner loop one place after the outer loop's position, so that it only looks at the teams further along. Then the first team is paired with 5 others, the next with 4, and so on: `5 + 4 + 3 + 2 + 1 + 0 = 15` games. There is a formula for it. Each of the `n` teams plays `n - 1` others, which makes `n * (n - 1)`, and that counts every game twice, once from each side, so halve it: `n * (n - 1) / 2`. For six teams that is `6 * 5 / 2 = 15`. This is the number of **pairs** among `n` things, and it turns up whenever code compares everything with everything else.
+
+**Big-O keeps only the term that grows fastest.** Real step counts are untidy. Suppose you counted a function's steps and found `2n² + 50n + 300`. Watch what each part contributes as `n` grows:
+
+| `n`    | `2n²`       | `50n`   | `300` | total       | share from `2n²` |
+| ------ | ----------- | ------- | ----- | ----------- | ---------------- |
+| 10     | 200         | 500     | 300   | 1,000       | 20%              |
+| 100    | 20,000      | 5,000   | 300   | 25,300      | 79%              |
+| 1,000  | 2,000,000   | 50,000  | 300   | 2,050,300   | 97.5%            |
+| 10,000 | 200,000,000 | 500,000 | 300   | 200,500,300 | 99.8%            |
+
+At small sizes the other terms matter. By ten thousand, the `n²` term is nearly everything. So to describe how a function behaves on large inputs, keep the fastest-growing term and throw the others away. Then throw away the number in front of it too (the 2), because that number depends on what you chose to call a step, while the shape of the growth doesn't. What is left is the **order of growth**, written with a capital O: this function is `O(n²)`, read "order n squared". This way of writing it is called **big-O**.
+
+The league works the same way. `n * (n - 1) / 2` multiplies out to `n²/2 - n/2`: the fastest-growing term is `n²/2`, drop the half, and counting every pair once is `O(n²)`, the same order as `all_pairings`. Half the steps, the same shape.
+
+**The five orders you'll meet,** from the slowest-growing up:
+
+- `O(1)`, **constant**: the same number of steps whatever the size. Reading `items[5]`, asking `len(items)`, and looking a key up in a dict or a value up in a set are all constant.
+- `O(log n)`, **logarithmic**: one more step each time `n` doubles. It is the cost of anything that throws away half of what is left at every step. Guess a number from 1 to 1,000 when each answer is "higher" or "lower": guess the middle every time and 10 guesses are always enough, because halving 1,000 ten times leaves a single number (`2 ** 10` is 1,024). A range of a million needs only 20. That count of halvings is `log2 n`, the logarithm from Exponents and logarithms: `log2(1024)` is 10.
+- `O(n)`, **linear**: one pass over the data. `count_above` is linear, and so are Python's `sum(items)`, `max(items)` and `x in a_list`, each of which has a loop inside it that you don't see.
+- `O(n log n)`: what sorting costs. `sorted(items)` and `items.sort()` take about `n * log2 n` comparisons, a little worse than linear and far better than quadratic. A later topic in this module shows why.
+- `O(n²)`, **quadratic**: a loop inside a loop over the same data, like the league.
+
+What those mean in steps, at two sizes:
+
+| Order        | `n` = 1,000  | `n` = 1,000,000   |
+| ------------ | ------------ | ----------------- |
+| `O(1)`       | 1            | 1                 |
+| `O(log n)`   | about 10     | about 20          |
+| `O(n)`       | 1,000        | 1,000,000         |
+| `O(n log n)` | about 10,000 | about 20 million  |
+| `O(n²)`      | 1,000,000    | 1,000,000,000,000 |
+
+At a thousand items everything finishes. At a million, the quadratic row is a trillion steps. The `all_pairings` loop above manages about 80 million steps a second on the computer this lesson was written on (its timings come later); a trillion steps at that rate is about three and a half hours, for a job whose linear version takes a blink.
+
+**Loops you can't see.** `x in a_list` is one short line, but Python answers it by walking the list from the front and comparing as it goes. If `x` is first, that is one comparison (the **best case**); if `x` is last or missing, it is `n` (the **worst case**); for a value that is somewhere in the list, about `n / 2` on average. Big-O usually names the worst case, so `x in a_list` is `O(n)`.
+
+Put that line inside a loop and you have written a loop inside a loop without typing one. Say an essay of 2,000 words is checked against a list of 50,000 known words with `if word not in known_words`. Every misspelt word costs 50,000 comparisons, and in the worst case the whole check costs `2,000 * 50,000`, a hundred million.
+
+A **set** fixes it. A set holds each value once, in no order, and can say whether it holds a value in a constant number of steps, however big it is (the next topic explains how). The pieces you need: `set()` makes an empty one, `a_set.add(x)` puts a value in, `set(a_list)` builds one from a list in one pass, and `x in a_set` is the constant-time question.
+
+```python
+known = set(known_words)
+unknown = [word for word in essay if word not in known]
+```
+
+Building the set is one pass over 50,000 words, and the check is 2,000 lookups: about 52,000 steps, where the list took up to a hundred million. Nothing else in the program changed. Most slow data code is this: a list being searched inside a loop, where a set or a dict belonged.
+
+<Check item="mcq-which-is-quadratic" />
+
+**The doubling test: finding the order without reading the code.** Each order answers one question differently: "if the input doubles, what happens to the cost?"
+
+| Order        | When `n` doubles, the cost...                                     |
+| ------------ | ----------------------------------------------------------------- |
+| `O(1)`       | stays the same                                                    |
+| `O(log n)`   | goes up by one step                                               |
+| `O(n)`       | doubles                                                           |
+| `O(n log n)` | a little more than doubles (about 2.2 times, from 1,000 to 2,000) |
+| `O(n²)`      | goes up four times                                                |
+
+The four comes from the square: put `2n` in place of `n`, and `(2n)²` is `4n²`. (A loop inside a loop inside a loop is `O(n³)`, and doubling multiplies it by eight.) So you can find a function's order by experiment: measure it at some size, double the size, measure again, and divide the second number by the first. Then double again to make sure the ratio holds.
+
+If you can count steps, the ratios are clean. The league's games at 50, 100 and 200 teams are 1,225, 4,950 and 19,900. Divide each count by the one before it: 4.04, then 4.02. Not exactly 4, because of the smaller `n/2` term that big-O dropped, but heading there as `n` grows. With several ratios, average them (here 4.03) and read the name off the average: near 1 is constant, near 2 is linear, near 4 is quadratic. One limit of the test: `n log n` gives a ratio just above 2, so a rough reading takes it for linear.
+
+If you can't count steps, time them. `time.perf_counter()` returns the reading, in seconds, of a clock made for measuring short durations; read it before and after, and subtract:
+
+```python
+import time
+
+
+def best_time(function, n):
+    timings = []
+    for _ in range(3):
+        start = time.perf_counter()
+        function(n)
+        timings.append(time.perf_counter() - start)
+    return min(timings)
+
+
+times = [best_time(all_pairings, n) for n in (500, 1000, 2000)]
+print([round(t * 1000, 1) for t in times])
+print(round(times[1] / times[0], 1), round(times[2] / times[1], 1))
+```
+
+```
+[2.9, 12.8, 53.2]
+4.4 4.2
+```
+
+Those are milliseconds on the computer this lesson was written on; yours will differ, and will differ again the next time you run it. A timing is noisy, because the computer is always doing other things as well. Two habits tame the noise. Run the measurement a few times and keep the **best** one, as `best_time` does: other work can only make a run slower, never faster, so the fastest run is the cleanest. And read the **ratio**, never the milliseconds: 4.4 and 4.2 say "about four times at each doubling", which is quadratic on any machine. (A function too quick for the clock to measure well is run many times in a row, and the whole batch is timed; the worked example does that.)
+
+<Check item="mcq-four-times-longer" />
+
+**Constants: what NumPy changes, and what it doesn't.** Big-O threw away the number in front. That number is real, and it is where NumPy helps. Finding the largest of a million numbers with a Python `for` loop took 6.8 milliseconds on the same computer; `np.max` on an array of the same numbers took 0.17, about 40 times less. Both do the same thing, one pass that looks at each number once, so both are `O(n)`. The difference is the cost of each step. A Python loop is carried out by the **interpreter**, the program that runs your Python, which works out what each line means on every turn of the loop. A NumPy operation hands the whole array to **compiled code**: machine instructions prepared in advance, with no interpreter in the way. Replacing a Python loop with one NumPy operation is called **vectorizing**, as in NumPy arrays.
+
+Now double the data to two million. The loop took 13.6 milliseconds and `np.max` took 0.39: each about twice its time before, and NumPy still about 35 times ahead. Vectorizing made every step cheaper, which is a smaller **constant**. It did not change how the number of steps grows, which is the order. "Same order" and "same speed" are different claims: two `O(n)` programs can differ a hundredfold at every size.
+
+It works the other way too. Vectorize a quadratic method and it is still quadratic. A 36-fold speed-up is used up when the data grows six times, because `6²` is 36, and the data keeps growing. So when code is too slow, ask which problem you have. If the order is fine and each step is slow, vectorize. If the order is the problem, only a different method, such as the set in place of the list, changes it. The constant decides how fast the program is today; the order decides whether it still finishes when the data has grown.
+
+<Check item="mcq-numpy-and-the-loop" />
+
+**Which approach scales, and when the slow one is fine.** To predict what growth will do, multiply. Suppose two versions of a job both take 2 seconds on 20,000 rows, one linear and one quadratic, and the data is about to become 2 million rows, a hundred times more. The linear one does a hundred times the work: 200 seconds, a little over three minutes. The quadratic one does `100²`, ten thousand times the work: 20,000 seconds, about five and a half hours. They looked the same on the small data. This is how code that "worked on the sample" never finishes on the real thing.
+
+But order of growth is about growth, not about speed today. A seating plan that compares every pair of 30 pupils makes `30 * 29 / 2 = 435` comparisons and is done in an instant. Rewriting it would take time, and every rewrite is a chance to add a bug. A slow order is fine when `n` is small and will stay small, or when the job runs rarely. So before rewriting anything, ask the two questions that decide it: will `n` grow, and will this run often?
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. Chapter 2 of _Problem Solving with Algorithms and Data Structures using Python_ (sections 2.2 to 2.4), the main resource below, tells the same story at textbook length, with runnable code and one problem, whether two words are anagrams, solved four ways at four different costs. Open Data Structures section 1.3 has the mathematical definition of big-O, tersely. The Python documentation's entry for `time.perf_counter` says exactly what that clock measures. The CS50 video under "More resources" goes through the common orders again, spoken and drawn.
 
 </Intro>
 

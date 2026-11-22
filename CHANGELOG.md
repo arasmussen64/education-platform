@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- The last 24 lessons that leaned on an outside page now teach their topics themselves ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md), step 3): the ML track's seven maths refreshers, its data-structures module, three calculus topics, debugging training, distributions and evaluating models; three Python topics (references and mutation, tracing code, from a spec to a program); and the finance topic on rates. Each went from a short "what to watch for" around a textbook chapter to a full lesson with its own examples, every code sample run and its output captured. Their outside pages are optional. Their times are rebuilt from what is really in them and rise (for example complexity from 50 to 75 minutes, debugging training from 50 to 96): the old figures left almost nothing for the practice and the proofs. No topic's main resource now requires leaving the app.
+
 - Fourteen more cloud lessons stand on their own text ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md), step 3), which is every cloud topic whose reading couldn't be shown in the app: directory join, GPUs, hypervisors, Windows and Active Directory, containers, permissions, triage, BGP steering, CIDR, congestion, HTTP and TLS, layers, load balancing and transport. Every linked page in them is optional, and their times drop by the reading they no longer count (hypervisors from 291 to 227 minutes, GPUs from 308 to 255).
 
 - Lessons that stand on their own text ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md), step 3). Where a topic's reading can't be shown in the app, the lesson now teaches everything its questions, labs and explanation ask, and every outside page is marked `optional: true`: the page says "Go deeper (optional)", and the topic's time no longer counts it. The first five: `csa.hw.cores-memory` (311 to 276 minutes), `csa.linux.packages` (253 to 265: its readings were never counted, and the lesson doubled), `csa.net.certificates` (285 to 260), `csa.net.ipv6` (306 to 271) and `csa.net.troubleshooting` (311 to 259).
@@ -28,6 +30,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- A lesson's glossary links now come only from its own track. Before, a word was linked to its definition wherever any ready topic defined it, so a Python lesson's "frame" would have shown the networking definition and a decision-tree lesson's "forest" the Active Directory one.
+- Two Python worked examples told the learner to open Python Tutor on another site; they now point at the app's own Step through.
 - `csa.linux.triage`'s typed question on counting system calls now accepts `strace -c -w`, the form that times a waiting process: by its manual, plain `-c` counts only processor time inside the kernel.
 - `fin.markets.prices` linked to an address that showed an empty page; it now points at the live one.
 - Ubuntu Server documentation was recorded as CC BY-SA 3.0. The site states no licence today, so the record now says so and the two resources stay links.

@@ -180,6 +180,15 @@ describe('glossary terms in a lesson (ADR-0026)', () => {
     expect(marked(html)).toEqual(['page cache: page cache'])
   })
 
+  it("doesn't mark another track's terms: the same word means other things there", async () => {
+    // "page cache" is a cloud-track term; in an ML lesson it stays plain.
+    const html = await render(
+      'The page cache holds files, and NAT rewrites addresses.',
+      'ml.dsa.graphs',
+    )
+    expect(marked(html)).toEqual([])
+  })
+
   it('finds the topic from the lesson file, on Windows too', () => {
     expect(topicOfLesson('/a/content/topics/csa.net.nat/lesson.mdx')).toBe(
       'csa.net.nat',

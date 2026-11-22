@@ -2,14 +2,160 @@
 
 Statistics is what you do to a list of numbers to say something true about it; probability is counting what could happen. Both are the ground machine learning stands on: a model is judged by statistics of its errors, and most models output probabilities.
 
-The main resource is the free textbook *OpenStax Introductory Statistics 2e*: **chapter 2, sections 2.5 to 2.7** (measures of the center and of the spread of data) and **chapter 3, sections 3.1 to 3.3** (probability, independent events and the rules). About 30 minutes; the examples are long, so read the definitions and skim the rest. Watch for:
+This lesson has five ideas, in the order the questions ask for them: the mean and the median, the standard deviation, chance by counting, the chance of two things together, and what a test result is worth when the thing it tests for is rare. Each one is a few lines of Python over a list or a loop, and the code is the definition.
 
-- **Mean and median** answer "what's typical?" differently, and one big value changes the mean but not the median.
-- **Standard deviation** measures how spread out the numbers are: the typical distance from the mean.
-- **Probability as counting:** favourable outcomes divided by all equally likely outcomes.
-- **Independent events multiply:** the chance of both is the product of the chances.
+**The mean: share it out equally.** Five pizza deliveries took `[12, 15, 9, 14, 50]` minutes. What is a typical delivery time? The usual answer is the **mean**, the everyday "average": add the values up and divide by how many there are. Here that is `100 / 5`, which is 20. In Python, `sum()` does the adding and `len()` the counting. One way to picture it: if the 100 minutes were shared out equally among the five deliveries, each would get 20.
 
-The book works examples by hand. Here every one of them is a few lines of Python over a list, and the code is the definition.
+Now look at the list again. Four of the five deliveries took 15 minutes or less. The mean, 20, is longer than all four, because the one 50-minute delivery adds so much to the total. The mean uses every value, so one unusual value moves it. A value far from the rest, like the 50, is called an **outlier**.
+
+**The median: the one in the middle.** The **median** answers "what is typical?" another way. Put the values in order and take the middle one: half of the others are below it and half above. Sorted, the deliveries are `[9, 12, 14, 15, 50]`, and the middle one is 14. That is a fairer picture of a typical delivery than 20.
+
+Finding the middle in code takes one sum. Positions in a list count from 0, so five sorted values sit at positions 0 to 4 and the middle is position 2. Floor division, `//`, finds it: `5 // 2` is 2.
+
+```python
+times = [12, 15, 9, 14, 50]
+mean = sum(times) / len(times)
+ordered = sorted(times)
+middle = len(ordered) // 2
+print(mean)
+print(ordered)
+print(middle, ordered[middle])
+```
+
+```
+20.0
+[9, 12, 14, 15, 50]
+2 14
+```
+
+With an even count there is no single middle value. Add a sixth delivery of 20 minutes and the sorted list is `[9, 12, 14, 15, 20, 50]`. The middle falls between the third and fourth values, 14 and 15, and the median is the mean of those two: `(14 + 15) / 2`, which is 14.5. In position terms, `6 // 2` is 3, and the two middle values are at positions 2 and 3: the one at `middle - 1` and the one at `middle`. To tell which case you are in, ask whether the count is odd: `len(ordered) % 2 == 1` (the remainder after dividing by 2 is 1).
+
+Two mistakes are common. The first is forgetting to sort. The middle position of the unsorted list `[12, 15, 9, 14, 50]` holds 9, the smallest value of all: the median is the middle by size, not by where a value happens to sit. The second is expecting the median of an even count to be one of the values. Often it isn't.
+
+**Which one to trust.** Change the slow delivery from 50 minutes to 5,000 (the driver got lost for three days). The mean jumps from 20 to 1,010. The median is still 14, because the middle value hasn't moved; only the size of the last one changed. So when a list has a few very large or very small values, the median says what is typical and the mean doesn't. That is why incomes and house prices are usually summed up by their median. When the values are evenly scattered around their middle, the two come out close, and the mean is the one that later calculations build on.
+
+<Check item="mcq-median-or-mean" />
+
+**Spread: how far from the mean the values sit.** A middle is half the story. Here are five days' midday temperatures in two towns, in degrees: `[11, 14, 15, 16, 19]` and `[14, 15, 15, 15, 16]`. Both have a mean of 15 and a median of 15. But the first town swings between 11 and 19, and the second hardly changes. The **standard deviation** is the number that tells them apart. It measures the typical distance between a value and the mean. Here is how it is built, for the first town:
+
+| Value | Distance from the mean (value − 15) | Distance squared |
+| ----- | ----------------------------------- | ---------------- |
+| 11    | −4                                  | 16               |
+| 14    | −1                                  | 1                |
+| 15    | 0                                   | 0                |
+| 16    | 1                                   | 1                |
+| 19    | 4                                   | 16               |
+
+1. **Subtract the mean from each value.** These are the distances, negative for values below the mean and positive for values above it.
+2. **Square each distance** (multiply it by itself; `** 2` in Python).
+3. **Take the mean of the squares:** `(16 + 1 + 0 + 1 + 16) / 5` is `34 / 5`, which is 6.8. This in-between number has a name, the **variance**.
+4. **Take the square root** of the variance. The square root of a number is the number that, multiplied by itself, gives it back: the square root of 9 is 3, because 3 × 3 is 9. In Python a square root is a power of one half, `** 0.5`.
+
+```python
+print(9**0.5)
+print(6.8**0.5)
+```
+
+```
+3.0
+2.6076809620810595
+```
+
+So the first town's standard deviation is about 2.6 degrees. The same four steps for the second town give about 0.63. Same mean, very different spread, and now there is a number that says so.
+
+Why square, and then undo it? Because the plain distances always add up to zero: −4, −1, 0, 1 and 4 cancel exactly, and they do for every list, since the mean is the balance point. Averaging them would say that no list has any spread at all. Squaring makes every distance positive, and it also makes far-off values count for more. But squaring leaves the answer in squared units (6.8 "square degrees"), so the square root at the end brings it back to the units of the data: 2.6 degrees.
+
+A check on the idea: in `[4, 4, 10, 10]` the mean is 7 and every value is exactly 3 away from it, and the standard deviation comes out as exactly 3. When every value is the same, every distance is 0, so the standard deviation is 0. It is never negative.
+
+How to read it: a small standard deviation means the values huddle close to the mean; a large one means they are scattered far above and below it. It says nothing about how many values there are, or about which list is "better".
+
+In code, the four steps are a loop: start a total at 0, add each value's squared distance from the mean to it, divide the total by the number of values, then raise the result to the power 0.5. The usual mistakes are stopping before the square root (which reports the variance, 6.8, as if it were the spread) and squaring the total after the loop when each distance should be squared inside it.
+
+One thing will catch you out if you compare with a textbook or a calculator: there are two versions. The one here divides by the number of values and is called the **population** standard deviation. The other, the **sample** standard deviation, divides by one less than the count (n − 1) and comes out a little bigger: 2.92 for the first town. Statisticians use it when the list is a small sample standing in for a much larger group. This course divides by the count, which is also what NumPy, the number library used later in this track, does unless told otherwise.
+
+**Probability: counting what could happen.** A **probability**, or chance, is a number from 0 to 1 that says how likely something is: 0 means it can't happen, 1 means it is certain, and 0.5 means it happens half the time. The same chance can be written as a fraction (1/4), a decimal (0.25) or a percentage (25%: the decimal times 100).
+
+When every possible result is equally likely, a probability is found by counting. Each possible result is called an **outcome**. Count the outcomes you are interested in (the favourable ones), count all the outcomes, and divide:
+
+`probability = favourable outcomes / all outcomes`
+
+A fair six-sided die has six outcomes, 1 to 6, all equally likely. The chance of rolling more than 4 is the chance of a 5 or a 6: two favourable outcomes out of six, `2 / 6`, about 0.333.
+
+With two things happening, an outcome is a **pair**. Roll a four-sided die (numbered 1 to 4) together with an ordinary six-sided one. Each of the 4 results on the first can go with each of the 6 on the second, so there are 4 × 6 = 24 pairs, all equally likely. What is the chance that the six-sided die shows the higher number? Listing 24 pairs by hand invites a slip. A loop inside a loop visits every pair exactly once: the outer loop takes each result of the first die, and for each one the inner loop runs through every result of the second. Remember that `range(1, 5)` gives 1, 2, 3, 4: it stops before its second number.
+
+```python
+favourable = 0
+total = 0
+for small in range(1, 5):
+    for big in range(1, 7):
+        total = total + 1
+        if big > small:
+            favourable = favourable + 1
+print(favourable, total)
+print(favourable / total)
+```
+
+```
+14 24
+0.5833333333333334
+```
+
+Fourteen of the 24 pairs are favourable, so the chance is `14 / 24`, about 0.583, or 58.3%.
+
+Three mistakes to watch for. Counting works only when the outcomes are **equally likely**: "the six-sided die is higher, or it isn't" is two possibilities, but the chance is not 1 in 2. The total for two things is the **product** of their counts, 4 × 6, not the sum, 4 + 6. And the order in a pair matters: a 1 on the first die with a 3 on the second is a different outcome from a 3 with a 1, and both must be counted.
+
+**Two things together: multiply, if they are independent.** Two events are **independent** when one happening tells you nothing about the other. A die doesn't know what a coin just did. For independent events, the chance that **both** happen is the product of their chances.
+
+A bag holds 3 red marbles and 7 blue ones. You pull out a marble without looking and also roll a six-sided die. The chance of red is `3 / 10`, and the chance of an even number is `3 / 6`. Counting shows why multiplying is right: there are 10 × 6 = 60 equally likely pairs of marble and die, and 3 × 3 = 9 of them are a red marble with an even number. The favourable count is a product and the total is a product, so the chance is the product of the two chances:
+
+```python
+p_red = 3 / 10
+p_even = 3 / 6
+print(p_red * p_even)
+print(9 / 60)
+print(1 - p_red)
+```
+
+```
+0.15
+0.15
+0.7
+```
+
+The last line is the other rule worth knowing. The chance that something does **not** happen is 1 minus the chance that it does, because the two between them cover every outcome. Not red is `1 - 3 / 10`, which is 0.7: the 7 blue marbles in 10.
+
+Two mistakes here. One is **adding** when you mean "both": 0.3 + 0.5 is 0.8, which would make "red and even" more likely than red alone. A product of two chances is never bigger than either of them, as it should be: asking for two things at once is asking for more. The other is multiplying when the events are **not** independent. If it rains on 3 days in 10 and your bus is late on 2 days in 10, the chance of both on the same day is not `0.3 * 0.2`, because rain makes buses late: knowing one tells you something about the other. Multiply only when it doesn't.
+
+<Check item="predict-independent-events" />
+
+**Base rates: what a positive result is worth.** The last idea is the one people get wrong most often, and it needs nothing harder than percentages.
+
+A mail filter looks at emails and flags the ones it thinks are scams. It is good at its job: it flags 90% of the scam emails, and it wrongly flags only 5% of the honest ones. An email has just been flagged. How likely is it to be a scam? Most people say about 90%. The real answer depends on something the question hasn't said yet: how common scam emails are in the first place. That number is called the **base rate**.
+
+Say 4 emails in 100 are scams. Don't reason with percentages of percentages. Picture 1,000 emails and count them into a table:
+
+|        | Flagged | Not flagged | Total |
+| ------ | ------- | ----------- | ----- |
+| Scam   | 36      | 4           | 40    |
+| Honest | 48      | 912         | 960   |
+| Total  | 84      | 916         | 1,000 |
+
+Fill it in this order:
+
+1. **Split the 1,000 by the base rate.** 4% of 1,000 is 40 scams. The other 960 are honest.
+2. **Take the scam row.** The filter flags 90% of the 40: `40 * 0.9` is 36. These are **true positives**: flagged, and rightly. (The fraction of real cases a test catches, 0.9 here, is called its **sensitivity**.)
+3. **Take the honest row.** The filter wrongly flags 5% of the 960: `960 * 0.05` is 48. These are **false positives**: flagged, but honest.
+4. **Read down the "Flagged" column.** 36 + 48 = 84 emails are flagged, and 36 of them are scams. `36 / 84` is about 0.43.
+
+So a flagged email is a scam 43% of the time, not 90%. More than half of what this filter flags is honest mail. Nothing is wrong with the filter. The honest group is so much bigger than the scam group that a small slice of it (5% of 960) outweighs a large slice of the small one (90% of 40).
+
+The slip in "about 90%" is mixing up two questions that sound alike. "Of the scam emails, what fraction get flagged?" is 90%: read **across** the scam row, 36 of 40. "Of the flagged emails, what fraction are scams?" is 43%: read **down** the flagged column, 36 of 84. The first starts from knowing the email is a scam; the second starts from knowing it was flagged, and that is the position you are actually in. Only the second depends on the base rate. Give the same filter a mailbox where 40 emails in 100 are scams and the table changes: 400 scams of which 360 are flagged, 600 honest of which 30 are flagged, and now `360 / 390`, about 92%, of flagged emails are scams. Same filter, different base rate, different answer. The rarer the thing, the more of the positives are false alarms.
+
+The mistake to avoid inside the table is taking the false-positive percentage of everyone. 5% of all 1,000 would be 50, but the 40 scams can't be false positives; it is 5% of the 960 honest ones, 48. Each percentage applies to its own row.
+
+The questions that follow use people, a medical condition and a test in place of emails and a filter; the table is the same. When a count should be shown as a whole number, the f-string format `:.0f` shows a float with no decimal places, the way `:.2f` in Arithmetic showed two and `:.1f` shows one: `f"{36.0:.0f}"` is `36`. The general formula that this table works out by counting is called **Bayes' rule**; you don't need the formula here, only the table.
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. Under "More resources", Khan Academy's short video _Probability explained_ plays in the page and shows probability by counting with a coin and a die, drawn by hand: worth watching if the counting section went by fast. The free textbook _OpenStax Introductory Statistics 2e_ (the main resource below; chapter 2, sections 2.5 to 2.7, and chapter 3, sections 3.1 to 3.3) goes much further than this topic needs: the mode, skewed data, the sample standard deviation and why it divides by n − 1, the formal vocabulary of probability, and the rules for "or" and for events that are not independent. Khan Academy's statistics and probability course has practice problems on all of it.
 
 </Intro>
 
@@ -18,7 +164,7 @@ The book works examples by hand. Here every one of them is a few lines of Python
 <Recap>
 
 - **Mean:** `sum(values) / len(values)`. **Median:** sort, take the middle (for an even count, the mean of the two middle values). For `[2, 4, 4, 10]` the mean is `5.0` and the median `4.0`: the 10 pulls the mean up and leaves the median alone. Use the median when a few huge values would mislead (salaries, house prices).
-- **Standard deviation** is the typical distance from the mean: subtract the mean from each value, square, average the squares, take the square root. For `[2, 4, 4, 4, 5, 5, 7, 9]` it's `2.0`. (The book's *sample* standard deviation divides by one less than the count, n − 1, and comes out slightly bigger, 2.14 here; we divide by the count, which is what NumPy does by default too.) A small spread means the values huddle near the mean; a large one means they don't.
+- **Standard deviation** is the typical distance from the mean: subtract the mean from each value, square, average the squares, take the square root. For `[2, 4, 4, 4, 5, 5, 7, 9]` it's `2.0`. (The *sample* standard deviation of statistics textbooks divides by one less than the count, n − 1, and comes out slightly bigger, 2.14 here; we divide by the count, which is what NumPy does by default too.) A small spread means the values huddle near the mean; a large one means they don't.
 - **Probability by counting:** for equally likely outcomes, favourable ÷ total. Two dice have 36 outcomes; 6 of them sum to 7, so the chance is `6 / 36`, about 0.167. Nested loops count outcomes without missing any.
 - **Independent events multiply:** heads **and** a six is `0.5 * 1 / 6`. **Not** something is `1 - p`: not a six is `5 / 6`.
 - **Base rates:** before trusting a test result, ask how common the thing is. Put 1,000 people in a table: how many have it and test positive, how many don't have it and test positive anyway. When the thing is rare, the false positives from the big healthy group outnumber the true positives, so most positives are false alarms. That's Bayes' rule in a table.

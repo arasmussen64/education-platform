@@ -1,12 +1,311 @@
 <Intro>
 
-Two shapes of "what's next": a **stack**, where the last thing in is the first thing out, and a **queue**, where the first thing in is the first thing out. Python gives you the first for free (a list) and the second almost for free (`collections.deque`), and the difference between them is the difference between matching brackets and running tasks in order. The third idea is **recursion**, a function that calls itself, which is a stack the interpreter keeps for you; the worked example shows that stack growing and shrinking, and then replaces it with one you manage.
+Two shapes of "what's next": a **stack**, where the last thing in is the first thing out, and a **queue**, where the first thing in is the first thing out. Python gives you the first for free (a list) and the second almost for free (`collections.deque`), and the difference between them is the difference between matching brackets and running tasks in order. The third idea is **recursion**, a function that calls itself, which is a stack the interpreter keeps for you. This lesson builds each idea on small examples of its own; the worked example then shows that stack growing and shrinking, and replaces it with one you manage.
 
-The main resource is **_Problem Solving with Algorithms and Data Structures using Python_, chapter 3** (stacks, balanced parentheses, postfix expressions, queues, and the two sections on linked lists) and **chapter 4** (recursion, up to stack frames); about 40 minutes, with runnable code. The `deque` documentation is the reference. Watch for:
+**A stack: the last thing in is the first thing out.** Think of the Back button in a browser. You open the home page, then a search, then an article. Press Back and you leave the article, the page you opened last. Press it again and you leave the search. The pages come back in the opposite order to the one they went in. A **stack** is any collection that works like that: you add at one end, called the **top**, and you take away from the same end. Adding is a **push**, and taking the top item off is a **pop**. The rule is **last in, first out**.
 
-- **Push and pop** are both at the end of a list; a queue needs the front too.
-- **The three laws of recursion**: a base case, a step towards it, and a call to itself.
-- **A stack frame** is what each call owns.
+A Python list is already a stack, as long as you only touch its end. `append` is the push, `pop()` with nothing in its brackets is the pop, and `[-1]` looks at the top without removing it:
+
+```python
+history = []
+history.append("home")
+history.append("search")
+history.append("article")
+print(history)
+print(history.pop())
+print(history[-1])
+print(history)
+```
+
+```
+['home', 'search', 'article']
+article
+search
+['home', 'search']
+```
+
+Both the push and the pop are one step however long the list is. The last topic showed why: a list is an array, one block of memory with spare room at the end, so adding or removing the last item moves nothing else.
+
+Two habits go with every stack. First, make sure something is there before you pop: `pop()` on an empty list raises `IndexError: pop from empty list`. An empty list counts as false, so `if stack:` asks "is anything left?" and `while stack:` means "until it is empty". Second, the top of the stack is the list's **end**. If you catch yourself writing `pop(0)` or `insert(0, x)`, you are working at the wrong end.
+
+<Check item="predict-a-stack-trace" />
+
+**What a stack is for: undo.** A stack suits any job where the most recent thing must be dealt with first. Undo is the plainest one. Each time something changes, push what you would need to put it back. To undo, pop: the top of the stack is always the latest change that hasn't been undone yet.
+
+```python
+volume = 5
+earlier = []
+for new_volume in (7, 2, 9):
+    earlier.append(volume)  # remember the value being replaced
+    volume = new_volume
+print(volume, earlier)
+volume = earlier.pop()  # undo the change to 9
+volume = earlier.pop()  # undo the change to 2
+print(volume, earlier)
+```
+
+```
+9 [5, 7, 2]
+7 [5]
+```
+
+Three changes pushed the three values they replaced. Each undo popped the latest one, and what is left on the stack, `[5]`, is the one undo still available.
+
+**What a stack is for: matching brackets.** Brackets nest. In `total(prices[0])` the `[` opens after the `(`, so it has to close before it. The rule is that each closing bracket closes the **most recently opened** bracket that is still open, and the two must be the same kind. "The most recent one still open" is the top of a stack. So read the text one character at a time. Push every opening bracket. At every closing bracket, pop, and check that what came off is the opener this closer pairs with. Skip every other character. A small dict from each closer to its opener (`")"` to `"("`, and so on) turns that check into one lookup. Here is the stack as `( [ ] { )` is read:
+
+| Character | What happens                                    | Stack afterwards |
+| --------- | ----------------------------------------------- | ---------------- |
+| `(`       | an opener: push it                              | `(`              |
+| `[`       | an opener: push it                              | `( [`            |
+| `]`       | a closer: pop `[`, which pairs with `]`         | `(`              |
+| `{`       | an opener: push it                              | `( {`            |
+| `)`       | a closer: pop `{`, which does not pair with `)` | not balanced     |
+
+There are three ways to fail, and a checker needs all three. A closer finds the **wrong kind** of opener on top, as here. A closer arrives when the stack is **empty**, like the first character of `)(`: there is nothing to pop, so test for an empty stack before popping. Or the text ends with openers **still on the stack**, as in `{[]`, where the `{` is never closed. The third is the one people forget. Reaching the end without a mismatch is not enough: the text is balanced only if the stack is empty when it ends.
+
+**What a stack is for: postfix arithmetic.** We normally write an operator between its two numbers: `6 - 2`. That way of writing needs brackets, or rules about which operator goes first, to settle what `6 - 2 * 4` means. **Postfix** writes each operator **after** the two things it works on: `6 2 -`. A postfix expression needs neither brackets nor rules, and a stack works it out in one pass over the **tokens**, the pieces between the spaces:
+
+- a number is pushed;
+- an operator pops two numbers, works on them, and pushes the result.
+
+At the end one number is left on the stack, the answer. Here is `6 2 - 4 *`:
+
+| Token | What happens               | Stack afterwards |
+| ----- | -------------------------- | ---------------- |
+| `6`   | a number: push it          | `[6]`            |
+| `2`   | a number: push it          | `[6, 2]`         |
+| `-`   | pop 2, pop 6, push `6 - 2` | `[4]`            |
+| `4`   | a number: push it          | `[4, 4]`         |
+| `*`   | pop 4, pop 4, push `4 * 4` | `[16]`           |
+
+So `6 2 - 4 *` means `(6 - 2) * 4`, which is 16. Move the operators and the meaning changes, with no brackets needed: `6 2 4 * -` multiplies first, leaving `[6, 8]`, and then subtracts, so it means `6 - (2 * 4)`, which is -2.
+
+The detail that goes wrong is the order of the two pops. The **first** number popped is the one pushed **last**, so it belongs on the right of the operator. At the `-` above, 2 came off first and 6 second, and the sum is `6 - 2`: second popped, minus first popped. Get it backwards and you work out `2 - 6`. With `+` and `*` either order gives the same answer, which is how the mistake hides until a subtraction shows it.
+
+**A queue: the first thing in is the first thing out.** People waiting at a counter are served in the order they arrived. A **queue** is a collection that works that way: you add at the **back** and take from the **front**. The rule is **first in, first out**. Anything that should be handled in the order it arrived is a queue: tasks waiting to run, messages waiting to be read, the pages a crawler has found and not yet visited.
+
+A queue needs two ends, and a list is quick at only one of them. Take the front item with `pop(0)` and, as the last topic showed, every item left has to move one place towards the front to close the gap. Suppose 50,000 print jobs wait in a list. The first `pop(0)` moves the other 49,999. The next moves 49,998, and so on down to none. Emptying the queue moves `49,999 + 49,998 + ... + 1 + 0` items. That is the number of pairs from this module's first topic, `n * (n - 1) / 2`, and here it comes to 1,249,975,000 moves to hand out 50,000 jobs. A step for every remaining item at every pop makes the whole queue `O(n²)`.
+
+The structure built for the job is `deque` (said "deck", short for double-ended queue), in the standard library's `collections` module. It adds and removes at **either** end in one step. `append` adds at the back, as on a list, and `popleft()` takes from the front:
+
+```python
+from collections import deque
+
+tickets = deque(["Ana", "Ben"])
+tickets.append("Chidi")
+print(tickets.popleft())
+print(tickets)
+while tickets:
+    print("next:", tickets.popleft())
+```
+
+```
+Ana
+deque(['Ben', 'Chidi'])
+next: Ben
+next: Chidi
+```
+
+A deque prints with its name around its items; `list(tickets)` gives a plain list when you want one. `len(tickets)` and `while tickets:` work as they do on a list, and `popleft()` on an empty deque raises `IndexError`, so the habit of checking first still applies. A deque also has `pop()`, which takes from the **back**, and that is the slip to watch for: `append` with `pop()` is a stack again, whatever the variable is called. The newest job comes out first, and on a busy queue the oldest one never gets its turn.
+
+Two tempting ways to keep the list don't work either. Plain `pop()` is one step, but it hands out the newest item. Reversing the list once and then using `pop()` hands out the oldest, but only until something new arrives: `append` puts the newcomer at the end, which is now the front of the line, so it jumps the queue.
+
+A deque pays for its quick ends in the middle. `tickets[0]` and `tickets[-1]` are one step, but reaching an item in the middle takes a walk, so a list is still the right structure when you need items by position.
+
+<Check item="mcq-which-queue" />
+
+**Recursion: a function that calls itself.** Some problems contain a smaller copy of themselves. The sum of the digits of 4,827 is 7, plus the sum of the digits of 482. That is the same question about a shorter number, and the shorter number's answer is found the same way, until the number is a single digit, which is its own digit sum. A function can say exactly that by calling itself. `n % 10` is the last digit of `n`, and `n // 10` is `n` with its last digit removed:
+
+```python
+def digit_sum(n):
+    if n < 10:
+        return n
+    return n % 10 + digit_sum(n // 10)
+```
+
+A function that calls itself is **recursive**, and the technique is **recursion**. Every recursive function that works has three things, sometimes called the three laws of recursion:
+
+- a **base case**: an input small enough to answer directly, with no further call. Here, a single digit.
+- a **step towards the base case**: each call hands on a smaller input. Here, `n // 10` has one digit fewer.
+- a **call to itself** on that smaller input, whose answer it then uses.
+
+To write one, don't try to follow every call in your head. Decide the base case. Then assume the function already works on the smaller input, and ask only how to get from that answer to yours.
+
+**What happens when it runs: frames and the call stack.** Here is the same function with a print as each call starts and another just before it returns:
+
+```python
+def digit_sum(n):
+    print("called with", n)
+    if n < 10:
+        answer = n
+    else:
+        answer = n % 10 + digit_sum(n // 10)
+    print("returning", answer)
+    return answer
+
+
+print(digit_sum(4827))
+```
+
+```
+called with 4827
+called with 482
+called with 48
+called with 4
+returning 4
+returning 12
+returning 14
+returning 21
+21
+```
+
+All four "called" lines come before the first "returning". `digit_sum(4827)` can't finish until it has the answer for 482, so it pauses part-way through its line and waits. That call pauses for 48, and that one for 4. Only the base case, `digit_sum(4)`, can answer on its own. Then the paused calls finish in reverse: the last one called is the first to return.
+
+Last in, first out: that is a stack, and Python keeps it for you. Each time any function is called, Python makes a **frame** (in full, a **stack frame**): a record of that call's own local variables and of the place to carry on from when it returns. The frame is pushed on the **call stack**. When the call returns, its frame is popped, and the call underneath carries on from where it paused. While `digit_sum(4)` is running, four frames are on the stack, for 4827, 482, 48 and 4, each with its **own** `n`. It is not one `n` overwritten four times: when the call for 4 returns, the call for 48 still has its `n` of 48, and uses it to work out `8 + 4`. The traceback Python prints with an error is this stack written out, one entry for each frame.
+
+**Without a base case.** Take the `if` out of `digit_sum`, so that every call makes another. `digit_sum(4827)` calls itself with 482, 48, 4, and then 0, 0, 0 without end, because `0 // 10` is 0. Every call pushes a frame and none is ever popped. Python doesn't let that run until memory is gone. It limits the call stack to about 1,000 frames, and the call that would pass the limit raises `RecursionError: maximum recursion depth exceeded`.
+
+A missing base case doesn't always get that far. This function is meant to reverse a string, by taking the last character and putting the reverse of the rest after it:
+
+```python
+def backwards(text):
+    return text[-1] + backwards(text[:-1])
+```
+
+`backwards("abc")` calls itself on `"ab"`, then `"a"`, then `""`, and on the empty string `text[-1]` raises `IndexError: string index out of range`. The cause is the same: there is no input the function answers without calling again. The cure is the same too, a base case as its first lines, `if text == "": return ""`, and then `backwards("abc")` is `"cba"`. So when a recursive function fails on its smallest input, or never stops, look at the base case first. (Each `text[:-1]` also copies the rest of the string, which makes this a slow way to reverse one. But the copying isn't what breaks it.)
+
+<Check item="mcq-no-base-case" />
+
+**Where recursion fits: things nested inside things.** Recursion is at its best on data that holds smaller data of the same kind: lists inside lists, folders inside folders, the nested dicts that JSON gave you in Module 2. Here a folder is a dict. A file's value is its size, and a folder's value is another dict:
+
+```python
+folder = {
+    "notes.txt": 4,
+    "photos": {"beach.jpg": 900, "raw": {"beach.dng": 2400}},
+    "todo.txt": 1,
+    "empty": {},
+}
+
+
+def total_size(folder):
+    total = 0
+    for value in folder.values():
+        if isinstance(value, dict):
+            total += total_size(value)  # a folder: ask the same question of it
+        else:
+            total += value  # a file: its size
+    return total
+
+
+def largest_file(folder):
+    largest = 0
+    for value in folder.values():
+        if isinstance(value, dict):
+            largest = max(largest, largest_file(value))
+        else:
+            largest = max(largest, value)
+    return largest
+
+
+print(total_size(folder), largest_file(folder))
+```
+
+```
+3305 2400
+```
+
+`isinstance(value, dict)`, from the JSON topic, asks whether a value is a dict; `isinstance(value, list)` asks the same about a list. Hold `total_size` against the three laws. The call to itself is on a folder inside this one, and that is a step towards the base case, because the inner folder is smaller. The base case is there, though no line is labelled as one: a folder with no folders in it, like `"raw"` or `"empty"`. Its loop finds only files, or nothing at all, so it makes no further call and returns. `largest_file` has the same shape and differs only in how it combines what comes back: `max` where the other has `+`, starting from 0 so that an empty folder still has an answer.
+
+Every recursion over a nest has this shape. Loop over the items; for a nested one, call yourself and combine the answer; for a plain one, handle it directly. What changes is the combining. To sum, add. To find the largest, keep the `max`. To ask how deeply something nests, take one more than the deepest thing inside it. To collect values into one list, the call on a nested item hands back a list, and you add that list's items with `extend`: `found.extend([2, 3])` adds 2 and 3 as two items, where `found.append([2, 3])` would add the list itself as a single item and leave it nested.
+
+**The depth limit, and a stack of your own.** The limit on the call stack makes **depth** the thing to watch, not size. `total_size` needs one frame for each level of nesting it is inside. So a folder holding a million files in ten levels is fine, and a chain of folders nested 3,000 deep is not. The same goes for a function that takes one item off a list at each call: a list of a million items would need a million frames. Use recursion where the depth stays in the tens or hundreds.
+
+When the depth can't be trusted, keep the idea and swap Python's stack for one of your own, inside a loop. The recipe: push the starting work on a list. While the list isn't empty, pop one piece of work, handle it, and push any further work it turns up. With `folder` and `total_size` from above:
+
+```python
+def total_size_loop(folder):
+    total = 0
+    stack = [folder]  # the folders still to open
+    while stack:
+        current = stack.pop()
+        for value in current.values():
+            if isinstance(value, dict):
+                stack.append(value)  # a folder: open it later
+            else:
+                total += value
+    return total
+
+
+deep = {"file": 1}
+for _ in range(3000):
+    deep = {"file": 1, "inner": deep}
+
+print(total_size_loop(folder), total_size_loop(deep))
+try:
+    total_size(deep)
+except RecursionError:
+    print("RecursionError")
+```
+
+```
+3305 3001
+RecursionError
+```
+
+The list `stack` does what the call stack did: it remembers the folders still waiting. But it is an ordinary list in ordinary memory, so its only limit is the memory you have. It walked 3,001 levels where the recursive version raised `RecursionError`. The price is that you write the bookkeeping yourself, and the code says less plainly what it means. So: recursion for clarity when the depth is small, the loop when the depth could be anything.
+
+One thing needs care, and that is order. A stack hands things back in reverse: `total_size_loop` opens `"empty"` before `"photos"`. A sum doesn't mind. A walk that must give its results in the original order does. The fix is to push each group of items **reversed**, so that the first is on top and comes off first. `extend` pushes several at once, and `reversed(items)` gives the items from last to first:
+
+```python
+stack = []
+stack.extend(["a", "b", "c"])
+print(stack.pop(), stack.pop(), stack.pop())
+stack.extend(reversed(["a", "b", "c"]))
+print(stack.pop(), stack.pop(), stack.pop())
+```
+
+```
+c b a
+a b c
+```
+
+Swap the list and `pop()` for a deque and `popleft()` and the loop still reaches everything, in another order. A stack takes the newest work first, so it follows one branch to its end before starting the next. A queue takes the oldest first, so it handles everything at the top level, then everything one level down. The graphs topic, later in this module, names the two depth-first and breadth-first search and uses both.
+
+**A linked list: a chain of nodes.** A list keeps its items side by side in one block. A **linked list** puts each item in a small object of its own, called a **node**, which holds two things: the item's value, and a reference to the next node. The last node's reference is `None`. The program keeps hold of the first node only, and finds everything else by following the chain:
+
+```python
+class Node:
+    def __init__(self, value, next_node=None):
+        self.value = value
+        self.next_node = next_node
+
+
+third = Node("Cork")
+second = Node("Bath", third)
+first = Node("Ayr", second)
+
+second.next_node = Node("Bude", second.next_node)  # splice in after Bath
+
+node = first
+while node is not None:
+    print(node.value)
+    node = node.next_node
+```
+
+```
+Ayr
+Bath
+Bude
+Cork
+```
+
+The line marked "splice in" put a new node between Bath and Cork by making one node and changing one reference. Nothing else moved, and nothing else would have moved in a chain of a million. That is a linked list's one strength: **inserting or removing at a node you already hold is one step**, where a Python list would shift everything after that point.
+
+Everything else counts against it. There is no `chain[2]`. To reach the k-th node you start at the first and follow k references, so the middle of a million-node chain is about 500,000 steps away, where a list's index is one step. And every node is a separate object with a memory cost of its own, so a walk along the chain is slower than a scan of a list. That is why Python code rarely builds one. A list wins for nearly everything, and where quick ends are needed `deque` is already there: inside, it is a chain of blocks that each hold many items, which gets the quick ends without paying for a node per item.
+
+The idea is worth keeping all the same, because it comes back. A tree's node holds references to its children, and a graph's node to its neighbours: the next topics are built from nodes and references.
+
+**Going deeper (optional).** The lesson above covers everything this topic's questions, exercises and explanation ask, so none of the outside pages is needed. Chapters 3 and 4 of _Problem Solving with Algorithms and Data Structures using Python_, offered below and under More resources, go through stacks, balanced brackets, postfix, queues, linked lists and recursion at more length, with code you can run on the page. The `deque` page in the Python documentation lists every method, among them `appendleft`, `rotate` and a `maxlen` setting that makes a deque keep only its newest items, and ends with short recipes such as a moving average.
 
 </Intro>
 

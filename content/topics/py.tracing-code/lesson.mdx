@@ -2,17 +2,184 @@
 
 Programmers who can't read code rarely write it well. **Tracing** is reading code the way the computer runs it: one line at a time, writing down what each name refers to as you go. It's the skill behind predicting output, finding bugs, and understanding anyone else's program.
 
-This topic's resource is Python Tutor, a website that traces for you. It's loaded with a short program. Press **Next >** to run one line at a time, and watch the names on the right change. As you step through it, keep your own **trace table** on paper or in a text file:
+All it needs is paper, or a text file, and patience. Nothing in this topic is new Python. The new part is a way of working that stops you guessing.
 
-| line | `total` | `bonus` | printed |
+**The trace table.** A trace table is where the writing-down happens. It has a column for each name (each variable) in the program, a column for what has been printed, and a new row each time a line changes a name or prints something. Take this program:
+
+```python
+pages = 40
+read = 15
+pages = pages - read
+read = read * 2
+print(pages)
+print(read)
+```
+
+Start at line 1 and do one line at a time, as Python does. Each line gets a row:
+
+| line | `pages` | `read` | printed |
 |---|---|---|---|
-| 1 | 10 | | |
-| 2 | 10 | 3 | |
-| 3 | 10 > 8 is `True`, so line 4 runs | | |
-| 4 | 13 | 3 | |
-| 7 | | | `13 3` |
+| 1 | 40 | | |
+| 2 | 40 | 15 | |
+| 3 | 25 | 15 | |
+| 4 | 25 | 30 | |
+| 5 | | | `25` |
+| 6 | | | `30` |
 
-Then change the first line to `total = 5` in Python Tutor and step through again. Which lines run now? Python Tutor is a good check, but the goal is to need it less and less.
+Three habits make the table work:
+
+- **Copy every value down.** When a row changes one name, write the other names' values again beside it. Then the lowest row with values in it always says what every name refers to *now*, and you never have to hunt upwards.
+- **Right-hand side first.** Line 3 is `pages = pages - read`. Python works out the right-hand side with the current values, 40 - 15, and only then points `pages` at the result, 25. The 40 is gone: no later line can see it.
+- **Write output exactly as it appears.** Each `print` starts a new line of output, so lines 5 and 6 get a row each. One `print` with two values, `print(pages, read)`, would put both on one line with a space between them: `25 30`. A row that only prints changes no name, so its name columns stay empty.
+
+**The mistake behind most wrong traces** is using a value a name used to have. Try this one in your head before reading on:
+
+```python
+left = 3
+right = left
+left = left + 4
+print(left, right)
+```
+
+It prints `7 3`. Many people say `7 7`, because line 2 looks as if it ties the two names together. It doesn't. As the Variables topic said, `right = left` points `right` at whatever `left` refers to at that moment, which is 3, and line 3 then moves `left` alone. The table can't get this wrong, because line 3 only touches one column:
+
+| line | `left` | `right` | printed |
+|---|---|---|---|
+| 1 | 3 | | |
+| 2 | 3 | 3 | |
+| 3 | 7 | 3 | |
+| 4 | | | `7 3` |
+
+The rule cuts both ways. When a line uses a name, look at the latest row: not the value the name started with, and not a value it hasn't been given yet. If a line two rows up changed the name, the changed value is the one to use.
+
+**At an `if`, write the answer down.** An `if` line changes no name, but it decides which lines run next, so it gets a row too. Work out its condition with the current values, and write the working and the answer, `True` or `False`, in the row.
+
+```python
+battery = 18
+mode = "normal"
+if battery >= 20:
+    battery = battery - 5
+else:
+    mode = "saver"
+    battery = battery - 1
+print(mode)
+print(battery)
+```
+
+| line | `battery` | `mode` | printed |
+|---|---|---|---|
+| 1 | 18 | | |
+| 2 | 18 | `"normal"` | |
+| 3 | 18 >= 20 is `False`, so the `else` lines run | | |
+| 6 | 18 | `"saver"` | |
+| 7 | 17 | `"saver"` | |
+| 8 | | | `saver` |
+| 9 | | | `17` |
+
+What to notice:
+
+- **The line numbers jump from 3 to 6.** The condition was `False`, so line 4 never ran: `battery` never lost 5. Line 5, the `else:` itself, does nothing on its own. Crossing out the skipped lines in the code stops you applying them by mistake.
+- **Exactly one of the two branches runs.** A **branch** is one of the indented blocks an `if` chooses between. Had `battery` started at 20, the condition would be 20 >= 20, which is `True`: line 4 would run, and lines 6 and 7 would be the ones crossed out.
+- **An `if` with no `else`** has only one branch. When its condition is `False`, nothing runs, and the trace carries on at the next line that isn't indented.
+- **Text keeps its quotes in a name's column,** to show it's text, and loses them in the printed column, because `print` shows text without them.
+- **Lines after the branches run every time.** Lines 8 and 9 aren't indented, so they run whichever way the `if` went, and they print the values in the latest row.
+
+<Check item="predict-swap-if" />
+
+**Every `if` is a new question.** A program can have several `if`s, one after another. Each is asked when Python reaches it, with the values as they are by then:
+
+```python
+age = 12
+price = 10
+if age < 13:
+    price = price - 4
+if price < 8:
+    price = price + 1
+print(price)
+```
+
+| line | `age` | `price` | printed |
+|---|---|---|---|
+| 1 | 12 | | |
+| 2 | 12 | 10 | |
+| 3 | 12 < 13 is `True` | | |
+| 4 | 12 | 6 | |
+| 5 | 6 < 8 is `True` | | |
+| 6 | 12 | 7 | |
+| 7 | | | `7` |
+
+Line 5 asks about `price` after line 4 has changed it. With the starting value the question would have been 10 < 8, which is `False`, and the prediction would be 6: wrong. The first `if` changed what the second one saw.
+
+The word at the start of the line matters as well. If line 5 were `elif price < 8:`, it would belong to line 3's chain, and an `elif` is asked only when everything above it in its chain was `False`. Line 3 was `True`, so line 5 wouldn't be asked at all, and the program would print 6. So read the first word before you work out a condition: a plain `if` is always asked; an `elif` or `else` is reached only when the conditions above it in the same chain were all `False`.
+
+<Check item="predict-two-branches" />
+
+**Programs that ask for input, and finding bugs.** When a program calls `input()`, the trace needs to know what was typed. You choose: pick the values, write them in the table as the names' first values, and trace the program once for each set of values you want to try. The question that `input()` shows also appears on the screen, but the tables here leave it out and record only what `print` shows.
+
+This is how tracing finds bugs. First write down what the program *should* print for the values you picked. Then trace what it *does*. The first row where the two differ is where the bug is.
+
+This program should print exactly one line: `Call ahead` for someone more than 30 minutes late, `Late by` and the number of minutes for anyone else who is late, and `On time` otherwise.
+
+```python
+late = int(input("Minutes late? "))
+if late > 30:
+    print("Call ahead")
+if late > 0:
+    print(f"Late by {late}")
+else:
+    print("On time")
+```
+
+Typing `45` should print `Call ahead` and nothing more. The trace, with 45 typed:
+
+| line | `late` | printed |
+|---|---|---|
+| 1 | 45 | |
+| 2 | 45 > 30 is `True` | |
+| 3 | | `Call ahead` |
+| 4 | 45 > 0 is `True` | |
+| 5 | | `Late by 45` |
+
+In row 5, the f-string's `{late}` is replaced by the value in the latest row, 45. The table shows two lines of output where one was wanted, and row 4 is where it went wrong: line 4 is a plain `if`, so it was asked even though line 2 had already settled the matter. Changing line 4 to `elif late > 0:` fixes it: with 45, lines 4 and 5 are then never reached.
+
+One trace doesn't prove a program right. 45 only went down one branch, and a bug in another branch would stay hidden. Trace once for each branch (here 45, then 10, then 0), and try a value right at the edge of a condition too, such as 30, because that's where `>` and `>=` give different answers. This program had one bug. A program can have several, each in a different branch, and each shows up only in the trace that goes through it.
+
+**From a table back to a program.** Some of this topic's exercises work the other way round: they give you a trace, as a table or as numbered steps, and you write the program that produces it. Read the table as a set of clues:
+
+- Each name column is a variable, and the first value in it is the name's starting value.
+- A row with a condition and `True` or `False` is an `if` line. Rows after a `True` are the indented lines under it.
+- Where a value changes, compare it with the row above to see what the line did.
+- Each entry in the printed column is a `print`, and it shows whether values share a line.
+
+For example:
+
+| line | `tank` | `trip` | printed |
+|---|---|---|---|
+| 1 | 30 | | |
+| 2 | 30 | 8 | |
+| 3 | 22 | 8 | |
+| 4 | 22 < 25 is `True` | | |
+| 5 | | | `refuel` |
+| 6 | | | `22` |
+
+In row 3, `tank` fell from 30 to 22. That's a drop of 8, and 8 is what `trip` refers to, so line 3 is `tank = tank - trip`. The whole program:
+
+```python
+tank = 30
+trip = 8
+tank = tank - trip
+if tank < 25:
+    print("refuel")
+print(tank)
+```
+
+Line 3 could also have been `tank = 22`, and this one table would look the same. But a program should keep working when its starting values change, and a typed-in answer doesn't. When a later value can be worked out from the names, write the working. The exercises check this by running your program again with other starting values.
+
+**Checking a trace: Step through.** The app can show you Python's own trace, so you don't need another website to check yours. Wherever there is a **Run** button, in an exercise or on the Playground page, there is a **Step through** button beside it. A "what does it print?" question offers **Step through it** once you've answered. It shows the code with an arrow at the line about to run, the value of each name, and the output so far. **Next** moves on one line and **Back** returns. If the program asks for input, press Run and answer first: Step through then replays the same answers.
+
+Use it as the answer key, after your own trace and never instead of it. Go one step at a time and compare each step with your row. The first step that differs from your table shows which line you misread, which is worth far more than knowing the final answer was wrong. The goal is to need it less and less.
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you. Python Tutor, linked below, is another website's step-through tool, loaded with a short program that has an `if` in it: the same idea as Step through, on its own page. In the Khan Academy video under "More resources", a short program with no `if` is traced aloud, line by line, which is a good way to hear what careful tracing sounds like.
 
 </Intro>
 

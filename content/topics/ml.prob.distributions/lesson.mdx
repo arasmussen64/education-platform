@@ -1,12 +1,261 @@
 <Intro>
 
+<Puzzle question="A basketball player makes 80% of her free throws, and each shot is independent of the others. She takes five. Is making all five more likely or less likely than a fair coin landing heads?">
+
+Less likely, by a wide margin. Independent events multiply, so five makes in a row has chance 0.8 × 0.8 × 0.8 × 0.8 × 0.8, which is 0.328: about one time in three, against the coin's one in two. Her most likely result is four out of five, and even that happens only 41 percent of the time. "How many will she make?" is a number that chance decides, and this lesson is about writing down the chance of each possible answer.
+
+</Puzzle>
+
 Module 1 counted chances with dice and a table of 1,000 people. This module is the probability and statistics that make a model's numbers mean something, and it starts with the objects everything else is built from: a **random variable**, a number that chance decides, and its **distribution**, the list of values it can take and how likely each is. Four distributions cover most of what a model meets, and every one of them can be **simulated** (the computer draws made-up values that behave the way the distribution says) in a line of NumPy, which is how this topic checks every claim it makes.
 
-The main resource is **OpenStax _Introductory Statistics 2e_**: chapter 4 on discrete random variables (sections 4.1 to 4.3, the binomial above all), section 5.2 on the uniform distribution, and chapter 6 on the normal (sections 6.1 and 6.2); about 40 minutes, skimming the worked examples. StatQuest's short video on probability distributions is the picture version. Watch for:
+**A random variable and its distribution.** Before a raffle ticket is scratched, what it pays is not known, but it is not a mystery either. Say 90 tickets in every 100 pay nothing, 9 pay 5 and 1 pays 100. "What this ticket pays" is a random variable: a number, decided by chance. Its distribution is the whole story of that chance, written as a table:
 
-- **A table for counts, a curve for measurements:** probability mass for discrete, probability density for continuous.
-- **The binomial's formula** counts the ways and multiplies the chances.
-- **The 68-95-99.7 rule** for the normal: how much sits within one, two and three standard deviations.
+| The ticket pays | Probability |
+| --------------- | ----------- |
+| 0               | 0.90        |
+| 5               | 0.09        |
+| 100             | 0.01        |
+
+Every possible value is in the table once, and the probabilities add up to 1, because something has to happen. That is true of every distribution.
+
+Random variables come in two kinds, and the difference matters all through this lesson. A **discrete** one takes separate values with gaps between them: a payout, a count of shots made, the answer to a yes-or-no question written as 1 or 0. A **continuous** one can take any value in a range: a waiting time, a weight, a temperature. Between 3 minutes and 4 minutes there are endlessly many waiting times. A discrete variable's distribution is a table like the one above. A continuous one's can't be, and the second half of the lesson shows what replaces it.
+
+**Simulating: a generator and its seed.** To **simulate** a random variable is to have the computer make up values for it that behave as its distribution says. Each made-up value is a **draw**, and a set of draws is a **sample**. NumPy does the drawing with a **generator**, an object that produces random numbers:
+
+```python
+import numpy as np
+
+rng = np.random.default_rng(7)
+print(rng.random(4))
+print(rng.integers(1, 5, size=12))
+```
+
+```
+[0.62509547 0.8972138  0.77568569 0.22520719]
+[1 2 2 4 4 1 2 4 1 4 1 2]
+```
+
+`np.random.default_rng(7)` makes the generator, and `rng` is the usual name for it. `rng.random(4)` is four decimals spread evenly between 0 and 1. `rng.integers(1, 5, size=12)` is twelve whole numbers, each equally likely to be 1, 2, 3 or 4. Look at the range: `integers(low, high)` stops **before** `high`, the way `range` does, so there is no 5 in that row and there never will be. Forgetting that is the classic slip: asking for whole numbers from 1 to 4 means writing `integers(1, 5)`.
+
+The 7 is the **seed**: the generator's starting point. The numbers look random, but they are worked out from the seed, so a generator started from the same seed gives exactly the same draws, on every run and on every machine. That is what you want when you are learning or testing: a printed result can be checked against the page, and a bug shows up the same way each time. A different seed (try 8) gives a different sample. If a conclusion is sound, it survives the change: the draws differ, the story they tell does not.
+
+**Bernoulli: one yes-or-no.** The simplest random variable is a single question with two answers, written 1 for yes and 0 for no, where yes has chance `p`. This is the **Bernoulli** distribution, and `p` is all there is to know about it. One free throw by the player from the puzzle is Bernoulli with `p = 0.8`. Its table has two rows: 1 with probability 0.8, and 0 with probability 0.2, which is the "not" rule, `1 - p`.
+
+A generator has no Bernoulli method, and doesn't need one. A decimal drawn evenly between 0 and 1 is below 0.8 exactly 80 percent of the time, so comparing with `p` turns each decimal into a yes or a no:
+
+```python
+rng = np.random.default_rng(7)
+made = rng.random(10) < 0.8
+print(made)
+print(made.astype(int))
+print(made.sum(), made.mean())
+shots = rng.random(100000) < 0.8
+print(shots.mean())
+```
+
+```
+[ True False  True  True  True False  True False  True  True]
+[1 0 1 1 1 0 1 0 1 1]
+7 0.7
+0.79948
+```
+
+The seed is 7 again, so the first four decimals are the four printed above: 0.625 is below 0.8, a make; 0.897 is not, a miss; and so on. Comparing an array with a number gives an array of `True` and `False`, as it did for the masks in NumPy arrays, and `.astype(int)` converts it to 1s and 0s. NumPy counts `True` as 1 and `False` as 0 when it adds, so `.sum()` is the number of makes and `.mean()` is the fraction of makes.
+
+Ten shots gave 7 makes, a fraction of 0.7, not 0.8. Nothing is broken: a small sample wanders. A hundred thousand shots give 0.79948. That is the pattern for the whole topic: a large sample's fractions settle close to the probabilities, which is what lets a simulation check a formula.
+
+**Binomial: counting the yeses.** Now take five free throws and count the makes. The count is a new random variable, with possible values 0, 1, 2, 3, 4 and 5. It follows the **binomial** distribution, which needs two numbers: `n`, how many tries, and `p`, the chance of a yes on each. Three things must hold for a count to be binomial:
+
+- the number of tries is fixed in advance (five shots, not "shoot until you miss");
+- the tries are independent: one shot's result doesn't change the next one's chance;
+- every try has the same `p`.
+
+One try is Bernoulli; the count over `n` tries is binomial. People mix the two up, and the test is simply what the variable is: a single yes-or-no, or a count of them.
+
+**The binomial's table: count the ways, multiply the chances.** What is the chance of exactly four makes in five shots? Start with one particular way it can happen: make, make, make, make, miss. Independent events multiply, so that pattern has chance `0.8 * 0.8 * 0.8 * 0.8 * 0.2`, which is 0.08192. But the miss could just as well be the first shot, or the second, third or fourth. That is five patterns, each with four makes and one miss, so each with the same chance. They can't happen together, so their chances add: `5 * 0.08192 = 0.4096`.
+
+Exactly three makes works the same way. Any single pattern with three makes and two misses has chance `0.8 * 0.8 * 0.8 * 0.2 * 0.2`, which is 0.02048: one factor of `p` for each make, and one factor of `1 - p` for each miss. How many such patterns are there? That is the number of ways to choose which three of the five shots are the makes, and Python's `math.comb(n, k)` counts it: the number of ways to choose `k` things out of `n`.
+
+```python
+import math
+
+print(math.comb(5, 4), math.comb(5, 3))
+print(round(math.comb(5, 3) * 0.8**3 * 0.2**2, 4))
+```
+
+```
+5 10
+0.2048
+```
+
+Five ways to place one miss, as counted by hand; ten ways to choose three makes. So the rule for the chance of exactly `k` yeses in `n` tries is: **the number of ways to choose which tries are the yeses, times `p` once for every yes, times `1 - p` once for every no.** There are `k` yeses, and the tries that are left, `n - k` of them, are the nos. The slip to watch for is in the nos: forgetting their factor, or giving it the wrong power. Doing this for every `k` gives the whole table:
+
+| Makes, `k` | Ways | Chance of one pattern | Probability |
+| ---------- | ---- | --------------------- | ----------- |
+| 0          | 1    | 0.00032               | 0.00032     |
+| 1          | 5    | 0.00128               | 0.0064      |
+| 2          | 10   | 0.00512               | 0.0512      |
+| 3          | 10   | 0.02048               | 0.2048      |
+| 4          | 5    | 0.08192               | 0.4096      |
+| 5          | 1    | 0.32768               | 0.32768     |
+
+The last column adds up to exactly 1. A table like this, the probability of each value of a discrete variable, is called a **probability mass function**, or **PMF**. Notice that the counts are far from equally likely: four makes is over a thousand times likelier than none.
+
+<Check item="predict-a-small-pmf" />
+
+**Checking a simulation against the table.** A generator draws binomial counts directly: `rng.binomial(n, p, size)`.
+
+```python
+rng = np.random.default_rng(7)
+print(rng.binomial(5, 0.8, size=12))
+```
+
+```
+[4 3 3 5 5 3 5 3 3 4 5 5]
+```
+
+Twelve rounds of five shots, and the makes in each. To compare a big sample with the table you need to know how often each count came up, and `np.bincount` does the tallying. Given an array of whole numbers that aren't negative, it returns how many 0s there are, then how many 1s, how many 2s, and so on:
+
+```python
+print(np.bincount(np.array([3, 5, 4, 4, 5, 3, 4])))
+print(np.bincount(np.array([3, 5, 4, 4, 5, 3, 4]), minlength=8))
+```
+
+```
+[0 0 0 2 3 2]
+[0 0 0 2 3 2 0 0]
+```
+
+No 0s, 1s or 2s, two 3s, three 4s, two 5s. On its own, `bincount` stops at the largest value it saw. `minlength` asks for at least that many slots, so a value that happened never to come up still gets its 0. For a count that runs from 0 to `n` there are `n + 1` possible values, so the tally needs `minlength=n + 1`; without it, a sample with no perfect rounds would give a shorter array that no longer lines up with the table.
+
+Tally 100,000 rounds, divide each tally by the number of draws, and you have the fraction of draws at each value. That is the **empirical** PMF (empirical means "from what was observed", as opposed to from a formula). Here it is from `rng.binomial(5, 0.8, size=100000)` with seed 7, beside the formula's table:
+
+| Makes | Tally  | Fraction of the draws | The formula |
+| ----- | ------ | --------------------- | ----------- |
+| 0     | 24     | 0.0002                | 0.0003      |
+| 1     | 632    | 0.0063                | 0.0064      |
+| 2     | 5,075  | 0.0508                | 0.0512      |
+| 3     | 20,599 | 0.2060                | 0.2048      |
+| 4     | 40,968 | 0.4097                | 0.4096      |
+| 5     | 32,702 | 0.3270                | 0.3277      |
+
+The two columns never differ by more than 0.0012. They will never match exactly, because a sample is a sample, but with this many draws a gap of more than a few thousandths means the formula or the simulation is wrong. That is how a simulation checks a formula, and how a formula checks a simulation.
+
+A table of probabilities is easier to take in as a picture, and text is enough to draw one. A string times a number repeats the string, so `"#" * 12` is a row of twelve `#`. Give each value a row whose length is its probability times 50, rounded, and the table above becomes rows of 0, 0, 3, 10, 20 and 16 marks: a shape that peaks at four makes and falls away steeply below.
+
+**Uniform: every value in a range equally likely.** Now a continuous variable. A bus leaves a stop every 15 minutes, and you turn up at a moment that has nothing to do with the timetable. Your wait can be anything from 0 to 15 minutes, with no part of that range favoured over another. That is the **uniform** distribution on the range 0 to 15, and `rng.uniform(low, high, size)` draws from it.
+
+With no value favoured, the chance of landing in part of the range is just that part's share of the whole. A wait of under 6 minutes is 6 of the 15 minutes, so its chance is `6 / 15 = 0.4`. And the chance of waiting **exactly** 6 minutes?
+
+```python
+rng = np.random.default_rng(7)
+wait = rng.uniform(0, 15, size=100000)
+print(np.mean(wait < 6))
+print(np.mean(wait == 6))
+```
+
+```
+0.39988
+0.0
+```
+
+(`wait < 6` is an array of `True` and `False`, and its mean is the fraction that are `True`.) Four draws in ten are below 6, as the sum said. Not one of the hundred thousand is exactly 6.
+
+**Why one exact value has probability zero.** That zero is not bad luck. Close in on 6 with narrower and narrower ranges, using the share-of-the-range sum:
+
+| The wait is within … of 6 minutes | Width of the range | Probability, width ÷ 15 |
+| --------------------------------- | ------------------ | ----------------------- |
+| 1 minute                          | 2                  | 0.1333                  |
+| 0.1 minutes                       | 0.2                | 0.0133                  |
+| 0.01 minutes                      | 0.02               | 0.0013                  |
+| 0.001 minutes                     | 0.002              | 0.0001                  |
+
+Each time the range is ten times narrower, the probability is ten times smaller, and nothing stops it. "Exactly 6" is narrower than every one of these ranges, so its probability is smaller than every number in the last column: it is 0. The same goes for every single value of every continuous variable. There are endlessly many values sharing a total probability of 1, and no single one can hold a piece of it.
+
+So for a continuous variable, **only ranges have probabilities**. Every useful question is about being below something, above something, or between two things. When someone says "a wait of 6 minutes" they mean 6 to the nearest minute, between 5.5 and 6.5, and that range has a perfectly good probability, `1 / 15`.
+
+**Density: probability is area.** Since a table of values is useless here (every row would say 0), a continuous distribution is described by a curve instead, called a **density**. The curve is drawn above the line of possible values, and it is made so that **the probability of a range is the area under the curve over that range**. The area under the whole curve is 1, the same "something has to happen" as a table adding up to 1.
+
+For the bus, the curve is a flat line over 0 to 15, because no value is favoured. Its height has to make the total area 1, and the area of a rectangle is width times height, so the height is `1 / 15`, about 0.067. The chance of waiting under 6 minutes is the rectangle from 0 to 6: `6 * (1 / 15) = 0.4`, the answer from before. Over a single point the width is 0, so the area is 0, whatever the height: the same zero again.
+
+The mistake to avoid is reading the **height** of a density as a probability. It isn't one. A uniform variable on the range 0 to 0.1 has a flat density at height 10, because `0.1 * 10 = 1`. No probability can be 10. A height can be anything from 0 upwards; it is areas that stay between 0 and 1. Height only tells you where the values are packed more thickly.
+
+So: a table of probabilities (a PMF, probability **mass**) for a discrete variable, and a curve with areas (probability **density**) for a continuous one.
+
+**Normal: the bell curve.** The most important density is not flat. A machine fills bags of flour, aiming at 500 grams. No bag is exact: most are within a few grams, a bag 10 grams out is unusual, and one 20 grams out would mean something had broken. Too heavy is as likely as too light. Draw that as a density and you get a single hump, highest in the middle, the same on both sides, falling away smoothly: the bell curve, or **normal** distribution.
+
+A normal distribution is fixed by two numbers. Its mean, written `μ` (the Greek letter mu), is where the centre of the hump sits. Its standard deviation, written `σ` (sigma), is how wide the hump is: the typical distance from the mean, as in Probability and statistics. `rng.normal(mu, sigma, size)` draws from it. (The normal with mean 0 and standard deviation 1 has a name of its own, the **standard normal**.) Say the bags have mean 500 and standard deviation 4:
+
+```python
+rng = np.random.default_rng(7)
+weights = rng.normal(500, 4, size=100000)
+print(round(float(weights.mean()), 2), round(float(weights.std()), 2))
+print(np.mean(np.abs(weights - 500) < 4))
+```
+
+```
+499.99 3.99
+0.68315
+```
+
+The sample's own mean and standard deviation (`.std()`) come out as the two numbers that were asked for, near enough. The last line asks how many bags are within 4 grams of 500. `weights - 500` is how far each bag is from the mean, positive or negative; `np.abs` drops the sign, leaving the distance; `< 4` asks whether that distance is under one standard deviation; and the mean of the `True`s is the fraction. It is 0.683. Widen the test to 8 grams, two standard deviations, and the fraction is 0.954; to 12 grams, three of them, and it is 0.9975.
+
+Those three numbers are not special to flour. Every normal distribution, whatever its mean and standard deviation, puts
+
+- about **68 percent** of its values within one standard deviation of the mean,
+- about **95 percent** within two,
+- about **99.7 percent** within three.
+
+This is the **68-95-99.7 rule**, and it turns a mean and a standard deviation into ranges you can reason with. About 68 percent of bags weigh between 496 and 504 grams, 95 percent between 492 and 508, and almost all between 488 and 512. It answers other questions too. What fraction of bags is over 508 grams? Five percent lie outside the two-standard-deviation range, and the curve is the same on both sides, so half of those, about 2.5 percent, are on the heavy side (the sample says 0.023).
+
+The normal is continuous, so everything from the bus still holds. The chance that a bag weighs exactly 500 grams is 0, even though 500 is the most likely neighbourhood there is. The chance that it weighs between 499.5 and 500.5, which is what a scale showing whole grams means by "500", is the area over that range, about 0.10. And the rule is about being within a range of the mean, never about one value.
+
+<Check item="mcq-why-a-value-has-no-probability" />
+
+**Why the bell turns up everywhere, and how to see it.** The normal is the shape that appears when **many small independent effects add up**. A driver makes 30 stops, and each takes anywhere from 2 to 6 minutes, uniformly: a flat distribution, nothing like a bell. The total time for the route is 30 of those added together:
+
+```python
+rng = np.random.default_rng(7)
+stops = rng.uniform(2, 6, size=(50000, 30))
+total = stops.sum(axis=1)
+counts, edges = np.histogram(total, bins=np.arange(100, 145, 5.0))
+print(counts)
+print(edges)
+```
+
+```
+[  388  2486  7880 14209 14174  8025  2392   376]
+[100. 105. 110. 115. 120. 125. 130. 135. 140.]
+```
+
+`size=(50000, 30)` asks for a grid of draws, 50,000 routes of 30 stops each, and `sum(axis=1)` adds along each row to give 50,000 totals.
+
+The totals are measurements, not small whole numbers, so `bincount` can't tally them: hardly any two are equal. The tool for measurements is a **histogram**: cut the range into intervals called **bins**, and count how many draws fall in each. `np.histogram(sample, bins=...)` takes the edges of the bins and returns two arrays, the counts and the edges. Here `np.arange(100, 145, 5.0)` makes the edges 100, 105, and so on up to 140 (a third argument to `arange` is the step, and like `range` it stops before 145). Nine edges make eight bins, so there is always one more edge than there are counts: the first bin runs from `edges[0]` to `edges[1]`, the second from `edges[1]` to `edges[2]`. Draws outside every bin are not counted, which is why these counts add up to 49,930 and not 50,000.
+
+Drawn as text, one row for each bin and one `#` for every percent of the draws that landed in it:
+
+```
+  100 to   105 #
+  105 to   110 #####
+  110 to   115 ################
+  115 to   120 ############################
+  120 to   125 ############################
+  125 to   130 ################
+  130 to   135 #####
+  135 to   140 #
+```
+
+Thirty flat distributions added together, and the result is a bell, centred on 120 minutes with a standard deviation of 6.3, and 68 percent of the routes are within one standard deviation of the centre. A histogram is to a density what the empirical PMF is to a table: the sample's rough picture of it. This adding-up is why heights, measurement errors and a model's errors so often look normal: each is the total of many small pushes, some up and some down.
+
+Two things help when you write the loop that draws such a picture yourself. `edges[:-1]` is every left edge and `edges[1:]` is every right edge, and `zip` walks several sequences in step, handing a loop one item from each on every turn (`for name, age in zip(names, ages):`). And a format such as `f"{left:6.1f}"` writes a number with one decimal place, padded with spaces to six characters, so the columns line up.
+
+A binomial count is a sum too: `n` yes-or-nos, each a 1 or a 0, added up. So for large `n` its table also has a bell's outline. It is still binomial. A count takes whole values only, and each has a probability of its own; it does not become a normal variable by looking like one.
+
+<Check item="mcq-which-distribution" />
+
+**Where a model meets these.** A model that answers a yes-or-no question (is this email spam?) outputs a probability, and that number is the `p` of a Bernoulli: the model is describing a random variable, not announcing a fact. Test the model on 500 examples, and the number it gets wrong is a count of yes-or-nos, which is binomial. The gaps between a model's predicted numbers and the true ones are sums of many small influences, so they are usually treated as normal. And when a network is first built, its weights are set to random draws, often uniform ones, from a seeded generator, for exactly the reasons above.
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. OpenStax's _Introductory Statistics 2e_ (the main resource below; chapter 4, sections 4.1 to 4.3, section 5.2, and chapter 6, sections 6.1 and 6.2) works many more examples by hand, gives the binomial's mean and standard deviation as formulas, and introduces the z-score, a value's distance from the mean measured in standard deviations. StatQuest's short video, under "More resources", is the picture version: how a histogram turns into a smooth curve. NumPy's page for `numpy.random.Generator` lists every kind of draw a generator can make.
 
 </Intro>
 
