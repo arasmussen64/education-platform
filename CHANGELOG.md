@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- 34 more readings are shown inside their lessons ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md)), 50 in all: seven finance readings (Investor.gov and OpenStax), nine from Wikipedia, NumPy and pytest, fifteen in the cloud track (DigitalOcean, MIT's Missing Semester, Microsoft Learn, ArchWiki, the Linux kernel documentation, MDN, strongSwan), two OpenStax maths sections and one chapter of Python for Everybody. Each licence was read again on its source the day it was copied.
+
 - A reading's own words can be shown inside the lesson, so the learner doesn't leave the page to read it ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md)). A topic keeps a copy of the part its lesson assigns, only under a licence that allows copying, and the lesson shows it in a box with its credit: whose it is, the licence, what was changed, and a link to the original. `tools/import_reading.py` makes a copy; the validator refuses one under a licence that doesn't allow it, or holding anything but plain text, tables, pictures, links and formulas. The first sixteen: the main reading of every topic that reads the Python documentation (twelve, across the Python and ML tracks), OpenStax Principles of Finance sections 7.1 and 8.2, Investor.gov on compound interest, and Wikipedia on Amdahl's law.
 - Videos play inside the lesson wherever YouTube allows it. 47 videos that were links (the 3Blue1Brown and StatQuest videos of the ML track, the further CS50P clips of the Python track, four in the cloud track) are now embedded, and a video beyond a lesson's main one plays under "More resources" instead of being a link. Three stay links: one whose owner has switched embedding off, and two Khan Academy pages. The content validator refuses `use: embed` on anything that isn't a YouTube video.
 
@@ -20,6 +22,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- `fin.markets.prices` linked to an address that showed an empty page; it now points at the live one.
+- Ubuntu Server documentation was recorded as CC BY-SA 3.0. The site states no licence today, so the record now says so and the two resources stay links.
+- The reading importer joined words across a line break inside a table cell, dropped the labels of textbook boxes ("Example 4.1"), left empty code boxes behind when cutting a page, and turned a jump target into a link. Wikipedia's footnote marks are kept as links to the article's notes, since removing them broke sentences.
 - The map's memory bar coloured a fading topic as the good one and a fresh topic as the poor one: it never told the browser that 100% is the best value.
 
 ### Changed (the Momentum redesign, stage 3: named colours on every page)

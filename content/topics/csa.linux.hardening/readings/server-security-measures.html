@@ -1,0 +1,261 @@
+<h2>Introduction</h2>
+<p>Getting your applications up and running is often the main focus when you set up infrastructure, but shipping without hardening first can have serious consequences. A secure base configuration reduces your attack surface from day one and prevents reactive fixes after services are already live.</p>
+<p>This guide focuses on practical server security fundamentals you can apply during provisioning: securing access, minimizing exposed services, keeping systems patched, and detecting suspicious activity early. Use it as a baseline and adapt it as your architecture and threat model evolve.</p>
+<h2>Key Takeaways</h2>
+<ul>
+<li>
+<p><strong>SSH keys reduce account compromise risk</strong>: Use key-based authentication and disable password and root SSH access to prevent brute-force attacks and improve access auditing.</p>
+</li>
+<li>
+<p><strong>Firewalls enforce least-exposure by default</strong>: Apply a default-deny policy and explicitly allow only required ports (such as SSH and HTTPS) to minimize the public attack surface.</p>
+</li>
+<li>
+<p><strong>Private networking limits external reachability</strong>: Use VPCs and VPNs to keep internal service traffic off the public internet and isolate backend components from direct access.</p>
+</li>
+<li>
+<p><strong>Service auditing exposes hidden risks</strong>: Regularly inspect listening ports and running services to detect unnecessary exposures and configuration drift.</p>
+</li>
+<li>
+<p><strong>Automated patching closes known vulnerabilities faster</strong>: Enable unattended security updates to shorten the window between vulnerability disclosure and remediation.</p>
+</li>
+<li>
+<p><strong>TLS and PKI protect data in transit</strong>: Encrypt external and internal traffic to prevent interception, tampering, and impersonation attacks.</p>
+</li>
+<li>
+<p><strong>Monitoring and alerting enable early threat detection</strong>: Track authentication logs, privilege escalation, and new network listeners to identify suspicious behavior quickly.</p>
+</li>
+<li>
+<p><strong>Backups strengthen recovery posture</strong>: Maintain offsite backups, define RPO and RTO targets, and test restores to recover from ransomware, data loss, or system compromise.</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>Note:</strong> Security is iterative. Implement these measures when you first provision infrastructure, then reassess whenever you add services or change architecture.</p>
+</blockquote>
+<h2>SSH Keys</h2>
+<p><a href="https://www.digitalocean.com/community/tutorials/how-to-use-ssh-to-connect-to-a-remote-server">SSH</a> (secure shell) is an encrypted protocol for administering and communicating with servers. SSH keys are a key pair (private + public) used for authentication instead of passwords: the private key stays on your machine; the public key goes on the server. This is <em>asymmetric encryption</em> and is the recommended way to log into Linux servers.</p>
+<p><img alt="SSH Keys diagram" src="https://www.digitalocean.com/api/static-content/v1/images?src=https%3A%2F%2Fassets.digitalocean.com%2Farticles%2F7_security_measures%2F1-ssh-key-auth.png&amp;token=18338b59a663ead40578777c8cac732fc7472a788ca2da703d6d3363cf14139f"/></p>
+<p>You configure SSH key authentication by placing your public key in the server’s <code>~/.ssh/authorized_keys</code> file. For a deeper look at how SSH encryption and connections work, see <a href="https://www.digitalocean.com/community/tutorials/understanding-the-ssh-encryption-and-connection-process">Understanding the SSH Encryption and Connection Process</a>.</p>
+<h3>Why SSH keys instead of passwords?</h3>
+<p><a href="https://www.digitalocean.com/community/tutorials/ssh-essentials-working-with-ssh-servers-clients-and-keys">SSH encrypts</a> all authentication, including passwords. The problem with password logins is that they can be brute-forced: automated bots can try many passwords against a public IP. Rate limiting and lockouts help but don’t remove the risk. Switching to SSH keys lets you turn off password authentication entirely. Keys have far more entropy than typical passwords (e.g., a 128-character key vs. a short password), making brute force impractical. Properly generated Ed25519 keys (and appropriately sized RSA keys) are computationally infeasible to brute-force with current practical capabilities.</p>
+<h3>How to Implement SSH Keys</h3>
+<p>Before you close your current SSH session, secure your login process by setting up SSH key authentication. Here’s the streamlined workflow:</p>
+<ol>
+<li>
+<p>Generate an SSH key on your local machine:
+Run <code>ssh-keygen -t ed25519 -C "you@example.com"</code> and hit Enter to accept the defaults. This creates your SSH key pair: <code>~/.ssh/id_ed25519</code> (private) and <code>~/.ssh/id_ed25519.pub</code> (public).</p>
+</li>
+<li>
+<p>Upload your public key to the server:<br/>
+Use <code>ssh-copy-id user@your-server</code> (swap out <code>user</code> and <code>your-server</code> for your actual username and server address). If <code>ssh-copy-id</code> isn’t available, copy the contents of <code>~/.ssh/id_ed25519.pub</code> and manually add it to the <code>~/.ssh/authorized_keys</code> file on your server.</p>
+</li>
+<li>
+<p>Harden your SSH configuration on the server:
+Open <code>/etc/ssh/sshd_config</code> in your preferred editor. Set <code>PasswordAuthentication no</code> to turn off password logins, and <code>PermitRootLogin no</code> to block direct root access. Save and close the file.</p>
+</li>
+<li>
+<p>Restart the SSH service for changes to take effect:
+On Debian/Ubuntu, restart <code>ssh</code>. On RHEL-family distributions (Rocky, AlmaLinux, CentOS), restart <code>sshd</code>. Keep your current session open until step 5 succeeds to avoid lockouts.</p>
+<ul>
+<li>Debian/Ubuntu:
+<code>sudo systemctl restart ssh</code></li>
+<li>RHEL-family:
+<code>sudo systemctl restart sshd</code></li>
+</ul>
+</li>
+<li>
+<p>Test new access in a separate terminal (don’t close your original session yet):
+Attempt to SSH into your server as your user with your private key. If that’s successful, also try logging in as root (<code>ssh root@your-server</code>); you should be denied. If key authentication fails, check permissions (<code>~/.ssh</code> should be <code>700</code>, <code>authorized_keys</code> should be <code>600</code>) and fix from your original session before disconnecting.</p>
+</li>
+</ol>
+<p>Need to preserve password access for legacy reasons or shared environments? Safeguard your server with <a href="https://www.digitalocean.com/community/tutorials/how-to-protect-ssh-with-fail2ban-on-ubuntu-22-04">fail2ban</a> to block repeated failed logins. Grant users <a href="https://www.digitalocean.com/community/tutorials/how-to-create-a-new-sudo-enabled-user-on-ubuntu-20-04-quickstart">sudo privileges</a> instead of allowing root SSH to follow the <a href="https://en.wikipedia.org/wiki/Principle_of_least_privilege">principle of least privilege</a>. For a hands-on walkthrough, see <a href="https://www.digitalocean.com/community/tutorial_collections/how-to-set-up-ssh-keys">How To Set Up SSH Keys</a> for details covering Ubuntu, Debian, and CentOS.</p>
+<h2>Firewalls</h2>
+<p>A firewall (software or hardware) controls which services are exposed and what traffic is allowed in and out. A well-configured firewall ensures only intended services are reachable from outside.</p>
+<p><img alt="Firewall diagram" src="https://www.digitalocean.com/api/static-content/v1/images?src=https%3A%2F%2Fassets.digitalocean.com%2Farticles%2F7_security_measures%2F2-firewall.png&amp;token=2fbfda0e99bb3f979639beec593e5d4aefa9bf386abf9502620a3f4a5b2adbd1"/></p>
+<p>Traffic to your server generally falls into three categories:</p>
+<ul>
+<li><strong>Public</strong>: Intended for anyone on the internet (e.g., your web server).</li>
+<li><strong>Private</strong>: Only for authorized users or locations (e.g., a database admin panel <a href="https://www.digitalocean.com/community/tutorials/how-to-install-and-secure-phpmyadmin-on-ubuntu-20-04">like phpMyAdmin</a>).</li>
+<li><strong>Internal</strong>: Only from the same host (e.g., a database accepting only local connections).</li>
+</ul>
+<p>Firewalls enforce these boundaries: public ports stay open, private ones are restricted (e.g., by IP or VPN), and internal ones are not exposed. Unused ports are blocked by default in a sensible setup.</p>
+<h3>How Do Firewalls Enhance Security?</h3>
+<p>Even if a service binds only to certain interfaces, a firewall adds a separate layer: it drops or allows traffic before it reaches the application. That reduces the impact of misconfiguration or a vulnerable service. In practice you open only the ports you need, commonly SSH (22), HTTP (80), and HTTPS (443), which shrinks your attack surface.</p>
+<h3>How to Implement Firewalls</h3>
+<p>On Ubuntu with UFW, a minimal sequence (allow SSH before enabling UFW or you can lock yourself out):</p>
+<pre><code>sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status</code></pre>
+<p>The <code>OpenSSH</code> application profile opens the correct SSH port (22 by default) and is distro-aware. If you use a custom SSH port, allow it explicitly (for example, sudo ufw allow 2222/tcp) before enabling UFW. You should see the allowed ports and default incoming deny. Test from another machine: a port you did not open (e.g. 3306) should be refused.</p>
+<p>Change firewall rules whenever you add or remove services. Common options:</p>
+<ul>
+<li><strong>UFW (Uncomplicated Firewall)</strong>: Default on Ubuntu. See <a href="https://www.digitalocean.com/community/tutorials/how-to-set-up-a-firewall-with-ufw-on-ubuntu-20-04">How To Set Up a Firewall with UFW on Ubuntu</a> for setup. Compatible with Ubuntu 20.04 and 22.04.</li>
+<li><strong>firewalld</strong>: Default on Red Hat, Rocky, and Fedora. See <a href="https://www.digitalocean.com/community/tutorials/how-to-set-up-a-firewall-using-firewalld-on-centos-8">How To Set Up a Firewall Using firewalld</a>.</li>
+<li><strong>iptables</strong>: UFW and firewalld write rules to iptables. For direct control or debugging, see <a href="https://www.digitalocean.com/community/tutorials/iptables-essentials-common-firewall-rules-and-commands">Iptables Essentials: Common Firewall Rules and Commands</a>. Docker and similar tools also insert iptables rules and can bypass UFW; if you use both, either layer a <a href="https://www.digitalocean.com/docs/networking/firewalls/how-to/create">cloud firewall</a> in front of the host or bind container ports to specific IPs and restrict those in UFW.</li>
+</ul>
+<blockquote>
+<p><strong>Note:</strong> A <a href="https://www.digitalocean.com/docs/networking/firewalls/how-to/create">cloud firewall</a> at the network edge applies before host UFW and is not affected by Docker’s iptables rules. Use it when you need consistent rules across hosts running containers.</p>
+</blockquote>
+<p><strong>Best practice:</strong> Default to denying unknown traffic. New services stay unreachable until you explicitly allow them, which forces you to decide how each service should be accessed.</p>
+<h2>VPC Networks</h2>
+<p>A <a href="https://www.digitalocean.com/products/vpc">Virtual Private Cloud</a> (VPC) is a private network for your provider’s resources. VPC interfaces are not reachable from the public internet, so traffic between your resources stays on the provider’s internal network.</p>
+<h3>How Do VPC Networks Enhance Security?</h3>
+<p>Many providers give each server a public and a private interface. If you disable or avoid using the public interface on backend nodes, they talk only over the private network. Traffic between those systems never crosses the public internet, reducing exposure and interception risk. You can then expose only a small set of ingress points (e.g., load balancers or gateways) to the internet, giving you clearer control and visibility. Kubernetes and similar platforms formalize this with ingress controllers and private pod networks.</p>
+<h3>How to Implement VPC Networks</h3>
+<p>Most cloud providers let you create a VPC and attach resources to it. Design your subnets and gateways when you provision; moving existing servers into a new VPC can require IP or routing changes. On DigitalOcean you can use <a href="https://www.digitalocean.com/docs/networking/vpc/resources/droplet-as-gateway/">How to Configure a Droplet as a VPC Gateway</a> on Debian, Ubuntu, and CentOS-based servers.</p>
+<p>For single-region cloud workloads use the provider’s VPC first; add a VPN only when you need encryption across regions, between clouds, or for remote users.</p>
+<h2>VPNs and Private Networking</h2>
+<p>A VPN (virtual private network) creates encrypted tunnels between machines and presents them as a single logical network; you can run services as if they were on a private LAN while the traffic is carried securely over the internet.</p>
+<p><img alt="VPN diagram" src="https://www.digitalocean.com/api/static-content/v1/images?src=https%3A%2F%2Fassets.digitalocean.com%2Farticles%2F7_security_measures%2F3-vpn.png&amp;token=81102d6c7d3d46ed6879727a829b24a9398662844e2836f0d9286a6c8a5333bf"/></p>
+<p>Provider private networks (e.g., <a href="https://www.digitalocean.com/community/tutorials/digitalocean-private-networking-faq">DigitalOcean private networking</a>) allow isolated communication between servers in the same account or team within a region, without VPN software. A VPN adds encryption and works across networks and providers.</p>
+<h3>How Do VPNs Enhance Security?</h3>
+<p>A VPN defines a private overlay network that only your configured peers can use. You then route application traffic over the VPN interface so that only services meant for the public internet listen on the public interface. That keeps database, admin, and internal API traffic off the open internet.</p>
+<h3>How to Implement VPNs</h3>
+<p>Private networks usually require you to choose interfaces and routing at deploy time. VPNs require installing and configuring VPN software on each host and then pointing applications at the VPN interface. Once the tunnel is up, each server must have the right keys and config to join the VPN.</p>
+<ul>
+<li><strong>OpenVPN</strong>: <a href="https://www.digitalocean.com/community/tutorials/how-to-set-up-and-configure-an-openvpn-server-on-ubuntu-20-04">How To Set Up and Configure an OpenVPN Server on Ubuntu</a> (compatible with Ubuntu 20.04 and 22.04).</li>
+<li><strong>WireGuard</strong>: Modern, minimal config: <a href="https://www.digitalocean.com/community/tutorials/how-to-set-up-wireguard-on-ubuntu-20-04">How To Set Up WireGuard on Ubuntu</a>.</li>
+</ul>
+<p>Use the provider’s private network when all servers are in one cloud and region; add a VPN when you need encrypted links across regions, between clouds, or for remote users.</p>
+<h2>Service Auditing</h2>
+<p>Service auditing means listing which services are listening, on which ports and interfaces, and which protocols they use; that information drives firewall rules, monitoring, and alerting.</p>
+<p><img alt="Service auditing diagram" src="https://www.digitalocean.com/api/static-content/v1/images?src=https%3A%2F%2Fassets.digitalocean.com%2Farticles%2F7_security_measures%2F5-service-audit.png&amp;token=3cb4d9ed013b2c21b7f3c3f1976e376cfbc4b3c306aeee8660d06c89666d04f2"/></p>
+<p>Every listening service increases your attack surface. Auditing answers: Should this run? On which interfaces? Is the firewall correctly allowing or blocking traffic? Do you get security advisories for this software?</p>
+<h3>How Does Service Auditing Enhance Security?</h3>
+<p>You can’t harden what you don’t know about. Once you have a list of listeners, you can turn off unneeded services, bind others to localhost or a private IP only, and align firewall rules with actual use. Re-run audits when you install new software or change roles; periodic audits catch configuration drift.</p>
+<h3>How to Implement Service Auditing</h3>
+<p>Use <code>ss</code> to list TCP and UDP listeners with process and PID:</p>
+<pre><code>sudo ss -plunt</code></pre>
+<ul>
+<li><code>p</code>: process using the socket</li>
+<li><code>l</code>: listening only</li>
+<li><code>u</code>: UDP</li>
+<li><code>n</code>: numeric addresses/ports</li>
+<li><code>t</code>: TCP</li>
+</ul>
+<p>Example output:</p>
+<pre><code>Netid  State   Recv-Q  Send-Q  Local Address:Port  Peer Address:Port  Process
+tcp    LISTEN  0       128     0.0.0.0:22          0.0.0.0:*          users:(("sshd",pid=812,fd=3))
+tcp    LISTEN  0       511     0.0.0.0:80          0.0.0.0:*          users:(("nginx",pid=69226,fd=6),("nginx",pid=69225,fd=6))
+tcp    LISTEN  0       128     [::]:22             [::]:*            users:(("sshd",pid=812,fd=4))
+tcp    LISTEN  0       511     [::]:80             [::]:*            users:(("nginx",pid=69226,fd=7),("nginx",pid=69225,fd=7))</code></pre>
+<p>Focus on <strong>Netid</strong>, <strong>Local Address:Port</strong>, and <strong>Process</strong>. <code>0.0.0.0</code> means “all IPv4 interfaces”; <code>[::]</code> means “all IPv6.” In the example, SSH and Nginx listen on all interfaces; acceptable for a web/SSH host, but for a database you’d want something like <code>127.0.0.1:3306</code> or a private IP only. Disable or restrict services that don’t need to be reachable from the network.</p>
+<h2>Monitoring, Logging, and Alerting</h2>
+<p>Logging and alerting let you detect misuse and configuration drift before it becomes an incident. Without them, compromise or misconfiguration can go unnoticed until damage is done.</p>
+<p><strong>What to log and where:</strong></p>
+<ul>
+<li><strong>Authentication</strong>: SSH and sudo activity. On Linux, auth events typically go to <code>auth.log</code> (Debian/Ubuntu: <code>/var/log/auth.log</code>) or <code>secure</code> (RHEL: <code>/var/log/secure</code>). Failed logins, successful logins, and privilege escalation appear here.</li>
+<li><strong>Privilege escalation</strong>: Track <code>sudo</code> usage. Centralize logs so you can audit who ran what and when.</li>
+<li><strong>Listening ports</strong>: Run <code>ss -plunt</code> (or equivalent) periodically and diff against a baseline; new listeners may indicate a new service or a backdoor.</li>
+</ul>
+<p><strong>What to alert on:</strong></p>
+<ul>
+<li>Spike in failed SSH attempts (brute force or credential stuffing).</li>
+<li>New TCP/UDP listeners that were not in your baseline (e.g. a new process bound to 0.0.0.0).</li>
+<li>Unusual sudo usage (first-time users, sensitive commands, or off-hours).</li>
+</ul>
+<p>Example: tail auth log for recent SSH failures:</p>
+<pre><code>grep -Ei "failed|invalid" /var/log/auth.log | tail -20</code></pre>
+<p>On RHEL-family systems, replace <code>/var/log/auth.log</code> with <code>/var/log/secure</code>.</p>
+<p>Define a baseline of expected listeners and alert when it changes. Combine with intrusion detection (e.g. fail2ban, OSSEC) or a SIEM for production.</p>
+<h2>Unattended Updates</h2>
+<p>Enable automatic security updates so critical patches are applied soon after release. Unattended upgrades shorten the window between vulnerability disclosure and remediation and reduce the operational burden of manual patching.</p>
+<h3>How Do Unattended Updates Enhance Security?</h3>
+<p>The longer a fix exists but isn’t applied, the longer the server is exposed. Automated updates reduce that window and the operational burden of manual patching. Configure unattended upgrades for security updates at a minimum; many teams also allow other updates with appropriate testing or staging.</p>
+<h3>How to Implement Unattended Updates</h3>
+<p>On Ubuntu, install and enable <code>unattended-upgrades</code>. The main config is in <code>/etc/apt/apt.conf.d/50unattended-upgrades</code>: ensure the security origin is allowed (e.g. <code>Unattended-Upgrade::Allowed-Origins</code> includes <code>"${distro_id}:${distro_codename}-security"</code>). Reboot or restart services after kernel or critical library updates; for production, many teams use maintenance windows or staged rollouts. Full setup: <a href="https://www.digitalocean.com/community/tutorials/how-to-keep-ubuntu-20-04-servers-updated">How to Keep Ubuntu Servers Updated</a>.</p>
+<p><strong>Production caveat:</strong> Test unattended upgrades in staging. For critical systems, some teams prefer to stage patches and apply them during change windows rather than fully automatic reboots.</p>
+<h2>Public Key Infrastructure and SSL/TLS</h2>
+<p><a href="https://www.okta.com/identity-101/public-key-infrastructure/">Public Key Infrastructure</a> (PKI) is the system of certificate authorities (CAs), certificates, and validation used to identify parties and encrypt communication; SSL/TLS certificates authenticate servers (and optionally clients) and encrypt traffic in transit.</p>
+<p><img alt="SSL diagram" src="https://www.digitalocean.com/api/static-content/v1/images?src=https%3A%2F%2Fassets.digitalocean.com%2Farticles%2F7_security_measures%2F4-ssl-tls.png&amp;token=89c13c4cd47ecf19a0e0d24e20a1adf3261acde95a0e90ecc86fe7533eba221c"/></p>
+<h3>How Does PKI Enhance Security?</h3>
+<p>Certificates signed by a trusted CA help prevent <a href="https://en.wikipedia.org/wiki/Man-in-the-middle_attack">man-in-the-middle attacks</a> where an attacker impersonates a server. Internal CAs let you trust only your own infrastructure. TLS ensures confidentiality and integrity for traffic between clients and servers and between services.</p>
+<h3>How to Implement PKI</h3>
+<p>For public-facing HTTPS, use <a href="https://letsencrypt.org/">Let’s Encrypt</a> (e.g. with certbot) or your provider’s TLS offering. For internal service-to-service auth, a private CA and internally signed certificates are an option. Setting up and maintaining a CA and certificate lifecycle takes effort; see <a href="https://www.digitalocean.com/community/tutorial_collections/how-to-set-up-and-configure-a-certificate-authority-ca">How To Set Up and Configure a Certificate Authority (CA)</a> for Linux. Until you need full PKI, securing traffic with TLS (e.g., via a reverse proxy with certificates) or a VPN is often enough.</p>
+<h2>Backup and Recovery as a Security Control</h2>
+<p>Backups are a security control: they limit damage from ransomware, accidental deletion, and compromise. An attacker who wipes or encrypts data cannot be fully mitigated by access controls alone; recoverable copies and tested restores are required.</p>
+<p><strong>Snapshot and backup strategy:</strong></p>
+<ul>
+<li>Take regular snapshots or image-based backups at a cadence that matches your change rate. For stateful services, combine filesystem or DB dumps with snapshots so restores are consistent.</li>
+<li>Store at least one copy offsite (different region or provider). On-prem backups in the same building as production do not survive physical disaster or site takeover.</li>
+<li>Test restores periodically. Backups that have never been restored often fail when needed; document RPO (<a href="https://www.druva.com/glossary/what-is-a-recovery-point-objective-definition-and-related-faqs">recovery point objective</a>) and RTO (<a href="https://www.druva.com/glossary/what-is-a-recovery-point-objective-definition-and-related-faqs">recovery time objective</a>) and validate that your procedures meet them.</li>
+</ul>
+<p>RPO is how much data loss you accept (e.g. last 24 hours). RTO is how long you accept to be down. Align backup frequency and retention with RPO, and run restore drills to meet RTO. See <a href="https://www.digitalocean.com/community/tutorials/how-to-build-multi-region-disaster-recovery-strategy">How To Build a Multi-Region Disaster Recovery Strategy</a> for more.</p>
+<h2>Server Security Checklist</h2>
+<p>Use this as a quick pass when bringing a new server into production or reviewing an existing one:</p>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Access</strong></td>
+<td>SSH keys only; password auth disabled; root login disabled; sudo user verified</td>
+</tr>
+<tr>
+<td><strong>Firewall</strong></td>
+<td>Default deny; only required ports open (e.g., 22, 80, 443); rules reviewed</td>
+</tr>
+<tr>
+<td><strong>Services</strong></td>
+<td><code>ss -plunt</code> reviewed; unnecessary services stopped/disabled; bindings correct</td>
+</tr>
+<tr>
+<td><strong>Updates</strong></td>
+<td>Unattended security updates enabled; reboot/maintenance process defined</td>
+</tr>
+<tr>
+<td><strong>Secrets</strong></td>
+<td>No secrets in config repos; env vars or secret manager; minimal permissions</td>
+</tr>
+<tr>
+<td><strong>Cloud</strong></td>
+<td>VPC/private networking used where possible; metadata service access restricted if applicable</td>
+</tr>
+<tr>
+<td><strong>Monitoring</strong></td>
+<td>Logging and alerts in place; known-good baseline to detect drift</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Cloud-specific:</strong> On cloud instances, restrict access to the cloud provider’s instance metadata service (for example, the <a href="https://docs.digitalocean.com/products/droplets/how-to/access-metadata/">DigitalOcean Droplet Metadata Service</a>) where possible to reduce the impact of SSRF attacks or compromised workloads. Apply IAM or role-based access with least privilege so credentials and permissions are narrowly scoped.</p>
+<h2>Common Server Security Mistakes</h2>
+<p>These misconfigurations show up often in audits and post-incident reviews. Avoid them.</p>
+<ul>
+<li><strong>Database or internal service bound to 0.0.0.0</strong>: <a href="https://www.digitalocean.com/community/tags/mysql">MySQL</a>, <a href="https://www.digitalocean.com/community/tags/postgresql">PostgreSQL</a>, <a href="https://www.digitalocean.com/community/tags/redis">Redis</a>, or admin UIs listening on all interfaces get exposed to the internet. Bind to 127.0.0.1 or a private IP and restrict with the firewall.</li>
+<li><strong>Password authentication left on for SSH</strong>: Enables brute force. Disable it once key-based auth is verified from a second session.</li>
+<li><strong>Root SSH allowed</strong>: Single point of failure; no audit trail per user. Use a sudo-capable user and set <code>PermitRootLogin no</code>.</li>
+<li><strong>Firewall enabled before allowing SSH</strong>: Admins lock themselves out by running <code>ufw enable</code> before <code>ufw allow OpenSSH</code> (or allow 22). Always allow SSH first.</li>
+<li><strong>No alerting on auth or port changes</strong>: Compromise or misconfiguration can go unnoticed. At minimum, alert on failed SSH spikes and new listening ports.</li>
+<li><strong>Instance metadata service wide open</strong>: On cloud VMs, the metadata endpoint can leak credentials. Restrict or disable it for workloads that do not need it (e.g. use IMDSv2, or block metadata for worker nodes).</li>
+<li><strong>Secrets in environment files or config repos</strong>: Env files committed to git or left on disk are a common leak. Use a secret manager or encrypted storage and restrict read access.</li>
+<li><strong>Unrestricted egress</strong>: Servers that can reach anywhere make exfiltration and C2 easier. Restrict outbound traffic where feasible (e.g. allow only required APIs and update mirrors).</li>
+<li><strong>Unattended upgrades not configured or not tested</strong>: Security updates pile up; one delayed patch can be enough for compromise. Enable unattended security updates and test in staging.</li>
+<li><strong>Backups not tested</strong>: Backups that have never been restored often fail. Schedule restore tests and document RPO/RTO.</li>
+</ul>
+<h2>Troubleshooting Common Issues</h2>
+<p><strong>Locked out after disabling password auth or root:</strong> The usual cause is closing the first session before verifying key-based login from a second terminal. Always test key login and sudo from a second session before disconnecting. If locked out, use the provider’s console (e.g., <a href="https://docs.digitalocean.com/products/droplets/how-to/connect-with-console/">DigitalOcean Droplet Console</a>) or recovery mode to fix <code>/etc/ssh/sshd_config</code> or restore <code>~/.ssh/authorized_keys</code>. Admins often forget to confirm the sudo user can log in before disabling root.</p>
+<p><strong>Firewall blocking your SSH:</strong> Allow SSH before enabling UFW or you lock yourself out. Run <code>sudo ufw allow OpenSSH</code> (or <code>sudo ufw allow 22</code> if you use a custom port), then <code>sudo ufw enable</code>. Confirm you are testing from an allowed IP if you use source restrictions.</p>
+<p><strong>Docker and UFW:</strong> Docker inserts iptables rules that can bypass UFW. Mitigate by layering a cloud firewall in front of the host (rules apply before Docker) or by binding container ports to specific IPs and restricting those in UFW. See Docker’s docs on <a href="https://docs.docker.com/network/iptables/">iptables</a>.</p>
+<p><strong>Unattended upgrades and reboots:</strong> If the server reboots during critical work, adjust <code>Unattended-Upgrade::Automatic-Reboot</code> and timing in <code>/etc/apt/apt.conf.d/50unattended-upgrades</code> (Ubuntu), or use a maintenance window.</p>
+<p><strong>Service listening on 0.0.0.0 unintentionally:</strong> Use <code>ss -plunt</code> to find the process; then change the service config to bind to <code>127.0.0.1</code> or a specific IP and restart. Restrict with the firewall as a second layer.</p>
+<h2>FAQ</h2>
+<h3>What are the most important server security measures?</h3>
+<p>Prioritize: (1) SSH keys and no root SSH, (2) a default-deny firewall with only needed ports open, (3) regular patching (e.g., unattended security updates), (4) knowing what’s listening (service audit), and (5) TLS for public and sensitive traffic. Then add VPC/VPN and PKI as your environment grows.</p>
+<h3>How do attackers typically compromise servers?</h3>
+<p>Common paths include unpatched vulnerabilities, weak or leaked credentials, misconfigured or over-exposed services (e.g., open database ports), and phishing or supply-chain issues. Hardening (firewall, SSH keys, patching, least privilege) addresses many of these.</p>
+<h3>How often should servers be patched?</h3>
+<p>At least as soon as security updates are available for the OS and critical packages. Unattended security updates handle this daily on many setups; for critical systems, use staged rollouts and change windows. High-severity issues may warrant out-of-band patches.</p>
+<h3>Are cloud servers more secure than on-prem?</h3>
+<p>They can be, because providers manage physical security, hypervisor, and often baseline hardening. You still must secure the OS, apps, firewall, and access (SSH, IAM, secrets). Cloud adds considerations like metadata service and IAM misuse, so apply least privilege and restrict metadata access where possible.</p>
+<h3>What ports should never be publicly exposed?</h3>
+<p>Do not expose database ports (e.g., MySQL 3306, PostgreSQL 5432, Redis 6379), admin panels, or internal APIs to 0.0.0.0 unless they’re explicitly designed for it and protected. Restrict them to localhost or a private network and access them via SSH tunnel, VPN, or a bastion.</p>
+<h3>How do you monitor servers for security threats?</h3>
+<p>Use a combination of: OS and app logging (e.g., syslog, auth logs, access logs), centralized log aggregation and alerting, intrusion detection (e.g., fail2ban, OSSEC, or cloud IDS), and vulnerability scanning. Define what “normal” looks like and alert on anomalies and known-bad patterns.</p>
+<h2>Conclusion</h2>
+<p>These measures provide a strong baseline for most Linux servers: SSH keys with no root login, a default-deny firewall, private networking where appropriate, regular service auditing, monitoring and alerting, unattended security updates, TLS for sensitive traffic, and tested backups.</p>
+<p>Revalidate this baseline whenever you deploy new services or change architecture. Re-run <code>ss -plunt</code>, review firewall rules, confirm unattended updates are active, and check authentication logs against your normal baseline. Treat security as part of routine operations, not a one-time setup step.</p>

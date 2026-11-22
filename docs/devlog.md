@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-21, night: lessons inside the app, step 2 continued: 50 readings
+
+**What changed.** 34 more main readings are copied into their lessons, 50 of the 87 topics whose main resource is a reading. Six helper agents took a group of sources each, from one written brief (check the licence on the source today, copy exactly the assigned part, read the result, leave anything doubtful as a link), and did not touch git; the coordinator reviewed and committed.
+
+**Copied (34):** Investor.gov ×5 and OpenStax Principles of Finance 15.1 ×2; Wikipedia ×4, NumPy ×4, pytest; DigitalOcean ×5, Missing Semester ×3, Microsoft Learn ×2, ArchWiki, the kernel documentation ×2, MDN, strongSwan; OpenStax Intermediate Algebra 4.1 and Introductory Statistics 4.2 with 6.1; Python for Everybody chapter 2.
+
+**Left as links (37), and why:**
+
+- _Too long (8):_ the OpenStax maths readings assign whole chapters, 8,800 to 52,000 words. A lesson page shouldn't carry that. These need the lesson to assign less, or our own text.
+- _Formulas the importer can't convert yet (10):_ the seven Runestone topics, Think Python, Nielsen's book and Google's ML crash course write formulas as TeX for MathJax, which arrives as raw `\(O(n^2)\)`. Runestone and Google also lose interactive code and widgets the text refers to.
+- _Licence doesn't allow it (16):_ AWS documentation, Brendan Gregg, Beej's guides, High Performance Browser Networking, Google's SRE book, Julia Evans, Karpathy, NVIDIA, Let's Encrypt, Canonical, LinuxCommand.
+- _Other (3):_ Ubuntu Server documentation states no licence today; bls.gov refuses automated downloads; the HAProxy guide is published as one block of fixed-width text, which reads badly in a lesson.
+
+**Author notes:**
+
+- _The helpers found four importer faults by reading their copies,_ all fixed with the copies made again: words joined across a line break in a table cell ("itsslope"); textbook box labels ("Example 4.1") dropped with every `<header>`; empty code boxes left behind outside the part asked for; a jump target (`<a id>`) turned into a link.
+- _Wikipedia's footnote marks are kept,_ as links to the article's own notes. Dropping them left sentences such as "found that augmenting the dataset..." with no subject.
+- _DigitalOcean's pages hold the tutorial only as Markdown inside the page's data,_ drawn in the browser. The helper rendered that Markdown to plain HTML and ran the importer on it. The words are the source's; each `changes` line says how it was taken. These five can't be re-made with the one-line command. One backslash the rendering lost was put back by hand.
+- _Two records were wrong._ `fin.markets.prices` pointed at an address that shows an empty page. Ubuntu Server documentation was recorded as CC BY-SA 3.0, which was the old help.ubuntu.com guide's licence; the current site states none.
+- _Investor.gov is credited as the SEC's Office of Investor Education and Assistance,_ the name its own pages use today.
+- _Two DigitalOcean tutorials have been rewritten since the topics were written_ (one has a second author, one a new title); the resource titles still carry the old names.
+- _NumPy's beginner page lost two small grids of numbers_ (TeX again), leaving "like a list:" with nothing after it; the `changes` line says so.
+- _Not seen by eye._ None of the 34 was looked at in the app; the two kinds seen earlier (OpenStax, Wikipedia) are the same reader.
+
+**Next:** teach the importer TeX formulas (it unlocks about five more readings), then the videos for topics that have none, then our own text for the rest.
+
 ## 2026-11-21, night: lessons inside the app, step 2: a reading's own words
 
 **What changed.** A reading can now be read inside the lesson ([ADR-0031](decisions/0031-lessons-inside-the-app.md)). `tools/import_reading.py` downloads a resource's page, keeps the sections asked for, and cleans them down to plain HTML in `content/topics/<id>/readings/`. The resource in `topic.yaml` gets `use: embed` and a `text:` block (the file, who it is by, the licence's address, the day, what was changed). The lesson shows the text in a box with that credit under it; a further reading under "More resources" is folded and downloaded when opened.
@@ -20,8 +46,6 @@ A dated log of each working session: what changed, what was decided, what's next
 - _The Investor.gov licence line was "no license stated; linked, not copied"._ It is a US government work, not under copyright in the United States (17 U.S.C. 105), and now says so.
 - _Much of what can be copied is "non-commercial"._ Fine while the app is free; in the owner queue as the one thing to remember.
 - _Seen by eye_ on a throwaway preview page on my own server, in dark mode: the OpenStax annuities section (tables, formulas with their brackets) and the Wikipedia article (the graph on its light ground). OpenStax's equation numbers show as a short line under each formula. The real topic page rests on its tests.
-
-**Next:** the rest of the readings whose licences allow it, source by source, and a video for topics that have none.
 
 ## 2026-11-21, night: lessons inside the app, step 1: the videos
 

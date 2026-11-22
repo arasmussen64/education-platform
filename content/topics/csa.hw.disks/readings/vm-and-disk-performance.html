@@ -1,0 +1,80 @@
+<h2>Virtual machine and disk performance</h2>
+<p><strong>Applies to:</strong> ✔️ Linux VMs ✔️ Windows VMs ✔️ Flexible scale sets ✔️ Uniform scale sets</p>
+<p>This article explains how Azure Virtual Machines (VMs) and managed disk performance limits interact. It also describes how to diagnose disk I/O bottlenecks and optimize storage performance.</p>
+<h2>How Azure VM and managed disk performance limits interact</h2>
+<p>Azure VMs have input/output operations per second (IOPS) and throughput limits based on the VM type and size. Managed OS disks and data disks have their own IOPS and throughput limits.</p>
+<h2>Disk allocation and performance</h2>
+<p>Disks attached to an Azure VM use three I/O paths. The following diagram shows how Azure allocates bandwidth and input/output operations per second (IOPS) across those paths in real time.</p>
+<p>
+<a href="https://learn.microsoft.com/en-us/azure/virtual-machines/media/disks-performance/real-time-disk-allocation.png#lightbox">
+<img alt="Diagram of uncached managed disk I/O passing through disk and VM network limits. Cached I/O also uses SSD limits, while cache hits and temporary disk I/O use the server SSD." src="https://learn.microsoft.com/en-us/azure/virtual-machines/media/disks-performance/real-time-disk-allocation.png"/>
+</a>
+</p>
+<p>The first I/O path is the uncached managed disk path. I/O operations use this path when you're using a managed disk and you set the host caching to <code>none</code>. I/O operations that use this path run based on disk-level provisioning and then VM network-level provisioning for IOPS and throughput.</p>
+<p>The second I/O path is the cached managed disk path. Cached managed disk I/O uses an SSD that's close to the VM. This SSD has its own IOPS and throughput provisioned, and it appears as "SSD-level provisioning" in the diagram.</p>
+<p>When a cached managed disk initiates a read, the request first checks to see if the data is in the server SSD. If the data isn't present, a cached miss occurs. Then the I/O runs based on SSD-level provisioning, disk-level provisioning, and then VM network-level provisioning for IOPS and throughput.</p>
+<p>When the server SSD initiates reads on cached I/O that are present on the server SSD, a cache hit occurs. The I/O then runs based on the SSD-level provisioning. Writes that a cached managed disk initiates always follow the path of a cached miss. They go through SSD-level, disk-level, and VM network-level provisioning.</p>
+<p>The third path is for the <a href="https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview#temporary-disk">temporary disk</a>. It's available only on VMs that support temporary disks. An I/O operation that uses this path runs based on SSD-level provisioning for IOPS and throughput.</p>
+<p>The following diagram depicts an example of these limitations. The system prevents a Standard_D2s_v3 VM from achieving the 5,000 IOPS potential of a P30 disk, whether it's cached or not, because of limits at the SSD and network levels.</p>
+<p>
+<a href="https://learn.microsoft.com/en-us/azure/virtual-machines/media/disks-performance/example-vm-allocation.png#lightbox">
+<img alt="Diagram of a Standard_D2s_v3 VM limiting P30 disk performance to 3,200 IOPS and 32 MBps for uncached I/O or 4,000 IOPS and 32 MBps for cached I/O." src="https://learn.microsoft.com/en-us/azure/virtual-machines/media/disks-performance/example-vm-allocation.png"/>
+</a>
+</p>
+<p>Azure uses a prioritized network channel for disk traffic. Disk traffic takes precedence over low-priority network traffic. This prioritization helps disks maintain their expected performance if there's network contention.</p>
+<p>Similarly, Azure Storage handles resource contentions and other issues in the background with automatic load balancing. Azure Storage allocates required resources when you create a disk, and it applies proactive and reactive balancing of resources to handle the traffic level. This behavior further ensures that disks can sustain their expected IOPS and throughput targets. Use VM-level and disk-level <a href="https://learn.microsoft.com/en-us/azure/virtual-machines/disks-metrics">metrics</a> to track the performance and set up alerts as needed.</p>
+<h2>Disk I/O capping</h2>
+<p>Your application's performance gets capped when it requests more IOPS or throughput than what is allotted for the virtual machines or attached disks. When capped, the application experiences suboptimal performance. This condition can lead to negative consequences like increased latency. The following examples use IOPS, but the same logic applies to throughput.</p>
+<p><strong>Disk-level capping example setup:</strong></p>
+<ul>
+<li>Standard_D8s_v3
+<ul>
+<li>Uncached IOPS: 12,800</li>
+</ul>
+</li>
+<li>E30 OS disk
+<ul>
+<li>IOPS: 500</li>
+</ul>
+</li>
+<li>Two E30 data disks × 2
+<ul>
+<li>IOPS: 500</li>
+</ul>
+</li>
+</ul>
+<p><img alt="Diagram of a 10,000-IOPS request split across three E30 disks, each capped at 500 IOPS, resulting in a 1,500-IOPS response." src="https://learn.microsoft.com/en-us/azure/virtual-machines/media/disks-performance/disk-level-throttling.jpg"/></p>
+<p>The application running on the virtual machine makes a request that requires 10,000 IOPS to the virtual machine. All of which are allowed by the VM because the Standard_D8s_v3 virtual machine can execute up to 12,800 IOPS.</p>
+<p>The 10,000 IOPS requests are broken down into three different requests to the different disks:</p>
+<ul>
+<li>1,000 IOPS are requested to the operating system disk.</li>
+<li>4,500 IOPS are requested to each data disk.</li>
+</ul>
+<p>All attached disks are E30 disks and can only handle 500 IOPS. So, they respond back with 500 IOPS each. The application's performance is capped by the attached disks, and it can only process 1,500 IOPS. The application could work at peak performance at 10,000 IOPS if better-performing disks are used, such as Premium SSD P30 disks.</p>
+<h2>Virtual machine I/O capping</h2>
+<p><strong>VM-level capping example setup:</strong></p>
+<ul>
+<li>Standard_D8s_v3
+<ul>
+<li>Uncached IOPS: 12,800</li>
+</ul>
+</li>
+<li>P30 OS disk
+<ul>
+<li>IOPS: 5,000</li>
+</ul>
+</li>
+<li>Two P30 data disks × 2
+<ul>
+<li>IOPS: 5,000</li>
+</ul>
+</li>
+</ul>
+<p><img alt="Diagram of a 15,000-IOPS request to three P30 disks capped by the Standard_D8s_v3 VM at 12,800 IOPS." src="https://learn.microsoft.com/en-us/azure/virtual-machines/media/disks-performance/vm-level-throttling.jpg"/></p>
+<p>The application running on the virtual machine makes a request that requires 15,000 IOPS. Unfortunately, the Standard_D8s_v3 virtual machine is only provisioned to handle 12,800 IOPS. The application is capped by the virtual machine limits and must allocate the allotted 12,800 IOPS.</p>
+<p>Those 12,800 IOPS requested are broken down into three different requests to the different disks:</p>
+<ul>
+<li>4,267 IOPS are requested to the operating system disk.</li>
+<li>4,266 IOPS are requested to each data disk.</li>
+</ul>
+<p>All attached disks are P30 disks that can handle 5,000 IOPS. So, they respond back with their requested amounts.</p>

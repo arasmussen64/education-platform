@@ -41,7 +41,7 @@ READING_WORDS_A_MINUTE = 130
 
 # Removed with everything inside them, on every site.
 DROP_ALWAYS = (
-    "script, style, noscript, template, nav, header, footer, form, button, input, "
+    "script, style, noscript, template, nav, footer, form, button, input, "
     "select, textarea, svg, iframe, object, video, audio, canvas, link, meta, "
     "annotation, annotation-xml, a.headerlink, a.anchor, a.anchor-link, a.hash-link"
 )
@@ -58,7 +58,7 @@ SITES: dict[str, dict[str, str]] = {
     "en.wikipedia.org": {
         "select": "div.mw-parser-output",
         "drop": (
-            ".mw-editsection, sup.reference, .navbox, .infobox, .hatnote, .reflist, "
+            ".mw-editsection, .navbox, .infobox, .hatnote, .reflist, "
             ".mw-references-wrap, table.sidebar, .ambox, .noprint, .metadata, "
             ".sistersitebox, "
             ".mwe-math-fallback-image-inline, .mwe-math-fallback-image-display, .toc, "
@@ -80,24 +80,28 @@ SITES: dict[str, dict[str, str]] = {
     },
     "developer.mozilla.org": {
         "select": "article.main-page-content, main",
-        "drop": ".bc-data, .metadata",
+        "drop": ".bc-data, .metadata, .example-header",
     },
     "learn.microsoft.com": {
-        "select": "div.content, main",
+        "select": "div[data-main-column] > div, div.content, main",
         "drop": (
             ".page-metadata-container, #article-header, .feedback-section, "
-            "#user-feedback, .alert.is-primary"
+            "#user-feedback, .alert.is-primary, [data-id=ai-summary], "
+            "[data-bi-name=permission-content-unauthorized-private]"
         ),
     },
-    "docs.kernel.org": {"select": "div.body", "drop": ".headerlink"},
+    "docs.kernel.org": {
+        "select": "div.body",
+        "drop": ".headerlink, .language-selection",
+    },
+    "docs.strongswan.org": {"select": "article.doc", "drop": ""},
     "wiki.archlinux.org": {
         "select": "div.mw-parser-output",
         "drop": ".mw-editsection, .archwiki-template-meta, .noprint, .toc, .catlinks",
     },
-    "www.digitalocean.com": {
-        "select": "div[class*=Markdown], article, main",
-        "drop": "",
-    },
+    # DigitalOcean's pages hold the tutorial only as Markdown inside the page's
+    # data, drawn in the browser, so there is no article to select. Its five
+    # copies were made from that Markdown (the devlog, 2026-11-21).
     "missing.csail.mit.edu": {"select": "div#content, article, main", "drop": ""},
     "runestone.academy": {
         "select": "div#main-content, section.section, main",
@@ -163,12 +167,15 @@ def keep_between(root: Tag, start: Tag | None, stop: Tag | None) -> None:
         if leaf and not inside:
             node.extract()
     for tag in reversed(root.find_all(True)):
-        if tag.name in ("img", "br", "hr", "td", "th") or tag.find("img"):
+        if tag.name in ("img", "br", "hr", "td", "th") or tag.find(["img", "br", "hr"]):
             continue
         # Code and formulas keep every piece: a span holding one space is
         # the space between two words of code, and a formula's empty slot
         # still holds its place.
         if tag.name in ("pre", "math") or tag.find_parent(["pre", "math"]):
+            # A whole code box or formula outside the part asked for goes.
+            if tag.name in ("pre", "math") and not tag.get_text().strip():
+                tag.decompose()
             continue
         text = tag.get_text()
         if text == "" or (tag.name in EMPTY_WHEN_BLANK and not text.strip()):
@@ -226,7 +233,9 @@ def clean(root: Tag, page: str) -> None:
                 tag.decompose()
             continue
         if tag.name == "a":
-            address = urljoin(page, str(tag.get("href") or ""))
+            # An <a> with no address is a place to jump to, not a link.
+            link = str(tag.get("href") or "")
+            address = urljoin(page, link) if link else ""
             if address.startswith("https://"):
                 tag.attrs = {"href": address}
             else:
@@ -265,6 +274,9 @@ def extract(
     site = SITES.get(urlparse(page).hostname or "", {})
     soup = BeautifulSoup(page_html, "html.parser")
     root = soup.select_one(select or site.get("select") or "main, article, body")
+    if root is None and not select:
+        # A page of the site that is laid out differently from the rest.
+        root = soup.select_one("main, article, body")
     if root is None:
         sys.exit("Can't find the article on the page: give --select.")
     # Some sites wrap a picture in a button that enlarges it: keep the picture.

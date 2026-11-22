@@ -1,0 +1,68 @@
+<h2>Get Started</h2>
+<h2>Install <code>pytest</code></h2>
+<p>Install <code>pytest</code> into a virtual environment, not into the Python installation
+of your operating system (see <a href="https://docs.pytest.org/en/stable/explanation/goodpractices.html#install-package-with-pip">Install package in a virtual environment</a>).</p>
+<ol>
+<li><p>Create a virtual environment and install <code>pytest</code> into it,
+using the tool of your choice:</p></li>
+</ol>
+venv + pip
+<p><a href="https://docs.python.org/3/library/venv.html#module-venv"><code>venv</code></a> and <a href="https://pip.pypa.io/en/stable/">pip</a> ship with Python.
+Some Linux distributions package them separately
+(for example <code>python3-venv</code> on Debian and Ubuntu).</p>
+<pre><code>python3 -m venv .venv
+source .venv/bin/activate   # on Windows: .venv\Scripts\activate
+pip install -U pytest</code></pre>
+uv
+<p><a href="https://docs.astral.sh/uv/">uv</a> creates and manages the virtual
+environment of your project for you.
+In a directory with a <code>pyproject.toml</code> (<code>uv init</code> creates one):</p>
+<pre><code>uv add --dev pytest</code></pre>
+<p>Prefix the <code>pytest</code> commands on this page with <code>uv run</code>,
+for example <code>uv run pytest</code>, to run them inside the project environment.</p>
+virtualenv
+<p><a href="https://virtualenv.pypa.io/en/stable/index.html">virtualenv</a> is a faster, more configurable
+alternative to <a href="https://docs.python.org/3/library/venv.html#module-venv"><code>venv</code></a>:</p>
+<pre><code>virtualenv .venv
+source .venv/bin/activate   # on Windows: .venv\Scripts\activate
+pip install -U pytest</code></pre>
+<ol start="2">
+<li><p>Check that you installed the correct version:</p></li>
+</ol>
+<pre><code>$ pytest --version
+pytest 9.2.0</code></pre>
+<p>See <a href="https://docs.pytest.org/en/stable/explanation/goodpractices.html#install-package-with-pip">Install package in a virtual environment</a> for how to install the project you are
+testing into the same environment.</p>
+<h2>Create your first test</h2>
+<p>Create a new file called <code>test_sample.py</code>, containing a function, and a test:</p>
+<pre><code># content of test_sample.py
+def func(x):
+    return x + 1
+
+
+def test_answer():
+    assert func(3) == 5</code></pre>
+<p>Run the test:</p>
+<pre><code>$ pytest
+=========================== test session starts ============================
+platform linux -- Python 3.x.y, pytest-9.x.y, pluggy-1.x.y
+rootdir: /home/sweet/project
+collected 1 item
+
+test_sample.py F                                                     [100%]
+
+================================= FAILURES =================================
+_______________________________ test_answer ________________________________
+
+    def test_answer():
+&gt;       assert func(3) == 5
+E       assert 4 == 5
+E        +  where 4 = func(3)
+
+test_sample.py:6: AssertionError
+========================= short test summary info ==========================
+FAILED test_sample.py::test_answer - assert 4 == 5
+============================ 1 failed in 0.12s =============================</code></pre>
+<p>The <code>[100%]</code> refers to the overall progress of running all test cases. After it finishes, pytest then shows a failure report because <code>func(3)</code> does not return <code>5</code>.</p>
+<p>Note</p>
+<p>You can use the <code>assert</code> statement to verify test expectations. pytest’s <a href="https://docs.python.org/3/reference/simple_stmts.html#assert">Advanced assertion introspection</a> will intelligently report intermediate values of the assert expression so you can avoid the many names <a href="https://docs.python.org/3/library/unittest.html#testcase-objects">of JUnit legacy methods</a>.</p>
