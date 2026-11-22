@@ -2,6 +2,18 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, closing: the deletion is live, and where the day ended
+
+**The owner said "push it".** A dry run of `npx supabase db push --remote` listed exactly one migration, `20261122200000_erase_my_history.sql`. It was applied to the live database, and a second dry run reports it up to date. "Start everything over" on the live site now deletes the learner's history for good. Nothing else on the live database was touched, and the button itself was not pressed there: that is the owner's.
+
+**The lab checks are green.** The fix for the directory labs (#359) passed all eight lab groups on CI, including the one that had failed three times on main.
+
+**Where things stand.** Merged today after the lessons work: starting everything over (#353), the visual lift and lesson tables (#354), Today's shorter explanations (#355), the true deletion (#356), the unseen pages and phone width (#357), the lesson read-through's fixes (#358), the lab fix (#359). Nothing is left running on the owner's machine.
+
+**Still open:** Firefox has not been looked at; a few lesson figures have no script behind them (listed in the read-through entry); why the lab race began to show when it did is not known. Skipped as low value unless asked: a second video search for the 25 topics without one, and formulas in the reading importer.
+
+**Next:** cloud Module 4.
+
 ## 2026-11-22, and after: why the directory lab failed on main
 
 **The failure.** After step 3 the lab checks on main failed three runs in a row, in the directory-join topic, and only in the trial that restarts the container: "alice logged in, with no Kerberos ticket", a lock-screen policy that didn't reach alice, once an empty group. No lab file had changed.
