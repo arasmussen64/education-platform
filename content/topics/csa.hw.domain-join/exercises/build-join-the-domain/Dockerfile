@@ -37,7 +37,7 @@ RUN apt-get update \
 # ordinary resolver, this machine's Kerberos settings, realmd's settings
 # (realmd.conf: where SSSD's files are, since a server image has no
 # PackageKit for realmd to ask) and the on-dc command. lab isn't joined.
-COPY network.sh dc-enter dc-provision.sh dc-seed.sh /usr/local/lib/lab/
+COPY network.sh dc-enter dc-provision.sh dc-ready.sh dc-seed.sh /usr/local/lib/lab/
 COPY on-dc /usr/local/bin/
 COPY lab-network.service lab-dc.service /etc/systemd/system/
 COPY dnsmasq-lab.conf /etc/systemd/system/dnsmasq.service.d/lab.conf
