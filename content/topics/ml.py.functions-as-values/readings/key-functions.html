@@ -1,0 +1,42 @@
+<h2>Key Functions</h2>
+<p>The <a href="https://docs.python.org/3/builtins/stdtypes.html#list.sort"><code>list.sort()</code></a> method and the functions <a href="https://docs.python.org/3/builtins/functions.html#sorted"><code>sorted()</code></a>,
+<a href="https://docs.python.org/3/builtins/functions.html#min"><code>min()</code></a>, <a href="https://docs.python.org/3/builtins/functions.html#max"><code>max()</code></a>, <a href="https://docs.python.org/3/library/heapq.html#heapq.nsmallest"><code>heapq.nsmallest()</code></a>, and
+<a href="https://docs.python.org/3/library/heapq.html#heapq.nlargest"><code>heapq.nlargest()</code></a> have a <em>key</em> parameter to specify a function (or
+other callable) to be called on each list element prior to making
+comparisons.</p>
+<p>For example, here’s a case-insensitive string comparison using
+<a href="https://docs.python.org/3/builtins/stdtypes.html#str.casefold"><code>str.casefold()</code></a>:</p>
+<pre><code>&gt;&gt;&gt; sorted("This is a test string from Andrew".split(), key=str.casefold)
+['a', 'Andrew', 'from', 'is', 'string', 'test', 'This']</code></pre>
+<p>The value of the <em>key</em> parameter should be a function (or other callable) that
+takes a single argument and returns a key to use for sorting purposes. This
+technique is fast because the key function is called exactly once for each
+input record.</p>
+<p>A common pattern is to sort complex objects using some of the object’s indices
+as keys. For example:</p>
+<pre><code>&gt;&gt;&gt; student_tuples = [
+...     ('john', 'A', 15),
+...     ('jane', 'B', 12),
+...     ('dave', 'B', 10),
+... ]
+&gt;&gt;&gt; sorted(student_tuples, key=lambda student: student[2])   # sort by age
+[('dave', 'B', 10), ('jane', 'B', 12), ('john', 'A', 15)]</code></pre>
+<p>The same technique works for objects with named attributes. For example:</p>
+<pre><code>&gt;&gt;&gt; class Student:
+...     def __init__(self, name, grade, age):
+...         self.name = name
+...         self.grade = grade
+...         self.age = age
+...     def __repr__(self):
+...         return repr((self.name, self.grade, self.age))
+
+&gt;&gt;&gt; student_objects = [
+...     Student('john', 'A', 15),
+...     Student('jane', 'B', 12),
+...     Student('dave', 'B', 10),
+... ]
+&gt;&gt;&gt; sorted(student_objects, key=lambda student: student.age)   # sort by age
+[('dave', 'B', 10), ('jane', 'B', 12), ('john', 'A', 15)]</code></pre>
+<p>Objects with named attributes can be made by a regular class as shown
+above, or they can be instances of <a href="https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass"><code>dataclass</code></a> or
+a <a href="https://docs.python.org/3/glossary.html#term-named-tuple">named tuple</a>.</p>

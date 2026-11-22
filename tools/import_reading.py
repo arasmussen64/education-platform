@@ -50,7 +50,10 @@ DROP_ALWAYS = (
 SITES: dict[str, dict[str, str]] = {
     "docs.python.org": {
         "select": "div.body",
-        "drop": ".headerlink, .versionadded, .versionchanged",
+        "drop": (
+            ".headerlink, .versionadded, .versionchanged, a.footnote-reference, "
+            "aside.footnote-list, aside.footnote, p.rubric"
+        ),
     },
     "en.wikipedia.org": {
         "select": "div.mw-parser-output",
@@ -104,6 +107,14 @@ SITES: dict[str, dict[str, str]] = {
 
 HEADINGS = ("h1", "h2", "h3", "h4", "h5", "h6")
 
+# Boxes that are removed when nothing but spaces is left in them. Anything
+# else (a span, a link) may be holding a space the sentence needs.
+EMPTY_WHEN_BLANK = frozenset(
+    {"p", "li", "ul", "ol", "dl", "dt", "dd", "div", "section", "article", "aside"}
+    | {"table", "thead", "tbody", "tr", "figure", "figcaption", "blockquote"}
+    | set(HEADINGS)
+)
+
 
 def fetch(url: str) -> str:
     request = urllib.request.Request(
@@ -152,11 +163,15 @@ def keep_between(root: Tag, start: Tag | None, stop: Tag | None) -> None:
         if leaf and not inside:
             node.extract()
     for tag in reversed(root.find_all(True)):
-        if (
-            tag.name not in ("img", "br", "hr", "td", "th")
-            and not tag.get_text(strip=True)
-            and not tag.find("img")
-        ):
+        if tag.name in ("img", "br", "hr", "td", "th") or tag.find("img"):
+            continue
+        # Code and formulas keep every piece: a span holding one space is
+        # the space between two words of code, and a formula's empty slot
+        # still holds its place.
+        if tag.name in ("pre", "math") or tag.find_parent(["pre", "math"]):
+            continue
+        text = tag.get_text()
+        if text == "" or (tag.name in EMPTY_WHEN_BLANK and not text.strip()):
             tag.decompose()
 
 
@@ -238,6 +253,34 @@ def tidy(html: str) -> str:
     return "".join(parts).strip() + "\n"
 
 
+def extract(
+    page_html: str,
+    page: str,
+    select: str | None = None,
+    drop: list[str] | None = None,
+    start_at: str | None = None,
+    stop_at: str | None = None,
+) -> str:
+    """The part of a downloaded page that was asked for, as a reading's HTML."""
+    site = SITES.get(urlparse(page).hostname or "", {})
+    soup = BeautifulSoup(page_html, "html.parser")
+    root = soup.select_one(select or site.get("select") or "main, article, body")
+    if root is None:
+        sys.exit("Can't find the article on the page: give --select.")
+    # Some sites wrap a picture in a button that enlarges it: keep the picture.
+    for button in root.select("button:has(img)"):
+        button.unwrap()
+    for selector in [DROP_ALWAYS, site.get("drop", ""), *(drop or [])]:
+        if selector:
+            for junk in root.select(selector):
+                junk.decompose()
+    start = find(root, start_at) if start_at else None
+    stop = find(root, stop_at) if stop_at else None
+    keep_between(root, start, stop)
+    clean(root, page)
+    return tidy(root.decode_contents())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -270,23 +313,7 @@ def main() -> None:
         )
 
     page = args.url or resource["url"]
-    site = SITES.get(urlparse(page).hostname or "", {})
-    soup = BeautifulSoup(fetch(page), "html.parser")
-    root = soup.select_one(args.select or site.get("select") or "main, article, body")
-    if root is None:
-        sys.exit("Can't find the article on the page: give --select.")
-    # Some sites wrap a picture in a button that enlarges it: keep the picture.
-    for button in root.select("button:has(img)"):
-        button.unwrap()
-    for selector in [DROP_ALWAYS, site.get("drop", ""), *args.drop]:
-        if selector:
-            for junk in root.select(selector):
-                junk.decompose()
-    start = find(root, args.start) if args.start else None
-    stop = find(root, args.stop) if args.stop else None
-    keep_between(root, start, stop)
-    clean(root, page)
-    html = tidy(root.decode_contents())
+    html = extract(fetch(page), page, args.select, args.drop, args.start, args.stop)
 
     problems, words = reading_html.check(html)
     if problems:

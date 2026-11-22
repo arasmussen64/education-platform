@@ -1,0 +1,85 @@
+<h2><code>dataclasses</code> — Data Classes</h2>
+<p><strong>Source code:</strong> <a href="https://github.com/python/cpython/tree/3.15/Lib/dataclasses.py">Lib/dataclasses.py</a></p>
+<hr/>
+<p>This module provides a decorator and functions for automatically
+adding generated <a href="https://docs.python.org/3/glossary.html#term-special-method">special methods</a> such as <a href="https://docs.python.org/3/reference/datamodel.html#object.__init__"><code>__init__()</code></a> and
+<a href="https://docs.python.org/3/reference/datamodel.html#object.__repr__"><code>__repr__()</code></a> to user-defined classes.  It was originally described
+in <a href="https://peps.python.org/pep-0557/"><strong>PEP 557</strong></a>.</p>
+<p>The member variables to use in these generated methods are defined
+using <a href="https://peps.python.org/pep-0526/"><strong>PEP 526</strong></a> type annotations.  For example, this code:</p>
+<pre><code>from dataclasses import dataclass
+
+@dataclass
+class InventoryItem:
+    """Class for keeping track of an item in inventory."""
+    name: str
+    unit_price: float
+    quantity_on_hand: int = 0
+
+    def total_cost(self) -&gt; float:
+        return self.unit_price * self.quantity_on_hand</code></pre>
+<p>will add, among other things, a <code>__init__()</code> that looks like:</p>
+<pre><code>def __init__(self, name: str, unit_price: float, quantity_on_hand: int = 0):
+    self.name = name
+    self.unit_price = unit_price
+    self.quantity_on_hand = quantity_on_hand</code></pre>
+<p>Note that this method is automatically added to the class: it is not
+directly specified in the <code>InventoryItem</code> definition shown above.</p>
+<h2>Default factory functions</h2>
+<p>If a <a href="https://docs.python.org/3/library/dataclasses.html#dataclasses.field"><code>field()</code></a> specifies a <em>default_factory</em>, it is called with
+zero arguments when a default value for the field is needed.  For
+example, to create a new instance of a list, use:</p>
+<pre><code>mylist: list = field(default_factory=list)</code></pre>
+<p>If a field is excluded from <a href="https://docs.python.org/3/reference/datamodel.html#object.__init__"><code>__init__()</code></a> (using <code>init=False</code>)
+and the field also specifies <em>default_factory</em>, then the default
+factory function will always be called from the generated
+<code>__init__()</code> function.  This happens because there is no other
+way to give the field an initial value.</p>
+<h2>Mutable default values</h2>
+<p>Python stores default member variable values in class attributes.
+Consider this example, not using dataclasses:</p>
+<pre><code>class C:
+    x = []
+    def add(self, element):
+        self.x.append(element)
+
+o1 = C()
+o2 = C()
+o1.add(1)
+o2.add(2)
+assert o1.x == [1, 2]
+assert o1.x is o2.x</code></pre>
+<p>Note that the two instances of class <code>C</code> share the same class
+variable <code>x</code>, as expected.</p>
+<p>Using dataclasses, <em>if</em> this code was valid:</p>
+<pre><code>@dataclass
+class D:
+    x: list = []      # This code raises ValueError
+    def add(self, element):
+        self.x.append(element)</code></pre>
+<p>it would generate code similar to:</p>
+<pre><code>class D:
+    x = []
+    def __init__(self, x=x):
+        self.x = x
+    def add(self, element):
+        self.x.append(element)
+
+assert D().x is D().x</code></pre>
+<p>This has the same issue as the original example using class <code>C</code>.
+That is, two instances of class <code>D</code> that do not specify a value
+for <code>x</code> when creating a class instance will share the same copy
+of <code>x</code>.  Because dataclasses just use normal Python class
+creation they also share this behavior.  There is no general way
+for Data Classes to detect this condition.  Instead, the
+<a href="https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass"><code>@dataclass</code></a> decorator will raise a <a href="https://docs.python.org/3/builtins/exceptions.html#ValueError"><code>ValueError</code></a> if it
+detects an unhashable default parameter.  The assumption is that if
+a value is unhashable, it is mutable.  This is a partial solution,
+but it does protect against many common errors.</p>
+<p>Using default factory functions is a way to create new instances of
+mutable types as default values for fields:</p>
+<pre><code>@dataclass
+class D:
+    x: list = field(default_factory=list)
+
+assert D().x is not D().x</code></pre>

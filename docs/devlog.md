@@ -6,13 +6,15 @@ A dated log of each working session: what changed, what was decided, what's next
 
 **What changed.** A reading can now be read inside the lesson ([ADR-0031](decisions/0031-lessons-inside-the-app.md)). `tools/import_reading.py` downloads a resource's page, keeps the sections asked for, and cleans them down to plain HTML in `content/topics/<id>/readings/`. The resource in `topic.yaml` gets `use: embed` and a `text:` block (the file, who it is by, the licence's address, the day, what was changed). The lesson shows the text in a box with that credit under it; a further reading under "More resources" is folded and downloaded when opened.
 
-**Five readings to start,** one of each main kind: the Python tutorial's Text section (`py.strings-as-sequences`), OpenStax Principles of Finance 7.1 and 8.2 (`fin.money.time-value`, `fin.money.annuities`), Investor.gov on compound interest (`fin.money.compounding`), and Wikipedia's Amdahl's law (`ml.hw.parallelism-and-gpus`).
+**Sixteen readings to start.** All twelve topics whose main reading is the Python documentation (the tutorial, the sorting how-to, the `dataclasses` and profiler pages), each cut to the sections its title assigns. And one of each other main kind: OpenStax Principles of Finance 7.1 and 8.2 (`fin.money.time-value`, `fin.money.annuities`), Investor.gov on compound interest (`fin.money.compounding`), and Wikipedia's Amdahl's law (`ml.hw.parallelism-and-gpus`).
 
 **Author notes:**
 
 - _Which licences allow a copy is a list in code_ (`COPYABLE` in `tools/reading_html.py`), and the content model refuses `text:` under anything else. "No derivatives" licences are left out: we show parts of pages.
 - _The copy is plain HTML, not Markdown._ Tables, formulas and figures survive, and the words stay exactly the source's.
 - _Three guards._ The importer keeps only allowed tags; the validator refuses a committed file with anything else; the app rebuilds each allowed tag itself and never hands the text to the browser as HTML.
+- _A bug caught by reading the copies:_ the importer removed "empty" tags, and each space in coloured code sits in a tag of its own, so `from fractions import Fraction` came out as `fromfractionsimport Fraction`. Code and formulas now keep every piece, a test holds it, and all copies were made again.
+- _Footnotes are left out_ of the Python pages (the mark and the note), and each `changes` line says so.
 - _Formulas are MathML,_ drawn by the browser. OpenStax writes brackets with `<mfenced>`, which browsers no longer draw: (1 + r) would have shown as 1 + r. The importer writes the brackets out, and each `changes` line says so.
 - _Pictures load from the source's site_ on a light ground (a new colour, `picture`, the same in both themes), because diagrams are drawn for white pages.
 - _The Investor.gov licence line was "no license stated; linked, not copied"._ It is a US government work, not under copyright in the United States (17 U.S.C. 105), and now says so.
