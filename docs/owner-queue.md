@@ -12,14 +12,6 @@ The short list of things only the owner can do or decide. It replaces the "Decis
 
 ## Open
 
-### 0. Apply the erase-history migration to the live database
-
-You asked for "Start everything over" to delete for real. The page is live once this merges, but the database function it calls (`erase_my_history()`, migration `20261122200000_erase_my_history.sql`) reaches the live database only when you say so.
-
-- **Step:** say "push it" and Claude runs `npx supabase db push --remote --dry-run` (it should list exactly that one migration), then applies it. Or run those two yourself.
-- **Recommendation:** yes, then press the button. Download your data first if you want a copy: the deletion can't be undone.
-- **Holds up:** the true deletion. Until then the button says it couldn't erase and changes nothing.
-
 ### 1. Check the $10 spending limit in the Anthropic Console
 
 The AI proxy's fixes went live on 2026-11-21 (see _Answered_). One step of that item was always yours: in the Anthropic Console, check that the $10 monthly spending limit is set. It's the backstop [ADR-0013](decisions/0013-explain-grading.md) names, and nothing records it as set.
@@ -132,6 +124,7 @@ Cloud Module 1, hardened after the audit (#209, #223 to #227, #233):
 
 ## Answered
 
+- **2026-11-22, the erase-history migration.** "push it": a dry run of `npx supabase db push --remote` listed exactly `20261122200000_erase_my_history.sql`; it was applied, and a second dry run reports the live database up to date. "Start everything over" on the live site now deletes your history for good ([ADR-0029](decisions/0029-starting-a-track-over.md), second amendment). It can't be undone: "Download my data" first if you want a copy.
 - **2026-11-21, the three migrations and ADR-0029.** "push it. accept 0029": `20261109220000_placement_events.sql`, `20261111164541_raise_event_data_limit.sql` and `20261121230000_track_reset_events.sql` were applied to the live database (a dry run first listed exactly those three; afterwards it reports the database up to date). Placement results, long programs' Runs and Checks, and starting a track over are now saved on the live site, and events the server refused before are sent again by the browser within 12 hours. [ADR-0029](decisions/0029-starting-a-track-over.md), starting a track over, is _Accepted_.
 - **2026-11-10, pace and direction.** "I'm going to just go at my own pace and bounce around from track to track so your job is to just build. Let's focus the build on the cloud track until it's completely finished and then start working on the ML track again." Content is no longer held to one module ahead of your learning; the build order is the cloud track to its end, then ML from Module 9.
 - **2026-11-10, the audit's fixes.** "You can execute all of item 2": the stray files removed, the generators archived in the repository, refused events sent again, checkpoint explain checks opened only after the build, Module 8's time limits and a CI check on the browser's limit, the confirmed content corrections, and this queue.
