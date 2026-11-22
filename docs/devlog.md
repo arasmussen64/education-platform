@@ -2,6 +2,23 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, after step 3: start everything over
+
+**What the owner asked.** "I reset all my tracks but the today page still shows tracked time for practice hours. I want to wipe everything so I start fresh."
+
+**Why the hours were still there.** By design: [ADR-0029](decisions/0029-starting-a-track-over.md) (accepted the day before) says starting a track over keeps what describes the learner, practice hours first among them. The confirm step said so, but the owner wanted the other thing.
+
+**What changed.** The Account page has one more row under the tracks, "Everything". It records the same `track_reset` event with `everything` in the track's place, and from then on nothing from before it counts: every track, practice hours and weeks, the day's review limit, usual answer times, the forgetting curve, the confidence calibration and the math check. The study plan and sign-in stay. Nothing is deleted, so the event log and the training-data rule hold and "Download my data" still has it all. No migration: the event type was already allowed, so it works on the live site as soon as this deploys. ADR-0029 has an amendment; the data model says the same.
+
+**Author notes:**
+
+- _An event, not a deletion._ "Wipe" could mean deleting rows from the live database. That breaks ADR-0008 and the append-only rule in CLAUDE.md, can't be undone, and is the owner's step to run, not mine. The event gives the same result on every page and can be undone in code. If the owner does want the rows gone for good, that is a separate, owner-run step and is in the queue as a question.
+- _The amendment is recorded as accepted_ because the owner asked for exactly this behaviour today. The mechanism (reusing `track_reset`) is my choice.
+- _One reserved id._ `everything` can never be a track's id; a test fails if one takes it.
+- _Not seen in the app._ Tests cover the event, the filter, the progress hook, the calibration filter and the Account page row. I did not open the page in a browser: the owner's Chrome is signed in to the live site, and the first press of the button is theirs.
+
+**Next:** the directory-join lab failing on main (needs Docker running), then cloud Module 4.
+
 ## 2026-11-22, end: step 3 finished: the 24 lessons outside the cloud track
 
 **What changed.** The last 24 topics whose main resource sent the learner to another site now teach themselves: 20 in the ML track, three in Python Foundations, one in finance. With the 19 cloud lessons, that is all 43. **No ready topic's main resource now requires leaving the app:** it is a video that plays in the page, a reading shown in the page, or an optional "go deeper" link under a lesson that covers everything.

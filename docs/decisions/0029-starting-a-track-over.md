@@ -34,3 +34,16 @@ Two rules stand in the way of the obvious design, deleting the track's events:
 - Every reader of progress has to apply the resets. Today that's `useProgress` and `usePlacements`; anything new that reads attempts for a topic's state must use `afterResets` too. `ProgressState` carries both `attempts` (after resets) and `allAttempts` (everything) so the choice is explicit.
 - The migration reached the live database on 2026-11-21, the day it was written, so resets are saved like any other event.
 - The ML capstone sees every event, resets included, and can choose whether to honour them.
+
+## Amendment, 2026-11-22: starting everything over
+
+The owner started every track over the day after this was accepted, saw the Today page still showing practice hours, and asked: "I want to wipe everything so I start fresh." That is the third alternative above, asked for by name. The owner's history so far is mostly trying features out while building, so the hours and the forgetting curve fitted to it don't describe real study.
+
+- **Starting a track over is unchanged.** It still keeps what describes the learner.
+- **Starting everything over is a second choice on the Account page,** under the tracks. It appends the same `track_reset` event with `everything` where the track's id would be. No track may have that id (a test checks), and no migration is needed: the event type is already allowed.
+- **Nothing from before it counts, anywhere.** Every track's progress, reviews, mistakes coming back and placement results, as for a track. And what a track's reset keeps: practice hours, weeks practised, the day's review limit, the usual answer times, the personal forgetting curve, the confidence calibration and a diagnostic's placement, like math.
+- **Nothing is deleted.** The events stay in the log and in "Download my data" ([ADR-0008](0008-event-log.md) and the training-data rule both hold). The app stops counting them.
+- **Kept:** the study plan (a setting, not history) and the sign-in.
+- **On the device,** every topic's drafts, last part and place, and any guess waiting for its answer are cleared.
+
+In code, `ProgressState.allAttempts` now means every attempt since the learner last started everything over, so its readers (hours, weeks, the review limit, answer times, the curve) follow without changes of their own. `wasReset` answers yes for anything before that time, whatever its track. The calibration summary reads answers from that time on.

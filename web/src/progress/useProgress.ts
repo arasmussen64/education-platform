@@ -35,6 +35,7 @@ import {
   latestResets,
   localResets,
   type Resets,
+  sinceFreshStart,
   type TrackReset,
 } from '../resets/resets.ts'
 import { type UsualTimes, usualTimes } from '../reviews/answerTime.ts'
@@ -65,8 +66,10 @@ export type ProgressState =
        */
       attempts: Attempt[]
       /**
-       * Every graded attempt, resets or not. Practice time, weeks practised
-       * and the daily review limit count what the learner really did.
+       * Every graded attempt, track resets or not. Practice time, weeks
+       * practised and the daily review limit count what the learner really
+       * did. Only starting everything over cuts it short: then it holds
+       * the attempts since (ADR-0029, amended 2026-11-22).
        */
       allAttempts: Attempt[]
       /** The newest time each track was started over, by track id. */
@@ -174,17 +177,25 @@ export function useProgress(
     const local = localRows
       .map(localAttempt)
       .filter((attempt) => attempt !== null)
-    const allAttempts = mergeAttempts(fetched.history.attempts, local)
+    const resets = latestResets(fetched.history.resets, localResets(localRows))
+    // Starting everything over counts nothing at all from before it: not
+    // the hours, the weeks or the forgetting curve either.
+    const allAttempts = sinceFreshStart(
+      mergeAttempts(fetched.history.attempts, local),
+      resets,
+    )
     // A track started over counts nothing from before its newest reset
     // (ADR-0029). With no reset, these are the very same lists.
-    const resets = latestResets(fetched.history.resets, localResets(localRows))
     const attempts = afterResets(allAttempts, resets)
     // Nor may the steps opened on this visit. Only the first opening of
     // each checkpoint's steps matters, so one seen twice changes nothing.
-    const allStepsOpened = [
-      ...fetched.history.stepsOpened,
-      ...localRows.map(localStepsOpened).filter((opened) => opened !== null),
-    ]
+    const allStepsOpened = sinceFreshStart(
+      [
+        ...fetched.history.stepsOpened,
+        ...localRows.map(localStepsOpened).filter((opened) => opened !== null),
+      ],
+      resets,
+    )
     const stepsOpened = afterResets(allStepsOpened, resets)
     const itemsOf = openItemsOf(fetched.history.index)
     const followUps = openFollowUps(attempts, itemsOf)
@@ -195,8 +206,8 @@ export function useProgress(
     const bundled = withBundled(topics)
     const all = progressOf(bundled, attempts, stepsOpened, getTopic)
     // The curve and the usual answer times describe the learner, not a
-    // track, so they're worked out from every attempt, from before a reset
-    // too (ADR-0029).
+    // track, so they're worked out from every attempt, from before a
+    // track's reset too (ADR-0029).
     const curve = personalCurve(
       attempts === allAttempts
         ? all

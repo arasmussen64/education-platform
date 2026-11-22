@@ -4,10 +4,16 @@ import { topicIdsOf, tracks } from '../content/content.ts'
 import type { Track } from '../content/types.ts'
 import { clearDraftsOfTopics } from '../drafts/drafts.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
+import { forgetGuess } from '../nexttime/guesses.ts'
 import { forgetPart } from '../parts/partMemory.ts'
 import { forgetPlace } from '../place/placeMemory.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
-import { trackOfTopic, trackResetEvent } from './resets.ts'
+import {
+  everythingResetEvent,
+  freshStart,
+  trackOfTopic,
+  trackResetEvent,
+} from './resets.ts'
 
 /** No topics of its own: useProgress adds every bundled topic. */
 const NO_TOPICS: never[] = []
@@ -16,7 +22,9 @@ const NO_TOPICS: never[] = []
  * Starting a track over (ADR-0029): one button per track, and a second
  * step that says exactly what goes and what stays before anything happens.
  * Nothing is deleted. The reset is one more event in the learner's log, and
- * from then on the app counts nothing from that track before it.
+ * from then on the app counts nothing from that track before it. Under the
+ * tracks is the same for everything at once, practice hours included
+ * (amended 2026-11-22).
  */
 export function StartOver() {
   const progress = useProgress(NO_TOPICS)
@@ -36,8 +44,121 @@ export function StartOver() {
             <TrackRow track={track} progress={progress} />
           </li>
         ))}
+        <li>
+          <EverythingRow progress={progress} />
+        </li>
       </ul>
     </section>
+  )
+}
+
+/**
+ * What this device remembers about these topics: typed drafts, the part
+ * and place last viewed, a guess waiting for its answer. Conveniences,
+ * never records: the event log keeps everything.
+ */
+function forgetOnThisDevice(topicIds: string[]) {
+  clearDraftsOfTopics(topicIds)
+  for (const id of topicIds) {
+    forgetPart(id)
+    forgetPlace(id)
+    forgetGuess(id)
+  }
+}
+
+/**
+ * Starting everything over: every track, and what a track's reset keeps
+ * (practice hours, weeks, the forgetting curve, how sure the learner is,
+ * the math check). The account is as it was on its first day.
+ */
+function EverythingRow({ progress }: { progress: ProgressState }) {
+  const record = useRecordEvent()
+  const [asking, setAsking] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const ready = progress.status === 'ready'
+  const lastStart = ready ? freshStart(progress.resets) : undefined
+
+  function startOver() {
+    record(everythingResetEvent())
+    forgetOnThisDevice(tracks().flatMap(topicIdsOf))
+    setAsking(false)
+    setDone(true)
+  }
+
+  return (
+    <div className={CARD}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="font-semibold">Everything</h3>
+        <p className="text-sm text-muted">
+          {!ready
+            ? progress.status === 'failed'
+              ? "Your progress couldn't load."
+              : 'Loading…'
+            : 'Every track, and your practice hours too'}
+          {lastStart && ` · started over ${formatDay(lastStart)}`}
+        </p>
+      </div>
+      {/* Announced when everything has been started over. */}
+      <output className="block">
+        {done && (
+          <span className="block text-sm">
+            Everything has been started over. Your practice hours and every
+            track begin again from zero.
+          </span>
+        )}
+      </output>
+      {!asking ? (
+        <button
+          type="button"
+          className={SECONDARY_BUTTON}
+          disabled={!ready}
+          onClick={() => {
+            setDone(false)
+            setAsking(true)
+          }}
+        >
+          Start everything over…
+        </button>
+      ) : (
+        <fieldset className="space-y-3 rounded-md border border-line-strong bg-sunken p-3 text-sm">
+          <legend className="font-medium">Start everything over?</legend>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              Every topic on every track goes back to not started: proofs,
+              reviews, mistakes coming back and placement results stop counting.
+            </li>
+            <li>
+              Your practice hours and weeks go back to zero. Your forgetting
+              curve, your usual answer times, how sure you are against how often
+              you're right, and the math check start again too.
+            </li>
+            <li>
+              Code and explanations you've typed but not checked are cleared
+              from this browser.
+            </li>
+            <li>Kept: your study plan and your sign-in.</li>
+            <li>
+              Nothing is deleted. Your full history stays in your data, and
+              "Download my data" still includes it. The app just stops counting
+              it.
+            </li>
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={BUTTON} onClick={startOver}>
+              Yes, start everything over
+            </button>
+            <button
+              type="button"
+              className={SECONDARY_BUTTON}
+              onClick={() => setAsking(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </fieldset>
+      )}
+    </div>
   )
 }
 
@@ -59,14 +180,8 @@ function TrackRow({
   function startOver() {
     record(trackResetEvent(track.id))
     // What this device remembers about the track's topics goes too, so its
-    // editors open on their starters and its pages at the top. These are
-    // conveniences, never records: the event log keeps everything.
-    const topicIds = topicIdsOf(track)
-    clearDraftsOfTopics(topicIds)
-    for (const id of topicIds) {
-      forgetPart(id)
-      forgetPlace(id)
-    }
+    // editors open on their starters and its pages at the top.
+    forgetOnThisDevice(topicIdsOf(track))
     setAsking(false)
     setDone(true)
   }

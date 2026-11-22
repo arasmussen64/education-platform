@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { tracks } from '../content/content.ts'
 import { eventRow } from '../test/fakeEvents.ts'
 import {
   afterResets,
+  EVERYTHING,
+  everythingResetEvent,
+  freshStart,
+  sinceFreshStart,
   latestResets,
   localResets,
   NO_RESETS,
@@ -117,5 +122,63 @@ describe('starting a track over', () => {
     expect(
       trackOfPlacement({ subject: 'diagnostic.math', kind: 'diagnostic' }),
     ).toBeUndefined()
+  })
+})
+
+describe('starting everything over', () => {
+  it("records the same event with 'everything' where the track would be, an id no track has", () => {
+    expect(everythingResetEvent()).toEqual({
+      type: 'track_reset',
+      topic_id: 'everything',
+      context: 'learn',
+    })
+    expect(tracks().map((track) => track.id)).not.toContain(EVERYTHING)
+  })
+
+  it('knows when it last happened, if it did', () => {
+    expect(freshStart(NO_RESETS)).toBeUndefined()
+    expect(freshStart(new Map([['python-foundations', at(9)]]))).toBeUndefined()
+    expect(
+      freshStart(
+        latestResets([
+          { track: EVERYTHING, occurred_at: at(9) },
+          { track: EVERYTHING, occurred_at: at(11) },
+        ]),
+      ),
+    ).toBe(at(11))
+  })
+
+  it('stops counting everything from before it: any track, a diagnostic, a topic with no track', () => {
+    const resets = new Map([[EVERYTHING, at(10)]])
+    expect(wasReset('python-foundations', at(9), resets)).toBe(true)
+    expect(wasReset('cloud-solutions-architect', at(9), resets)).toBe(true)
+    expect(wasReset(undefined, at(9), resets)).toBe(true)
+    expect(wasReset('python-foundations', at(10), resets)).toBe(false)
+    expect(wasReset(undefined, at(11), resets)).toBe(false)
+  })
+
+  it("still honours a track's own later reset", () => {
+    const resets = new Map([
+      [EVERYTHING, at(10)],
+      ['python-foundations', at(12)],
+    ])
+    expect(wasReset('python-foundations', at(11), resets)).toBe(true)
+    expect(wasReset('cloud-solutions-architect', at(11), resets)).toBe(false)
+  })
+
+  it('keeps only what happened since, and the very same list when it never happened', () => {
+    const events = [
+      { id: 'a', occurred_at: at(8) },
+      { id: 'b', occurred_at: at(10) },
+      { id: 'c', occurred_at: at(11) },
+    ]
+    expect(
+      sinceFreshStart(events, new Map([[EVERYTHING, at(10)]])).map(
+        (event) => event.id,
+      ),
+    ).toEqual(['b', 'c'])
+    expect(
+      sinceFreshStart(events, new Map([['python-foundations', at(10)]])),
+    ).toBe(events)
   })
 })

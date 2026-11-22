@@ -3,6 +3,11 @@
 // deleted (ADR-0008): the progress derivation just stops counting that
 // track's events from before the newest reset, so every topic in it is back
 // to not started. The full history stays in the log for the ML capstone.
+//
+// Starting everything over (ADR-0029, amended 2026-11-22) is the same event
+// with EVERYTHING where the track's id would be. Nothing at all from before
+// it counts: every track, and what describes the learner too (practice
+// hours, weeks, the forgetting curve, how sure they are).
 import { placeOf } from '../content/content.ts'
 import type { EventRow, NewEvent } from '../events/types.ts'
 import { getSupabase } from '../supabase/client.ts'
@@ -18,7 +23,16 @@ export type TrackReset = {
   occurred_at: string
 }
 
-/** The newest reset of each track, by track id. */
+/**
+ * What stands in the track's place when the learner starts everything over.
+ * No track may have this id (a test checks).
+ */
+export const EVERYTHING = 'everything'
+
+/**
+ * The newest reset of each track, by track id. The newest time everything
+ * was started over, if it ever was, is under EVERYTHING.
+ */
 export type Resets = Map<string, string>
 
 /** No track has been started over. */
@@ -30,6 +44,29 @@ export function trackResetEvent(trackId: string): NewEvent {
   // (ADR-0021). The context is 'learn': a reset isn't practice, a proof or
   // a review, and no new context is needed for it.
   return { type: TRACK_RESET, topic_id: trackId, context: 'learn' }
+}
+
+/** The event recorded when the learner starts everything over. */
+export function everythingResetEvent(): NewEvent {
+  return trackResetEvent(EVERYTHING)
+}
+
+/** When the learner last started everything over, if they ever did. */
+export function freshStart(resets: Resets): string | undefined {
+  return resets.get(EVERYTHING)
+}
+
+/**
+ * The events since the learner last started everything over, whatever
+ * their track. Returns the same list when they never did.
+ */
+export function sinceFreshStart<T extends { occurred_at: string }>(
+  events: T[],
+  resets: Resets,
+): T[] {
+  const start = freshStart(resets)
+  if (start === undefined) return events
+  return events.filter((event) => event.occurred_at >= start)
 }
 
 type Row = { type: string; topic_id: string; occurred_at: string }
@@ -65,13 +102,16 @@ export function latestResets(...lists: TrackReset[][]): Resets {
 /**
  * Whether something that happened at `occurred_at` on this track was
  * before the track's newest reset, and so no longer counts. A topic that
- * belongs to no track (an id the content doesn't know) is never reset.
+ * belongs to no track (an id the content doesn't know) is never reset by a
+ * track's reset. Starting everything over resets it all, track or no track.
  */
 export function wasReset(
   trackId: string | undefined,
   occurred_at: string,
   resets: Resets,
 ): boolean {
+  const start = freshStart(resets)
+  if (start !== undefined && occurred_at < start) return true
   if (trackId === undefined) return false
   const reset = resets.get(trackId)
   return reset !== undefined && occurred_at < reset
@@ -120,7 +160,8 @@ export async function fetchResets(): Promise<TrackReset[]> {
 /**
  * The track a placement subject belongs to: a track's own id, or the track
  * of a module's foundations list. A diagnostic, like math, measures the
- * learner rather than a track, so no reset clears it (ADR-0029).
+ * learner rather than a track, so no track's reset clears it (ADR-0029).
+ * Only starting everything over does.
  */
 export function trackOfPlacement(record: {
   subject: string

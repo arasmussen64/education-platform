@@ -5,6 +5,7 @@ import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { tracks } from '../content/content.ts'
 import { loadDraft, saveDraft } from '../drafts/drafts.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
+import { recallGuess, saveGuess } from '../nexttime/guesses.ts'
 import { recallPart, rememberPart } from '../parts/partMemory.ts'
 import { recallPlace, rememberPlace } from '../place/placeMemory.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
@@ -96,5 +97,61 @@ describe('starting a track over', () => {
     )
     expect(recallPart('py.variables')).toBeNull()
     expect(recallPlace('py.variables')).toBeNull()
+  })
+})
+
+describe('starting everything over', () => {
+  it('asks first, says the hours go too, and records nothing on Cancel', async () => {
+    const user = userEvent.setup()
+    const events = renderStartOver()
+    await user.click(
+      await screen.findByRole('button', { name: 'Start everything over…' }),
+    )
+    const ask = screen.getByRole('group', { name: 'Start everything over?' })
+    expect(
+      within(ask).getByText(/practice hours and weeks go back to zero/),
+    ).toBeInTheDocument()
+    expect(within(ask).getByText(/Nothing is deleted/)).toBeInTheDocument()
+    await user.click(within(ask).getByRole('button', { name: 'Cancel' }))
+    expect(events).toEqual([])
+  })
+
+  it("records one reset for everything and forgets every track's drafts, places and guesses on this device", async () => {
+    saveDraft({ topicId: 'py.variables', itemId: 'fill-swap', rev: 1 }, 'a = b')
+    saveDraft(
+      { topicId: 'csa.linux.triage', itemId: 'write-x', rev: 1 },
+      'gone too',
+    )
+    rememberPart('py.variables', 'practice')
+    rememberPlace('py.variables', 'place-recap')
+    saveGuess('py.variables', {
+      question: 'What does = do?',
+      guess: 'It compares',
+      at: '2026-11-22T10:00:00.000Z',
+      source: 'goal',
+    })
+    const user = userEvent.setup()
+    const events = renderStartOver()
+    await user.click(
+      await screen.findByRole('button', { name: 'Start everything over…' }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Yes, start everything over' }),
+    )
+    expect(events).toEqual([
+      { type: 'track_reset', topic_id: 'everything', context: 'learn' },
+    ])
+    expect(
+      screen.getByText(/Everything has been started over/),
+    ).toBeInTheDocument()
+    expect(
+      loadDraft({ topicId: 'py.variables', itemId: 'fill-swap', rev: 1 }),
+    ).toBeNull()
+    expect(
+      loadDraft({ topicId: 'csa.linux.triage', itemId: 'write-x', rev: 1 }),
+    ).toBeNull()
+    expect(recallPart('py.variables')).toBeNull()
+    expect(recallPlace('py.variables')).toBeNull()
+    expect(recallGuess('py.variables')).toBeNull()
   })
 })
