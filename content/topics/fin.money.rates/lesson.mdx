@@ -14,7 +14,13 @@ The conventions of this module, in case you arrive here first: a rate is a decim
 
 <Check item="mcq-apr-to-monthly" />
 
-**What a year really adds.** Because each period's interest earns interest in the next, a year of 12 monthly rounds is more than the APR. The **effective annual rate** is what a year adds once compounding is counted: grow 1 by the per-period rate, once for each period, and take 1 away.
+**From a short period's rate to a year's.** The split works backwards too. A lender that says "0.75% a month" has an APR of 0.75% × 12 = 9%: the per-period rate times the number of periods in a year, with no compounding counted. A fee is a rate in disguise: divide the fee by the amount borrowed. Take an invented one-week loan that charges $4 for each $100 borrowed. That's 4 ÷ 100 = 4% a week, and a year has 52 weeks, so its APR is 4% × 52 = 208%. Count the periods by the loan's own length: 52 for a week, 26 for two weeks, 12 for a month.
+
+**What a year really adds.** Because each period's interest earns interest in the next, a year of 12 monthly rounds is more than the APR. The **effective annual rate** is what a year adds once compounding is counted.
+
+By hand first, with made-up money: $800 owed at 10% APR, with interest added twice a year. Each half-year charges 10% ÷ 2 = 5%. After the first half the debt is 800 × 1.05 = $840. The second 5% is charged on the $840, not on the $800: 840 × 1.05 = $882. The debt grew by $82, and 82 ÷ 800 is 10.25% of where it began, not 10%. The extra quarter of a point is $2: the second half's 5% charged on the first half's $40 of interest.
+
+The $800 doesn't matter: any amount is multiplied by 1.05 twice, and 1.05 × 1.05 = 1.1025. A number like 1.05 or 1.1025, 1 plus a rate, is a **growth factor**: what the money is multiplied by. So the recipe is: grow 1 by the per-period rate, once for each period, and take 1 away to turn the growth factor back into a rate.
 
 ```python
 apr = 0.24
@@ -22,6 +28,8 @@ per_year = 12
 effective = (1 + apr / per_year) ** per_year - 1
 print(f"{effective:.2%}")   # 26.82%
 ```
+
+Three slips to watch for. Growing by the whole APR every period, `(1 + apr) ** per_year`, charges a year's interest each time: for the $800 debt it would say 21%, and with daily compounding the answer becomes absurdly large. Leaving off the `- 1` gives the growth factor (1.1025) where the rate (0.1025) was wanted. And if you're handed the per-period rate itself, don't divide again: 0.75% a month is `1.0075 ** 12 - 1`, 9.38% a year, against its APR of 9%.
 
 The same idea for 24% at other frequencies, from the formula above:
 
@@ -34,7 +42,7 @@ The same idea for 24% at other frequencies, from the formula above:
 | weekly | 52 | 27.05% |
 | daily | 365 | 27.11% |
 
-More often means more, but the gain shrinks: daily is barely more than weekly. There's a ceiling, `math.exp(0.24) - 1`, about 27.12%, if interest were added every instant; you won't need it here. For savings, banks in the US quote the effective rate under another name, the **APY** (annual percentage yield). So a loan's advertised number tends to be the smaller APR and a savings account's the larger APY: compare like with like.
+More often means more, but the gain shrinks: daily is barely more than weekly. There's a ceiling, `math.exp(0.24) - 1`, about 27.12%, if interest were added every instant; you won't need it here. For savings, banks in the US quote the effective rate under another name, the **APY** (annual percentage yield). So a loan's advertised number tends to be the smaller APR and a savings account's the larger APY: compare like with like. To set an APR beside an APY, turn the APR into an effective rate first. An invented account at 3.95% APR, compounded monthly, really pays `(1 + 0.0395 / 12) ** 12 - 1`, 4.02% a year. That's a little more than an account advertising 4.00% APY, which pays exactly 4.00% because an APY already counts the compounding, although 3.95 is the smaller number on the poster.
 
 <Check item="est-card-30-apr" />
 
@@ -48,7 +56,7 @@ The lesson: a rate quoted for a short period has to be scaled to a year before y
 
 </Story>
 
-**Prices rise: inflation.** **Inflation** is prices in general going up, so the same money buys less. In the US the usual measure is the **CPI**, the Consumer Price Index, published every month by the Bureau of Labor Statistics (BLS). It tracks what a fixed basket of goods and services costs urban households, as an index: a number that means nothing alone and only says something compared with itself at another date. The base, 100, is the average of 1982 to 1984.
+**Prices rise: inflation.** **Inflation** is prices in general going up, so the same money buys less. In the US the usual measure is the **CPI**, the Consumer Price Index, published every month by the Bureau of Labor Statistics (BLS). It tracks what a fixed basket of goods and services costs urban households, as an index: a number that means nothing alone and only says something compared with itself at another date. It isn't a price in dollars. The base, 100, is the average of 1982 to 1984.
 
 Here are the yearly averages of CPI-U, the index for all urban consumers (BLS series `CUUR0000SA0`, annual averages, read from bls.gov on 2026-11-17; BLS data is public domain):
 
@@ -63,9 +71,15 @@ Here are the yearly averages of CPI-U, the index for all urban consumers (BLS se
 
 Inflation between two years is the later index over the earlier, minus 1: from 2021 to 2022 prices rose `292.655 / 270.970 - 1`, 8.0%, the fastest rise in a year's average since 1981. Divide, don't subtract: the 21.7 points between those two years would be a different share of a different starting level.
 
+The same division works over a longer stretch: from 2005 to 2015 prices rose `237.017 / 195.3 - 1`, 21.4%. Always divide by the earlier year's index, because a rise is measured from where it started. And 21.4% in ten years isn't 2.14% every year. Yearly rises compound, as interest does, so the steady yearly rate that multiplies up to 21.4% is `(237.017 / 195.3) ** (1 / 10) - 1`, about 1.95%, and the real years were uneven in any case.
+
 <Check item="mcq-cpi-change" />
 
 **Deflating: one year's money in another year's.** To say what a price from one year is in another year's money, scale it by the ratio of the two indexes. A $100 grocery bill in 2000 is `100 * 321.943 / 172.2`, about $186.96, in 2025 money. Going the other way, divide: $100 in 2025 bought what `100 * 172.2 / 321.943`, about $53.49, bought in 2000. Turning a list of past prices into one year's money this way is called **deflating** them, and it's how you tell whether something really got dearer or only kept up with everything else.
+
+The same sum answers "what would it take just to keep up with prices?" A made-up rent of $450 a month in 2005 would have to be `450 * 237.017 / 195.3`, about $546.12, in 2015 to have risen exactly as much as prices in general. If the rent is higher than that, it rose in real terms; if lower, it fell.
+
+Two checks catch most mistakes here. First, the direction: prices rose over all these years, so money moved forward in time must come out as a bigger number, and money moved back as a smaller one. If $450 of 2005 money comes out as $370.80 in 2015, the ratio is upside down. The index of the year you're going **to** goes on top. Second, an index scales a price, so it's always multiplied or divided: never add index points to dollars or take them away. In code the indexes sit well in a dictionary with the year as the key, so `cpi[2015]` looks one up and one function can serve any year.
 
 **Nominal and real.** A **nominal return** counts dollars: $10,000 that became $10,700 returned 7%. A **real return** counts what those dollars buy. If prices rose 3% over the same time, the exact real return is
 
@@ -73,11 +87,17 @@ Inflation between two years is the later index over the earlier, minus 1: from 2
 real = (1 + nominal) / (1 + inflation) - 1   # (1.07 / 1.03) - 1, 3.88%
 ```
 
-You'll often see the rough version, `nominal - inflation`, 4% here. It's close when both rates are small and drifts when they're big: a 50% return in a year of 40% inflation is a real 7.1%, not 10%. Use the division in code; keep the subtraction for your head.
+**Why it's a division.** Made-up numbers again: $5,000 sits in an account paying 2%, in a year when prices rise 8%. The balance grows to 5,000 × 1.02 = $5,100. The shopping that cost $5,000 a year ago now costs 5,000 × 1.08 = $5,400. What matters is how much of that shopping the balance can still buy: 5,100 ÷ 5,400 = 0.9444 of it, which is 5.56% less than a year ago. The $5,000 cancels out of that division and leaves 1.02 ÷ 1.08, the money's growth factor over the prices' growth factor. Take 1 away and the real return is −5.56%.
+
+Another way to say the same thing: $5,100 of this year's money buys what 5,100 ÷ 1.08 = $4,722.22 bought last year. The saver has $100 more and can buy $277.78 less. A real return is negative whenever the nominal return is smaller than inflation. The idea isn't only for savings and investments: pay that rises more slowly than prices has fallen in real terms, raise or no raise.
+
+**The rough version.** You'll often see `nominal - inflation`: 4% for the first example, −6% for the account above. It's close when both rates are small and drifts when they're big: a 50% return in a year of 40% inflation is a real 7.1%, not 10%. The reason is that the gain is paid in money that has itself lost value: the exact answer is the rough one divided by `1 + inflation` (−6% ÷ 1.08 is the −5.56%). Use the division in code; keep the subtraction for your head.
+
+One more slip: keep every rate a decimal inside these formulas. A rate held as a percentage in one place (8) and as a decimal in another (0.08) gives answers that are wildly off, in the hundreds of percent. When a result looks absurd, check the units first.
 
 <Check item="predict-real-return" />
 
-**Read now:** the BLS's CPI questions and answers, the main resource below, the two sections named in its title. Then, if you like, the CFPB's short pages on APR and on payday loans. The exercises turn an APR into an effective rate for any frequency, take the inflation out of a return, and deflate a price history with the real CPI numbers above. This module teaches how these things work; it isn't advice on what to do with your money.
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. The BLS's CPI questions and answers, the main resource below, is the index explained by the people who publish it: start with "How do I read or interpret an index?" and "How is the CPI used?". The CFPB's page on APR says in a few lines what a card's interest rate is and how to avoid paying interest on purchases; its page on payday loans describes how those loans work and what limits US states put on them. The Khan Academy video under "More resources" works a card's APR into its effective rate, spoken and drawn. The exercises turn an APR into an effective rate for any frequency, take the inflation out of a return, and deflate a price history with the real CPI numbers above. This module teaches how these things work; it isn't advice on what to do with your money.
 
 </Intro>
 

@@ -1,12 +1,301 @@
 <Intro>
 
-Some recursive functions are exponential not because the problem is hard but because they solve the same small cases again and again. **Dynamic programming** is the fix: remember each answer, or build the answers up from the smallest case in a table. This topic counts the waste in a plain recursive Fibonacci, removes it three ways, and then builds two tables that every ML engineer meets: the **edit distance** between two strings and the **knapsack**, the best set of things that fits a budget.
+<Puzzle question="Each number in this list is the two before it added together: 0, 1, 1, 2, 3, 5, 8, and so on. A function works out number 50 in the list (counting from 0) by calling itself for the two numbers before it. About how many calls does it make?">
 
-The main resource is **_Problem Solving with Algorithms and Data Structures using Python_, section 4.12, Dynamic Programming**, which takes the coin-change problem from plain recursion through memoization to a table; about 25 minutes. The `lru_cache` documentation is the reference for memoizing with a decorator, and Wikipedia's _Levenshtein distance_ has the table. Watch for:
+About 40 billion: 40,730,022,147. The function has no memory, so it works out the same few small numbers again and again, each time from nothing. Give it a dict to store each answer in, and the same job takes 99 calls. This lesson is about that waste, and the ways of removing it.
 
-- **The call tree** of the plain recursion, and how little of it is new.
-- **The recurrence**: each answer written in terms of smaller answers.
-- **The table** as the recurrence filled in from the bottom.
+</Puzzle>
+
+Some recursive functions are exponential not because the problem is hard but because they solve the same small cases again and again. **Dynamic programming** is the fix: remember each answer, or build the answers up from the smallest case in a table. This topic counts the waste in a plain recursive Fibonacci, removes it three ways, and then builds two tables that every ML engineer meets: the **edit distance** between two strings and the **knapsack**, the best set of things that fits a budget. The worked example does all of that on its own numbers; this lesson builds each idea first, on the rhythms that fill a bar of music, two short words, and a week of revision.
+
+**The same work, again and again.** The **Fibonacci numbers** start 0, 1, and every number after that is the two before it added together: 0, 1, 1, 2, 3, 5, 8, 13. Count them from 0, so `fib(0)` is 0, `fib(1)` is 1 and `fib(6)` is 8. The rule turns straight into a recursive function, the kind the recursion topic taught: a base case, and calls to itself on smaller inputs. This one also counts how many times it is called.
+
+```python
+calls = 0
+
+
+def fib(n):
+    global calls  # count in the variable above, not a new local one
+    calls += 1
+    if n < 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+
+for n in (5, 20, 21, 30):
+    calls = 0
+    print(n, fib(n), calls)
+```
+
+```
+5 5 15
+20 6765 21891
+21 10946 35421
+30 832040 2692537
+```
+
+`global calls` says that `calls` inside the function is the variable made on the first line, outside it. Without that line, Python would treat `calls` as a new variable belonging to the function, and adding 1 to a variable that has no value yet is an error. Each line printed is `n`, the answer, and the number of calls it took.
+
+Fifteen calls for `fib(5)`, when only six different values are involved, `fib(0)` to `fib(5)`. Follow the calls to see where the rest come from. `fib(5)` calls `fib(4)` and `fib(3)`. That `fib(4)` calls `fib(3)` too, so `fib(3)` is worked out twice, each time from nothing, because the function keeps no record of what it has done. Each of those two calls `fib(2)`, and `fib(4)` calls it once more, so `fib(2)` is worked out three times. `fib(1)` is reached five times. Drawn out, with each call above the two calls it makes, this is the **call tree**, and most of it is the same few small cases repeated.
+
+You can count the calls without running anything. A call with `n` below 2 returns at once: 1 call. Any other call is itself, plus all the calls under `fib(n - 1)`, plus all the calls under `fib(n - 2)`. So the counts for `n` = 0, 1, 2, 3, 4, 5 are 1, 1, then 1 + 1 + 1 = 3, then 1 + 3 + 1 = 5, then 1 + 5 + 3 = 9, then 1 + 9 + 5 = 15. Each count is one more than the two counts before it added together.
+
+That is why the cost explodes. If both branches were as long as each other, every step up in `n` would double the calls. The second branch starts one step lower, so it is a little less than double: from `fib(20)` to `fib(21)` the calls go from 21,891 to 35,421, about 1.6 times as many, and every further step multiplies by about 1.6 again. Ten steps on from `fib(20)` is over a hundred times the work: 2,692,537 calls for `fib(30)`. Growth that multiplies at every step is exponential growth, and here it buys nothing. There are only `n + 1` different values to find.
+
+Two words for what you have just seen. A **subproblem** is a smaller version of the same question: `fib(3)` is a subproblem of `fib(5)`. A problem has **overlapping subproblems** when the recursion reaches the same subproblem by more than one route, as both `fib(5)` and `fib(4)` reach `fib(3)`. Overlap is what makes plain recursion wasteful. It is also what makes the waste easy to remove.
+
+<Check item="mcq-why-exponential" />
+
+**A second example: rhythms.** A drummer fills a bar of music with notes that last 1, 2 or 4 beats. How many different rhythms fill a bar of 4 beats exactly? Six: 1+1+1+1, 1+1+2, 1+2+1, 2+1+1, 2+2 and 4. For longer bars, think about the first note. It lasts 1, 2 or 4 beats, and whatever it is, the rest of the bar is a shorter bar to fill. So the rhythms for a bar are the rhythms for a bar 1 beat shorter, plus those for a bar 2 shorter, plus those for a bar 4 shorter. A rule like that, which gives an answer in terms of answers to smaller versions, is called a **recurrence**. Fibonacci's rule is one too.
+
+```python
+calls = 0
+
+
+def rhythms(beats):
+    global calls
+    calls += 1
+    if beats < 0:
+        return 0  # the last note overshot the bar: not a rhythm
+    if beats == 0:
+        return 1  # the bar is exactly full: one finished rhythm
+    return rhythms(beats - 1) + rhythms(beats - 2) + rhythms(beats - 4)
+
+
+print(rhythms(4), calls)
+calls = 0
+print(rhythms(32), calls)
+```
+
+```
+6 22
+39882198 158497990
+```
+
+A bar of 32 beats has nearly 40 million rhythms, and counting them this way takes over 158 million calls and several seconds. Yet every one of those calls asks about a bar of somewhere between -3 and 32 beats. There are 36 different questions, asked 158 million times.
+
+**Memoization: remember each answer.** The fix is one dict. Before working an answer out, look for it in the dict. If it isn't there, work it out once and store it. Then hand back the stored answer. This is **memoization** (from "memo", a note to yourself; there is no "r" in the word).
+
+```python
+calls = 0
+memo = {}
+
+
+def rhythms(beats):
+    global calls
+    calls += 1
+    if beats < 0:
+        return 0
+    if beats == 0:
+        return 1
+    if beats not in memo:  # not worked out yet: do it once and store it
+        memo[beats] = rhythms(beats - 1) + rhythms(beats - 2) + rhythms(beats - 4)
+    return memo[beats]
+
+
+print(rhythms(32), calls)
+print(len(memo))
+```
+
+```
+39882198 97
+32
+```
+
+The same answer after 97 calls, not 158 million. The recursion itself is unchanged: only the lines that mention `memo` are new. You can count these calls by hand too. The dict ends up holding 32 answers, for bars of 1 to 32 beats. Each was worked out exactly once, and working one out makes 3 calls. Add the first call from outside: 32 × 3 + 1 = 97. Every other time a bar's answer is wanted, it is found in the dict and no further calls are made. So the calls now grow in step with the number of different subproblems, and no longer with the size of the call tree.
+
+Two things to get right. The test is `not in`: work the answer out only when it is **missing**. Written the other way round, the function would work out only the answers it already has, and fail on the first one it doesn't. And every call must see the **same** dict. Here it is one variable outside the function. Another way is to give the function a second parameter for the dict: the first call hands in an empty one, and each recursive call passes the same dict on. A dict made fresh inside each call would remember nothing.
+
+The dict's keys are the function's arguments. With one argument the key is that argument. With two, the key is the pair of them as a tuple, such as `(row, column)`.
+
+**`lru_cache`: the same thing, ready-made.** Remembering answers by their arguments is so common that the standard library does it for you. `lru_cache`, in the `functools` module, is a decorator, the `@` line above a function that Module 2 taught: it swaps the function for a wrapped version. The wrapper keeps the dict and does the looking up and storing. The function goes back to being the plain recurrence. This version also takes the note lengths as an argument, so it can count other kinds of bar:
+
+```python
+from functools import lru_cache
+
+
+@lru_cache(maxsize=None)
+def rhythms(beats, notes):
+    if beats < 0:
+        return 0
+    if beats == 0:
+        return 1
+    return sum(rhythms(beats - note, notes) for note in notes)
+
+
+print(rhythms(32, (1, 2, 4)))
+print(rhythms.cache_info())
+```
+
+```
+39882198
+CacheInfo(hits=61, misses=36, maxsize=None, currsize=36)
+```
+
+`cache_info()` reports what the wrapper did. A **miss** is a call whose arguments weren't stored yet, so the function really ran. A **hit** is a call that was answered from the store. There were 36 misses, one for each different bar from -3 to 32 (the wrapper stores the base cases as well), and 61 hits, which add up to the same 97 calls.
+
+`maxsize=None` means keep every answer, which is what memoization wants. Leave it out and the store holds 128 answers; when it is full, the answer that has gone longest without being used is thrown away to make room. That is where the name comes from: **l**east **r**ecently **u**sed.
+
+One rule comes with it. The store is a dict and the arguments are its keys, so every argument must be **hashable**, as the hashing topic required of any dict key: numbers, strings and tuples are, lists and dicts are not. That is why the notes above are the tuple `(1, 2, 4)`. Call `rhythms(32, [1, 2, 4])` and Python raises `TypeError: unhashable type: 'list'` before the function even runs. The fix is to pass a tuple.
+
+<Check item="mcq-what-lru-cache-needs" />
+
+**Bottom-up: fill a table from the smallest case.** Memoization starts at the question asked and works down to the small cases, which is why it is called **top-down**. The other way is **bottom-up**: start at the smallest case and work upwards in a loop, writing each answer into a list, the **table**, where the answers after it will find it. No function calls itself.
+
+```python
+def rhythms(beats):
+    table = [0] * (beats + 1)
+    table[0] = 1  # the smallest case: an empty bar, filled one way
+    for bar in range(1, beats + 1):
+        for note in (1, 2, 4):
+            if note <= bar:
+                table[bar] += table[bar - note]
+    return table
+
+
+print(rhythms(8))
+print(rhythms(32)[32])
+```
+
+```
+[1, 1, 2, 3, 6, 10, 18, 31, 55]
+39882198
+```
+
+`table[bar]` is the number of rhythms for a bar of that many beats. Read the first list as the answers for bars of 0 to 8 beats. Each entry is built from entries to its left: `table[8]` is `table[7] + table[6] + table[4]`, which is 31 + 18 + 6 = 55. It is the same recurrence as before. The order of the loop guarantees that by the time an entry is needed, it has been filled in. The test `note <= bar` does the job of the recursive version's `beats < 0` case: a note longer than the bar is skipped.
+
+Top-down and bottom-up do the same amount of work: one small sum for each subproblem. Bottom-up is the better choice in two situations:
+
+- **The input is long.** Recursion goes one level deeper for every step down, and Python stops at about 1,000 levels, as the recursion topic showed. The memoized `rhythms(5000)` raises `RecursionError`. The loop has no depth: it fills 5,000 entries and returns a number 1,222 digits long.
+- **Only the last few answers are needed.** A dict of remembered answers keeps all of them. A loop can throw away what it has finished with. Each Fibonacci number needs only the two before it, so a bottom-up Fibonacci needs no list at all: two variables hold the last two numbers, and each turn of the loop moves them both one place along. In a table with rows, each row often needs only the row above.
+
+Top-down has one edge of its own: it works out only the subproblems the answer actually asks for, where the table fills in every one. In this topic's problems the answer needs them all, so nothing is saved.
+
+Tables answer "what is the fewest?" as well as "how many?". Say coins come in 1, 3 and 4, and you want the fewest coins that make 6. Let `best[total]` be the fewest coins that make `total`. Then `best[0]` is 0, and every later entry looks at each coin that fits: use that coin, and the rest of the total is a smaller total whose best is already in the table. Take the smallest of those and add 1 for the coin. The table for totals 0 to 6 comes out as 0, 1, 2, 1, 1, 2, 2, so 6 takes two coins, 3 and 3. If a total can't be made at all, it should stay "worse than anything". Starting every entry after the first at `float("inf")`, which is infinity, a number bigger than every other, does that: with coins of 3 and 5, the entry for 7 is still infinite at the end, because the entries for 4 and 2 it is built from are infinite too.
+
+**Edit distance: how far apart two strings are.** A speech model hears "spin" and writes "pane". How wrong is that? One useful measure is the **edit distance** (also called the Levenshtein distance, after the man who defined it): the fewest single-character **edits** that turn one string into the other. There are three kinds of edit: **insert** a character, **delete** a character, or **substitute** one character for another. From `pane` to `spin` takes three: insert `s` at the front (`spane`), substitute `i` for `a` (`spine`), delete the `e` (`spin`). No two edits will do it.
+
+Finding the fewest by trying every sequence of edits is hopeless. The table does it by answering a smaller question first, for every pair of **prefixes**. A prefix is the first so-many characters of a string: the prefixes of `pane` are the empty string, `p`, `pa`, `pan` and `pane`. Call the strings `a` and `b`. Then `table[i][j]` is the edit distance from the first `i` characters of `a` to the first `j` characters of `b`. The table has one more row than `a` has characters, and one more column than `b` has, because 0 characters is a prefix too.
+
+The first row and the first column need no thought. Row 0 is the empty string turned into the first `j` characters of `b`, which takes `j` inserts. Column 0 is the first `i` characters of `a` turned into nothing, which takes `i` deletes. So both are just 0, 1, 2, 3 and so on.
+
+Every other cell looks at the last character of each prefix, and there are only three things that can happen to them:
+
+- **Delete** the last character of `a`'s prefix. What is left to do is turn the first `i - 1` characters of `a` into the first `j` of `b`. That is the cell **above**, plus 1 for the delete.
+- **Insert** the last character of `b`'s prefix at the end. Before that, the first `i` characters of `a` had to become the first `j - 1` of `b`. That is the cell to the **left**, plus 1 for the insert.
+- **Line the two last characters up** with each other. Everything before them is the first `i - 1` of `a` against the first `j - 1` of `b`, the cell on the **diagonal**, up and to the left. If the two characters are the same, lining them up is free: plus 0. If they differ, one is substituted for the other: plus 1.
+
+The cell is the smallest of the three.
+
+```python
+def edit_table(a, b):
+    table = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+    for i in range(len(a) + 1):
+        table[i][0] = i  # i characters to nothing: i deletes
+    for j in range(len(b) + 1):
+        table[0][j] = j  # nothing to j characters: j inserts
+    for i in range(1, len(a) + 1):
+        for j in range(1, len(b) + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1  # a match is free
+            table[i][j] = min(
+                table[i - 1][j] + 1,  # above: delete
+                table[i][j - 1] + 1,  # left: insert
+                table[i - 1][j - 1] + cost,  # diagonal: substitute or match
+            )
+    return table
+
+
+a, b = "pane", "spin"
+table = edit_table(a, b)
+for i, row in enumerate(table):
+    print(row, repr(a[:i]))
+print(table[len(a)][len(b)])
+```
+
+```
+[0, 1, 2, 3, 4] ''
+[1, 1, 1, 2, 3] 'p'
+[2, 2, 2, 2, 3] 'pa'
+[3, 3, 3, 3, 2] 'pan'
+[4, 4, 4, 4, 3] 'pane'
+3
+```
+
+Each row is printed with the prefix of `pane` it belongs to. The columns belong to the prefixes of `spin`: nothing, `s`, `sp`, `spi`, `spin`. Notice `a[i - 1]`: row `i` is about the first `i` characters, and the last of those sits at index `i - 1`, because indexes start at 0.
+
+Check two cells by hand. Row `p`, column `sp` holds 1. Above it is 2, so deleting costs 3. To its left is 1, so inserting costs 2. On its diagonal is 1, and the last characters, `p` and `p`, match, so lining them up costs 1 + 0 = 1. The smallest is 1: turn `p` into `sp` with one insert. Now row `pa`, column `spi`, which holds 2. Above is 2 and left is 2, so either costs 3. The diagonal is 1 and `a` differs from `i`, so that costs 1 + 1 = 2. The smallest is 2.
+
+The answer to the whole question is the bottom-right corner, where both prefixes are the whole strings: 3. The work is one cell for each pair of prefixes, 5 × 5 = 25 here, and in general about the length of one string times the length of the other.
+
+Two mistakes each ruin every answer. Forget to fill in the first row and column, and they stay 0, as if any string could become nothing for free. Charge 1 on the diagonal even when the characters match, and a string is no longer at distance 0 from itself.
+
+<Check item="mcq-one-cell-of-the-table" />
+
+**Reading the edits back.** The corner says three edits, but not which three. The table still knows. Start at the corner and ask which of the three neighbours this cell's value came from, step there, and repeat until you reach the top-left cell. A step up was a delete, a step left was an insert, and a diagonal step was a substitution if it added 1, or nothing at all if the characters matched.
+
+From the corner, 3, in row `pane` and column `spin`: the last characters `e` and `n` differ, so the diagonal would give 3 + 1 = 4, which is not it. Above is 2, and 2 + 1 = 3. So: **delete `e`**, and step up. That cell is 2, with `n` against `n`. They match, and the diagonal is 2, so step diagonally at no cost. Now 2, with `a` against `i`: the diagonal is 1, and 1 + 1 = 2. So: **substitute `i` for `a`**. Now 1, with `p` against `p`: a match, diagonal again, free. That lands in row 0, where the only way is left: **insert `s`**. The walk found the edits last to first, so reverse them: insert `s`, substitute `i` for `a`, delete `e`. They are the three from the start of this section.
+
+**The knapsack: the best set that fits.** You have 7 hours to revise before a test, and four chapters you could revise. Each takes a number of hours and is worth a number of marks: graphs, 5 hours and 30 marks; trees, 4 hours and 26; sorting, 3 hours and 20; hashing, 2 hours and 12. A chapter half revised earns nothing, so each one is either taken whole or left out. Which chapters earn the most marks in 7 hours?
+
+This is the **knapsack problem**, named after its usual telling, a bag that holds only so much weight. The general form is a list of items, each with a weight and a value, and a **capacity**, and the question is which set of items, with total weight inside the capacity, has the largest total value. Because each item is in or out, never split, it is called the **0/1 knapsack**.
+
+The obvious plan is to take the most valuable thing first. A plan like that, which makes whichever choice looks best right now and never goes back on it, is called **greedy**. Here greedy takes graphs for 30 marks. That leaves 2 hours, which fit only hashing: 42 marks. But trees and sorting together take exactly 7 hours and earn 46. The big chapter used up the hours that two smaller ones would have spent better, and greedy never looked.
+
+The table looks at everything, one chapter at a time. `best[i][room]` is the most marks you can get from the first `i` chapters alone with `room` hours to spend. Row 0 is no chapters, so all zeros. For every later cell there are two choices for chapter `i`:
+
+- **Leave it out.** Then the best is whatever the first `i - 1` chapters could do with the same hours: the cell directly above.
+- **Take it,** if it fits. It earns its marks and uses its hours, and the chapters before it get what is left: the row above, at `room` minus this chapter's hours, plus this chapter's marks.
+
+The cell is the larger of the two.
+
+```python
+chapters = [("graphs", 5, 30), ("trees", 4, 26), ("sorting", 3, 20), ("hashing", 2, 12)]
+budget = 7
+
+best = [[0] * (budget + 1) for _ in range(len(chapters) + 1)]
+for i, (name, hours, marks) in enumerate(chapters, start=1):
+    for room in range(budget + 1):
+        best[i][room] = best[i - 1][room]  # leave chapter i out
+        if hours <= room:  # it fits: is taking it better?
+            best[i][room] = max(best[i][room], best[i - 1][room - hours] + marks)
+for row in best:
+    print(row)
+
+chosen = []
+room = budget
+for i in range(len(chapters), 0, -1):  # from the last row up
+    if best[i][room] != best[i - 1][room]:  # the value changed: chapter i is in
+        name, hours, marks = chapters[i - 1]
+        chosen.append(name)
+        room -= hours
+print(best[len(chapters)][budget], chosen[::-1])
+```
+
+```
+[0, 0, 0, 0, 0, 0, 0, 0]
+[0, 0, 0, 0, 0, 30, 30, 30]
+[0, 0, 0, 0, 26, 30, 30, 30]
+[0, 0, 0, 20, 26, 30, 30, 46]
+[0, 0, 12, 20, 26, 32, 38, 46]
+46 ['trees', 'sorting']
+```
+
+The rows are no chapters, then graphs, then graphs and trees, and so on down; the columns are 0 to 7 hours. `enumerate(chapters, start=1)` numbers the chapters from 1, so that chapter `i` fills row `i` and row 0 stays the empty row.
+
+Look at the fourth line printed, the row that adds sorting, in its last column, 7 hours. Leaving sorting out gives the cell above, 30. Taking it uses 3 hours, which leaves 4 for the chapters before it. The row above says 4 hours are worth 26, so taking it gives 26 + 20 = 46. The larger is 46. In the last row, taking hashing would leave 5 hours, worth 30 in the row above, for 42 in all. Leaving it out keeps 46, so 46 stays.
+
+The second half of the code reads the choices back, as the edit distance did. Start at the bottom-right corner. If a cell differs from the cell above it, that row's chapter must have been taken: note it, and move left by its hours. If the two are equal, it was left out. Either way go up a row. Here 46 equals the 46 above, so hashing is out. One row up, 46 differs from 30, so sorting is in, and 4 hours remain. Then 26 differs from 0, so trees is in, and no hours remain. Then 0 equals 0, so graphs is out.
+
+Four chapters is small enough to try every set by hand. But every extra item doubles the number of sets, and 40 chapters have over a trillion. The table for 40 chapters and 7 hours has 41 rows of 8 cells.
+
+**What makes a problem dynamic programming.** Every problem in this lesson had two properties, and a table or a memo pays off only when both are there.
+
+- **Optimal substructure:** the best answer to the whole problem is built from best answers to smaller versions of it. The best 7 hours over four chapters is built from the best 4 hours over two chapters. The shortest list of edits for two strings is built from the shortest for their prefixes.
+- **Overlapping subproblems:** those smaller versions come up again and again. This lesson's first half was about nothing else.
+
+Take one away and a simpler tool is enough. Merge sort splits a list into halves and sorts each, but the two halves share nothing, so no subproblem is ever met twice: plain recursion is fine, and a memo would never get a hit. And where a greedy choice can be proved safe, greedy is enough. Dijkstra's algorithm, from the graphs topic, always settles the closest node next, and with no negative weights that choice is never regretted. The knapsack has overlap, and its greedy choice is not safe, as the revision plan showed. Coins are the same: with coins of 1, 3 and 4, taking the largest coin that fits makes 6 as 4 + 1 + 1, three coins, where the table found two. So when someone proposes "just take the best one first", look for one small case where that goes wrong. If you find one, the problem needs the table.
+
+**Going deeper (optional).** The lesson above covers everything this topic's questions, exercises and explanation ask, so none of the outside pages is needed. Section 4.12 of _Problem Solving with Algorithms and Data Structures using Python_, offered below, takes one problem, giving change in the fewest coins, from plain recursion through a memo to a table, at more length. The `lru_cache` page in the Python documentation lists everything the decorator can do, including limiting the store's size and emptying it. Wikipedia's _Levenshtein distance_ has the definition in mathematical notation and other ways of measuring the distance between strings. The Socratica video, under More resources, shows a slow recursive Fibonacci made fast with a cache of its own and then with `lru_cache`, and plays in the page.
 
 </Intro>
 

@@ -163,6 +163,11 @@ export function markTerms(
   visit(tree)
 }
 
+/** The start of a topic's ID, which names its track: "csa", "ml", "fin". */
+function trackPrefix(topicId: string): string {
+  return topicId.split('.')[0] ?? ''
+}
+
 /** The topic a lesson belongs to, from its path: …/topics/<id>/lesson.mdx. */
 export function topicOfLesson(path: string): string | null {
   const match = /[\\/]topics[\\/]([^\\/]+)[\\/]lesson\.mdx$/.exec(path)
@@ -181,6 +186,13 @@ export function remarkGlossary({
   return async (tree: TreeNode, file: { path?: string }) => {
     const topicId = topicOfLesson(file.path ?? '')
     if (!topicId) return
-    markTerms(tree, await load(), topicId)
+    // Only terms taught in the lesson's own track: the same word means
+    // different things in different subjects. A "frame" is a unit on a
+    // network link in the cloud track and a function call's record in the
+    // Python ones, and each track should give its own meaning or none.
+    const terms = (await load()).filter(
+      (term) => trackPrefix(term.topicId) === trackPrefix(topicId),
+    )
+    markTerms(tree, terms, topicId)
   }
 }

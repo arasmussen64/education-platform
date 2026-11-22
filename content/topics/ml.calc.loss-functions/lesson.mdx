@@ -2,11 +2,188 @@
 
 Every chain in this module ends in the same link: a **loss**, one number that says how wrong the model is. Training steps the weights to shrink it, so the loss decides what the model learns to care about, and its gradient is where every backward pass starts. This topic has the two losses that cover most of machine learning, mean squared error for numbers and cross-entropy for probabilities, each computed, differentiated and checked, and the reason the second one has logs in it.
 
-The main resource is **Michael Nielsen's chapter 3**, the section on the cross-entropy cost function, which shows a sigmoid neuron learning slowly under squared error and briskly under cross-entropy, and works out why; about 25 minutes. 3Blue1Brown's _Neural networks_ chapter 2 introduces the cost function with pictures. Watch for:
+**One number, and its slopes.** A model makes predictions, and the data says what the answers really were. A **loss function** takes both and returns a single number: 0 when every prediction is perfect, and larger the worse they are. Two things about a loss matter. Its **value** says how the model is doing. Its **gradient** is a list of slopes, one for each prediction: how much the loss would change if that one prediction moved up a little while the others stayed put. Training is the walk downhill from Module 1, so the gradient is what it steers by: each prediction is pushed against its slope. Which loss to use depends on what the model predicts, a number or a probability.
 
-- **The learning slowdown:** a confidently wrong sigmoid barely moves under squared error.
-- **Why the cross-entropy gradient is `p - y`:** two derivatives cancel.
-- **Minus log of a probability** as the cost of a prediction.
+**Mean squared error, for predicting numbers.** Predicting a number (a price, a temperature, a duration) is called **regression**. Say a model predicts how many minutes four deliveries will take, and then the deliveries happen:
+
+```python
+import numpy as np
+
+pred = np.array([30.0, 12.0, 45.0, 20.0])
+target = np.array([28.0, 12.0, 40.0, 26.0])
+miss = pred - target
+print(miss)
+print(miss**2)
+print(np.mean(miss**2))
+```
+
+```
+[ 2.  0.  5. -6.]
+[ 4.  0. 25. 36.]
+16.25
+```
+
+The **target** is the true answer, and each **miss** is the prediction minus its target. Square every miss, take the mean, and that is the **mean squared error**: 16.25 here. (It is the "mean of the squared errors" from Probability and statistics, with its proper name.)
+
+The squaring does two jobs. It makes every miss positive, so a prediction that is 6 too low can't cancel one that is 6 too high. And it makes large misses count for far more than small ones: the miss of 2 costs 4, and the miss of 6, three times as far off, costs 36, nine times as much. Twice the miss is always four times the cost. So this loss cares most about the worst predictions, which is usually what you want for a number. Leave the squaring out and take the mean of the misses' sizes, `np.mean(np.abs(miss))`, and you have a different loss, the mean absolute error (3.25 here), which charges a miss of 6 only three times a miss of 2.
+
+**The gradient of mean squared error.** Write the four misses as `m1` to `m4`. The loss is `(m1² + m2² + m3² + m4²) / 4`. Move the third prediction alone and only `m3²` changes; the other three terms are constants. The power rule from Derivatives says the derivative of `m²` is `2m`, and moving a prediction by some amount moves its miss by the same amount. So the slope of the loss with respect to the third prediction is `2 * m3 / 4`. The same holds for each one, and the whole gradient is `2 * miss / n`, where `n` is how many predictions there are:
+
+```python
+print(2 * miss / len(miss))
+```
+
+```
+[ 1.   0.   2.5 -3. ]
+```
+
+Read each slope the way Derivatives taught. The **sign** is the direction: the third prediction is 5 minutes too high, its slope is positive, so the loss rises when it rises, and descent lowers it. The fourth is too low, its slope is negative, and descent raises it. The second was exactly right and gets a slope of 0: no push at all. The **size** is proportional to the miss: the further off a prediction is, the harder it is pulled back.
+
+A slope is a claim, and this one can be tested. It says that lowering the third prediction by 0.1 should change the loss by about `2.5 * -0.1 = -0.25`. Do it, and the loss goes from 16.25 to 16.0025, a change of -0.2475. The two things people drop from this formula are the 2 and the division by `n`; comparing with a numeric slope, the central difference from Derivatives, catches either.
+
+<Check item="predict-mse-and-its-gradient" />
+
+**Probabilities need a different loss.** Many models answer a yes-or-no question: is this message spam, will it rain tomorrow. Such a model outputs `p`, the probability it gives to "yes", and the data holds a **label** `y` for each example: 1 if the answer was yes, 0 if it was no. Inside, the model first computes a **score** `z`, which can be any number, and squashes it into the range 0 to 1 with the sigmoid from Derivatives: `p = sigmoid(z)`.
+
+The loss for a probability starts from one question: **how much probability did the model give to what actually happened?** If the answer was yes (`y` is 1), that is `p`. If the answer was no (`y` is 0), it is `1 - p`, by the "not" rule from Probability and statistics. Call this the probability given to the right answer. A value of 1 is a perfect prediction; a value near 0 is a model that was sure, and wrong.
+
+The cost of one example is **minus the natural log** of that probability, and the mean of the costs over all the examples is the **cross-entropy**, also called **log loss**. Here are four rain forecasts and what the weather did:
+
+```python
+p = np.array([0.7, 0.25, 0.6, 0.02])
+y = np.array([1.0, 0.0, 0.0, 1.0])
+right = np.where(y == 1, p, 1 - p)
+print(right)
+print(np.round(-np.log(right), 3))
+print(round(float(np.mean(-np.log(right))), 3))
+```
+
+```
+[0.7  0.75 0.4  0.02]
+[0.357 0.288 0.916 3.912]
+1.368
+```
+
+The first forecast said 70% and it rained: the right answer got 0.7, at a cost of 0.357. The second said 25% and it stayed dry, so the right answer got 0.75. The third said 60% and it stayed dry: 0.4 for the right answer, a cost of 0.916. The last said 2% and it rained. That one forecast costs 3.912, more than the other three together, and it drags the mean up to 1.368.
+
+This table shows how the cost behaves, beside what squared error would charge for the same prediction (the gap between the probability and 1, squared):
+
+| Probability given to the right answer | Cross-entropy cost, `-log` | Squared error |
+| ------------------------------------- | -------------------------- | ------------- |
+| 1.0                                   | 0                          | 0             |
+| 0.9                                   | 0.105                      | 0.01          |
+| 0.7                                   | 0.357                      | 0.09          |
+| 0.5                                   | 0.693                      | 0.25          |
+| 0.1                                   | 2.303                      | 0.81          |
+| 0.01                                  | 4.605                      | 0.98          |
+| 0.001                                 | 6.908                      | 0.998         |
+
+The log of 1 is 0, so a perfect prediction costs nothing. The log of any number below 1 is negative, which is why there is a minus sign in front: it makes the cost positive. As the probability falls towards 0 the cost climbs without limit: every time the probability is divided by ten, the cost rises by another 2.303, the natural log of 10. Squared error can never charge more than 1 for a probability, and it treats 0.01 and 0.001 as almost the same mistake. Cross-entropy doesn't: being sure and wrong is the expensive thing.
+
+In code the choice between `p` and `1 - p` is usually written with the label as a switch: `-(y * np.log(p) + (1 - y) * np.log(1 - p))`. When `y` is 1 the second half is multiplied by 0 and vanishes, leaving `-np.log(p)`; when `y` is 0 the first half vanishes, leaving `-np.log(1 - p)`. It gives the same four costs as above. The usual slip is to write `np.log(p)` in both halves, which charges a "no" as if it had been a "yes".
+
+Two practical points:
+
+- **The log is the natural log,** `np.log`. `np.log10` is the base-10 log, and using it makes every cost 2.303 times too small.
+- **Clip before the log.** A model that says exactly 0 for something that then happens costs `-np.log(0)`, which NumPy gives as `inf`, infinity, and one infinite cost makes the whole mean infinite. `np.clip(values, low, high)` returns a copy of an array with everything below `low` raised to `low` and everything above `high` lowered to `high`:
+
+```python
+print(np.clip(np.array([-3.0, 0.2, 0.9, 7.0]), 0.0, 1.0))
+```
+
+```
+[0.  0.2 0.9 1. ]
+```
+
+For a loss, clip the probabilities into the range from `1e-12` to `1 - 1e-12` first (`1e-12` is a millionth of a millionth). A prediction that isn't within a hair of 0 or 1 is left as it was, and the worst possible cost becomes `-np.log(1e-12)`, which is 27.631: large, but a number.
+
+**Why a log, of all things?** There are two reasons, and the first is the deeper one.
+
+Independent events multiply (Probability and statistics). So the probability the forecaster gave to all four days turning out as they did is `0.7 * 0.75 * 0.4 * 0.02 = 0.0042`. A good model is one that makes this product large: it found what actually happened likely. But a product is awkward to train on. Thousands of numbers below 1 multiply to something so small that a float rounds it to 0, as Exponents and logarithms showed, and a product of thousands of factors is painful to differentiate. The log's product rule fixes both: the log of a product is the sum of the logs. The log of 0.0042 is -5.473, and adding the logs of the four probabilities gives the same -5.473. A sum can be averaged, and the derivative of a sum is the sum of the derivatives, one small piece for each example. Making the product large is the same as making the sum of the logs large, which is the same as making minus their mean small. So cross-entropy is not an arbitrary formula: it is lowest for the model that gave the most probability to what really happened.
+
+The second reason is the shape in the table. Minus log is steep near zero, so confident mistakes are charged heavily, and, as the next part shows, they are pushed heavily too.
+
+**The gradient through the sigmoid is `p - y`.** Training can't move `p` directly. It moves the score `z`, and `p` follows. So the slope that matters is the slope of the loss with respect to `z`, and that is a chain of two links: `z` goes into the sigmoid to give `p`, and `p` goes into the loss. The chain rule says the slope of a chain is the product of the slopes of its links.
+
+Take an example whose label is 1, so its loss is `-log(p)`:
+
+- The slope of the loss with respect to `p` is `-1 / p`, because the derivative of `log(p)` is `1 / p`.
+- The slope of `p` with respect to `z` is the sigmoid's derivative, `p * (1 - p)`.
+- Multiply them: `-1 / p * p * (1 - p)`. The `p` on top cancels the `p` underneath, leaving `-(1 - p)`, which is `p - 1`.
+
+For a label of 0 the loss is `-log(1 - p)`, its slope with respect to `p` is `1 / (1 - p)`, and this time the `(1 - p)` cancels: `1 / (1 - p) * p * (1 - p)` is `p`, which is `p - 0`. Both cases are the same formula, **`p - y`**. (Written once for both labels, the slope with respect to the prediction is `-y / p + (1 - y) / (1 - p)`.) For the mean over `n` examples, each one's slope is divided by `n`, as it was for squared error: `(p - y) / n`.
+
+Three scores, with labels 0, 0 and 1:
+
+```python
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+
+z = np.array([3.0, -1.0, 0.5])
+y = np.array([0.0, 0.0, 1.0])
+p = sigmoid(z)
+print(np.round(p, 3))
+print(np.round(p - y, 3))
+```
+
+```
+[0.953 0.269 0.622]
+[ 0.953  0.269 -0.378]
+```
+
+The gradient is simply the gap between what the model said and what was true. The first example was given 95% for something that didn't happen: its slope is 0.953, large and positive, so descent pushes that score down hard. The third was given 62% for something that did happen: its slope is -0.378, so descent raises its score, more gently. A central difference on the first score agrees with 0.953 to eight decimal places.
+
+**Why squared error fails here: the learning slowdown.** Put squared error after the sigmoid instead. The loss for one example is `(p - y)²`, its slope with respect to `p` is `2 * (p - y)`, and the chain rule multiplies in the sigmoid's `p * (1 - p)` as before. This time nothing cancels: the slope with respect to the score is `2 * (p - y) * p * (1 - p)`. And `p * (1 - p)` is tiny when `p` is near 0 or near 1. That is the saturated sigmoid from Derivatives, and it is exactly where a confidently wrong model sits. Here are both slopes for an example whose true label is 0, as the model grows more wrong:
+
+| The model says `p` = | Cross-entropy slope, `p - y` | Squared-error slope, `2 * (p - y) * p * (1 - p)` |
+| -------------------- | ---------------------------- | ------------------------------------------------ |
+| 0.6                  | 0.6                          | 0.288                                            |
+| 0.9                  | 0.9                          | 0.162                                            |
+| 0.99                 | 0.99                         | 0.0196                                           |
+| 0.999                | 0.999                        | 0.002                                            |
+
+Under cross-entropy, the more wrong the model is, the harder the push. Under squared error it is backwards: the push shrinks as the mistake grows, and at 0.999 it is 500 times weaker than cross-entropy's. Run descent on a single score that starts at 5 (so `p` is 0.993) for a true 0, with a learning rate (Module 1's step size) of 1: with the cross-entropy slope, `p` is below a half after 6 steps; with the squared-error slope it takes 85. This is called the **learning slowdown**, and it is why a model that outputs a probability is trained with cross-entropy and not with squared error.
+
+<Check item="mcq-why-log-loss" />
+
+**More than two answers: softmax.** When there are several possible answers, they are called **classes**: a support email might be about billing, a bug, or something else. The model gives one score to each class, and **softmax** turns the scores into probabilities in two moves. Take `exp` of every score, which makes each one positive and keeps their order. Then divide each by the total, so that they add up to 1.
+
+| Class   | Score | `exp` of the score | Divided by the total, 9.406 |
+| ------- | ----- | ------------------ | --------------------------- |
+| billing | 0.5   | 1.649              | 0.175                       |
+| bug     | 2.0   | 7.389              | 0.786                       |
+| other   | -1.0  | 0.368              | 0.039                       |
+
+The loss is the same idea as before: minus the log of the probability given to the true class. If the email really was a bug report, the cost is `-log(0.786)`, which is 0.241. If it was about billing, the cost is `-log(0.175)`, which is 1.741.
+
+The gradient with respect to the scores is the same shape too. Write the target as a list with a 1 in the true class's place and 0 everywhere else, which is called **one-hot**: `[1, 0, 0]` for billing. Then the gradient is the probabilities minus that list. For the billing email it is `[-0.825, 0.786, 0.039]`: descent raises the true class's score and lowers the others, each in proportion to how much probability it wrongly holds.
+
+One trap. `np.exp` of a large score is too big for a float: `np.exp(800.0)` comes back as `inf` with an overflow warning, and `inf` divided by `inf` is `nan`, "not a number". The cure is to subtract the largest score from every score before taking `exp`. The largest becomes 0 and the rest negative, so no `exp` is above 1. It changes no probability, because lowering every score by the same amount divides every `exp` by the same number, and that number cancels in the division. Here the scores become -1.5, 0 and -3, their `exp`s 0.223, 1 and 0.05, the total 1.273, and the probabilities are again 0.175, 0.786 and 0.039.
+
+**Reading loss curves.** Training goes through the data many times, and one pass through all of it is called an **epoch**. Record the loss after each epoch, draw it against the epoch number, and you have a **loss curve**. One curve is not enough. A model can push its training loss down just by memorizing the examples it trains on, which says nothing about examples it hasn't seen. So keep some examples back that the model never trains on, the **held-out** set, and measure the loss on those as well. The held-out curve is the one that says whether the model has learned something general.
+
+Cross-entropy also comes with a landmark. A two-class model that says 0.5 for every example pays `-log(0.5)` each time, which is 0.693, the natural log of 2. That is the price of knowing nothing, and it is where an untrained model starts. (With more classes the line is the log of the number of classes: 1.099 for three, 2.303 for ten.)
+
+Here are three runs, with numbers made up to show the three shapes:
+
+| Epoch | Run A, training | Run A, held-out | Run B, training | Run B, held-out | Run C, both |
+| ----- | --------------- | --------------- | --------------- | --------------- | ----------- |
+| 1     | 0.68            | 0.68            | 0.68            | 0.69            | 0.69        |
+| 5     | 0.52            | 0.54            | 0.45            | 0.48            | 0.69        |
+| 10    | 0.41            | 0.44            | 0.30            | 0.39            | 0.69        |
+| 20    | 0.33            | 0.37            | 0.15            | 0.43            | 0.69        |
+| 40    | 0.29            | 0.34            | 0.04            | 0.58            | 0.69        |
+
+- **Run A is learning.** Both curves fall, and the held-out loss stays a little above the training loss, which is normal.
+- **Run B is overfitting.** Its training loss keeps falling, almost to 0, but its held-out loss turns round after epoch 10 and climbs. From there on the model is memorizing its training set and getting worse on everything else. Two answers: **stop early**, which means keeping the model from the epoch where the held-out loss was lowest (here, epoch 10), or **regularize**, which means adding a term to the loss that penalizes large weights (a later module covers it).
+- **Run C has learned nothing.** Flat at 0.69, on both sets, from the first epoch: it is guessing a half for everything. Look for a gradient that is zero, a learning rate that is zero or far too small, or labels that have nothing to do with the inputs.
+
+One more shape: a loss that climbs or bounces up and down from the start, on the training set too, usually means the learning rate is too large, and every step overshoots.
+
+<Check item="mcq-reading-two-curves" />
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. Michael Nielsen's chapter 3, the section on the cross-entropy cost function (the main resource below), tells the learning-slowdown story at length: it trains a single sigmoid neuron under each loss, with animations you can run, and derives the gradients in full mathematical notation. 3Blue1Brown's _Neural networks_ chapter 2, the video under "More resources", shows in pictures what a cost function is and how descent uses it across a whole network. NumPy's page for `numpy.clip` lists everything that function accepts.
 
 </Intro>
 

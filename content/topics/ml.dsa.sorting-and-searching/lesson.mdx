@@ -1,12 +1,203 @@
 <Intro>
 
-Two of the oldest algorithms, and the first ones in this module whose cost you can feel: **binary search**, which finds an item in a sorted list of a million in twenty steps, and **sorting**, where the difference between a quadratic method and an `n log n` one is the difference between a second and an hour. The worked example writes both searches and both sorts and counts their comparisons, then shows what Python gives you for free: `sorted` with keys and stability, `bisect`, and NumPy's `argsort`.
+Two of the oldest algorithms, and the first ones in this module whose cost you can feel: **binary search**, which finds an item in a sorted list of a million in twenty steps, and **sorting**, where the difference between a quadratic method and an `n log n` one is the difference between a second and an hour. The worked example writes both searches and both sorts and counts their comparisons, then shows what Python gives you for free: `sorted` with keys and stability, `bisect`, and NumPy's `argsort`. This lesson builds each idea first, by hand, on lists small enough to follow.
 
-The main resource is **_Problem Solving with Algorithms and Data Structures using Python_, chapter 5**: the sequential and binary searches (5.3, 5.4), insertion sort (5.9) and merge sort (5.11); about 40 minutes with runnable code and animations. The Python documentation's _Sorting Techniques_ is the reference for `key=` and stability. Watch for:
+**Searching by scanning.** The plain way to find a value in a list is to start at the front and compare each item with the one you want, the **target**, until one matches or the list ends. That is a **scan** (also called a sequential or linear search), and it is what `x in a_list` and `a_list.index(x)` do. It works on any list, in any order. Its cost is the trouble: a target that is last, or missing, costs `n` comparisons for a list of `n` items, so a scan is `O(n)`.
 
-- **Halving** is what makes binary search logarithmic.
-- **The merge step** is linear, and there are `log n` levels of it.
-- **Insertion sort on sorted input** makes one comparison per item.
+**Binary search: halve what is left.** If the list is **sorted**, in order from smallest to largest, one comparison can do far more work. Look at the item in the middle. If it is the target, you are done. If it is smaller than the target, then so is everything to its left, because the list is in order, and the target can only be to the right. If it is larger, the target can only be to the left. Either way one comparison has ruled out half the list. Do the same to the half that is left, and again, until the target turns up or nothing is left. That is **binary search**.
+
+To write it down, keep two indices: `lo`, the first position that could still hold the target, and `hi`, the last. They start at `0` and `len(items) - 1`. Each round looks at the middle position, `mid = (lo + hi) // 2` (the `//` rounds down, so `mid` is always a whole number). A match ends the search. If `items[mid]` is smaller than the target, set `lo = mid + 1`; otherwise set `hi = mid - 1`. Either move steps **past** the middle, because the middle has just been checked. The rounds go on while `lo <= hi`. If `lo` passes `hi`, no position is left, and the answer is "not there", which a search function usually reports as `-1`.
+
+A shelf holds 13 parcels in order of their numbers: `[104, 117, 123, 138, 150, 162, 175, 181, 196, 203, 219, 224, 240]`. Here is the search for parcel 196:
+
+| Round | `lo` | `hi` | `mid` | `items[mid]` | What it tells you               |
+| ----- | ---- | ---- | ----- | ------------ | ------------------------------- |
+| 1     | 0    | 12   | 6     | 175          | too small: look right, `lo` = 7 |
+| 2     | 7    | 12   | 9     | 203          | too large: look left, `hi` = 8  |
+| 3     | 7    | 8    | 7     | 181          | too small: look right, `lo` = 8 |
+| 4     | 8    | 8    | 8     | 196          | found, at index 8               |
+
+Four looks, where a scan would have made nine. A search for 130, which isn't on the shelf, looks at 175, 123, 150 and 138, and then `hi` drops below `lo`: four looks to be sure it is missing, where a scan needs all thirteen.
+
+Round 4 is the one to remember. `lo` and `hi` were equal, so one position was still in play, and it was the answer. That is why the rounds run while `lo <= hi` and not while `lo < hi`: the stricter test stops with one candidate unchecked. The other classic slip is moving to `mid` instead of past it (`lo = mid`). When `lo` and `hi` are neighbours, `mid` equals `lo`, nothing changes, and the loop never ends.
+
+**Why about `log2 n` looks.** Each look halves the positions still in play. Thirteen become six, then three, then one: at most 4 looks. The number of times you can halve `n` before one item is left is `log2 n`, the logarithm from the first topic of this module, and the worst case is that many looks, rounded down, plus one. For 1,000 items it is 10. For a million it is 20. For two million it is 21, because doubling the list adds a single look. A scan of two million can take two million comparisons.
+
+**What must be true first.** Two things. The list must be **sorted**, because "everything to the left is smaller" is the only reason it is safe to throw half away. Search this shuffled shelf for 117: `[150, 104, 240, 123, 196, 117, 181]`. The middle is 123, too large, so the search keeps the left part; it looks at 104, then 240, and reports "not there". But 117 is sitting at index 5, in the half that was thrown away. Binary search on unsorted data doesn't crash or warn. It just gives wrong answers, sometimes. And the data must be **indexable**: jumping straight to position `mid` has to be one step. A list or an array can do that. A linked list, the chain of nodes from the last topic, can't: reaching its middle means walking there, and the walking costs more than the halving saves.
+
+<Check item="predict-a-binary-search" />
+
+**`bisect`: binary search from the library.** You will rarely write that loop at work, because the standard library's `bisect` module has it. `bisect.bisect_right(a_sorted_list, x)` returns the index at which `x` could be inserted to keep the list in order, to the right of any items equal to `x`. Said another way, it is the number of items that are less than or equal to `x`. That makes it the tool for sorting values into ranges. A cinema's prices change at the ages of 13, 18 and 65:
+
+```python
+import bisect
+
+limits = [13, 18, 65]
+groups = ["child", "teen", "adult", "senior"]
+for age in (12, 13, 40, 65):
+    index = bisect.bisect_right(limits, age)
+    print(age, index, groups[index])
+```
+
+```
+12 0 child
+13 1 teen
+40 2 adult
+65 3 senior
+```
+
+Twelve has reached none of the limits, so it would be inserted at index 0. Thirteen has reached one: it goes after the 13 that is already there, at index 1. The index is the count of limits reached, and that count picks the group. With three limits a scan would do as well; with a few thousand, each call is still only a dozen or so looks.
+
+**Insertion sort: grow a sorted front.** Now the other job, putting a list in order. **Insertion sort** is how most people sort a hand of cards. Keep the front of the list sorted; at the start the "front" is just the first item. Take the next item and compare it with the item on its left. If that one is larger, slide it one place right and compare with the next one along. Stop at the first item that is **not** larger, or at the start of the list, and put the new item in the gap. Now the sorted front is one longer. Repeat until the front is the whole list.
+
+Here it is on `[34, 12, 51, 27, 45, 8]`:
+
+| Item taken | Compared with | Comparisons | List afterwards (sorted front first) |
+| ---------- | ------------- | ----------- | ------------------------------------ |
+| 12         | 34            | 1           | `[12, 34]`, then 51, 27, 45, 8       |
+| 51         | 34            | 1           | `[12, 34, 51]`, then 27, 45, 8       |
+| 27         | 51, 34, 12    | 3           | `[12, 27, 34, 51]`, then 45, 8       |
+| 45         | 51, 34        | 2           | `[12, 27, 34, 45, 51]`, then 8       |
+| 8          | all five      | 5           | `[8, 12, 27, 34, 45, 51]`            |
+
+Twelve comparisons. Look at 51: one comparison, with 34, was enough to see it was already in place. And at 8: it had to pass everything. Those are the two extremes, and they set the cost:
+
+- **Already in order:** every item is another 51. One comparison each, `n - 1` in all. The same six numbers in order take 5.
+- **In reverse order:** every item is another 8, and passes the whole front. That is `1 + 2 + … + (n - 1)`, the pairs formula from the first topic, `n * (n - 1) / 2`. Six numbers in reverse take 15.
+- **Shuffled:** on average an item passes about half of the front, so about half of the worst case, `n² / 4`.
+
+Counted on real lists: 4,000 shuffled items took 4,063,394 comparisons (`n² / 4` is 4,000,000), and 8,000 took 16,190,784. Twice the data, four times the work: quadratic, `O(n²)`. But 8,000 items already in order took 7,999.
+
+The "stop at the first item that isn't larger" is what earns that last number. A version that keeps comparing all the way to the start of the list still sorts correctly, but it has thrown away insertion sort's one advantage, and costs about `n² / 2` comparisons on every input.
+
+**Merging two sorted lists.** The faster sort is built on one small job: you have two lists, each already sorted, and want one sorted list. Put a finger at the start of each. Compare the two items under your fingers, copy the smaller one to the output, and move that finger on. When one list runs out, copy whatever is left of the other; it is already in order, and everything in it is at least as large as everything copied so far. That is a **merge**.
+
+Merge `[12, 34, 51, 60]` and `[8, 27, 45]`. Compare 12 and 8, take 8. 12 and 27, take 12. 34 and 27, take 27. 34 and 45, take 34. 51 and 45, take 45. The second list is now empty, so 51 and 60 are copied without another comparison: `[8, 12, 27, 34, 45, 51, 60]`, after 5 comparisons for 7 items.
+
+Every comparison puts one item into the output, and the last item never needs one. So merging lists that hold `n` items between them takes at most `n - 1` comparisons: one pass, linear. Nothing is ever compared with everything, which is what a loop inside a loop would do. Two things go wrong when people write it. One is forgetting the leftovers, so the output is short whenever something is left in a list. The other is what to do on a tie: take from the **left** list when the two items are equal, and equal items stay in the order they arrived in. That will matter soon.
+
+**Merge sort: split, sort each half, merge.** A merge needs two sorted lists. **Merge sort** gets them by recursion, from the last topic. Cut the list in half. Sort the left half and the right half, each by calling the same function. Merge the two results. The base case is a list of one item or none, which is already sorted and is returned as it is. All the real work happens in the merges, on the way back up:
+
+```
+split   [34, 12, 51, 27, 45, 8, 19, 40]
+        [34, 12, 51, 27]    [45, 8, 19, 40]
+        [34, 12]  [51, 27]    [45, 8]  [19, 40]
+        [34] [12] [51] [27]   [45] [8] [19] [40]
+merge   [12, 34]  [27, 51]    [8, 45]  [19, 40]
+        [12, 27, 34, 51]    [8, 19, 40, 45]
+        [8, 12, 19, 27, 34, 40, 45, 51]
+```
+
+Count the rows of merging: three, because 8 can be halved three times before the pieces are single items, and `log2 8` is 3. In each row, the merges between them handle all 8 items once, so a row costs at most 8 comparisons. That is the whole argument: `log2 n` **levels**, at most `n` comparisons on each, so about `n log2 n` in all. Here that limit is 24, and the sort above made 17.
+
+On the same shuffled lists as before, merge sort took 42,839 comparisons for 4,000 items and 93,659 for 8,000. Twice the data, 2.2 times the work, a little more than double, because doubling `n` also adds one level. Insertion sort needed 16 million for the 8,000; merge sort needed under a hundred thousand. At a million items the gap is the one from this lesson's first sentence. `log2` of a million is about 20, so merge sort makes about 20 million comparisons. Insertion sort makes about a million times a million, divided by four: 250 billion. Dividing by four doesn't rescue a quadratic.
+
+So is insertion sort ever the right choice? Yes, in two cases. On data that is already sorted or nearly so, it makes about `n` comparisons, and no sort can make fewer than `n - 1`. (A list of 1,000 in order, with five neighbouring pairs swapped, took it 1,004.) And on very short lists, a dozen items or so, its simple loop beats merge sort's slicing and function calls. Merge sort does its `n log n` work whatever order the data arrives in.
+
+<Check item="mcq-a-million-items" />
+
+**Why nothing beats `n log n`.** Could a cleverer sort use far fewer comparisons? Not if comparing two items is its only way of learning anything. Three items can be arranged in `3 × 2 × 1 = 6` different orders, and four in `4 × 3 × 2 × 1 = 24`. That product is called **`n` factorial** and written `n!`. Before a sort has compared anything, the input could be any one of the `n!` arrangements, and it has to work out which. A comparison has two possible answers, so at best it rules out half of the arrangements still possible. Cutting `n!` possibilities down to one by halving takes `log2(n!)` comparisons, and `log2(n!)` works out to be about `n log2 n`. For four items, `log2(24)` is 4.58, so no method can always sort four items in fewer than 5 comparisons. For 1,000 items the floor is 8,530; merge sort took 8,727 on a shuffled thousand. It is already almost as good as any comparison sort can be.
+
+**Python's `sorted`.** At work you call `sorted(items)`, which returns a new sorted list, or `items.sort()`, which sorts the list in place. Both run **Timsort**, which is the two sorts of this lesson combined. It looks for **runs**, stretches of the data that are already in order, extends the short ones with an insertion sort, and merges the runs. So it has merge sort's `n log n` worst case and insertion sort's talent for sorted data: on 1,000 items in order it made 999 comparisons, and on a shuffled thousand 8,658.
+
+Three things control it. **`key=`** you have met in Functions as values: a function that `sorted` calls once on each item, to get the value to compare. **`reverse=True`** gives largest first. And the sort is **stable**: items whose keys are equal come out in the same order they went in. Here are five jobs as `(name, priority, minutes)`:
+
+```python
+jobs = [
+    ("backup", 2, 40),
+    ("deploy", 1, 15),
+    ("report", 2, 25),
+    ("patch", 1, 30),
+    ("audit", 3, 25),
+]
+
+
+def names(records):
+    return [record[0] for record in records]
+
+
+print(names(sorted(jobs, key=lambda job: job[1])))
+print(names(sorted(jobs, key=lambda job: job[1], reverse=True)))
+print(names(sorted(jobs, key=lambda job: (job[1], -job[2]))))
+```
+
+```
+['deploy', 'patch', 'backup', 'report', 'audit']
+['audit', 'backup', 'report', 'deploy', 'patch']
+['patch', 'deploy', 'backup', 'report', 'audit']
+```
+
+The first line sorts by priority alone. Deploy and patch are both priority 1, and deploy was listed first, so deploy comes out first. Stability is that promise. It is why a list that arrived in sign-up order, sorted by score, still has each score's people in sign-up order. A sort without the promise may hand back tied items in any order, and may order them differently on different data.
+
+The second line is the surprise. `reverse=True` puts the largest **keys** first, but it does not reverse the ties: backup is still before report, and deploy before patch.
+
+The third line sorts by two keys at once, by making the key a tuple. Python compares tuples by their first items, and looks at the second items only when the first are equal. So `(priority, -minutes)` orders by priority, and within a priority by minutes. The minus sign reverses that one key: 30 minutes becomes -30, which is smaller than -15, so the longer job, patch, comes first.
+
+The minus trick needs a number. The other way to sort by several keys, which works for any kind of value, is to sort **in passes, least important key first**, and let stability carry each pass's order into the next:
+
+```python
+longest_first = sorted(jobs, key=lambda job: job[2], reverse=True)
+by_priority = sorted(longest_first, key=lambda job: job[1])
+print([job[0] for job in by_priority])
+```
+
+```
+['patch', 'deploy', 'backup', 'report', 'audit']
+```
+
+The second pass groups the jobs by priority, and because it is stable, jobs with the same priority stay in the order the first pass gave them, longest first. Do the passes the other way round and the last one, by minutes, wins, with priority only settling ties.
+
+A sorted list also answers "which are the top three?": they are its first three items, a slice.
+
+<Check item="predict-a-stable-sort" />
+
+**NumPy: `sort`, `argsort`, `searchsorted`.** For an array, `np.sort(scores)` returns a sorted copy. The more useful function is `np.argsort(scores)`. It doesn't return the values. It returns the **indices** that would sort them: the position of the smallest value, then the position of the next smallest, and so on. And an array can be indexed with an array of positions, which picks out those items in that order. Together they let you put one array in the order of another:
+
+```python
+import numpy as np
+
+labels = np.array(["cat", "dog", "fox", "owl"])
+scores = np.array([40, 85, 15, 62])
+print(np.sort(scores))
+order = np.argsort(scores)
+print(order)
+print(labels[order])
+print(labels[np.argsort(-scores)[:2]])
+```
+
+```
+[15 40 62 85]
+[2 0 3 1]
+['fox' 'cat' 'owl' 'dog']
+['dog' 'owl']
+```
+
+The smallest score, 15, is at index 2, then 40 at index 0, 62 at index 3 and 85 at index 1, so `order` is `[2 0 3 1]`. `labels[order]` is the labels at those positions: fox, cat, owl, dog, from the lowest score to the highest. Don't read `order` as each label's rank. It answers "which item goes first?", not "where does the first item go?".
+
+`argsort` has no `reverse=`. For the highest first, sort the negated scores, as the last line does: the largest score becomes the smallest number. The first two of that order are the top two labels. That is how a model's "top-k" answers are read off its scores.
+
+With ties there is one more thing to say. NumPy's default sorting method doesn't promise to be stable, so ask for one that is:
+
+```python
+votes = np.array([30, 12, 30, 7])
+print(labels[np.argsort(-votes, kind="stable")])
+print(labels[np.argsort(votes, kind="stable")[::-1]])
+```
+
+```
+['cat' 'fox' 'dog' 'owl']
+['fox' 'cat' 'dog' 'owl']
+```
+
+Cat and fox both have 30. Negating and sorting stably keeps cat, which came first, ahead. The second line shows the tempting shortcut, sorting upwards and then reversing with `[::-1]`: that reverses the ties too, and fox jumps ahead of cat.
+
+For searching, `np.searchsorted(sorted_array, values, side="right")` is `bisect_right` for arrays, and takes a whole array of values to look up at once.
+
+**Sort once and search, or build a dict?** Say you have a million records and 10,000 ids to look up in them. Scanning for each id is up to `10,000 × 1,000,000`, ten billion comparisons. Sorting the records by id first costs about `n log2 n`, 20 million, and then each binary search costs 20, another 200,000 for all the lookups. That is about 500 times less work than scanning. But this module's second topic had a third way: put the records in a dict keyed by id. Building it is one pass, a million steps, and each lookup is about one step.
+
+So for the question "is exactly this id there, and what is its record?", the dict wins on both counts, and is less code. A sorted list earns its cost when the question is about **order**, which a dict knows nothing of. Everything between two ids is a slice between two binary searches. The nearest id to one that isn't there is beside the place `bisect` points to. The largest ten are the last ten. Sort when you need order, ranges or neighbours. Build a dict when you need exact matches.
+
+**Going deeper (optional).** The lesson above covers everything this topic's questions, exercises and explanation ask, so none of the outside pages is needed. Chapter 5 of _Problem Solving with Algorithms and Data Structures using Python_, offered below, covers the two searches, insertion sort and merge sort with code you can run, along with several other sorts this topic leaves out. The Python documentation's _Sorting Techniques_ is the reference for `key=`, `reverse=` and stability, and shows ready-made key functions from the `operator` module. NumPy's `argsort` page lists its options, among them sorting along one axis of a two-dimensional array. The CS50 video, under More resources, is about binary search on a sorted array, and plays in the page.
 
 </Intro>
 

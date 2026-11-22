@@ -1,12 +1,230 @@
 <Intro>
 
-A **graph** is nodes joined by edges with no rule about shape: a road map, a social network, the steps of a data pipeline, the operations of a neural network. This topic stores one as a dict, walks it with the queue and the stack from two topics ago, finds the cheapest route with the heap from the last one, and ends with the order a pipeline's steps and a network's operations must run in, which is also the order backpropagation walks backwards. The worked example does all of that on a six-city road map and a six-step pipeline.
+A **graph** is nodes joined by edges with no rule about shape: a road map, a social network, the steps of a data pipeline, the operations of a neural network. This topic stores one as a dict, walks it with the queue and the stack from two topics ago, finds the cheapest route with the heap from the last one, and ends with the order a pipeline's steps and a network's operations must run in, which is also the order backpropagation walks backwards. The worked example does all of that on a six-city road map and a six-step pipeline; this lesson builds each idea first, on a small map of walking trails and on a spreadsheet.
 
-The main resource is **_Problem Solving with Algorithms and Data Structures using Python_, chapter 7**: vocabulary, adjacency lists, breadth-first and depth-first search, topological sorting and Dijkstra's algorithm; about 50 minutes, with the word-ladder and knight's-tour examples. The `graphlib` documentation shows the standard library's topological sorter. Watch for:
+**The words.** A **node** (also called a **vertex**) is a thing: a place, a person, a step. An **edge** joins two nodes: a trail, a friendship, "this step needs that one". Two nodes joined by an edge are **neighbours**, and the number of neighbours a node has is its **degree**. The last topic's tree is a graph with rules: one root, one parent for every other node, no way of walking back to where you started. A graph drops the rules, so any node may be joined to any other.
 
-- **Vertex and edge, directed and weighted**: the vocabulary.
-- **The visited set** is what stops a search from looping forever.
-- **A topological order exists only when there is no cycle.**
+Edges differ in two ways. An **undirected** edge works in both directions, like a trail you can walk either way. A **directed** edge is an arrow that works one way only: "clean the data before training on it" says nothing about the reverse. And an edge is either **unweighted**, simply there or not, or **weighted**, carrying a number called its **weight**: a distance, a time, a price. A **path** is a route that follows edges from node to node. A **cycle** is a path that ends on the node it started from.
+
+**Storing a graph: the adjacency list.** A park has five places and seven trails. The easiest thing to type is the list of trails, one pair for each. But the question every graph algorithm keeps asking is "where can I go from here?", and a list of pairs can only answer that by reading every pair. So build a dict from each node to the list of its neighbours. That dict is an **adjacency list** ("adjacent" means next to):
+
+```python
+trails = [
+    ("gate", "lake"),
+    ("gate", "ridge"),
+    ("lake", "ridge"),
+    ("lake", "hut"),
+    ("ridge", "hut"),
+    ("ridge", "peak"),
+    ("hut", "peak"),
+]
+graph = {}
+for a, b in trails:
+    graph.setdefault(a, []).append(b)
+    graph.setdefault(b, []).append(a)
+print(graph["ridge"])
+```
+
+```
+['gate', 'lake', 'hut', 'peak']
+```
+
+`graph.setdefault(a, [])` hands back the list stored under `a`, and stores an empty one first if `a` isn't a key yet. So a place's first trail creates its list and later trails add to it. Each trail is added twice, once from each end, because a trail is undirected. Now the neighbours of the ridge are one dict lookup, however many trails the park has.
+
+For a **directed** graph, add each edge once, under the node the arrow leaves. A node that no arrow leaves still needs a key, with an empty list: `{"a": ["b"], "b": []}`. Leave `"b"` out and `graph["b"]` is a `KeyError` the moment a search arrives there.
+
+For a **weighted** graph, make each node's neighbours a dict from neighbour to weight. Here are the same trails with their walking times in minutes:
+
+```python
+graph = {
+    "gate": {"lake": 30, "ridge": 70},
+    "lake": {"gate": 30, "ridge": 25, "hut": 80},
+    "ridge": {"gate": 70, "lake": 25, "hut": 40, "peak": 90},
+    "hut": {"lake": 80, "ridge": 40, "peak": 35},
+    "peak": {"ridge": 90, "hut": 35},
+}
+```
+
+`graph["lake"]["hut"]` is 80. Looping over a dict gives its keys, so `for neighbour in graph["lake"]` still walks the neighbours, and code written for the list form runs on this form unchanged.
+
+An adjacency list holds one entry for each end of each edge, so its memory grows with the number of nodes plus the number of edges. The other way to store a graph is an **adjacency matrix**: a grid with a row and a column for every node, and a mark in the cell where two nodes are joined. It answers "are these two joined?" in one lookup, but it has a cell for every pair of nodes whether an edge is there or not. A park with 1,000 places and 3,000 trails needs 6,000 list entries, or 1,000,000 matrix cells with 6,000 of them marked. Most real graphs are like that one, **sparse** (few edges out of all the possible ones), so the adjacency list is the default. A matrix suits only a **dense** graph, one with edges between most pairs of nodes.
+
+<Check item="predict-an-adjacency-list" />
+
+**Breadth-first search: the nearest places first.** Two questions about the park. Which places can you get to from the gate at all? Those are the places **reachable** from it. And what is the smallest number of trails to each one, its distance in **hops**? **Breadth-first search** answers both by exploring in rings: the start, then everything one trail away, then everything two away. The tool is the queue from two topics ago, a `deque`, where the first thing in is the first thing out.
+
+```python
+from collections import deque
+
+graph = {
+    "gate": ["lake", "ridge"],
+    "lake": ["gate", "ridge", "hut"],
+    "ridge": ["gate", "lake", "hut", "peak"],
+    "hut": ["lake", "ridge", "peak"],
+    "peak": ["ridge", "hut"],
+}
+
+
+def breadth_first(graph, start):
+    hops = {start: 0}  # doubles as the record of what has been seen
+    parent = {start: None}  # which place each one was discovered from
+    queue = deque([start])
+    while queue:
+        place = queue.popleft()  # the front: the oldest discovery
+        for neighbour in graph[place]:
+            if neighbour not in hops:  # only places never seen before
+                hops[neighbour] = hops[place] + 1
+                parent[neighbour] = place
+                queue.append(neighbour)  # the back: wait your turn
+    return hops, parent
+
+
+hops, parent = breadth_first(graph, "gate")
+print(hops)
+print(parent)
+```
+
+```
+{'gate': 0, 'lake': 1, 'ridge': 1, 'hut': 2, 'peak': 2}
+{'gate': None, 'lake': 'gate', 'ridge': 'gate', 'hut': 'lake', 'peak': 'ridge'}
+```
+
+Follow the queue. It starts as `[gate]`. Taking the gate discovers the lake and the ridge, one hop each, and the queue is `[lake, ridge]`. Taking the lake finds the gate and the ridge already in `hops` and skips them, and discovers the hut at two hops: `[ridge, hut]`. Taking the ridge discovers the peak, also at two. The hut and the peak find nothing new, the queue empties, and the loop ends.
+
+**Why the first discovery is along a fewest-hops path.** The queue hands places out in the order they were discovered. Every place one hop away went in before any place two hops away, so all the one-hop places are taken out, and all their neighbours discovered, before any two-hop place gets a turn. A place can't be discovered late, by a long way round, when a short way exists: the short way's places came out of the queue earlier. Swap `popleft()` for `pop()` and that guarantee is gone. The queue becomes a stack, the search runs down one route as far as it goes, and a place may be first reached the long way.
+
+**The record of what has been seen** is what makes the search stop. The gate and the lake are each other's neighbours. Without the `if neighbour not in hops` test, the gate would queue the lake, the lake would queue the gate, and the loop would never end. Any graph with a cycle does this, and so does any undirected edge. Here `hops` is that record. A search that only needs to know what is reachable keeps a plain set, usually named `visited` or `seen`, and the set it ends with is the answer: every reachable node.
+
+**Rebuilding the path.** `hops` says the peak is two trails away, but not which two. `parent` does: each place remembers which place discovered it. Start at the goal, step to its parent, then to that one's parent, until you reach the start, whose parent is `None`. That gives the path backwards, so reverse it:
+
+```python
+path = []
+place = "peak"
+while place is not None:
+    path.append(place)
+    place = parent[place]
+print(path[::-1])
+```
+
+```
+['gate', 'ridge', 'peak']
+```
+
+**What it costs.** Each node enters the queue once, and each edge is looked at once from each end. So the work grows with nodes plus edges, written `O(V + E)`: `V` for the number of vertices and `E` for the number of edges.
+
+<Check item="parsons-hops-by-queue" />
+
+**Depth-first search: one route to its end.** Keep everything else the same and take the newest discovery instead of the oldest, with a stack (a list and `pop()`), or with a function that calls itself on each neighbour. That is **depth-first search**. It follows one route until nothing new is ahead, then backs up to the last place that had an unexplored neighbour. From the gate, the stack version visits the gate, the ridge, the peak, the hut and then the lake. It reaches exactly the same set of nodes as breadth-first search, at the same `O(V + E)` cost, and needs its visited set for the same reason. But the route by which it first reaches a node is whatever it happened to follow, not the shortest, so use it for "can I get there?" and never for "what is the shortest way?".
+
+**Finding a cycle** is the job depth-first search does best. Take a directed graph of which Python file imports which: `app` imports `db` and `report`, and each of those imports `config`. Is there a circular import, a chain of imports that leads back to the file it started from? Walk depth-first and keep **two** sets: the nodes **on the current path**, the route from where you began down to where you are now, and the nodes that are **finished**, with everything below them explored. From `app` go to `db`, then to `config`. Nothing is below `config`, so it leaves the path and is finished; then `db` is too. Next `report`, which also points at `config`. `config` is finished, not on the path, so this is only a second way to reach it, and there is no cycle. Now add one import, `config` imports `app`. This time, at `config`, the arrow leads to `app`, which is still on the current path (`app`, `db`, `config`). An arrow to a node on the current path closes a loop. That is a cycle.
+
+The mistake to avoid is using one set for both jobs. "I have seen this node before" is true of `config` on the second visit in the first graph, which has no cycle. Only "this node is on the path I am walking right now" means a cycle. And start a walk from every node, not just the first, or a cycle in a part of the graph the first node can't reach goes unnoticed.
+
+**Dijkstra's algorithm: when edges have weights.** The fewest trails from the gate to the peak is two, by the ridge. But in minutes that route is 70 + 90 = 160, and a walker wants the fewest minutes, not the fewest trails. Breadth-first search can't answer that: it counts every edge as 1. **Dijkstra's algorithm** can. It keeps, for every node, the smallest total found so far, called its **tentative** distance because it may still improve. Then it repeats one move: take the node with the smallest tentative distance among those not yet final, and declare it final. That node is now **settled**. Then look at each edge out of it, and if arriving through this node beats a neighbour's tentative distance, write down the better one. That update is called **relaxing** the edge.
+
+"The smallest among those not yet final" is what the last topic's heap is for. Push `(distance, node)` pairs, and `heappop` hands back the pair with the smallest distance, because Python compares tuples by their first items first.
+
+```python
+import heapq
+
+graph = {
+    "gate": {"lake": 30, "ridge": 70},
+    "lake": {"gate": 30, "ridge": 25, "hut": 80},
+    "ridge": {"gate": 70, "lake": 25, "hut": 40, "peak": 90},
+    "hut": {"lake": 80, "ridge": 40, "peak": 35},
+    "peak": {"ridge": 90, "hut": 35},
+}
+
+
+def dijkstra(graph, start):
+    distance = {start: 0}  # the best total found so far for each place
+    settled = set()  # the places whose distance is final
+    heap = [(0, start)]
+    while heap:
+        minutes, place = heapq.heappop(heap)  # the closest entry
+        if place in settled:
+            continue  # a stale entry: this place was settled at a lower total
+        settled.add(place)
+        for neighbour, step in graph[place].items():
+            if minutes + step < distance.get(neighbour, float("inf")):
+                distance[neighbour] = minutes + step  # relax: a better way in
+                heapq.heappush(heap, (minutes + step, neighbour))
+    return distance
+
+
+print(dijkstra(graph, "gate"))
+```
+
+```
+{'gate': 0, 'lake': 30, 'ridge': 55, 'hut': 95, 'peak': 130}
+```
+
+`float("inf")` is infinity, a number larger than every other, so a place with no distance yet loses to any real total. Follow the heap. The gate is settled at 0 and pushes the lake at 30 and the ridge at 70. The lake pops next, at 30. Through it the ridge is 30 + 25 = 55, which beats 70, so `(55, ridge)` is pushed, and the hut goes in at 110. The heap now holds the ridge **twice**. The 55 pops first and the ridge is settled; through it the hut improves to 95 and the peak goes in at 145. Then the old `(70, ridge)` pops. The ridge is already settled, so the entry is **stale** and is skipped. Nothing ever removes an out-of-date entry from the middle of the heap; it is thrown away when it reaches the top. The hut settles at 95 and improves the peak to 130, and the peak settles at 130: gate, lake, ridge, hut, peak. Four trails and 130 minutes, against two trails and 160. To get the route and not only its length, record a parent each time an edge is relaxed, exactly as breadth-first search did.
+
+**Why the closest node can be declared final.** When the ridge popped at 55, every other entry in the heap was 55 or more. Any other way to the ridge would have to leave from one of those and then add more trail, and trails don't take negative minutes, so no such way can come in under 55. That argument needs every weight to be zero or more. With a negative weight it fails: if A to C costs 2, A to B costs 5 and B to C costs -4, the algorithm settles C at 2 before it has looked at the route through B, which costs 1. So Dijkstra's algorithm is for weights that are never negative.
+
+The heap doesn't make the answer right; it makes finding the closest node cheap. Without it, each round would scan every node for the smallest distance. With it, each push and pop costs about `log` of the heap's size, and the whole search costs about `O((V + E) log V)`.
+
+<Check item="mcq-why-the-closest-first" />
+
+**Topological order: everything after what it needs.** A spreadsheet has five cells. `subtotal` is worked out from `price` and `quantity`, `tax` from `subtotal`, and `total` from `subtotal` and `tax`. Draw an arrow from each cell to every cell that uses it, and you have a directed graph. In what order should the cells be calculated, so that no cell is worked out before its inputs? An order like that is a **topological order**: a list of all the nodes in which every arrow points forward, from earlier in the list to later. There may be several (`price` and `quantity` could swap), and any one will do.
+
+One exists only if the graph has no cycle. A directed graph with no cycle is called a **DAG**, for directed acyclic graph. If `total` fed back into `price`, each would have to come before the other, and no list can do that. A spreadsheet calls it a circular reference and refuses to calculate.
+
+**Kahn's algorithm** builds the order the way you would by hand: find something that isn't waiting for anything, do it, and see what that frees. A node's **in-degree** is the number of arrows pointing **into** it, which is how many things it is still waiting for.
+
+```python
+from collections import deque
+
+sheet = {
+    "price": ["subtotal"],
+    "quantity": ["subtotal"],
+    "subtotal": ["tax", "total"],
+    "tax": ["total"],
+    "total": [],
+}
+
+
+def topological_order(graph):
+    indegree = {node: 0 for node in graph}
+    for node in graph:
+        for next_node in graph[node]:
+            indegree[next_node] += 1  # one more arrow into next_node
+    ready = deque(node for node in graph if indegree[node] == 0)
+    order = []
+    while ready:
+        node = ready.popleft()
+        order.append(node)
+        for next_node in graph[node]:
+            indegree[next_node] -= 1  # node is done: one fewer to wait for
+            if indegree[next_node] == 0:
+                ready.append(next_node)
+    return order
+
+
+order = topological_order(sheet)
+print(order)
+print(order[::-1])
+```
+
+```
+['price', 'quantity', 'subtotal', 'tax', 'total']
+['total', 'tax', 'subtotal', 'quantity', 'price']
+```
+
+The in-degrees start as 0 for `price` and `quantity`, 2 for `subtotal`, 1 for `tax` and 2 for `total`. Notice which end of the arrow is counted: an arrow from `price` to `subtotal` adds one to `subtotal`. The `ready` line then builds a deque of every node whose count is 0: only `price` and `quantity`. Taking `price` lowers `subtotal` to 1, and taking `quantity` lowers it to 0, which frees it. `subtotal` frees `tax` and lowers `total` to 1; `tax` lowers `total` to 0; `total` goes last.
+
+**When no order exists,** the algorithm shows it by running out of ready nodes too soon. Add the arrow from `total` back to `price` and the function returns `['quantity']`: one cell placed, four left over. Each of the four is waiting for another of the four, round the loop, so none ever reaches zero. That is the test for a cycle: if `len(order)` is less than `len(graph)`, the nodes left over are on a cycle or waiting behind one. Running the algorithm again or starting somewhere else changes nothing. The only cure is to remove one of the dependencies that make the loop.
+
+The standard library has this built in as `graphlib.TopologicalSorter`. Its dict points the other way, from each node to the nodes it needs first, and it raises `CycleError` where there is a cycle.
+
+<Check item="mcq-no-order-means" />
+
+**The forward pass and the backward pass.** A data pipeline is this kind of graph: steps, with arrows from each step to the steps that use its output. Run the steps in the order someone happened to write them and a step can start before the thing it needs exists. Run them in a topological order and it can't. A neural network is this kind of graph too. Its **computation graph** has a node for every input, weight and operation, and an arrow from each value to every operation that uses it. The **forward pass**, working out the output from the inputs, has to run in a topological order, for the spreadsheet's reason.
+
+Backpropagation, from Module 4, then asks of every node: how much does the final result change when this node changes? It gets the answers by walking the forward order **reversed**, the second line printed above. Look at `subtotal`. It affects `total` twice, directly and through `tax`. So its answer is a sum of two parts, one handed back by `total` and one handed back by `tax`. In the reversed order both of those come before `subtotal`, so both parts have arrived by the time `subtotal` is reached and passes its own answer on to `price` and `quantity`. That holds for every node: everything that uses a node comes after it going forward, and so before it going backward. Module 4's network was a plain chain of layers, where the order is the layers in sequence and the backward pass is the same sequence reversed.
+
+**Going deeper (optional).** The lesson above covers everything this topic's questions, exercises and explanation ask, so none of the outside pages is needed. Chapter 7 of _Problem Solving with Algorithms and Data Structures using Python_, offered below, goes through the same ideas at more length, with a word-ladder puzzle for breadth-first search and a knight's tour of a chessboard among its examples. The `graphlib` page in the Python documentation shows the built-in sorter, including how to hand out ready steps a few at a time to workers running side by side. Chapter 12 of _Open Data Structures_ covers the adjacency matrix and the adjacency list in turn, then the two searches. The Computerphile video, under More resources, is about how Dijkstra's algorithm finds the shortest path between two points, and plays in the page.
 
 </Intro>
 

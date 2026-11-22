@@ -1,14 +1,170 @@
 <Intro>
 
-The machine-learning track starts with the math it leans on, done in Python, where a wrong idea shows up as a wrong number. This first topic is the arithmetic you already use: fractions, decimals and percentages, and the order Python does things in.
-
-The main resource is three chapters of the free textbook *OpenStax Prealgebra 2e*: **Fractions** (chapter 4), **Decimals** (chapter 5) and **Percents** (chapter 6). Don't read them cover to cover: skim each chapter's opening section and its summary, and slow down wherever something looks unfamiliar. About 20 minutes. Watch for:
-
-- **A fraction is a division waiting to happen.** Three quarters is 3 ÷ 4, which is 0.75. In Python that's `3 / 4`.
-- **A percentage is a fraction of 100.** 25% is 25 out of 100, so 25% of something is that something times `25 / 100`.
-- **The order of operations.** Multiplication and division happen before addition and subtraction unless parentheses say otherwise, in the book and in Python.
+The machine-learning track starts with the math it leans on, done in Python, where a wrong idea shows up as a wrong number. This first topic is the arithmetic you already use: fractions, decimals and percentages, and the order Python does things in. If you last did this at school, nothing is assumed: every idea is built here from the start.
 
 You've met Python's operators already (`+ - * / // % **`). Here they get a workout on the kind of numbers that appear in every data set.
+
+**A fraction is a division.** Snap a chocolate bar into 5 equal pieces and eat 2 of them. You've eaten two fifths of the bar, written 2/5. The bottom number, the **denominator**, says how many equal pieces make one whole. The top number, the **numerator**, says how many of those pieces you have.
+
+The line between them means "divided by". Two fifths is 2 ÷ 5, and doing the division gives the same amount as a **decimal**, a number written with a point: 0.4. In Python the division sign is `/`, so a fraction is typed exactly as it's written:
+
+```python
+print(2 / 5)
+print(5 / 8)
+print(9 / 4)
+print(1 / 3)
+```
+
+```
+0.4
+0.625
+2.25
+0.3333333333333333
+```
+
+Read a decimal one place at a time. The first place after the point counts tenths, the second hundredths, the third thousandths. So 0.4 is four tenths, and 0.625 is six tenths, two hundredths and five thousandths. Nine quarters comes out above 1, because the top is bigger than the bottom: nine quarter-pieces make two wholes and a quarter. One third never ends, 0.333 and so on for ever, so Python stops when it runs out of room.
+
+Two slips to watch for:
+
+- **Upside down.** The top is divided by the bottom, never the other way. `5 / 2` is `2.5`, two and a half, which is not two fifths.
+- **The wrong division sign.** `//` keeps only the whole number of times the bottom fits into the top, and `%` gives what's left over. `2 // 5` is `0` and `2 % 5` is `2`. Neither is the fraction. A fraction needs the single `/`.
+
+**Adding fractions, and a fraction of an amount.** On paper, fractions with the same bottom add by adding the tops: one fifth and two fifths are three fifths, because they're all pieces of the same size. With different bottoms the pieces differ in size, and school taught a routine for making them match. In Python you don't need it. Each fraction is a number, so let Python do each division and add the results:
+
+```python
+print(1 / 2 + 1 / 5)
+```
+
+```
+0.7
+```
+
+A half is 0.5 and a fifth is 0.2, and together they're 0.7.
+
+"Two fifths **of** 30" means: cut 30 into 5 equal pieces and take 2 of them. In arithmetic, "of" is multiplication: `30 * 2 / 5` is `12.0`. Check it by hand: one fifth of 30 is 6, so two fifths is 12.
+
+<Check item="predict-fraction-to-decimal" />
+
+**Decimals in Python are approximate.** Add one fifth and two fifths in Python and the answer is a surprise:
+
+```python
+total = 1 / 5 + 2 / 5
+print(total)
+print(round(total, 2))
+print(f"{total:.2f}")
+```
+
+```
+0.6000000000000001
+0.6
+0.60
+```
+
+You met this in Arithmetic. Python's numbers with a point are **floats**, and a computer stores them in binary, where most decimals don't fit exactly, so the last digit can be off. The program is not wrong. Two tools tidy a float for a person to read: `round(total, 2)` rounds to two decimal places, and `:.2f` inside an f-string shows exactly two, zeros included. Because of that stray last digit, never test whether two floats are equal with `==`.
+
+**Round at the end.** Rounding throws digits away, and a later step may have needed them. Share 10 between 3 people, then add the three shares back up:
+
+```python
+share = 10 / 3
+print(share * 3)
+print(round(share, 2) * 3)
+```
+
+```
+10.0
+9.99
+```
+
+Rounding the share to 3.33 first loses a cent. Keep the full number in the variable all the way through, and round only on the line that shows it to someone.
+
+**For one, then for many.** A car uses 24 litres of fuel to drive 400 km. How much does it use over 650 km? Don't hunt for a formula. Find the amount for **one** unit, then multiply by how many units you want. For one km the car uses `24 / 400`, which is 0.06 litres. For 650 km that's `24 / 400 * 650`, which is `39.0` litres. For 100 km, the figure car makers quote, it's `24 / 400 * 100`, which is `6.0`.
+
+Every "per" question works this way: price per kilogram, sugar per person, kilometres per hour. Divide the amount by the number of units it was for, and you have the amount for one. Multiply by the number of units you want. The slip here is in the units. If a weight is given in grams and the question says "per kilogram", one kilogram is 1000 of those units, not one.
+
+**A ratio splits a whole into parts.** A mortar recipe says "3 parts sand to 1 part cement". That's a **ratio**: it compares amounts without saying how big a part is. A part could be a cup or a bucket. To turn the ratio into real amounts, count the parts: 3 and 1 make 4 parts in all. So sand is 3 of 4 equal parts, the fraction 3/4 of the mix, and cement is 1/4. For 20 kg of mortar, the sand is `20 * 3 / 4`, which is `15.0` kg, and the cement is `20 * 1 / 4`, which is `5.0` kg. The check is that the two add up to the 20 you started with.
+
+The mistake is to make a fraction straight out of the ratio's own two numbers. Sand is not 3/1 of the mix, and cement is not 1/3 of it. The bottom of each fraction is always the **total** number of parts.
+
+**Percent means "out of a hundred".** A percentage is a fraction whose bottom is always 100, and the sign % stands for "/ 100". So 35% is 35/100, which is 0.35. That one fact gives the rule for "x% of an amount": multiply the amount by x, and divide by 100. 35% of 60 is `60 * 35 / 100`, which is `21.0`. Writing `60 * 0.35` is the same sum, with the division by 100 already done.
+
+In Python code `%` does **not** mean percent. It is the remainder operator from Arithmetic. Python has no percent sign, so you write the `/ 100` yourself.
+
+Going the other way, to say what percentage a part is of a whole, divide the part by the whole and multiply by 100. If 12 of a bus's 48 seats are taken, that's `12 / 48 * 100`, which is `25.0`: 25% of the seats. Leave off the `* 100` and you get `0.25`. That is the right fraction, but printed with a % sign after it, it would claim that a quarter of one percent of the seats are taken.
+
+**Taking a percentage off, and adding one on.** A coat costs 60 and the label says 35% off. Work in two steps: find the amount that comes off, then subtract it.
+
+```python
+price = 60
+discount = price * 35 / 100
+print(discount)
+print(price - discount)
+```
+
+```
+21.0
+39.0
+```
+
+The common mistake is `price - 35`, which gives 25. That takes 35 off as money. A percentage is always a percentage **of** something, and here it's of the price, so the price has to be multiplied in.
+
+There's a one-line way to see the same thing. If 35% comes off, 65% is left. As fractions of the price, that's `1 - 35 / 100`, which is 0.65, where the 1 stands for the whole price. So the new price is `60 * (1 - 35 / 100)`, which is `39.0` again. Adding a percentage on is the same with a plus: a 5% tax on 40 gives `40 * (1 + 5 / 100)`, which is `42.0`, the whole price and 5 hundredths more.
+
+When two percentages come one after the other, each is taken of the amount in front of it at that moment. Take 10% off 200 and then add a 5% charge. The 10% is of 200, so 20 comes off and leaves 180. The 5% is of **180**, not of 200: that's 9, and the final amount is 189. Give each step its own variable with a clear name, and each line stays easy to check.
+
+**Percentage change.** A rent goes up from 800 to 920. By what percentage did it rise? The change is `920 - 800`, which is 120. On its own that number says little: 120 more is a lot on a rent of 800, and hardly anything on a house price. So compare the change with where you **started**, as a percentage. This is the **percentage change**:
+
+`(new - old) / old * 100`
+
+Here `(920 - 800) / 800 * 100` is `15.0`: the rent rose 15%. If it then falls back from 920 to 800, the sum is `(800 - 920) / 920 * 100`, about `-13.0`. The minus sign says it fell. Notice it isn't -15. The same 120 is a smaller share of 920 than of 800, which is why the bottom of the fraction must be the old value, the one the change started from. Dividing by the new value is the classic slip.
+
+<Check item="mcq-percent-change" />
+
+**The order of operations.** Every sum above mixed several operators in one line, so the order Python works them out in matters. It's the same order as in school maths, and you met it in Arithmetic:
+
+1. anything inside parentheses, `( )`
+2. powers, `**`
+3. multiplying and dividing, `* / // %`
+4. adding and subtracting, `+ -`
+
+Operators on the same level are done left to right. (The one exception is `**`, which goes right to left.) Take `1 + 2 * 5 ** 2`. The power is first: `5 ** 2` is 25. Then the multiplication: `2 * 25` is 50. The addition is last: `1 + 50` is `51`. Reading it left to right as a calculator would, 1 plus 2 is 3, times 5 is 15, squared is 225, gives a completely different number.
+
+Left to right within a level matters too. `12 / 4 * 3` is `9.0`: the division comes first because it's on the left, giving 3.0, and then that is multiplied by 3. It is not 12 divided by 12. This is why `24 / 400 * 650`, `12 / 48 * 100` and `60 * 35 / 100` could all be written without parentheses.
+
+Parentheses are how you change the order: whatever is inside them is done first. Two places need them again and again.
+
+The first is dividing a whole sum. The number halfway between 6 and 10 is their sum divided by 2:
+
+```python
+print(6 + 10 / 2)
+print((6 + 10) / 2)
+```
+
+```
+11.0
+8.0
+```
+
+Without parentheses the division reaches only the number next to it: `10 / 2` is 5.0, and then 6 is added. The percentage change formula has parentheses round `new - old` for the same reason.
+
+The second is the "what's left" and "a bit more" shortcuts. The tax sum from before, with and without its parentheses:
+
+```python
+print(40 * (1 + 5 / 100))
+print(40 * 1 + 5 / 100)
+```
+
+```
+42.0
+40.05
+```
+
+The first line works out the inside first: `5 / 100` is 0.05, plus 1 is 1.05, and 40 times that is 42.0. In the second, the multiplication and the division are done before the addition: `40 * 1` is 40, `5 / 100` is 0.05, and they add to 40.05. That adds five hundredths of one unit of money, where it should add five hundredths of the price.
+
+When a line mixes operators and you're not sure, add parentheses. They cost nothing, and they tell the next reader what you meant. Then check the result against a rough answer worked out in your head: 5% of 40 is 2, so 40.05 can't be right.
+
+<Check item="mcq-order-of-operations" />
+
+**If you want more.** This lesson covers everything the practice and the checks below ask for. The linked book, _OpenStax Prealgebra 2e_, goes much further in its chapters on fractions, decimals and percents: the by-hand methods this lesson leaves to Python, such as adding fractions with different bottoms and dividing decimals, with many exercises. The Python tutorial's page on floating-point numbers, under More resources, shows why `0.1` can't be stored exactly, and Khan Academy's arithmetic course has drills if you'd like more practice by hand. None of them is needed to go on.
 
 </Intro>
 

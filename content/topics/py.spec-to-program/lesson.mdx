@@ -1,25 +1,114 @@
 <Intro>
 
-Until now, every exercise told you which functions to write. Real work starts further back, with a **spec**: a description of what the program should do, usually written by someone who won't write the code. Getting from a spec to a working program is a skill of its own, and this topic is about the method. There's no video this time; the lesson is here, and the reading is a section of *Think Python*.
+Until now, every exercise told you which functions to write. Real work starts further back, with a **spec** (short for specification): a description of what the program should do, usually written by someone who won't write the code. Getting from a spec to a working program is a skill of its own, and this topic is about the method. There's no video to start with this time: the lesson is this page, with questions along the way.
 
-Here's a spec, the kind a colleague might send:
+The method has four steps: write examples, plan the functions, write the tests, then build in small steps. Here's a spec to try it on, the kind a colleague might send:
 
 > Give the customer a discount: 10% off orders of 100 or more, 5% off orders of 50 or more. Show the amount to pay, in dollars and cents.
 
-**Step 1: examples before code.** Read the spec and write down concrete cases, each with its exact answer. That's where the questions hide:
+**Step 1: examples before code.** Read the spec and write down concrete cases, each with its exact answer. Reading carefully isn't enough, because the questions only show up when you have to commit to a number:
 
-- 120 → 108.00 (10% off), 60 → 57.00 (5% off), 20 → 20.00 (no discount). The ordinary cases.
-- 100 → 90.00 and 50 → 47.50. "100 or more" includes 100: the **boundaries** come straight from the words.
+- 120 → 108.00 (10% off), 60 → 57.00 (5% off), 20 → 20.00 (no discount). The ordinary cases, one for each rule.
+- 100 → 90.00 and 50 → 47.50. "100 or more" includes 100: the **boundaries**, the values where a rule changes, come straight from the words.
 - 99.99 → 94.99. Just under a boundary, the other way.
 - 0 → 0.00? A negative order? The spec doesn't say. **Write the gap down**, decide something sensible (0 is fine; a negative total is an error), and ask whoever wrote the spec when you can.
 
-**Step 2: plan the functions.** Name the pieces, what goes in and what comes back, before writing any body: `discount_rate(total)` returns the rate (0.1, 0.05 or 0); `amount_to_pay(total)` applies it, rounded to cents; `main()` asks and prints. Each function does one job and returns a value, so each can be tested on its own, the way Module 4 taught.
+That's the pattern for any spec: an ordinary case for each rule, a case exactly on each boundary, a case just past it, and the empty or zero case.
 
-**Step 3: tests from the examples.** Every example becomes an `assert`: `assert amount_to_pay(100) == 90.0`, `assert amount_to_pay(99.99) == 94.99`, and so on, in a `test_discount()` function. Write each function as a **stub** first, a body that just returns 0, run the tests, and watch them fail. A test that has never failed hasn't proved it can.
+**The words that set boundaries.** A few phrases turn up in spec after spec, and each one tells you which examples to write:
 
-**Step 4: small steps.** Fill in one function, run the tests, fix it, then the next. Three new lines are easy to debug; thirty at once aren't. The reading shows exactly this: a `distance` function grown from a stub that returns `0.0`, with temporary `print`s as scaffolding along the way, removed once it works.
+- **"50 or more"**, **"at least 50"**: 50 counts. In code that's `>=`. **"More than 50"**, **"over 50"**: 50 doesn't count; that's `>`. Either way, write one example at 50 and one beside it, because the two readings only differ there.
+- **"Up to and including 5"** is `<= 5`; **"under 5"** is `< 5`.
+- **"Never more than 40"**, **"at most 40"**: a cap. An answer that would come out above 40 becomes 40. Write an example where the cap first bites and one far beyond it.
+- **"Each box, or part of a box"**: round up. Eggs go in boxes of 12, and 30 eggs need 3 boxes, because the half-full third box is still a box. Dividing gives `30 / 12`, which is 2.5, and `math.ceil` from the `math` module rounds a number **up** to the next whole number: `math.ceil(2.5)` is `3`. A number that's already whole stays put, so `math.ceil(24 / 12)` is `2`, while 25 eggs tip over into a third box: `math.ceil(25 / 12)` is `3`. And `math.ceil(0 / 12)` is `0`: no eggs, no boxes. Those four are exactly the examples such a phrase calls for.
 
-Read **Incremental development** now; it's short. Then the worked example below walks a whole spec through the four steps.
+**Gaps.** Sometimes the words fit two different answers. "Names are sorted alphabetically": does `"adam"` come before `"Zoe"`? Python's own ordering puts capitals first, a person might not, and the sentence fits both. That's a gap. Don't guess silently: pick one reading, write it down as an example, and check it with the spec's author. A gap you wrote down is a question. A gap you guessed is a bug nobody knows about yet.
+
+<Check item="mcq-spec-examples" />
+
+**Step 2: plan the functions.** Name the pieces, what goes in and what comes back, before writing any body: `discount_rate(total)` returns the rate (0.1, 0.05 or 0); `amount_to_pay(total)` applies it, rounded to cents with `round(..., 2)` so the answers match the examples exactly; `main()` asks and prints. Each function does one job and returns a value, so each can be tested on its own, the way Module 4 taught.
+
+Split the work **by job**. Look for the things the spec wants worked out (a rate, an amount, a list of lines): each is a candidate for a function that returns it, named for it. Two splits look tidy and don't help. Functions called `step1` and `step2` say nothing about what they return. And one function per printed line, each printing its own, leaves nothing an `assert` can check, because a test needs a value handed back. So the small functions return, and only `main` prints.
+
+When the spec names a special case, plan for it to come **first** in the function. Take _"`average(numbers)` returns the average, or 0.0 for an empty list"_: the body checks for the empty list and returns `0.0` straight away, and only then divides. The other way round, the division would fail with a `ZeroDivisionError` before the special case got a look in.
+
+<Check item="mcq-decompose" />
+
+**Step 3: tests from the examples, against stubs.** The code part starts here, so here's a fresh spec to follow all the way through:
+
+> Split a restaurant bill. Add the tip, given as a percentage of the bill, and divide the total equally. Give each person's share, rounded to cents.
+
+The examples first. 60 with a 10% tip between 4 people is 66 in all, so 16.50 each. No tip, 50 between 2: 25.00. A share that doesn't divide evenly: 100 plus 15% is 115, between 3 is 38.333..., so 38.33. One person: 80 plus 20% is 96.00, all theirs. The gap: 0 people. Decided: that's an error the caller must avoid, and a question for the author.
+
+The plan is one function, `share(bill, tip_percent, people)`. Write it as a **stub**: a function with its real name, parameters and docstring, and a body that only returns a placeholder. Then turn each example into an `assert`, with a message after the comma:
+
+```python
+def share(bill, tip_percent, people):
+    """Return what each person pays, tip included, rounded to cents."""
+    return 0  # stub: not written yet
+
+
+def test_share():
+    assert share(60, 10, 4) == 16.5, "share(60, 10, 4) should be 16.5"
+    assert share(50, 0, 2) == 25.0, "no tip: half of 50 each"
+    assert share(100, 15, 3) == 38.33, "rounded to cents"
+    assert share(80, 20, 1) == 96.0, "one person pays it all"
+    print("share: all checks passed")
+
+
+test_share()
+```
+
+Run it. Because of the stub, the file runs even though nothing is built yet, and the last line of what Python shows is:
+
+```
+AssertionError: share(60, 10, 4) should be 16.5
+```
+
+The first assert failed, so the program stopped there: the other asserts and the `print` never ran. That failure is what you wanted. **A test that has never failed hasn't proved it can.** If this had printed "all checks passed" against a function that returns 0, the test would be checking nothing, and its pass later would mean nothing.
+
+An `AssertionError` is an error like any other, so the `try` and `except` from Exceptions work on it: `except AssertionError as error:` catches it, and `print(error)` shows the message that came after the comma.
+
+<Check item="predict-stub-fails" />
+
+**Step 4: small steps.** Now grow the body a line or two at a time, and run after each. While a function is half built, a temporary `print` shows a value you can check against your example. Such lines are called **scaffolding**: there to help you build, gone when the building stands.
+
+```python
+def share(bill, tip_percent, people):
+    """Return what each person pays, tip included, rounded to cents."""
+    tip = bill * tip_percent / 100
+    print("tip:", tip)  # scaffolding
+    return 0
+
+
+share(60, 10, 4)
+```
+
+```
+tip: 6.0
+```
+
+10% of 60 is 6: right. Add the next line, `total = bill + tip`, move the `print` to show `total`, and run again: `total: 66.0`, matching the example. Then the last line replaces the placeholder, and the scaffolding comes out:
+
+```python
+def share(bill, tip_percent, people):
+    """Return what each person pays, tip included, rounded to cents."""
+    tip = bill * tip_percent / 100
+    total = bill + tip
+    return round(total / people, 2)
+```
+
+Run `test_share()` again:
+
+```
+share: all checks passed
+```
+
+Why bother, for five lines? Because each run checked one new line. Had `tip:` shown 600.0, the mistake could only be in the line just written. Type a whole program and run it once at the end, and a wrong answer could come from anywhere. With several functions the rhythm is the same: stubs for all of them, so the file runs from the start; then one body, run the tests, fix, and on to the next. The tests for functions you haven't reached keep failing until you get there, and that's fine. `main` comes last, under `if __name__ == "__main__":`, after the call to the tests.
+
+**When the code and the spec disagree.** The same examples find bugs in code that already exists, yours or someone else's. Go through the spec one sentence at a time. For each sentence, work an example out by hand from the words alone, find the line of code that's meant to carry that sentence out, and compare. Say the spec reads _"Delivery costs 4.00. Orders of 30 or more are delivered free"_, and the code says `if order > 30:` before returning `0.0`. By the words, an order of exactly 30 pays nothing. By the code, it pays 4.00. The code is wrong, not the spec: `>` should be `>=`. Check every sentence, including the ones about caps and about nothing being owed, even after you've found one bug. There may be more.
+
+**Going further (optional).** This page covers everything the questions and exercises ask. The section of _Think Python_ below grows a different function, the distance between two points, in the same small steps, if you'd like to see it done a second time. The Khan Academy video under More resources plans a card game from its problem statement down to stubs, then fills them in one at a time; it writes no tests first, which this topic asks you to do. Next, the worked example walks a whole spec through the four steps.
 
 </Intro>
 

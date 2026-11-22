@@ -172,7 +172,7 @@ Leave a blank line before and after each block, and inside a block that wraps te
 
 ### `glossary.yaml`: the terms a topic teaches
 
-A topic lists the terms it teaches in `content/topics/<id>/glossary.yaml`. Where another topic's lesson first uses one, the page marks the word with a dotted underline, and pressing it (or hovering with a mouse) shows the definition and "Taught in: <this topic>", with a link here. A learner who has forgotten a word from three topics ago gets it back without leaving the page. `/glossary` lists every term.
+A topic lists the terms it teaches in `content/topics/<id>/glossary.yaml`. Where a lesson of another topic in the same track (topic IDs starting the same way: `csa.`, `ml.`, `fin.`) first uses one, the page marks the word with a dotted underline, and pressing it (or hovering with a mouse) shows the definition and "Taught in: <this topic>", with a link here. A learner who has forgotten a word from three topics ago gets it back without leaving the page. `/glossary` lists every term.
 
 ```yaml
 # content/topics/csa.net.nat/glossary.yaml

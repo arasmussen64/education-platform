@@ -2,14 +2,147 @@
 
 Algebra is arithmetic with a blank in it. `3x - 7 = 11` says: take a number, triple it, take 7 away, and you get 11. Finding the number means undoing those steps, and Python is a fine place to do that, because it can also check the answer for you.
 
-The main resource is the free textbook *OpenStax Elementary Algebra 2e*: **chapter 2, Solving Linear Equations and Inequalities** (sections 2.1 to 2.3, plus 2.6, which rearranges formulas), and **section 6.2, Use Multiplication Properties of Exponents**. About 25 minutes. Watch for:
+**An equation is a claim that two things are equal.** It has a left side, an equals sign and a right side. `6x + 8 = 50` claims that "6 times some number, plus 8" is the same as 50. The letter `x` stands for the number we don't know yet, the **unknown**. Any letter or name would do; `x` is only the habit. On paper a number written against a letter means multiply, so `6x` is 6 times x. Python needs the star: `6 * x`.
 
-- **Undoing in reverse order.** Whatever was done to x last gets undone first. If x was multiplied and then had something subtracted, add first, then divide.
-- **Both sides.** Every step is done to both sides of the equation, so it stays true.
-- **Checking by substituting.** Put your answer back in and see if the two sides agree. In Python that's one `print`.
-- **Powers of the same base multiply by adding exponents:** x² · x³ is x⁵.
+To **solve** an equation is to find the value of the unknown that makes the claim true. Here it is 7, because 6 times 7 is 42, and 42 plus 8 is 50. You could find that by guessing, but guessing stops working when the answer is 3.85. Undoing always works for equations like this one, where the unknown is only multiplied or divided by numbers and has numbers added or taken away. They are called **linear equations**, and they are the only kind this topic solves.
 
-The book writes answers by hand. Here you'll write them as Python expressions, which forces you to be exact about the order of operations, the thing most algebra mistakes are really about.
+**Do the same thing to both sides.** Think of the two sides as the two pans of a balance scale, level because they hold the same weight. Take 8 away from one pan only and the scale tips. Take 8 away from both and it stays level. An equation is the same: add, subtract, multiply or divide, as long as you do it to both whole sides, and the claim stays true. That one rule is all the permission algebra needs to change an equation. The video under More resources shows it with a scale.
+
+**Undo in reverse order.** Read the left side as a list of things done to x, in order: x was multiplied by 6, then 8 was added. Solving means peeling those off until x stands alone, and they come off last one first, the way you take off shoes before socks because the socks went on first.
+
+Each operation has an opposite that undoes it: subtracting undoes adding, adding undoes subtracting, dividing undoes multiplying, and multiplying undoes dividing.
+
+- Start: `6x + 8 = 50`.
+- The 8 was added last, so undo it first. Subtract 8 from both sides: `6x = 42`.
+- Now undo the multiplying. Divide both sides by 6: `x = 7`.
+
+Another, with a subtraction: `8x - 12 = 60`. The 12 was taken away last, so add 12 to both sides, `8x = 72`, then divide both sides by 8, `x = 9`.
+
+Why not divide first? You may, but "both sides" means the whole of each side, every piece of it. Dividing `6x + 8 = 50` by 6 gives `x + 8/6 = 50/6`, with the 8 divided as well. That is still true, but it is full of awkward fractions, and the usual slip is to divide the `6x` and forget the 8. Undoing the last step first never has that problem, because by the time you divide there is only one piece left.
+
+<Check item="mcq-undo-order" />
+
+**The same steps as one line of Python.** The two undo steps were "take 8 from 50, then divide by 6". As a Python expression:
+
+```python
+x = (50 - 8) / 6
+print(x)
+```
+
+```
+7.0
+```
+
+The parentheses are the word "then". Arithmetic showed that Python does `*` and `/` before `+` and `-` unless parentheses say otherwise. So without them, this happens:
+
+```python
+x = 50 - 8 / 6
+print(x)
+```
+
+```
+48.666666666666664
+```
+
+Python divided first, and only the 8: `8 / 6` is about 1.33, and 50 minus that is about 48.67. The line reads like "50 minus 8, divided by 6" to a person and means something else to Python. This is the most common mistake in the whole topic, so whenever you mean "do this first", write parentheses.
+
+The first answer printed as `7.0` and not `7` because `/` always gives a float, a number with a decimal point, even when the division comes out exactly. `7.0` is the right answer. To choose how many decimal places are shown, use an f-string as before: `f"{x:.1f}"` shows one.
+
+**Check by substituting.** To **substitute** is to put a value in place of a letter. Put your answer back into the side of the equation that had the unknown, work it out, and see whether you get the other side:
+
+```python
+x = (50 - 8) / 6
+print(6 * x + 8)
+```
+
+```
+50.0
+```
+
+It gives 50, the right side, so 7 is right. The same check on the answer from the line without parentheses prints `300.0`: not 50, so that answer is wrong, however reasonable the line looked. The check costs one line and catches every undoing mistake, which is why every program in this topic ends with one.
+
+**Rearranging a formula is the same move.** A **formula** is an equation with several letters, a recipe for working one quantity out from others. Suppose a course gives its final mark like this: three quarters of your exam mark, plus 10 for handing in the coursework.
+
+`final = exam * 3 / 4 + 10`
+
+The letter standing alone on the left, `final`, is the **subject** of the formula: the thing it tells you how to work out. That is fine when you know the exam mark. But suppose you know the final mark you need and want the exam mark that gets it. Then `exam` is the unknown, and you solve for it exactly as before, without putting any numbers in. This is called **rearranging** the formula, or making `exam` the subject.
+
+List what was done to `exam`: multiplied by 3, divided by 4, then 10 added. Undo them last first:
+
+- Subtract 10 from both sides: `final - 10 = exam * 3 / 4`.
+- Undo "divided by 4" by multiplying both sides by 4, and undo "multiplied by 3" by dividing both sides by 3: `(final - 10) * 4 / 3 = exam`.
+
+Notice that `* 3 / 4` is undone by `* 4 / 3`, the same fraction turned upside down. The parentheses say that the subtraction comes first.
+
+```python
+final = 70
+exam = (final - 10) * 4 / 3
+print(exam)
+print(exam * 3 / 4 + 10)
+```
+
+```
+80.0
+70.0
+```
+
+To finish on 70 you need 80 in the exam, and the last line substitutes 80 back into the original formula and gets 70 again.
+
+**When the unknown is multiplied by several things, divide by all of them.** A box's volume is `volume = length * width * height`. To make `height` the subject, undo both multiplications: divide both sides by `length` and by `width`. On paper that is volume over (length times width). In Python the bottom needs parentheses:
+
+```python
+volume = 360
+length = 12
+width = 5
+height = volume / (length * width)
+print(height)
+print(length * width * height)
+print(volume / length * width)
+```
+
+```
+6.0
+360.0
+150.0
+```
+
+The first line printed is the height, 6. The second is the check, which gives the volume back. The third is the mistake to expect: without parentheses Python works left to right, dividing by 12 and then **multiplying** by 5, which gives 150. (`volume / length / width`, dividing twice, would also be correct.)
+
+**When the unknown is underneath a division, multiply it up first.** Splitting a bill evenly: `share = bill / people`. Suppose you know the bill and each share and want the number of people. `people` is on the bottom, so first get it off the bottom: multiply both sides by `people`, which gives `share * people = bill`. Now it is multiplied by `share`, so divide both sides by `share`: `people = bill / share`. A bill of 84 with shares of 12 means `84 / 12`, which is 7 people, and the check `84 / 7` gives 12 again.
+
+**Powers.** A **power** is a short way to write a number multiplied by itself. `5 ** 3` means three 5s multiplied together, `5 * 5 * 5`, which is 125. The number being multiplied, 5, is the **base**; the count of how many, 3, is the **exponent**. On paper the exponent is written small and raised, 5³. Three rules save a lot of multiplying, and each comes from counting.
+
+- **Multiplying powers of the same base adds the exponents.** `3 ** 2 * 3 ** 4` is two 3s times four more 3s: six 3s in all, `3 ** 6`.
+- **A power of a power multiplies the exponents.** `(3 ** 2) ** 4` is four copies of "two 3s": eight 3s, `3 ** 8`.
+- **Going down one exponent divides by the base.** `3 ** 3` is 27, `3 ** 2` is 9 and `3 ** 1` is 3: each step down divides by 3. Keep stepping and `3 ** 0` is 1, and `3 ** -1` is one third. So any number except 0 to the power 0 is 1, and a negative exponent means "one over": `x ** -1` is `1 / x`, and `2 ** -3` is 1 over `2 ** 3`, an eighth.
+
+```python
+print(3**2 * 3**4)
+print(3**6)
+print((3**2) ** 4)
+print(3**8)
+print(3**0)
+print(4**-1)
+print(2**-3)
+```
+
+```
+729
+729
+6561
+6561
+1
+0.25
+0.125
+```
+
+(Python doesn't mind whether `**` has spaces round it: `3**2` and `3 ** 2` are the same.)
+
+Two limits on the first rule. The bases must be the same: `2 ** 3 * 5 ** 2` is 8 times 25, and no rule shortens it. And it is a rule about multiplying, not adding: `2 ** 3 + 2 ** 4` is 8 plus 16, which is 24, nowhere near `2 ** 7`, which is 128.
+
+<Check item="mcq-exponent-rules" />
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. _OpenStax Elementary Algebra 2e_ (the main resource below) is the full textbook treatment: chapter 2 solves equations step by step by hand, including ones with the unknown on both sides, section 2.6 rearranges formulas, and section 6.2 covers the power rules with letters as bases; each section has many practice problems. Khan Academy's Algebra 1 course goes through the same ideas as short videos with exercises that mark themselves.
 
 </Intro>
 

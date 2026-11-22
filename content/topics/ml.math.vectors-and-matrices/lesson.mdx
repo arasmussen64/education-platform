@@ -2,14 +2,206 @@
 
 A vector is a list of numbers that belong together: a point's coordinates, a day's measurements, a word turned into numbers. A matrix is a grid of them. Nearly everything a machine-learning model does is adding, scaling and multiplying these, and in this topic you'll do each one with plain Python lists and loops, so that when NumPy does it for you later you know exactly what it did.
 
-The main resource is the free textbook *OpenStax Precalculus 2e*: **section 8.8, Vectors** (the first half, up to the dot product) and **section 9.5, Matrices and Matrix Operations**. About 25 minutes. If you'd rather watch, the first four chapters of 3Blue1Brown's *Essence of linear algebra* (they play below the lesson) show the same ideas as pictures, and chapter 9 does the dot product. Watch for:
+**A vector is a list of numbers in a fixed order.** Say a café sells three things, and each day you write down how many of each it sold: coffees, teas, pastries, always in that order. Monday is `[40, 15, 22]`. That is a **vector**. Each number in it is an **entry**, and the order carries the meaning: the entry at position 0 is always coffees. Swap two entries and you have a different vector.
 
-- **Adding vectors** is adding matching entries; **scaling** multiplies every entry by the same number.
-- **The dot product** multiplies matching entries and adds the results: one number, not a vector. A vector's **length** is the square root of its dot product with itself.
-- **A matrix's shape** is rows × columns, and two matrices can be multiplied only when the inner numbers match: a 2×3 times a 3×4 gives a 2×4.
-- **Each entry of a product** is the dot product of a row and a column.
+A vector with two entries can also be drawn. Read `[4, 2]` as "4 steps right, 2 steps up" and draw an arrow from where you stand to where you end up. That picture, a vector as an arrow, is worth keeping for the next few ideas, even though a vector with a thousand entries works exactly the same way and can't be drawn.
 
-Hold on to the shape rule. It's the single most common error in machine-learning code.
+In Python a vector is a list, and everything below is done with loops over lists.
+
+**Adding two vectors adds the matching entries.** Tuesday's sales were `[35, 20, 18]`. Sales for the two days together are coffees with coffees, teas with teas, pastries with pastries: `[40 + 35, 15 + 20, 22 + 18]`, which is `[75, 35, 40]`. The result is a vector of the same size. Two vectors can be added only when they have the same number of entries; otherwise some entry has no partner.
+
+Python's own `+` does something else to lists. It glues them end to end:
+
+```python
+monday = [40, 15, 22]
+tuesday = [35, 20, 18]
+print(monday + tuesday)
+```
+
+```
+[40, 15, 22, 35, 20, 18]
+```
+
+Six entries, and no sum anywhere. So a vector sum needs a loop that visits each position, adds the two entries it finds there, and appends the answer to a new list:
+
+```python
+monday = [40, 15, 22]
+tuesday = [35, 20, 18]
+both = []
+for i in range(len(monday)):
+    both.append(monday[i] + tuesday[i])
+print(both)
+```
+
+```
+[75, 35, 40]
+```
+
+`range(len(monday))` gives the positions 0, 1, 2, and the same `i` reads both lists, which is what "matching entries" means in code.
+
+**Scaling multiplies every entry by the same number.** If a festival doubles Monday's sales, the new vector is `[2 * 40, 2 * 15, 2 * 22]`, which is `[80, 30, 44]`. The single number doing the multiplying is called a **scalar**, because it scales the vector. As an arrow, scaling by 2 makes the arrow twice as long in the same direction, scaling by 0.5 halves it, and scaling by a negative number turns it to point the opposite way.
+
+Here too Python's own operator misleads. `2 * monday` repeats the list, so again a loop does the real work:
+
+```python
+monday = [40, 15, 22]
+print(2 * monday)
+
+doubled = []
+for value in monday:
+    doubled.append(2 * value)
+print(doubled)
+```
+
+```
+[40, 15, 22, 40, 15, 22]
+[80, 30, 44]
+```
+
+Scaling and adding are often done in one go. For `v = [4, 2]` and `w = [1, -3]`, "`v` plus 3 times `w`" means scale first, then add: 3 times `w` is `[3, -9]`, and adding that to `v` gives `[4 + 3, 2 + -9]`, which is `[7, -7]`. In a loop both steps fit in one line per position, `v[i] + 3 * w[i]`, because Python multiplies before it adds.
+
+<Check item="predict-scale-and-add" />
+
+**The dot product multiplies matching entries and adds the results.** Back at the café: a coffee costs 3, a tea 2 and a pastry 4. Write the prices as a vector in the same order, `[3, 2, 4]`. Monday's takings are each count times its price, all added up: `40 * 3 + 15 * 2 + 22 * 4`, which is `120 + 30 + 88`, so `238`. That sum of products is the **dot product** of the two vectors.
+
+Notice what came out: one number, not a vector. Adding two vectors gives a vector; the dot product of two vectors gives a single number. Mixing those up is the most common slip here. Like adding, it needs two vectors of the same size.
+
+In code it is a running total that starts at 0 and grows by one product per position:
+
+```python
+sold = [40, 15, 22]
+prices = [3, 2, 4]
+takings = 0
+for i in range(len(sold)):
+    takings = takings + sold[i] * prices[i]
+print(takings)
+```
+
+```
+238
+```
+
+The only difference from the adding loop is what happens inside it: multiply the pair instead of adding it, and add the product to one total instead of appending to a list. Another name for a dot product is a **weighted sum**: the prices say how much each count weighs in the total. That name comes back at the end of this lesson.
+
+**What the dot product says about two arrows.** For vectors drawn as arrows, the dot product measures how far the two point the same way. Take `[2, 1]`. With `[4, 2]`, which points the same way, the dot product is `2 * 4 + 1 * 2`, which is `10`: positive. With `[-4, -2]`, which points the opposite way, it is `-8 + -2`, which is `-10`: negative. In between sits the case that matters most. Turn `[2, 1]` a quarter turn and you get `[-1, 2]`, and their dot product is `2 * -1 + 1 * 2`, which is `-2 + 2`, so `0`.
+
+Two arrows at a right angle to each other are called **perpendicular**, and the dot product of perpendicular vectors is always 0. The easiest pair to see it with lies along the axes: `[3, 0]` points straight right and `[0, 5]` straight up, and `3 * 0 + 0 * 5` is `0`, because wherever one has a number the other has a zero. Neither arrow has any part pointing along the other. It works the other way round too: if the dot product of two vectors (neither of them all zeros) is 0, they are perpendicular.
+
+<Check item="mcq-perpendicular" />
+
+**The length of a vector.** First a reminder. The **square root** of a number is the number that, multiplied by itself, gives it back: the square root of 49 is 7, because 7 times 7 is 49. In Python a square root is written as the power one half, `** 0.5`, and the answer is always a float:
+
+```python
+print(49**0.5)
+```
+
+```
+7.0
+```
+
+Now draw `[8, 15]` as an arrow: 8 right, then 15 up. The arrow, the 8 and the 15 make a triangle with a right angle in it, and the arrow is its longest side. For such a triangle the rule you may remember from school (Pythagoras' theorem) says that the longest side, squared, equals the other two sides squared and added: `8 * 8 + 15 * 15` is `64 + 225`, which is `289`. The arrow's **length** is the square root of that, `17`.
+
+Look at the sum under the root: `8 * 8 + 15 * 15` is the dot product of `[8, 15]` with itself. So the rule is short: **a vector's length is the square root of its dot product with itself**. Said without the dot product: square every entry, add the squares, take the square root. It holds for any number of entries. `[2, 3, 6]` has length the square root of `4 + 9 + 36`, which is the square root of 49, so 7.
+
+```python
+v = [8, 15]
+print((v[0] * v[0] + v[1] * v[1]) ** 0.5)
+print(v[0] * v[0] + v[1] * v[1] ** 0.5)
+```
+
+```
+17.0
+122.09475019311125
+```
+
+The second line shows the slip to avoid. Without the parentheses, `** 0.5` applies only to the thing right before it, the last `v[1]`, because powers are done before multiplying and adding. Put the whole sum in parentheses, or keep the sum in a variable and take the root of that. For a vector of any size, build the sum of squares with a loop and a running total, as for a dot product, and take the root once at the end. The other slip is to stop at the sum of squares and forget the root: 289 is not the length of `[8, 15]`.
+
+**A matrix is a grid of numbers, held as a list of rows.** Suppose there are two cafés, and one day's sales in both go in one table: a row for each café, a column for each product. That grid is a **matrix**. In Python it is a list of lists, which you met in Nested data: each inner list is one row.
+
+```python
+shops = [
+    [40, 15, 22],
+    [10, 30, 5],
+]
+print(shops[1][0])
+print(len(shops), len(shops[0]))
+```
+
+```
+10
+2 3
+```
+
+`shops[i][j]` is the entry in row `i`, column `j`: the row comes first, and both count from 0. So `shops[1][0]` is the second café's coffees, `10`.
+
+A matrix's **shape** is its number of rows, then its number of columns, written with a ×: this one is 2×3, read "two by three". In code the number of rows is `len(shops)`, the length of the outer list, and the number of columns is `len(shops[0])`, the length of one row. These are two different numbers, and using one where the other belongs is a classic bug: a loop that should count columns but counts rows will either stop too early or run off the end of a row with an `IndexError`.
+
+Each row of a matrix is a vector, and so is each **column**, though a column isn't stored as a list of its own: to read column `j` you take entry `j` from every row. Here that is used to total each product across the cafés. The outer loop counts columns, the inner one walks the rows:
+
+```python
+totals = []
+for j in range(len(shops[0])):
+    total = 0
+    for row in shops:
+        total = total + row[j]
+    totals.append(total)
+print(totals)
+```
+
+```
+[50, 45, 27]
+```
+
+One more word for later: the **mean** of some numbers is their total divided by how many numbers there are. The mean coffee sales of the two cafés is `50 / 2`, which is `25.0`: divide by the number of values that went into the total, here the number of rows.
+
+**A matrix times a vector: one dot product for each row.** What did each café take that day? Each row of `shops` is a vector of counts, and the prices are still `[3, 2, 4]`. Take the dot product of each row with the prices:
+
+- row 0: `40 * 3 + 15 * 2 + 22 * 4`, which is `238`
+- row 1: `10 * 3 + 30 * 2 + 5 * 4`, which is `30 + 60 + 20`, so `110`
+
+The answers, in row order, form a new vector: `[238, 110]`. That is what "the matrix times the vector" means. Two things follow about sizes. Each row must have as many entries as the vector, or the dot product has unmatched entries: the matrix's number of columns must equal the vector's size. And the result has one entry for each row. A 2×3 matrix times a vector of 3 entries gives a vector of 2 entries.
+
+In code it is the dot product loop from before, put inside a loop over the rows: for each row, start a total at 0, add up the products of that row's entries with the vector's, and append the total to the result. You'll complete that program in practice.
+
+**A matrix times a matrix: every row with every column.** Now put a second matrix where the vector was. The idea doesn't change, except that the second matrix supplies several vectors, its columns, and every row of the first meets every column of the second. Take
+
+```
+A = [[1, 0, 2],        B = [[2, 1],
+     [3, 1, 0]]             [0, 4],
+                            [5, 3]]
+```
+
+`A` is 2×3 and `B` is 3×2. The columns of `B` are `[2, 0, 5]` and `[1, 4, 3]`. The rule is: **entry `[i][j]` of the product is the dot product of row `i` of the first matrix and column `j` of the second.**
+
+- row 0 with column 0: `1 * 2 + 0 * 0 + 2 * 5`, which is `12`
+- row 0 with column 1: `1 * 1 + 0 * 4 + 2 * 3`, which is `7`
+- row 1 with column 0: `3 * 2 + 1 * 0 + 0 * 5`, which is `6`
+- row 1 with column 1: `3 * 1 + 1 * 4 + 0 * 3`, which is `7`
+
+So the product `AB` is `[[12, 7], [6, 7]]`, a 2×2 matrix.
+
+**The shape rule.** Every one of those dot products pairs a row of `A` with a column of `B`. A row of `A` has as many entries as `A` has columns, 3. A column of `B` has as many entries as `B` has rows, also 3. That is why the pairs lined up. If those two numbers differed, some entry would have nothing to multiply with, and the product would not exist. And the result has one entry for each row of `A` and each column of `B`, so it has `A`'s number of rows and `B`'s number of columns.
+
+Write the two shapes side by side and the rule can be read straight off them: 2×**3** times **3**×2. The two **inner** numbers must match. The two **outer** numbers are the shape of the result. So:
+
+- a 4×2 times a 2×5 can be formed (the inner numbers are 2 and 2) and gives a 4×5;
+- a 2×5 times a 4×2 can't be formed: the inner numbers are 5 and 4.
+
+Those are the same two matrices in the other order, so order matters in a matrix product, which is never true of multiplying plain numbers. Even when both orders can be formed the answers usually differ: `BA` above is 3×2 times 2×3, a 3×3 matrix, nothing like the 2×2 of `AB`.
+
+Two slips to avoid. A matrix product is **not** done entry by entry, the way adding is: multiplying `A[i][j]` by `B[i][j]` is a different operation, and for most pairs of shapes that can be multiplied it can't even be done, since the two shapes differ. And it is rows of the first with **columns** of the second, never rows with rows.
+
+A matrix times a vector fits the same rule if you think of the vector as a matrix with one column: 2×3 times 3×1 gives 2×1, a vector of 2 entries, as it did for the cafés.
+
+In code a matrix product takes three loops, one inside the next: over the rows of the first matrix (`i`), over the columns of the second (`j`), and, to run the dot product, over the shared inner index that walks along row `i` and down column `j` together. Writing that from a blank editor is this topic's build.
+
+<Check item="mcq-product-shape" />
+
+**Why machine learning is full of this.** A neural network is built from **neurons**. One neuron takes a vector of inputs and computes a single number: a weighted sum of them, which is the dot product of the inputs with the neuron's own vector of numbers, called its **weights**. That is the takings sum again, with weights where the prices were. A **layer** is a set of neurons that all read the same inputs. Stack their weight vectors as the rows of a matrix, one row per neuron, and the whole layer is computed at once: the weight matrix times the input vector. Each entry of the result is one neuron's weighted sum of all the inputs. A layer of 2 neurons reading 3 inputs is a 2×3 matrix times a vector of 3 entries, giving 2 numbers, one per neuron, which the next layer takes as its inputs.
+
+A data set is a matrix too, with one row per example and one column per measurement. Because all of these have to fit together by the shape rule, "shape mismatch" is the error you will see most often in machine-learning code. Hold on to the rule: inner numbers match, outer numbers are the result.
+
+**If you want more.** The lesson above covers everything this topic's practice asks of you, so the pages and videos here are optional. The first four chapters of 3Blue1Brown's *Essence of linear algebra*, which play below the lesson, show the same ideas as moving pictures: vectors as arrows, a matrix as something that stretches and turns the whole plane, and a matrix product as doing one such move after another. Chapter 9 does the same for the dot product. The free textbook *OpenStax Precalculus 2e* (section 8.8, Vectors, and section 9.5, Matrices and Matrix Operations) goes further than this topic needs, into a vector's direction as an angle and adding and subtracting matrices, and has many problems to work by hand. Khan Academy's linear algebra course has more practice.
 
 </Intro>
 

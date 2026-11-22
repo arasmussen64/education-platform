@@ -1,12 +1,140 @@
 <Intro>
 
-Plain gradient descent works, and on the loss surfaces real models have it is slow: long narrow valleys make it zigzag across the steep direction while it crawls along the flat one, and one learning rate has to serve every weight. The optimizers in every training script are small changes to the update line that fix those two problems. This topic writes three of them, momentum, a learning-rate schedule and Adam, in a few lines each, and compares them on one valley, so the names in a training script become things the learner has built.
+Plain gradient descent works, and on the loss surfaces real models have it is slow: long narrow valleys make it zigzag across the steep direction while it crawls along the flat one, and one learning rate has to serve every weight. The optimizers in every training script are small changes to the update line that fix those two problems. This topic writes three of them, momentum, a learning-rate schedule and Adam, in a few lines each, and compares them on one valley, so the names in a training script become things you have built.
 
-The main resource is **Distill's _Why Momentum Really Works_**, an interactive article whose pictures of a valley you can drag are the best explanation of momentum there is; about 30 minutes. The Adam paper's page 2 has the algorithm in eight lines, the same eight you'll write. Watch for:
+**One rate, two directions.** Plain descent is the loop from Gradient descent in many dimensions: `p = p - rate * grad(p)`. To see where it struggles, take a loss with two variables, `0.05x² + 10y²`. Its gradient is `[0.1x, 20y]`: the slope in `y` is 200 times the slope in `x`. Pictured as a landscape, that is a long narrow valley: steep walls on either side in `y`, and a floor that slopes very gently towards the bottom at `(0, 0)` in `x`.
 
-- **The condition number:** how much steeper the steep direction is than the flat one, which is what makes a valley long and narrow.
-- **Velocity:** gradients that agree add up; gradients that flip cancel.
-- **Why the first Adam step is always the rate.**
+On this loss a descent step does something simple to each coordinate. The new `y` is `y - rate * 20y`, which is `y` times `1 - 20 * rate`. The new `x` is `x` times `1 - 0.1 * rate`. So every step multiplies each coordinate by a fixed number, and the rate decides both numbers at once:
+
+| Rate  | Each step multiplies `y` by | Each step multiplies `x` by | What you see                                      |
+| ----- | --------------------------- | --------------------------- | ------------------------------------------------- |
+| 0.05  | 0                           | 0.995                       | `y` is home in one step; `x` loses half a percent |
+| 0.075 | -0.5                        | 0.9925                      | `y` flips sign and halves; `x` barely moves       |
+| 0.09  | -0.8                        | 0.991                       | a wide zigzag that dies slowly                    |
+| 0.1   | -1                          | 0.99                        | `y` bounces between the walls forever             |
+| 0.11  | -1.2                        | 0.989                       | every bounce is bigger than the last: it diverges |
+
+A negative multiplier means the step jumped past the valley floor and landed on the opposite wall. That is the **zigzag**. Four steps at rate 0.09 from `(20, 1)` show it:
+
+```python
+import numpy as np
+
+
+def grad(p):
+    return np.array([0.1 * p[0], 20 * p[1]])
+
+
+p = np.array([20.0, 1.0])
+for step in range(4):
+    p = p - 0.09 * grad(p)
+    print(np.round(p, 3))
+```
+
+```
+[19.82 -0.8 ]
+[19.642  0.64 ]
+[19.465 -0.512]
+[19.29  0.41]
+```
+
+The second number swings from side to side while the first creeps down from 20.
+
+The table also shows the trap. The steep direction sets a **ceiling** on the rate: `y` only shrinks while its multiplier stays between -1 and 1, which here means a rate below `2 / 20 = 0.1` (2 divided by the steep direction's number in the gradient). But at any rate under that ceiling, the flat direction loses about 1 percent a step or less. The loss starts at 30. At rate 0.075 it is still 4.4374 after 100 steps and 0.9845 after 200, all of it left over in `x`. Raising the rate to hurry `x` along breaks `y`. One rate can't suit both.
+
+How much steeper the steepest direction is than the flattest (here 200 times) is called the **condition number**. The bigger it is, the narrower the valley and the worse this trade. Real losses have such valleys all the time: a weight attached to an input measured in thousands gets far bigger gradients than a weight attached to an input measured in fractions.
+
+**Momentum: keep a velocity.** Plain descent forgets every gradient as soon as it has used it. **Momentum** remembers. It keeps a second number for each coordinate, the **velocity** `v`, which starts at zero, and each step does two things in this order:
+
+1. Update the velocity: keep a fraction `beta` of the old velocity and add the new gradient, `v = beta * v + g`.
+2. Step along the velocity, not the gradient: `x = x - rate * v`.
+
+`beta` is a number between 0 and 1, usually 0.9. With `beta = 0` the velocity is just the gradient, and you are back to plain descent.
+
+Work two steps by hand. Take `x² / 2`, whose gradient at `x` is `x` itself, and start at `x = 10` with rate 0.2 and `beta = 0.5`. Step 1: the gradient is 10, the velocity becomes `0.5 * 0 + 10 = 10`, and `x` moves to `10 - 0.2 * 10 = 8`. Step 2: the gradient is 8, the velocity becomes `0.5 * 10 + 8 = 13`, and `x` moves to `8 - 0.2 * 13 = 5.4`. Plain descent's second step would have been `0.2 * 8 = 1.6`, landing at 6.4. Momentum's was 2.6, because half of the first step's push was still in the velocity.
+
+<Check item="predict-two-momentum-steps" />
+
+To see what the velocity does over many steps, feed it two made-up streams of gradients: one where the gradient is always 1, and one where it flips between 1 and -1.
+
+```python
+def velocities(gradients, beta):
+    v = 0.0
+    seen = []
+    for g in gradients:
+        v = beta * v + g
+        seen.append(round(v, 3))
+    return seen
+
+
+print(velocities([1, 1, 1, 1, 1, 1], 0.9))
+print(velocities([1, -1, 1, -1, 1, -1], 0.9))
+```
+
+```
+[1.0, 1.9, 2.71, 3.439, 4.095, 4.686]
+[1.0, -0.1, 0.91, -0.181, 0.837, -0.247]
+```
+
+Gradients that agree pile up. The first velocity keeps growing: after 50 steps it is 9.948, and it levels off at 10. It levels off there because each step forgets a tenth of the velocity and adds 1, and those balance when the velocity is 10. In general the limit is `1 / (1 - beta)` times a single gradient: 10 times for 0.9, 2 times for 0.5. Gradients that flip sign cancel. The second velocity never gets going, and settles into swinging between about 0.53 and -0.53: smaller than any one of the gradients that fed it.
+
+That is what a valley needs. Along the floor the gradient points the same way step after step, so the velocity builds up towards ten times the plain step. Across the valley the gradient changes sign each time the point crosses the floor, so most of it cancels. On the valley above, from the same start and at the same rate of 0.075, adding the velocity with `beta = 0.9` takes the loss after 100 steps from plain descent's 4.4374 down to 0.0007.
+
+Three things to know before you use it:
+
+- **It is not the same as a bigger rate.** Ten times the rate would be 0.75, far over the ceiling, and `y` would explode. Momentum speeds up only the directions where the gradients agree.
+- **It overshoots.** A velocity doesn't stop the moment the slope does. The point runs past the bottom, the gradient turns round, and it swings back, a little less far each time. With momentum the loss can go up on some steps on its way down (on this valley it does, early on). That is normal. A loss that climbs and keeps climbing is not.
+- **`beta` belongs on the old velocity.** That multiplication is what lets old gradients fade. A common slip is to shrink the new gradient and keep all of the old velocity instead. Then nothing is ever forgotten: the velocity is a running total of every gradient so far, and the point swings back and forth without settling.
+
+<Check item="mcq-momentum-in-a-valley" />
+
+**A schedule: start fast, finish precise.** Look again at the row for rate 0.1 in the table. `y` is multiplied by -1 every step, so it jumps from 1 to -1 and back, forever. The `y` part of the loss is stuck at `10 * 1² = 10` however long the run goes on: after 200 steps the loss is 10.359. The curve falls for a while (that is `x` improving) and then meets a **floor** it can't get under, because every step overshoots the bottom by as much as the last. Real training runs show the same thing as a loss that falls fast and then bounces up and down inside a band.
+
+The rate that crosses the landscape quickly is too big to settle at the bottom. The fix is not to pick one rate. A **learning-rate schedule** changes the rate as the run goes on: big at the start, small at the end.
+
+The simplest schedule is **step decay**: every so many steps, multiply the rate by a factor less than 1. Say the rate starts at 0.4 and is halved every 30 steps. For steps 0 to 29 it is 0.4, for steps 30 to 59 it is 0.2, for steps 60 to 89 it is 0.1, and at step 100 it is 0.05. The number of halvings so far is the whole-number division `step // every`: `100 // 30` is 3, and three halvings of 0.4 give 0.05. So the rate at any step is the starting rate times the factor raised to that count. The same schedule can be written inside the training loop instead: cut the rate whenever the step number is a multiple of `every` (but not at step 0). Other schedules shrink the rate smoothly, a little every step; the idea is the same.
+
+On the valley, starting at 0.1 and halving every 100 steps, the first hundred steps are the same bouncing run as before. Then the rate drops to 0.05, `y` settles at once, and the loss after 200 steps is 0.9833 where the fixed rate left 10.359.
+
+The mistake to avoid is decaying too fast. Halve every 10 steps instead, and after a few dozen steps the rate is too small to move anything: that run freezes with `x` still at 16.36 and a loss of 13.39, and no number of extra steps will rescue it. How fast to decay is something you tune, like the rate.
+
+When does a schedule help? When the curve shows the symptom: a fast fall, then bouncing at a floor. A loss that is still falling steadily doesn't want a smaller rate, and a loss that sits still at its floor without bouncing has simply arrived.
+
+<Check item="mcq-when-to-decay" />
+
+**Adam: a step size for each coordinate.** Momentum fixes the crawl, but there is still one rate for every coordinate, and the steepest one still limits it. **Adam** (short for adaptive moment estimation) gives each coordinate a step of its own size, by dividing each coordinate's gradient by how big that coordinate's gradients usually are. It is built from three pieces.
+
+_Two running averages._ A **running average** is a number you update by keeping most of the old value and mixing in a little of the new one. Adam keeps two for each coordinate, both starting at zero:
+
+- `m`, the average gradient: `m = beta1 * m + (1 - beta1) * g`, with `beta1 = 0.9`. Keep nine tenths, mix in one tenth. It is momentum's velocity scaled down to the size of one gradient.
+- `s`, the average of the gradient **squared**: `s = beta2 * s + (1 - beta2) * g**2`, with `beta2 = 0.999`. Squaring throws away the sign, so `s` can never be negative and its terms can never cancel. It measures size only.
+
+_Two corrections for starting at zero._ Starting from zero makes both averages too small at first. After one step, `m` is `0.1 * g`: a tenth of the only gradient it has seen. Adam repairs this by dividing by `1 - beta1 ** t`, where `t` is the number of the step, **counted from 1**. At `t = 1` that divisor is `1 - 0.9 = 0.1`, and dividing `0.1 * g` by 0.1 gives back `g` exactly. At `t = 2` it is 0.19, at `t = 10` it is 0.651, and by `t = 50` it is 0.995: the correction fades away as the average fills up with real gradients. `s` gets the same repair with `beta2`. The corrected values are called `m_hat` and `s_hat`. Counting from 1 matters: at `t = 0` the divisor would be `1 - 1 = 0`. (The Adam paper calls this **bias correction**. It has nothing to do with a network's biases.)
+
+_The step._ `x = x - rate * m_hat / (np.sqrt(s_hat) + eps)`. The square root of the average squared gradient is the gradient's typical size, so the fraction is the average gradient measured against its own usual size. `eps` is a tiny number, `1e-8`, that is only there so a gradient of exactly zero doesn't cause a division by zero.
+
+Here are the first two steps on `3x²` (gradient `6x`) from `x = 4` at rate 0.2, with the longer numbers rounded to four figures:
+
+| `t` | gradient | `m`  | `s`   | `m_hat` | `s_hat` | `np.sqrt(s_hat)` | step   | new `x` |
+| --- | -------- | ---- | ----- | ------- | ------- | ---------------- | ------ | ------- |
+| 1   | 24       | 2.4  | 0.576 | 24      | 576     | 24               | 0.2    | 3.8     |
+| 2   | 22.8     | 4.44 | 1.095 | 23.37   | 547.9   | 23.41            | 0.1997 | 3.6003  |
+
+Look at the first row. After the corrections `m_hat` is the gradient and `s_hat` is the gradient squared, so the fraction is 24 over 24 and the step is exactly the rate. That is true whatever the gradient is: **Adam's first step is always exactly `rate`, against the sign of the gradient.** From `x = 400`, where the gradient is 2,400, the first step still lands at 399.8. Later steps stay close to the rate for as long as the gradients keep their sign.
+
+In NumPy, `g**2`, `np.sqrt` and the division all work element by element, so the same lines handle every coordinate at once when `m` and `s` start as arrays of zeros. On the valley from `(20, 1)` the gradient is `[2, 20]`, ten times bigger in `y`, and Adam's first step at rate 0.5 lands at `[19.5, 0.5]`: the same 0.5 in both. The steep coordinate no longer sets the limit for the flat one, which is why a rate five times plain descent's ceiling is safe here. The loss after 100 steps is 0.0008.
+
+The catch is the other side of the same coin. Plain descent slows down by itself near the bottom, because the gradient shrinks. Adam divides the shrinking away, so its steps stay about `rate` in size until the gradients start changing sign and cancel in `m`. Start the `3x²` run at `x = 0.004`, a hair from the bottom, and the first step still moves 0.2 and lands at -0.196. So Adam's rate is a real step length: choose it with the size of your weights in mind, and know that Adam can bounce at a floor too, and gain from a schedule.
+
+**Reading the curve, and choosing.** The loss curve tells you which of these to reach for:
+
+- **Falls fast, then sits still near its floor:** done. Nothing to fix.
+- **Falls fast, then bounces across a floor:** the rate is too big to settle. Add a decay schedule.
+- **Falls slowly and steadily, still falling at the end:** the rate is too small, or the valley is narrow. Raise the rate, or switch to momentum or Adam.
+- **Climbs from the start:** the rate is too large. No optimizer survives that; cut it.
+
+For a network, Adam with `beta1 = 0.9`, `beta2 = 0.999` and a rate of `1e-3` is the usual first try. Momentum with `beta = 0.9` and a decay schedule takes more tuning and often ends a little lower. Plain descent is the baseline you compare both with. The rate matters more than the choice among the three. And a low training loss is not the last word: when two runs are close, compare their **held-out loss**, the loss on data kept out of training.
+
+**Going further (optional).** The lesson above covers everything the questions and exercises ask of you; the outside pages are for when you want more. _Why Momentum Really Works_, the main resource below, is an interactive article: you drag the rate and `beta` and watch the path through a valley change, and it works out mathematically how much momentum can gain (with the best settings, a valley behaves roughly as if its condition number were only the square root of what it is). It uses matrix mathematics well beyond this module, so play with the pictures and skim the algebra. The Adam paper has the whole algorithm in a box on page 2, in its authors' notation (they write `v` where this lesson writes `s`). NumPy's page for `np.sqrt` is the reference for that function.
 
 </Intro>
 
