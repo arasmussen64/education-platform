@@ -180,7 +180,10 @@ function wholeLesson(content: TopicContent, minutes: number): LearnPart {
 
 /** "the video", "the reading": what to call a topic's main resource. */
 function resourceName(content: TopicContent): string {
-  const type = content.topic.resources[0]?.type
+  const main = content.topic.resources[0]
+  // Our own text carries the topic, and the page is there to go deeper.
+  if (main?.optional) return 'going deeper'
+  const type = main?.type
   if (type === 'video') return 'the video'
   if (type === 'reading') return 'the reading'
   return 'the main resource'

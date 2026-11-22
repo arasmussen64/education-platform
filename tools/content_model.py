@@ -76,6 +76,10 @@ class Resource(Strict):
     start: Annotated[int, Field(ge=0)] | None = None
     end: Annotated[int, Field(ge=1)] | None = None
     text: ReadingText | None = None
+    # The lesson's own text teaches everything the topic asks for, and this
+    # page only goes deeper (ADR-0031, step 3). The app says so, and the
+    # topic's estimated_minutes leaves it out.
+    optional: bool = False
 
     @model_validator(mode="after")
     def times_fit(self) -> Resource:

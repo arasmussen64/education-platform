@@ -68,14 +68,25 @@ export function ResourceView({
           />
         </div>
       ) : (
-        <a
-          href={resource.url}
-          target="_blank"
-          rel="noreferrer"
-          className="block rounded-md border border-line-strong p-4 font-medium hover:bg-sunken"
-        >
-          {resource.title} ↗
-        </a>
+        <>
+          {resource.optional && (
+            // The lesson above already taught it: nobody has to leave the
+            // page, and the topic's time doesn't count this.
+            <p className="text-sm">
+              <span className="font-semibold">Go deeper (optional).</span> The
+              lesson above covers everything this topic asks of you. This page
+              has more, if you want it.
+            </p>
+          )}
+          <a
+            href={resource.url}
+            target="_blank"
+            rel="noreferrer"
+            className="block rounded-md border border-line-strong p-4 font-medium hover:bg-sunken"
+          >
+            {resource.title} ↗
+          </a>
+        </>
       )}
       <figcaption className="text-xs text-muted">
         {embed ? (

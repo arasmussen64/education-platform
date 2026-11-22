@@ -2,6 +2,34 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, later: lessons inside the app, step 3: the first five lessons on their own text
+
+**The owner said "Go"** to step 3: where a reading can't be played or copied, our own text carries the topic. 43 topics still sent the learner to an outside page for their main resource. This is the first five, the cloud topics with neither a copy nor a video.
+
+**The mechanism.** A resource can say `optional: true`. The app then shows the main one under "Go deeper (optional)" with a line saying the lesson above covers everything, the lesson's last part is named for going deeper, and the topic's time leaves the page out.
+
+**The method,** one helper agent per topic, from a written brief: read every objective, quick question, exercise, lab check and rubric line; for each, find the sentence of the lesson's own text that prepares the learner; whatever only an outside page (or only a later item's explanation) taught is the gap; write it into the lesson in our own words, checked against primary sources; mark every linked page optional; redo the time.
+
+| Topic | Words added | What the gap was | Minutes |
+| --- | --- | --- | --- |
+| `csa.net.troubleshooting` | 160 | why one change at a time; an mtr row of `???`; curl's two time limits; two HAProxy end states | 311 to 259 |
+| `csa.hw.cores-memory` | 400 | baselines by size, the credit metric, how unlimited mode is billed, `lscpu` options, sizes in steps | 311 to 276 |
+| `csa.net.ipv6` | 580 | counting blocks between prefix lengths, reading `ip -6 addr`, the router's own address, the firewall's input chain | 306 to 271 |
+| `csa.net.certificates` | 680 | challenge tokens, why only DNS-01 proves a wildcard, the signing commands, nginx's 495 and 496 | 285 to 260 |
+| `csa.linux.packages` | 1,570 | versions and epochs, pins, automatic updates, why a restart is needed, all of the dnf work (it was only in the recap), drift and golden images | 253 to 265 |
+
+**Author notes:**
+
+- _The cloud lessons were already close._ Four of five needed under 700 words. Much of each gap was not "only the reading taught it" but "only a lab's worked example or an item's explanation showed it", which this pass also closed.
+- _`csa.linux.packages` grew instead of shrinking._ Its 253 minutes never counted its readings (about 157 minutes of them), so nothing came out and 12 minutes of new text went in.
+- _No command output was added._ Docker wasn't running, so nothing could be captured, and a lesson shows only captured output. New text gives formats and commands; one helper ran its two openssl commands in Git Bash to see them work.
+- _Each helper listed what it could not check against a primary source._ I read those lists: the facts are standard ones (RFC 4291's subnet-router anycast address, what `2ubuntu7` means, `/run` emptied at boot) and I left them in. Nothing else was independently re-checked by me.
+- _Resource titles still say "read sections ..."_ on pages that are now optional. They read as "the best part to look at"; left for now.
+- _Things the helpers found and did not change:_ AWS now lists T9g among the unlimited-by-default families (one question's explanation doesn't); two of the packages topic's readings (the Debian handbook, Fedora Quick Docs) could be copied in under step 2; that topic's recap repeats the new dnf section; several plan files no longer match their topics' minutes.
+- _Not seen by eye._ The lessons compile (the content test passes) and validate; nobody has read them in the app.
+
+**Next:** the other fourteen cloud topics, then the ML topics, whose lessons are much thinner (450 to 900 words) and will need real writing.
+
 ## 2026-11-22: lessons inside the app, step 1 continued: a video for topics that had none
 
 **What changed.** 80 ready topics had no video among their resources. Five helper agents each took a track and looked for one video per topic that could play in the lesson, to a written bar: a source a teacher would trust, on the topic by its own title, description and chapter list, 20 minutes or less (or cut to a published chapter), and embedding allowed by YouTube's oEmbed answer. They proposed 67. I removed 12 and kept **55**, each appended as the topic's last resource, so it plays under "More resources" and the lesson's main resource is unchanged.
@@ -16,8 +44,6 @@ A dated log of each working session: what changed, what was decided, what's next
 - _25 topics still have no video,_ among them `csa.net.ipsec`, `csa.net.ipv6`, `csa.net.troubleshooting`, `csa.hw.cores-memory`, `csa.linux.cpu`, `csa.linux.hardening`, `ml.dsa.trees-and-heaps`, `ml.la.numpy-arrays`, `fin.money.returns`, `fin.money.costs` and `fin.markets.prices`. Two good candidates wait for someone to read their pages: NSRC's "IPv6 Addresses" (`qj5fIw0juoE`) and freeCodeCamp's NumPy tutorial cut to a chapter (`QUT1VHiLmmI`).
 
 **Where the owner's three steps stand,** over the 135 ready topics with a lesson: every topic that had a linked video now plays it (47); 55 more topics gained a video; 50 of the 87 main readings are read in the lesson. **Left for step 3 (our own text):** the topics whose main reading can't be shown and can't be copied, about 37, listed in the entry below.
-
-**Next:** step 3, topic by topic, starting with the cloud track's link-only readings.
 
 ## 2026-11-21, night: lessons inside the app, step 2 continued: 50 readings
 

@@ -43,6 +43,12 @@ A copied page is somebody else's HTML, so it is never trusted:
 2. the content validator, in CI, refuses a committed file with anything else in it;
 3. the app never hands the text to the browser as HTML: it rebuilds each allowed tag as an element with only its allowed attributes (`web/src/content/readingHtml.tsx`). Links must be full `https://` addresses and open beside the lesson.
 
+### Step 3 in practice: a lesson that stands on its own text (added 2026-11-22)
+
+When neither a video nor a copy can carry a topic, the lesson's own text must. The test is the topic's own items: for every objective, quick question, exercise, lab check and line of the explain rubric, some sentence of the lesson's own text prepares the learner for it. Whatever only an outside page taught is the gap, and it is written into the lesson in our own words, never copied or closely paraphrased, with facts checked against primary sources.
+
+Then every linked page of the topic gets `optional: true` in `topic.yaml`. The app shows the main one under "Go deeper (optional)", the lesson's "Read now" paragraph becomes a short note of what each page adds, and `estimated_minutes` drops by the reading time it used to count and rises by the new text at 130 words a minute.
+
 ### What does not change
 
 The time a topic takes already counted the reading. What counts as learned, the questions, and the lesson's own text are untouched. A copy is downloaded only when it is shown: the main reading with the last part of the lesson, a further one when the learner opens it.

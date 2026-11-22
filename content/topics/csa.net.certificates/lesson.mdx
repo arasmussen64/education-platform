@@ -30,7 +30,7 @@ A name in the SAN matches exactly, except a **wildcard**: `*.shop.test` covers `
 - **The server sends its own certificate, then the intermediates:** the **full chain** (certbot's `fullchain.pem`). nginx takes the first certificate in the file as the server's own, to go with its key; the intermediate first gives `key values mismatch` and nginx won't start.
 - **Not the root.** A root sent by the server proves nothing (anyone can make one), and a client that trusts it has its own copy.
 
-**What a client checks, and what failure looks like.** The chain, the name asked for against the SAN, the dates, and the use (a server's certificate must allow `serverAuth`). `openssl s_client -connect HOST:443 -servername NAME -verify_hostname NAME` ends with a **verify return code**; captured in this topic's labs:
+**What a client checks, and what failure looks like.** The chain, the name asked for against the SAN, the dates, and the use (a server's certificate must allow `serverAuth`). `openssl s_client -connect HOST:443 -servername NAME -verify_hostname NAME` ends with a **verify return code**. Two more of its options come up all through this topic: `-CAfile FILE` has openssl trust the roots in FILE in place of the system's trust store, and `-showcerts` prints every certificate the server sent, its own first. The codes, captured in this topic's labs:
 
 | Code | openssl says | Usually |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ A name in the SAN matches exactly, except a **wildcard**: `*.shop.test` covers `
 | 10 | `certificate has expired` | what it says |
 | 62 | `hostname mismatch` | the name asked for isn't in the SAN (only with `-verify_hostname`; curl and browsers always check) |
 
-curl reports each as `curl: (60) SSL certificate problem:` and the same words (for 20 and 21, `unable to get local issuer certificate`), except a name mismatch: `curl: (60) SSL: no alternative certificate subject name matches target host name`. One trap: **a missing intermediate often works in a browser**. Browsers keep intermediates they've seen before, and some fetch a missing one from an address in the certificate, so a broken server looks fine on your laptop and fails for curl, phones' apps and partners' servers. Test from a strict client.
+curl reports each as `curl: (60) SSL certificate problem:` and the same words (for 20 and 21, `unable to get local issuer certificate`), except a name mismatch: `curl: (60) SSL: no alternative certificate subject name matches target host name`. curl's `--cacert FILE` names the roots to check the server against, as `-CAfile` does for openssl. One trap: **a missing intermediate often works in a browser**. Browsers keep intermediates they've seen before, and some fetch a missing one from an address in the certificate, so a broken server looks fine on your laptop and fails for curl, phones' apps and partners' servers. Test from a strict client.
 
 <Check item="verify-code-meaning" />
 
@@ -52,6 +52,15 @@ curl reports each as `curl: (60) SSL certificate problem:` and the same words (f
 3. the server's certificate: a CSR signed by the intermediate with the server's names in `subjectAltName=DNS:...` and `extendedKeyUsage=serverAuth`;
 4. the full chain: `cat server.pem intermediate.pem > fullchain.pem`.
 
+Steps 2 and 3 are the same two commands. The first makes the CSR from the requester's key. The second is the CA's side: it signs the request with the CA's certificate and key, for so many days, and adds the extensions written one to a line in a small file (here `api.ext`):
+
+```
+openssl req -new -key api.key -subj "/CN=api.shop.test" -out api.csr
+openssl x509 -req -in api.csr -CA intermediate.pem -CAkey intermediate.key -CAcreateserial -extfile api.ext -days 365 -out api.pem
+```
+
+`-CAcreateserial` has openssl pick the serial number. The CA decides what goes into the certificate: the names and uses come from its extensions file, whatever the request asked for. A client's certificate is made the same way, with `extendedKeyUsage=clientAuth`, by a CA kept for clients (mutual TLS, below).
+
 A private CA chooses its own lifetimes: the labs' hand-made certificates last a year or more. Public CAs can't.
 
 **Why public certificates are getting short.** When a key is stolen its certificate should be **revoked**, but clients learn about revocations unreliably (HTTP and TLS's OCSP, which Let's Encrypt stopped answering in 2025, and CRLs, published lists of revoked serials). Whatever revocation misses, expiry catches, so the browsers and CAs, meeting as the CA/Browser Forum, agreed a falling cap on how long a public certificate may last (its Baseline Requirements, version 2.3.1), by the date it's issued:
@@ -60,7 +69,7 @@ A private CA chooses its own lifetimes: the labs' hand-made certificates last a 
 | --- | --- | --- | --- | --- |
 | Longest lifetime | 398 days | 200 days | 100 days | 47 days |
 
-Let's Encrypt, the largest public CA, issues 90-day certificates today, 45-day ones to those who ask since 13 May 2026, and moves its default to 64 days on 10 February 2027 and 45 days on 16 February 2028 (ISRG, December 2025); since 15 January 2026 it has also offered certificates that last 160 hours. Nobody renews that often by hand: **renew automatically, about two-thirds of the way through each certificate's life**, keeping the last third to retry in if the CA or the network has a bad day. Better still, let the CA say when: **ARI** (ACME Renewal Information, RFC 9773, part of the protocol in the next paragraph) has the program that renews certificates ask the CA when to renew, which also lets the CA call for early renewal when it must revoke many certificates at once.
+Let's Encrypt, the largest public CA, which charges nothing, issues 90-day certificates today, 45-day ones to those who ask since 13 May 2026, and moves its default to 64 days on 10 February 2027 and 45 days on 16 February 2028 (ISRG, December 2025); since 15 January 2026 it has also offered certificates that last 160 hours. Nobody renews that often by hand: **renew automatically, about two-thirds of the way through each certificate's life**, keeping the last third to retry in if the CA or the network has a bad day. Better still, let the CA say when: **ARI** (ACME Renewal Information, RFC 9773, part of the protocol in the next paragraph) has the program that renews certificates ask the CA when to renew, which also lets the CA call for early renewal when it must revoke many certificates at once.
 
 <Check item="est-renew-at-two-thirds" />
 
@@ -72,9 +81,28 @@ Let's Encrypt, the largest public CA, issues 90-day certificates today, 45-day o
 | **DNS-01** | a TXT record at `_acme-challenge.NAME` | yes | a DNS provider with an API, and its credentials on the server (give them as little power as you can) |
 | **TLS-ALPN-01** | a special certificate offered on port 443, chosen through ALPN | no | a client that supports it, which few do |
 
+All three work the same way underneath. For each challenge the CA makes up a **token**, a long random string that nobody could guess beforehand. The client joins the token to a hash of its account key and puts the result where only someone who controls the name could put it: as the contents of the file for HTTP-01 (the token is the file's name), hashed once more as the TXT record's value for DNS-01, and, hashed, inside the special certificate for TLS-ALPN-01. Finding it there tells the CA two things at once: the name is under someone's control right now, and that someone holds this account key. The client's messages to the CA are signed with the account key as well, so the CA knows the CSR at the end comes from the account that passed the challenges.
+
+Two rules in the table follow from that. An old answer is worth nothing, because a new challenge brings a new token: a TXT record typed in by hand would have to be typed again for every certificate, which is why DNS-01 wants a provider with an API. And a wildcard such as `*.shop.test` stands for names that may not exist yet, so no one server can answer for all of them; only whoever controls the domain's DNS can, and DNS-01 is the challenge that shows it.
+
 In the labs the CA is step-ca, which keeps its root across restarts and issues 24-hour certificates: the labs' fast clock, said in each prompt. (Pebble, Let's Encrypt's own test CA, makes a new root at every start, so its certificates stop verifying after a restart.)
 
-**certbot on a server.** `certbot certonly --webroot -w /var/www/html -d www.shop.test` answers HTTP-01 by writing the challenge file under `/var/www/html`, where the web server already serves it (`--server` names another CA than Let's Encrypt). certbot's files, in `/etc/letsencrypt`:
+**certbot on a server.** `certbot certonly --webroot -w /var/www/html -d www.shop.test` answers HTTP-01 by writing the challenge file under `/var/www/html`, where the web server already serves it (`--server` names another CA than Let's Encrypt). Several `-d` names give one certificate with all of them in its SAN, kept under the first name. The CA comes back over plain HTTP at every renewal, so port 80 must go on serving the challenge files after the site has moved to HTTPS. Sending all of port 80 to HTTPS breaks that: the CA follows the redirect and asks the HTTPS site, which serves another folder. In nginx, a `location` block gives one path its own rules, so the challenge path keeps its folder and every other request gets a 301, a permanent redirect, to the same path on HTTPS:
+
+```
+server {
+    listen 80;
+    server_name www.shop.test;
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+```
+
+certbot's files, in `/etc/letsencrypt`:
 
 - `live/www.shop.test/`: `cert.pem` (the site's certificate alone), `chain.pem` (the intermediates), `fullchain.pem` (the two, the site's first) and `privkey.pem`, each a link to the newest numbered file in `archive/www.shop.test/` (`cert1.pem`, `cert2.pem`, ...). The server reads the `live/` names, never `archive/` and never a copy: certbot's README there calls `cert.pem` one that "will break many server configurations";
 - `renewal/www.shop.test.conf`: how to renew, including how the name was proved.
@@ -100,8 +128,10 @@ Epic's postmortem names two gaps. Its certificate monitoring watched whole DNS z
 **Mutual TLS: the client proves who it is too.** In ordinary TLS only the server shows a certificate. With **mutual TLS** (mTLS) the server also asks for a **client certificate**: after its EncryptedExtensions it sends a **CertificateRequest**, which names the CAs it accepts (`openssl s_client` prints them as `Acceptable client certificate CA names`), and the client answers with a Certificate of its own and a CertificateVerify, a signature over the handshake that proves it holds the key. It's for clients you know in advance: partners' integrations, a company's services calling each other (a **service mesh**, software that carries every call between a company's services, can do it for all of them), devices. In nginx:
 
 - `ssl_client_certificate FILE`: the CA certificates trusted for clients, whose names are sent in the CertificateRequest (`ssl_trusted_certificate` trusts without sending the names);
-- `ssl_verify_client on`: refuse a client without a valid certificate. nginx finishes the handshake and refuses at the HTTP level: `400 No required SSL certificate was sent` for none, `400 The SSL certificate error` for one it couldn't verify, and the error log says why when it logs at `info` (`client SSL certificate verify error: (21:unable to verify the first certificate)`);
+- `ssl_verify_client on`: refuse a client without a valid certificate. nginx finishes the handshake and refuses at the HTTP level: `400 No required SSL certificate was sent` for none, `400 The SSL certificate error` for one it couldn't verify, and the error log says why when it logs at `info` (`client SSL certificate verify error: (21:unable to verify the first certificate)`). nginx's own numbers for the two are 496 and 495, which the client never sees: they exist for an `error_page` line, which sets the page shown for an error;
 - `optional` asks, checks a certificate that arrives, and **lets a client with none through**, so the API is open; `optional_no_ca` skips the CA check, for a program behind nginx that checks itself. `$ssl_client_verify` (`SUCCESS`, `FAILED:...`, `NONE`) and `$ssl_client_s_dn` tell the site who came.
+
+A client shows its certificate with `curl --cert FILE --key FILE` (the certificate and its private key), or `openssl s_client -cert FILE -key FILE`. nginx checks the chain and the use, and no name: every certificate from a CA in that file gets in, unless the site tests `$ssl_client_s_dn` itself.
 
 Two rules. **Trust a CA kept for clients alone.** Many CAs, the labs' included, put both `serverAuth` and `clientAuth` in every certificate they issue, so an API that trusts the company's server CA for clients lets in every web server's certificate, and anyone's who can get one from its ACME service. And **a client's certificate needs `clientAuth`**: nginx refuses one that says `serverAuth` only (tried in the labs).
 
@@ -114,7 +144,7 @@ Two rules. **Trust a CA kept for clients alone.** Many CAs, the labs' included, 
 
 The lesson of both rows is the same as nginx's: what the platform manages, it renews; what you bring, you renew. And a "passthrough" or "allow invalid" mode is mutual TLS only if something behind it really checks.
 
-**Read now:** Let's Encrypt's "How It Works", the main resource below (about 5 minutes), then its "Challenge Types", Google's "Mutual TLS overview" to the end of "Client validation modes", certbot's user guide on where its certificates are and how renewal works, and nginx's three client-certificate directives. The rest are optional: ISRG's post on 45-day certificates, and AWS's and Azure's pages behind the table. The quick questions read openssl, curl and `ls` output from the labs and work out lifetimes and renewals. The labs replace a hand-made certificate with one from ACME and renew it, fill in a small CA and a partners-only API, write a script that reports on any server's certificate, set up both of the shop's sites with certificates that look after themselves, and fix a server whose customers see an expired padlock while the warehouse can't get in.
+**Going further (all optional).** Everything the questions and labs ask is in the lesson above; the pages below are for when you want more. Let's Encrypt's "How It Works" tells the ACME story once more, step by step, and adds how a certificate is revoked. Its "Challenge Types" weighs each challenge's pros and cons at more length. Google's "Mutual TLS overview" goes deeper into how a load balancer checks a client's certificate. certbot's user guide and nginx's module page are the references for every option used here. ISRG's post gives Let's Encrypt's schedule for 45-day certificates, and AWS's and Azure's pages are the ones behind the table. The quick questions read openssl, curl and `ls` output from the labs and work out lifetimes and renewals. The labs replace a hand-made certificate with one from ACME and renew it, fill in a small CA and a partners-only API, write a script that reports on any server's certificate, set up both of the shop's sites with certificates that look after themselves, and fix a server whose customers see an expired padlock while the warehouse can't get in.
 
 </Intro>
 

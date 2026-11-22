@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- Lessons that stand on their own text ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md), step 3). Where a topic's reading can't be shown in the app, the lesson now teaches everything its questions, labs and explanation ask, and every outside page is marked `optional: true`: the page says "Go deeper (optional)", and the topic's time no longer counts it. The first five: `csa.hw.cores-memory` (311 to 276 minutes), `csa.linux.packages` (253 to 265: its readings were never counted, and the lesson doubled), `csa.net.certificates` (285 to 260), `csa.net.ipv6` (306 to 271) and `csa.net.troubleshooting` (311 to 259).
+
 - 55 topics that had no video now have one that plays in the lesson, under "More resources": 13 in the Python topics (mostly CS50P cut to the part that fits), 13 in the ML track (StatQuest, Computerphile, Andrew Ng's lectures, CS50 shorts, Crash Course), 18 in the cloud track (Red Hat, MIT's Missing Semester, Jim Kurose's networking lectures, Computerphile, John Savill, Ben Eater, Brendan Gregg) and 11 in finance and the maths refreshers (Khan Academy). 25 topics still have none: nothing found met the bar.
 
 - 34 more readings are shown inside their lessons ([ADR-0031](docs/decisions/0031-lessons-inside-the-app.md)), 50 in all: seven finance readings (Investor.gov and OpenStax), nine from Wikipedia, NumPy and pytest, fifteen in the cloud track (DigitalOcean, MIT's Missing Semester, Microsoft Learn, ArchWiki, the Linux kernel documentation, MDN, strongSwan), two OpenStax maths sections and one chapter of Python for Everybody. Each licence was read again on its source the day it was copied.
