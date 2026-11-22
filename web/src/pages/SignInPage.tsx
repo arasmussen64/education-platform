@@ -2,7 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { Link } from 'react-router'
 import { displayName } from '../auth/authContext.ts'
 import { useAuth } from '../auth/useAuth.ts'
-import { BUTTON, TEXT_INPUT } from '../components/styles.ts'
+import { BUTTON, CARD, TEXT_INPUT } from '../components/styles.ts'
 import { signInMethod } from '../supabase/config.ts'
 
 function describe(error: unknown): string {
@@ -32,7 +32,8 @@ export function SignInPage() {
   }
 
   return (
-    <section className="max-w-md space-y-4">
+    // One card in the middle of the page: there is only one thing to do here.
+    <section className={`mx-auto mt-6 max-w-md sm:mt-12 ${CARD} sm:p-8`}>
       <h1 className="text-3xl font-bold sm:text-4xl">Sign in</h1>
       <p className="text-muted">Sign in to save your progress.</p>
       {signInMethod() === 'github' ? <GitHubSignIn /> : <EmailLinkSignIn />}
