@@ -70,7 +70,7 @@ class Resource(Strict):
         if self.use == "embed" and not (
             self.type == "video"
             and re.match(
-                r"^https://(www\.youtube\.com/watch\?(.*&)?v=|youtu\.be/)[\w-]{11}",
+                r"^https://(www\.youtube\.com/watch\?(.*&)?v=|youtu\.be/)[\w-]+",
                 self.url,
             )
         ):
