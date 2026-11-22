@@ -2,6 +2,29 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, and after: why the directory lab failed on main
+
+**The failure.** After step 3 the lab checks on main failed three runs in a row, in the directory-join topic, and only in the trial that restarts the container: "alice logged in, with no Kerberos ticket", a lock-screen policy that didn't reach alice, once an empty group. No lab file had changed.
+
+**The cause is a race at boot, not a changed package.** With Docker running, a helper read the failed run's log and reproduced it. The lab's domain controller (`lab-dc.service`) tells systemd it has started as soon as Samba's main process is up; its name server, directory and ticket service answer a moment later. The checker starts asking as soon as boot is over, and SSSD (the service that logs domain users in) starts at the same boot. Asked in the gap, SSSD finds no domain controller, goes offline, and lets alice in from its cached password, which gives no ticket. On this machine the gap never showed. With the container held to half a processor, alice had no ticket for about 75 seconds after a restart.
+
+**The fix.** A small script, `dc-ready.sh`, runs before the domain controller counts as started. Once a second it asks four real questions (the domain's SRV record, the directory's root, "which domain controller are you?", and a ticket for a name that doesn't exist, which a working ticket service refuses by name) and returns when all four are answered. SSSD is ordered after it. It gives up after two minutes without failing the boot, so the checks still report what is wrong. No check, solution or wrong solution changed.
+
+**Twelve labs, not five.** The Windows and Active Directory topic and the Module 2 checkpoint use the same kind of service, so they had the same gap and got the same wait. Four of them have the learner stand the domain up themselves, under a differently named service and sometimes a different domain, so those use a second version of the script that reads the domain's name from the controller's own settings.
+
+**Also settled by running the commands:**
+
+- `strace -c` on a process that sleeps two seconds reports 0.00006 seconds; `strace -c -w` reports 2.0004. The triage topic's two remaining questions, its model answer and one summary line now say `-w`.
+- `WORKDIR /srv/site` creates the folder and adds a layer (12.3 kB); `ENV` and `CMD` add none. The containers lesson and one question that said "metadata only" are corrected.
+
+**Author notes:**
+
+- _Why it began failing when it did is not known._ The same checks passed hours earlier on #349. The only way found to reproduce it was a slower machine, so slower CI runners are the guess, not a finding.
+- _Local runs can't prove this fix._ Twelve labs passed the checker here two or three times in a row, restart trials included, and throttled restarts showed the wait working. The lab run on this pull request, on CI's machines, is the test that counts.
+- _A learner's existing lab container keeps the old start-up_ until it is started fresh.
+- _Two versions of one script_ is a small cost for not hard-coding a domain name the learner chooses.
+- _The handshake-capture check that failed once_ did not fail in the run that was read, and was not looked into.
+
 ## 2026-11-22, last: the 24 rewritten lessons, read start to finish
 
 **Why.** The lessons written for ADR-0031's step 3 had been sampled, not read. The owner said to work through what was left, so four helpers each read six of the 24 ML, Python and finance lessons as their first reader: every line, every item, and every code block run and compared with its shown output. They changed nothing. A fifth then applied their findings, re-checking each first.

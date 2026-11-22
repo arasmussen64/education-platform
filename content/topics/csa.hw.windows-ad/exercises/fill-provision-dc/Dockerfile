@@ -37,7 +37,7 @@ RUN apt-get update \
 # machine with Samba installed and no domain yet: its service, dc1.service,
 # isn't enabled, and creates nothing by itself. The learner's script, with
 # its gaps, is in ~/bin.
-COPY network.sh dc-enter /usr/local/lib/lab/
+COPY network.sh dc-enter dc-ready.sh /usr/local/lib/lab/
 COPY on-dc /usr/local/bin/
 COPY lab-network.service dc1.service /etc/systemd/system/
 COPY dnsmasq-lab.conf /etc/systemd/system/dnsmasq.service.d/lab.conf

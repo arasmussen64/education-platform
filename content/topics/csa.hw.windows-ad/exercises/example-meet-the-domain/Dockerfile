@@ -35,7 +35,7 @@ RUN apt-get update \
 # The lab's scenery: the network and dc1, made at boot (dc1 creates the
 # domain ad.shop.test the first time and adds its people), the site's
 # ordinary resolver, this machine's Kerberos settings, and the on-dc command.
-COPY network.sh dc-enter dc-provision.sh dc-seed.sh /usr/local/lib/lab/
+COPY network.sh dc-enter dc-ready.sh dc-provision.sh dc-seed.sh /usr/local/lib/lab/
 COPY on-dc /usr/local/bin/
 COPY lab-network.service lab-dc.service /etc/systemd/system/
 COPY dnsmasq-lab.conf /etc/systemd/system/dnsmasq.service.d/lab.conf

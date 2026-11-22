@@ -1,8 +1,8 @@
 id: tri-strace-summary
 type: predict_shell
-rev: 1
+rev: 2
 prompt: |
-  `strace-c.txt` is the summary `strace -c` printed after watching a process for five seconds: for each system call, the share of time, total seconds, microseconds per call, number of calls, and errors. The first command prints the two calls that took the most time; the second prints the error count of `stat`. What is printed?
+  `strace-c.txt` is the summary `strace -c -w` printed after watching a process for five seconds: for each system call, the share of time, total seconds, microseconds per call, number of calls, and errors. With `-w` the time is measured by the clock, from each call's start to its end, so time spent waiting counts. The first command prints the two calls that took the most time; the second prints the error count of `stat`. What is printed?
 files:
   strace-c.txt: |
     % time     seconds  usecs/call     calls    errors syscall
@@ -20,5 +20,5 @@ expected_output: |
   write 20.10%
   stat errors: 60000
 explanation: |
-  Seventy percent of the process's time went into 2,000 `fsync` calls at 1.78 ms each: it forces every write to disk, and the disk's latency is the program's latency. And every one of its 60,000 `stat` calls failed: it keeps looking for a file that isn't there, twelve thousand times a second. Neither shows up in CPU use, which is why `strace -c` is the tool for a slow-but-idle process. The first `awk` skips the headers, the dashes and the total; the second reads the errors column of the `stat` row.
+  Seventy percent of the process's time went into 2,000 `fsync` calls at 1.78 ms each: it forces every write to disk, and the disk's latency is the program's latency. And every one of its 60,000 `stat` calls failed: it keeps looking for a file that isn't there, twelve thousand times a second. Waiting for a disk uses almost no CPU, which is why a slow-but-idle process wants `strace -c -w`. Plain `strace -c` counts only the CPU time spent inside the kernel, so in its table the same `fsync` calls would show almost no time and the wait would be invisible; the `calls` and `errors` columns are the same either way. The first `awk` skips the headers, the dashes and the total; the second reads the errors column of the `stat` row.
 skills: [cpu-profiling]
