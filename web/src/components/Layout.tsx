@@ -29,11 +29,13 @@ export function Layout() {
       <header
         ref={header}
         tabIndex={-1}
-        // Stays at the top while the page scrolls, a little see-through,
-        // so the way around is always one click away.
-        className="sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur outline-none"
+        // On a wide screen it stays at the top while the page scrolls, a
+        // little see-through, so the way around is always one click away.
+        // On a phone it wraps onto two rows and would cover too much of a
+        // small screen, so there it scrolls away with the page.
+        className="z-30 border-b border-line bg-paper/85 outline-none sm:sticky sm:top-0 sm:backdrop-blur"
       >
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-2 gap-y-1.5 px-4 py-2.5">
           <Link
             to="/"
             className="flex items-center gap-2 font-display text-xl font-bold"
@@ -41,7 +43,7 @@ export function Layout() {
             <Mark />
             {APP_NAME}
           </Link>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <nav
               aria-label="Main"
               className="flex gap-1 rounded-full border border-line bg-card p-1"
@@ -111,7 +113,11 @@ function Account() {
     <div className="flex items-center gap-1 text-sm">
       <NavLink to="/account" className={navLinkClass}>
         {/* Screen readers hear where the link goes, not only a name. */}
-        <span className="sr-only">Your account:</span> {displayName(auth.user)}
+        <span className="sr-only">Your account:</span>{' '}
+        {/* A long name or address is cut short with "…", not wrapped. */}
+        <span className="inline-block max-w-[12rem] truncate align-bottom">
+          {displayName(auth.user)}
+        </span>
       </NavLink>
       <button
         type="button"
