@@ -169,6 +169,7 @@ export type Database = {
     }
     Functions: {
       ai_spend_this_month: { Args: Record<PropertyKey, never>; Returns: number }
+      erase_my_history: { Args: Record<PropertyKey, never>; Returns: number }
     }
     Enums: {
       [_ in never]: never

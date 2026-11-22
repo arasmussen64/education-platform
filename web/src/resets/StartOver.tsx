@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import { BUTTON, CARD, SECONDARY_BUTTON } from '../components/styles.ts'
 import { topicIdsOf, tracks } from '../content/content.ts'
 import type { Track } from '../content/types.ts'
 import { clearDraftsOfTopics } from '../drafts/drafts.ts'
+import { EventLogContext } from '../events/eventLogContext.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { forgetGuess } from '../nexttime/guesses.ts'
 import { forgetPart } from '../parts/partMemory.ts'
 import { forgetPlace } from '../place/placeMemory.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
+import { eraseHistory } from './erase.ts'
 import {
   everythingResetEvent,
   freshStart,
@@ -21,10 +23,10 @@ const NO_TOPICS: never[] = []
 /**
  * Starting a track over (ADR-0029): one button per track, and a second
  * step that says exactly what goes and what stays before anything happens.
- * Nothing is deleted. The reset is one more event in the learner's log, and
- * from then on the app counts nothing from that track before it. Under the
- * tracks is the same for everything at once, practice hours included
- * (amended 2026-11-22).
+ * For a track nothing is deleted: the reset is one more event in the
+ * learner's log, and from then on the app counts nothing from that track
+ * before it. Under the tracks is "Everything", which is different: it
+ * deletes the whole history for good (amended 2026-11-22).
  */
 export function StartOver() {
   const progress = useProgress(NO_TOPICS)
@@ -35,8 +37,9 @@ export function StartOver() {
       </h2>
       <p className="text-muted">
         Start fresh on a track: every topic in it goes back to not started, as
-        if you'd never studied it. Your history isn't erased, so nothing here
-        can lose work. It just stops counting.
+        if you'd never studied it. A track's history isn't erased; it just stops
+        counting. Starting everything over, at the bottom, is different: it
+        deletes your history for good.
       </p>
       <ul className="space-y-3">
         {tracks().map((track) => (
@@ -67,23 +70,40 @@ function forgetOnThisDevice(topicIds: string[]) {
 }
 
 /**
- * Starting everything over: every track, and what a track's reset keeps
- * (practice hours, weeks, the forgetting curve, how sure the learner is,
- * the math check). The account is as it was on its first day.
+ * Starting everything over: the learner's whole history is deleted from
+ * the database, for good (ADR-0029, amended 2026-11-22). Every track, and
+ * what a track's reset keeps (practice hours, weeks, the forgetting curve,
+ * how sure the learner is, the math check). The account is as it was on
+ * its first day. A track's reset only hides; this is the one thing in the
+ * app that can't be undone, so it says so before anything happens.
  */
 function EverythingRow({ progress }: { progress: ProgressState }) {
-  const record = useRecordEvent()
-  const [asking, setAsking] = useState(false)
-  const [done, setDone] = useState(false)
+  const log = useContext(EventLogContext)
+  const [step, setStep] = useState<
+    'idle' | 'asking' | 'erasing' | 'done' | 'failed'
+  >('idle')
 
   const ready = progress.status === 'ready'
   const lastStart = ready ? freshStart(progress.resets) : undefined
 
-  function startOver() {
-    record(everythingResetEvent())
+  async function startOver() {
+    setStep('erasing')
+    try {
+      // Anything still waiting on this device goes up first, so that it is
+      // deleted with the rest and can't arrive afterwards.
+      await log.sync()
+      await eraseHistory()
+    } catch (error) {
+      console.error('Erasing the history failed', error)
+      setStep('failed')
+      return
+    }
+    // One event marks the fresh start. This page still holds what it read
+    // before the deletion, and another device may yet send an old answer:
+    // nothing from before this moment counts, whatever turns up.
+    log.record(everythingResetEvent())
     forgetOnThisDevice(tracks().flatMap(topicIdsOf))
-    setAsking(false)
-    setDone(true)
+    setStep('done')
   }
 
   return (
@@ -99,24 +119,27 @@ function EverythingRow({ progress }: { progress: ProgressState }) {
           {lastStart && ` · started over ${formatDay(lastStart)}`}
         </p>
       </div>
-      {/* Announced when everything has been started over. */}
+      {/* Announced when everything has been erased, or couldn't be. */}
       <output className="block">
-        {done && (
+        {step === 'done' && (
           <span className="block text-sm">
-            Everything has been started over. Your practice hours and every
-            track begin again from zero.
+            Everything has been erased. Your practice hours and every track
+            begin again from zero.
+          </span>
+        )}
+        {step === 'failed' && (
+          <span className="block text-sm">
+            Your history couldn't be erased, and nothing was changed. Check your
+            connection, then try again.
           </span>
         )}
       </output>
-      {!asking ? (
+      {step !== 'asking' && step !== 'erasing' ? (
         <button
           type="button"
           className={SECONDARY_BUTTON}
           disabled={!ready}
-          onClick={() => {
-            setDone(false)
-            setAsking(true)
-          }}
+          onClick={() => setStep('asking')}
         >
           Start everything over…
         </button>
@@ -125,13 +148,17 @@ function EverythingRow({ progress }: { progress: ProgressState }) {
           <legend className="font-medium">Start everything over?</legend>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              Every topic on every track goes back to not started: proofs,
-              reviews, mistakes coming back and placement results stop counting.
+              <strong>
+                This deletes your history for good. It can't be undone.
+              </strong>{' '}
+              Every answer, Check, review and placement result you've saved is
+              removed from the database.
             </li>
             <li>
-              Your practice hours and weeks go back to zero. Your forgetting
-              curve, your usual answer times, how sure you are against how often
-              you're right, and the math check start again too.
+              Every topic on every track goes back to not started. Your practice
+              hours and weeks go back to zero. Your forgetting curve, your usual
+              answer times, how sure you are against how often you're right, and
+              the math check start again too.
             </li>
             <li>
               Code and explanations you've typed but not checked are cleared
@@ -139,19 +166,26 @@ function EverythingRow({ progress }: { progress: ProgressState }) {
             </li>
             <li>Kept: your study plan and your sign-in.</li>
             <li>
-              Nothing is deleted. Your full history stays in your data, and
-              "Download my data" still includes it. The app just stops counting
-              it.
+              Want a copy first? "Download my data", above, saves all of it as
+              one file.
             </li>
           </ul>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={BUTTON} onClick={startOver}>
-              Yes, start everything over
+            <button
+              type="button"
+              className={BUTTON}
+              disabled={step === 'erasing'}
+              onClick={startOver}
+            >
+              {step === 'erasing'
+                ? 'Erasing…'
+                : 'Yes, delete everything and start over'}
             </button>
             <button
               type="button"
               className={SECONDARY_BUTTON}
-              onClick={() => setAsking(false)}
+              disabled={step === 'erasing'}
+              onClick={() => setStep('idle')}
             >
               Cancel
             </button>
