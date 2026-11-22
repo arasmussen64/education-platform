@@ -10,7 +10,7 @@ import { YOU_ARE_HERE } from './styles.ts'
 // NavLink tells us whether its link matches the current page, so the
 // current page's tab can be highlighted.
 function navLinkClass({ isActive }: { isActive: boolean }) {
-  const base = 'rounded-md px-3 py-2 text-sm'
+  const base = 'rounded-full px-3.5 py-1.5 text-sm'
   return isActive
     ? `${base} ${YOU_ARE_HERE}`
     : `${base} font-medium text-ink hover:bg-line`
@@ -29,14 +29,23 @@ export function Layout() {
       <header
         ref={header}
         tabIndex={-1}
-        className="border-b border-line outline-none"
+        // Stays at the top while the page scrolls, a little see-through,
+        // so the way around is always one click away.
+        className="sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur outline-none"
       >
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
-          <Link to="/" className="text-lg font-semibold">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+          <Link
+            to="/"
+            className="flex items-center gap-2 font-display text-xl font-bold"
+          >
+            <Mark />
             {APP_NAME}
           </Link>
           <div className="flex flex-wrap items-center gap-3">
-            <nav aria-label="Main" className="flex gap-1">
+            <nav
+              aria-label="Main"
+              className="flex gap-1 rounded-full border border-line bg-card p-1"
+            >
               <NavLink to="/" end className={navLinkClass}>
                 Today
               </NavLink>
@@ -61,6 +70,26 @@ export function Layout() {
       </main>
       <BackToTop focusTarget={() => header.current} />
     </div>
+  )
+}
+
+/**
+ * The app's mark: the favicon's switchback trail, lime on pine. It only
+ * decorates the name beside it, so screen readers skip it.
+ */
+function Mark() {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true" className="h-7 w-7 shrink-0">
+      <rect width="32" height="32" rx="8" fill="#1b2620" />
+      <path
+        d="M8 26 L24 21 L9 15 L23 10 L12 5"
+        fill="none"
+        stroke="#a3e635"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
 
@@ -92,7 +121,7 @@ function Account() {
             // the honest state, so there's nothing else to do here.
           })
         }}
-        className="rounded-md px-3 py-2 font-medium text-ink hover:bg-line"
+        className="rounded-full px-3.5 py-1.5 font-medium text-muted hover:bg-line hover:text-ink"
       >
         Sign out
       </button>

@@ -27,7 +27,7 @@ export function PlaygroundPage() {
   return (
     <div className="space-y-10">
       <section>
-        <h1 className="text-2xl font-bold">Playground</h1>
+        <h1 className="text-3xl font-bold sm:text-4xl">Playground</h1>
         <p className="mt-2 text-muted">
           Write and run Python right in your browser. Nothing here is saved yet.
         </p>

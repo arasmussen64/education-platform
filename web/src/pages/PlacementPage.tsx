@@ -78,7 +78,7 @@ export function PlacementPage() {
   return (
     <section className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-2xl font-bold">Placement test</h1>
+        <h1 className="text-3xl font-bold sm:text-4xl">Placement test</h1>
         <p className="text-muted">
           Already know some of this? The placement test finds where your
           knowledge runs out, so you can start there. It picks a topic in the

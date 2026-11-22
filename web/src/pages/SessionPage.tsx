@@ -43,7 +43,7 @@ export function SessionPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-3xl font-bold sm:text-4xl">
           {quick ? 'Just 5 minutes' : "Today's session"}
         </h1>
         <p className="text-muted">

@@ -25,7 +25,7 @@ export function AccountPage() {
   return (
     <section className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-2xl font-bold">Your account</h1>
+        <h1 className="text-3xl font-bold sm:text-4xl">Your account</h1>
         {auth.status === 'signed-in' && (
           <p className="text-muted">Signed in as {displayName(auth.user)}.</p>
         )}

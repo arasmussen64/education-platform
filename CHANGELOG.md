@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+
+- A visual lift across the app, inside the Momentum design (same colours, fonts and the rule that lime means "forward"). Cards are rounder with a soft shadow; buttons, fields and links share one focus ring and ease on hover; page titles are larger; the header stays at the top of the window and carries the app's mark. Progress bars and memory bars are drawn the same in every browser (a rounded track, a lime fill, amber for a memory under its target) instead of the browser's grey ones.
+- Today opens on the date and a session card with the day's numbers large (reviews due, mistakes back, minutes). "Next up" and "Practice hours" are a grid of cards, one per track, each with a progress bar.
+- The map's topics are cards with a status label (lime for Learned, Mastered and Passed), and each module shows a bar for how much of it is proven.
+
 ### Added
 
 - Start everything over, on the Account page under the tracks ([ADR-0029](docs/decisions/0029-starting-a-track-over.md), amended 2026-11-22). Starting a track over keeps your practice hours, weeks, forgetting curve and calibration; this sets those back to zero too, along with every track and the math check. Nothing is deleted: it is one more event, and the app counts nothing from before it. "Download my data" still includes the full history.
@@ -32,6 +38,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- Tables in lessons and questions are drawn as tables. Plain Markdown has none, so 41 lessons showed theirs as a paragraph of `|` characters. Only tables were added to the parser, so nothing else in a lesson reads differently.
 - A lesson's glossary links now come only from its own track. Before, a word was linked to its definition wherever any ready topic defined it, so a Python lesson's "frame" would have shown the networking definition and a decision-tree lesson's "forest" the Active Directory one.
 - Two Python worked examples told the learner to open Python Tutor on another site; they now point at the app's own Step through.
 - `csa.linux.triage`'s typed question on counting system calls now accepts `strace -c -w`, the form that times a waiting process: by its manual, plain `-c` counts only processor time inside the kernel.

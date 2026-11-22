@@ -1,7 +1,14 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, useLocation, useParams } from 'react-router'
 import { FoundationsList } from '../components/FoundationsList.tsx'
-import { SECONDARY_BUTTON, YOU_ARE_HERE } from '../components/styles.ts'
+import {
+  BAR_FILL,
+  BAR_TRACK,
+  CHIP,
+  DONE_CHIP,
+  SECONDARY_BUTTON,
+  YOU_ARE_HERE,
+} from '../components/styles.ts'
 import {
   getTopic,
   getTrack,
@@ -106,10 +113,10 @@ function TrackHeader({
   children?: ReactNode
 }) {
   return (
-    <header className="space-y-2">
-      <h1 className="text-2xl font-bold">Topic map</h1>
+    <header className="space-y-3">
+      <h1 className="text-3xl font-bold sm:text-4xl">Topic map</h1>
       <TrackSwitcher current={track} />
-      <p className="text-muted">
+      <p className="max-w-2xl text-muted">
         <span className="font-medium">{track.title}:</span> {track.summary}
       </p>
       <p className="text-sm">
@@ -211,10 +218,10 @@ function TrackSwitcher({ current }: { current: Track }) {
               // current one with aria-current="page".
               to={index === 0 ? '/map' : `/map/${track.id}`}
               end
-              className={`inline-block rounded-full border px-3 py-1 text-sm ${
+              className={`inline-block rounded-full border px-4 py-1.5 text-sm ${
                 track.id === current.id
                   ? YOU_ARE_HERE
-                  : 'border-line-strong hover:bg-sunken'
+                  : 'border-line-strong bg-card font-medium hover:bg-sunken'
               }`}
             >
               {track.title}
@@ -286,6 +293,17 @@ function ModuleSection({
             </p>
           )}
         </div>
+        {count && count.open > 0 && (
+          // The count beside the heading says the same.
+          <div aria-hidden="true" className={`max-w-xs ${BAR_TRACK}`}>
+            {count.proven > 0 && (
+              <div
+                className={BAR_FILL}
+                style={{ width: `${(100 * count.proven) / count.open}%` }}
+              />
+            )}
+          </div>
+        )}
         {foundations && foundations.topics.length > 0 && (
           <FoundationsList
             track={track}
@@ -315,7 +333,7 @@ function ModuleSection({
 function UnknownTrack() {
   return (
     <section className="space-y-3">
-      <h1 className="text-2xl font-bold">No such track</h1>
+      <h1 className="text-3xl font-bold sm:text-4xl">No such track</h1>
       <p>
         There's no track at this address.{' '}
         <Link to="/map" className="underline">
@@ -348,6 +366,9 @@ function ProgressStatus({ state }: { state: ProgressState }) {
   }
   return null
 }
+
+/** The states whose label is drawn as a progress fill: proven and kept. */
+const DONE_STATES = new Set<TopicState>(['learned', 'mastered', 'passed'])
 
 // Never color alone: each state has an icon and a word (F9).
 const AVAILABILITY = {
@@ -414,18 +435,21 @@ function TopicRow({
   const memory = progress?.card ? memoryPercent(progress.card, now) : null
   return (
     <li
-      className={`rounded-lg border p-3 ${
-        open ? 'border-line-strong bg-card' : 'border-line'
+      // The whole row lifts under the pointer; the title is the link.
+      className={`rounded-xl border px-4 py-3 ${
+        open
+          ? 'border-line bg-card shadow-card hover:border-line-strong'
+          : 'border-dashed border-line-strong'
       }`}
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <Link
           to={`/topic/${topic.id}`}
-          className="font-medium underline-offset-2 hover:underline"
+          className="font-display text-lg font-semibold underline-offset-2 hover:underline"
         >
           {topic.title}
         </Link>
-        <span className="text-sm text-muted">
+        <span className={state && DONE_STATES.has(state) ? DONE_CHIP : CHIP}>
           <span aria-hidden="true">{shown.icon} </span>
           {shown.label}
         </span>

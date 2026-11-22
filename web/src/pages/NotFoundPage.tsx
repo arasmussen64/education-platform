@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 export function NotFoundPage() {
   return (
     <section>
-      <h1 className="text-2xl font-bold">Page not found</h1>
+      <h1 className="text-3xl font-bold sm:text-4xl">Page not found</h1>
       <p className="mt-2 text-muted">
         There is nothing at this address.{' '}
         <Link to="/" className="underline">
