@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
+- "Start everything over" now deletes your history for good ([ADR-0029](docs/decisions/0029-starting-a-track-over.md), second amendment), where before it hid it. The button says it can't be undone and points at "Download my data" first. It works on the live site once the migration `20261122200000_erase_my_history.sql` is applied there; until then it says it couldn't erase and changes nothing. Starting one track over is unchanged.
 - Today explains itself less. Each section keeps the line that says what to do; the reasons (the order of the day, how reviews and memory work, how times are stretched to your pace, what practice hours count) moved into one "How this works" box at the bottom of the page, closed until opened.
 - A visual lift across the app, inside the Momentum design (same colours, fonts and the rule that lime means "forward"). Cards are rounder with a soft shadow; buttons, fields and links share one focus ring and ease on hover; page titles are larger; the header stays at the top of the window and carries the app's mark. Progress bars and memory bars are drawn the same in every browser (a rounded track, a lime fill, amber for a memory under its target) instead of the browser's grey ones.
 - Today opens on the date and a session card with the day's numbers large (reviews due, mistakes back, minutes). "Next up" and "Practice hours" are a grid of cards, one per track, each with a progress bar.

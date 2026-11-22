@@ -47,3 +47,14 @@ The owner started every track over the day after this was accepted, saw the Toda
 - **On the device,** every topic's drafts, last part and place, and any guess waiting for its answer are cleared.
 
 In code, `ProgressState.allAttempts` now means every attempt since the learner last started everything over, so its readers (hours, weeks, the review limit, answer times, the curve) follow without changes of their own. `wasReset` answers yes for anything before that time, whatever its track. The calibration summary reads answers from that time on.
+
+## Second amendment, 2026-11-22: starting everything over deletes
+
+The first amendment hid the history behind one event and kept every row. The owner read that and answered: "with the deletion make it a true deletion." So starting everything over now **deletes the learner's events from the database, for good**. Starting a single track over is unchanged: it hides, and can be undone in code.
+
+- **One function does it:** `public.erase_my_history()` (migration `20261122200000`). It deletes the events of whoever calls it, all of them, and nothing else; it takes no arguments, and its permission to delete lasts only for its own transaction. Learners still have no right to delete events themselves, and an admin's plain `delete` is still refused.
+- **An exception to [ADR-0008](0008-event-log.md) and to the training-data rule,** made on purpose: a learner's history is theirs to erase. The cost is real and accepted: the deleted answers and reviews are gone as training data, and no code change can bring them back.
+- **The button says so first:** that it can't be undone, and that "Download my data" saves a copy.
+- **The marker event stays.** After the deletion the app records the same `track_reset` for `everything` as before. It is the only event left, and it covers what the deletion can't reach: an old answer still waiting on another device, which would otherwise arrive later and count.
+- **What isn't deleted:** the profile and sign-in, problem reports (messages to the owner), and `ai_calls`, the spending ledger the monthly cap is counted from ([ADR-0013](0013-explain-grading.md)). The weekly backup files made before the deletion still hold the old events until they age out.
+- **If it fails** (no connection, or the migration not yet applied to the live database), the page says so and changes nothing.

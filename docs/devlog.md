@@ -2,6 +2,21 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, late: starting everything over is a true deletion
+
+**What the owner asked.** "with the deletion make it a true deletion", after reading that the first version only hid the history.
+
+**What changed.** The Account page's "Everything" row now deletes the learner's events from the database. A new database function, `erase_my_history()`, is the only way: it deletes the caller's own events, takes no arguments, and its permission ends with its transaction. The page sends anything still waiting on the device, calls the function, then records the one marker event and clears the device's drafts and places. The confirm step says in bold that it can't be undone and points at "Download my data". ADR-0029 has a second amendment, and CLAUDE.md's append-only rule names this one exception.
+
+**Checked.** Eight new database tests on the local database (only the caller's rows go; another learner's stay; a visitor can't call it; a learner and an admin still can't delete directly afterwards). Three web tests (Cancel deletes nothing; success deletes, then marks, then clears the device; failure changes nothing and says so).
+
+**Author notes:**
+
+- _The live database needs the migration applied by the owner._ Merging deploys the page but not the function. Until then the button fails safely with a message. It is in the owner queue.
+- _The marker event is kept on purpose._ Without it, an old answer still in another device's outbox would arrive after the deletion and count.
+- _Not deleted:_ the AI spending ledger (the monthly cap is counted from it), problem reports, the profile. Backups made before the deletion still contain the old events.
+- _Owed from earlier today:_ pull request #355 (Today's shorter explanations) was merged seconds after it opened, before its checks had started, because my gate treated "no checks listed yet" as "none failing". The checks passed afterwards and nothing broke. The gate now needs at least five checks listed, none failing, and never runs in the command that opens the pull request.
+
 ## 2026-11-22, night: Today explains itself less
 
 **What the owner asked.** "cut down the explanations." (The question was in the queue from the visual lift.)

@@ -12,6 +12,14 @@ The short list of things only the owner can do or decide. It replaces the "Decis
 
 ## Open
 
+### 0. Apply the erase-history migration to the live database
+
+You asked for "Start everything over" to delete for real. The page is live once this merges, but the database function it calls (`erase_my_history()`, migration `20261122200000_erase_my_history.sql`) reaches the live database only when you say so.
+
+- **Step:** say "push it" and Claude runs `npx supabase db push --remote --dry-run` (it should list exactly that one migration), then applies it. Or run those two yourself.
+- **Recommendation:** yes, then press the button. Download your data first if you want a copy: the deletion can't be undone.
+- **Holds up:** the true deletion. Until then the button says it couldn't erase and changes nothing.
+
 ### 1. Check the $10 spending limit in the Anthropic Console
 
 The AI proxy's fixes went live on 2026-11-21 (see _Answered_). One step of that item was always yours: in the Anthropic Console, check that the $10 monthly spending limit is set. It's the backstop [ADR-0013](decisions/0013-explain-grading.md) names, and nothing records it as set.
@@ -49,7 +57,6 @@ Module 2 is complete without them: every topic is proven locally, for free. Thes
 Made under your message of 2026-11-11. Say the word to overturn any of them.
 
 - **2026-11-21, readings shown inside the app** ([ADR-0031](decisions/0031-lessons-inside-the-app.md), the order is yours: video, then the page's text, then our own). The judgement calls: a reading's text is copied only under a licence that allows it (Creative Commons BY, BY-SA, BY-NC, BY-NC-SA; the Python docs' licence; BSD, MIT, Apache, GPL and the GNU documentation licence; US government pages). "No derivatives" and "all rights reserved" pages stay links. **One thing to keep in mind:** much of the copied text is "non-commercial" (OpenStax, Runestone, DigitalOcean, MIT's Missing Semester). That is fine while the app is free. If it ever charges money or shows adverts, those copies have to go back to links first.
-- **2026-11-22, starting everything over hides history, it doesn't delete it** ([ADR-0029's amendment](decisions/0029-starting-a-track-over.md#amendment-2026-11-22-starting-everything-over)). You asked to wipe everything. The Account page's new "Everything" row sets every track, your practice hours and weeks, the forgetting curve, calibration and the math check back to zero by recording one event; the old events stay in the database, uncounted, and in "Download my data". Deleting the rows themselves would break the append-only rule and can't be undone, so I didn't. If you want them truly gone, say so and I'll write the step for you to run.
 - **2026-11-21, what starting a track over keeps** ([ADR-0029](decisions/0029-starting-a-track-over.md), accepted by you the same day). The track's topics go back to not started, but practice hours and weeks, the day's review limit, usual answer times, the forgetting curve, confidence calibration and the math diagnostic stay, because they describe you rather than the track. Nothing is deleted from your history.
 - **2026-11-16, how the four-expert plan was built.** You asked for every recommendation to be built (#293 to #318). The judgement calls, each with its reason in the devlog entries of 2026-11-16:
   - _Your study plan and the puzzle's guess stay on this device._ Syncing the plan would need a database migration, which is yours to push; the guess is never graded or saved.
