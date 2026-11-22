@@ -71,6 +71,28 @@ describe('calibration (ADR-0028)', () => {
     ])
   })
 
+  it('leaves out answers from before the learner started everything over', () => {
+    const rows = [
+      eventRow({
+        id: 'old',
+        type: 'answer',
+        correct: true,
+        data: { confidence: 'sure' },
+        occurred_at: '2026-11-20T12:00:00.000Z',
+      }),
+      eventRow({
+        id: 'new',
+        type: 'answer',
+        correct: false,
+        data: { confidence: 'fair' },
+        occurred_at: '2026-11-22T12:00:00.000Z',
+      }),
+    ]
+    expect(localRatedAnswers(rows, '2026-11-21T00:00:00.000Z')).toEqual([
+      { id: 'new', confidence: 'fair', correct: false },
+    ])
+  })
+
   it('counts an answer saved and still on this device once', () => {
     const saved = answers('fair', 1, 0)
     expect(mergeRated(saved, saved)).toHaveLength(1)

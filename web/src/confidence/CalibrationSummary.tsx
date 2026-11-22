@@ -1,5 +1,11 @@
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useState, useSyncExternalStore } from 'react'
 import { EventLogContext } from '../events/eventLogContext.ts'
+import {
+  fetchResets,
+  freshStart,
+  latestResets,
+  localResets,
+} from '../resets/resets.ts'
 import {
   calibration,
   FEWEST_ANSWERS,
@@ -19,17 +25,28 @@ type State =
  * How well the learner's confidence matches their answers (ADR-0028): for
  * each level they've used enough, how often they were right. Read from
  * their own answer events, saved and still on this device. Knowing what you
- * know is a skill, and the numbers are how a learner sees it.
+ * know is a skill, and the numbers are how a learner sees it. Answers from
+ * before the learner started everything over aren't counted (ADR-0029).
  */
 export function CalibrationSummary() {
   const log = useContext(EventLogContext)
   const [state, setState] = useState<State>({ status: 'loading' })
+  // Starting everything over on this page, a moment ago, counts at once:
+  // the effect below runs again when this time changes.
+  const localRows = useSyncExternalStore(log.subscribe, log.getLocalRows)
+  const startedHere = freshStart(latestResets(localResets(localRows)))
 
   useEffect(() => {
     let current = true
-    fetchRatedAnswers()
-      .then((saved) => {
-        const here = localRatedAnswers(log.getLocalRows())
+    fetchResets()
+      .then(async (saved) => {
+        const since = freshStart(
+          latestResets(saved, localResets(log.getLocalRows())),
+        )
+        return { since, saved: await fetchRatedAnswers(since) }
+      })
+      .then(({ since, saved }) => {
+        const here = localRatedAnswers(log.getLocalRows(), since)
         if (current)
           setState({ status: 'ready', answers: mergeRated(saved, here) })
       })
@@ -43,7 +60,7 @@ export function CalibrationSummary() {
     return () => {
       current = false
     }
-  }, [log])
+  }, [log, startedHere])
 
   return (
     <section aria-labelledby="calibration" className="space-y-3">

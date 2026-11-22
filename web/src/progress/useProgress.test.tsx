@@ -111,6 +111,17 @@ describe('useProgress', () => {
     expect(progress.resets.get('python-foundations')).toBe(day(11))
   })
 
+  it('counts nothing at all from before everything was started over, the hours included', async () => {
+    // ADR-0029, amended 2026-11-22.
+    vi.mocked(fetchResets).mockResolvedValueOnce([
+      { track: 'everything', occurred_at: day(11) },
+    ])
+    const progress = await ready(async () => MASTERED)
+    expect(stateOf(PRINT, progress.progress, day(12))).toBe('available')
+    expect(progress.attempts).toEqual([])
+    expect(progress.allAttempts).toEqual([])
+  })
+
   it('counts what was done after the reset', async () => {
     vi.mocked(fetchResets).mockResolvedValueOnce([
       { track: 'python-foundations', occurred_at: day(-1) },

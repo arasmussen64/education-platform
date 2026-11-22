@@ -75,10 +75,18 @@ function rated(
   return { id, confidence, correct }
 }
 
-/** The rated answers among events this browser holds (not yet saved). */
-export function localRatedAnswers(rows: EventRow[]): RatedAnswer[] {
+/**
+ * The rated answers among events this browser holds (not yet saved). With
+ * `since`, only those from that time on: the learner started everything
+ * over then (ADR-0029).
+ */
+export function localRatedAnswers(
+  rows: EventRow[],
+  since?: string,
+): RatedAnswer[] {
   return rows.flatMap((row) => {
     if (row.type !== 'answer') return []
+    if (since !== undefined && row.occurred_at < since) return []
     const data =
       row.data !== null &&
       typeof row.data === 'object' &&
@@ -95,17 +103,22 @@ const PAGE_SIZE = 1000
 
 /**
  * Every answer the signed-in learner gave with a confidence, from the
- * server. Row-level security means it can only read their own events.
+ * server. With `since`, only those from that time on. Row-level security
+ * means it can only read their own events.
  */
-export async function fetchRatedAnswers(): Promise<RatedAnswer[]> {
+export async function fetchRatedAnswers(
+  since?: string,
+): Promise<RatedAnswer[]> {
   const answers: RatedAnswer[] = []
   for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await getSupabase()
+    let query = getSupabase()
       .from('events')
       .select('id, correct, confidence:data->>confidence')
       .eq('type', 'answer')
       .not('correct', 'is', null)
       .not('data->>confidence', 'is', null)
+    if (since !== undefined) query = query.gte('occurred_at', since)
+    const { data, error } = await query
       .order('occurred_at')
       .order('id')
       .range(from, from + PAGE_SIZE - 1)

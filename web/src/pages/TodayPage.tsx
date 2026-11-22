@@ -449,7 +449,8 @@ function PracticeHours({
 }) {
   if (progress.status !== 'ready') return null
   // Every attempt, from before a track was started over too: the hours
-  // happened, and starting over doesn't take them back (ADR-0029).
+  // happened, and starting a track over doesn't take them back (ADR-0029).
+  // Starting everything over does: allAttempts then begins there.
   const all = practiceTime(progress.allAttempts, now)
   const split = practiceTimeByTrack(
     progress.allAttempts,

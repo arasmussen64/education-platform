@@ -45,6 +45,6 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0026](0026-lesson-building-blocks.md)       | Lesson building blocks: questions, a puzzle, a real incident, a glossary | Accepted (2026-11-21, with its amendments) |
 | [0027](0027-typed-answers.md)                | Typed answers, a command or a term recalled and typed                    | Accepted (2026-11-21, with its amendments) |
 | [0028](0028-confidence-before-the-answer.md) | Saying how sure you are, as part of answering                            | Accepted (2026-11-21, with its amendments) |
-| [0029](0029-starting-a-track-over.md)        | Starting a track over, as one more event                                 | Accepted (2026-11-21)                      |
+| [0029](0029-starting-a-track-over.md)        | Starting a track over, as one more event                                 | Accepted (2026-11-21), amended 2026-11-22  |
 | [0030](0030-reasons-to-come-back.md)         | Reasons to come back: a question, a moment, memory, difficulty           | Accepted                                   |
 | [0031](0031-lessons-inside-the-app.md) | Lessons inside the app: play the video, show the reading, or write our own | Accepted |
