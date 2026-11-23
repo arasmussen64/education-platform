@@ -1,0 +1,46 @@
+#!/usr/bin/python3
+"""lab-flip FILE OLD NEW: changes the first OLD in FILE to NEW, in place.
+
+The careless attacker of the audit labs: it overwrites bytes inside a file
+(a copy of a journal file, say) and touches nothing else, so the file keeps
+its size and everything around the change. OLD and NEW must be the same
+length. Prints the position it changed.
+
+    sudo lab-flip ~/example/copy.journal amount=19.99 amount=91.99
+"""
+
+import sys
+
+
+def flip(data: bytes, old: bytes, new: bytes) -> tuple[bytes, int]:
+    """data with its first old replaced by new, and where that was."""
+    if len(old) != len(new):
+        raise ValueError("OLD and NEW must be the same length")
+    if not old:
+        raise ValueError("OLD is empty")
+    at = data.find(old)
+    if at < 0:
+        raise LookupError("OLD isn't in the file")
+    return data[:at] + new + data[at + len(old) :], at
+
+
+def main() -> None:
+    if len(sys.argv) != 4:
+        print("usage: lab-flip FILE OLD NEW   (OLD and NEW the same length)", file=sys.stderr)
+        sys.exit(2)
+    path, old, new = sys.argv[1], sys.argv[2].encode(), sys.argv[3].encode()
+    try:
+        with open(path, "rb") as file:
+            data = file.read()
+        changed, at = flip(data, old, new)
+        with open(path, "r+b") as file:
+            file.seek(at)
+            file.write(new)
+    except (OSError, ValueError, LookupError) as error:
+        print(f"lab-flip: {error}", file=sys.stderr)
+        sys.exit(1)
+    print(f"changed {len(new)} bytes at position {at}")
+
+
+if __name__ == "__main__":
+    main()
