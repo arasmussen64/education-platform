@@ -57,6 +57,49 @@ Each topic is written by one helper from the plan, the build notes and its desig
 - _I read every writer's and reviewer's report and did not re-read the topics myself._ The owner is still each topic's first human reader.
 - _CI time is above the plan's:_ the reviews added wrong-answer scripts, each a container start. The lab-seconds file is refreshed from a full run when the module ends.
 
+## 2026-11-24, cloud Module 4: the second wave
+
+Four topics, written and attacked as wave 1's were. The owner said on 2026-11-23: "After module 4 is done then stop building for the time being", and later "continue until module 4 is completely done".
+
+**Secrets** (`csa.sec.secrets`). Five labs on the `vault` base, a 5,500-word lesson (it also teaches the little git it uses; no earlier topic does), 29 quick questions.
+
+- _Ten shortcuts passed._ In the build: a credentials file any user could read, an old password still working after a rename, a wildcard policy path, a second sign-in route that takes any workload, and a never-ending token dressed as a short-lived one. In the push guard: a hook that read only the first line of a push, one that waved deleted branches through, one that scanned branches but not tags. In the debug: debug logging left on behind a filter, and a key file readable by the learner's group.
+- _A false claim in the lesson._ It said a server-side push guard "can't be" got round. The reviewer pushed a secret past the model guard seven ways (an "allow" comment, a vendored folder, a renamed file, a merge commit, a split key, base64, a commit message). The lesson now says what such a guard catches and what it does not; the hook itself was left as the lesson's example, not hardened.
+- _The labs' own set-up scripts passed secrets as command arguments,_ the very habit the topic warns against. Fixed. The writer also found that `runuser` writes its whole command line to the journal, and the lesson teaches it.
+- _Public repository:_ gitleaks finds nothing in the topic or its commits; planted secrets are assembled from pieces at build.
+
+**Certificates and PKI** (`csa.sec.pki`). Five labs on the network base, a 4,200-word lesson, 28 quick questions.
+
+- _The worst find of the wave:_ in the reference build, a certificate signed directly by the root got in, under any name. The writer had reported that an issuer test could not be proved by a check; the reviewer showed it could (the check holds the root's key) and closed it in the build and the debug.
+- _Five more build shortcuts now fail:_ a ten-year certificate, a revocation with no reason, an older certificate for a lost key left valid, a timer that starts the wrong service, and a timer that never runs after a boot. The script lab could be passed by reading folder names; they are random now.
+- _Left open and stated:_ a sibling authority under the same root is refused only because the server holds no revocation list from it; no check can prove more by behaviour.
+- _A tool fault:_ openssl's OCSP responder spins a core forever after a bare port probe. No check, solution or prompt does that; the units cap it and the prompts say how to restart it. Module 3's `csa.net.http-tls` has the same exposure (noted, not changed).
+
+**Compliance basics** (`csa.sec.compliance`). Five labs on the `pay` base with OpenSCAP, a 4,400-word lesson, 32 quick questions, NIST's CSF 2.0 announcement copied in.
+
+- _Sources._ The writer could not open several primary sources and used secondary accounts. The reviewer reached the UK ICO's penalty notice through the Internet Archive and retold the story from it, and reached GDPR, CMMC, PCI DSS v4.0.1's announcement, FedRAMP and NIST at source. Still one step removed: ISO 27001's control counts, the PCI DSS requirement texts (the official library refuses), SOC 2 Type 2's wording. Nothing of PCI DSS is quoted word for word.
+- _Six shortcuts passed and now fail:_ a results file listing every rule as both pass and fail; a scan typed from memory; password rules passing with enforcement off; the journal's folder linked to `/run`; earlier audit work broken; an exception whose compensating control is "none".
+- _A judgement call left in:_ the fill-in's scope check says which system is wrong, so it can be guessed; the checkpoint must not do the same.
+
+**SAML, OAuth 2.0 and OIDC** (`csa.sec.federation`), the first topic on the identity base. Six labs, a 5,100-word lesson, 44 quick questions; it owns the "Before your first identity lab" onboarding.
+
+- _All three mechanisms nobody had run on the base work:_ SAML with metadata made at build, SCIM with a service client's token, the device grant.
+- _The hole the writer left open is closed:_ a new root-only `resign-token` signs altered copies of a real token with the realm's own key, so checks show the API a genuine signature on a made-up audience, a lookalike issuer, an expired token and last year's key. Four build shortcuts (an API checking who asked rather than who the token is for, one guarded path, a shared secret, a secret in a world-readable file) now fail.
+- _The story_ (Storm-0558) made two claims the Cyber Safety Review Board's report does not support; rewritten from the report.
+- _On CI all six labs passed,_ 150 to 520 seconds each, with four labs at once.
+
+**Two base defects, found by the federation writer and fixed in the base** (#376): `realm-saved` (see the changelog) and a settings file that could not be applied. The fixer also found that `realm-saved` never compared client secrets. The federation labs' per-lab workaround was removed when the topic landed, and two of its labs were run again without it.
+
+**A Module 1 lab that reached the internet.** On #377's lab run, `csa.linux.boot/debug-wont-come-up` took over eight minutes to boot: cloud-init rewrote apt's sources to Ubuntu's public mirrors at first boot, undoing the image's local-only repository, and a mirror was slow. Confirmed both ways (19 contacts with Ubuntu's servers before, 0 after) and fixed for the five labs that share the file (#378).
+
+**The model changed mid-wave.** The session's model reached its usage limit on 2026-11-23 and the owner switched to Opus 5.5. A stopped helper resumes only on its own model, so the two wave-3 writers' unfinished work was committed as it stood and new helpers took it over, verifying everything before using it.
+
+**Author notes:**
+
+- _Wave 3 and the checkpoint run together._ Everything Checkpoint 4 builds on was written, so its writer started beside the last two topics rather than after them.
+- _CI time keeps growing:_ the reviews add wrong-answer scripts and the identity labs are heavy. The lab-seconds file is refreshed from a full run when the module ends.
+- _I read every report and did not re-read the topics myself._
+
 ## 2026-11-23, cloud Module 4: the identity base on CI
 
 **The failure.** The identity base's probe lab failed on GitHub's runners and never on the PC it was built on. A draft pull request (#364) that printed the services' own logs showed why: libfaketime, the tool that gives one lab machine a shifted clock, said `sem_open failed ... Permission denied` for a small semaphore file it keeps under `/dev/shm`, and exited. Every program started on a machine with its own clock loads the tool, so every one of them died at start; the time service was only the first to be reported.
