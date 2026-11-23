@@ -1,0 +1,46 @@
+id: example-follow-the-leaks
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Follow the leaks"
+prompt: |
+  The shop's server, the morning after its payment gateway sent a warning: last night the shop's API key was used from an address that isn't the shop's. Somewhere, the key got out. This walkthrough finds everywhere it leaked, makes it worthless, and then sets up the kind of secret that can't leak for long.
+
+  OpenBao runs on this server, as in Applied cryptography; that topic's first lab, `example-seal-an-order`, has a "Before your first key-service lab" note with its basics (`bao`, paths, tokens, policies). Read it first if you skipped it. What else is here:
+
+  - **The payment gateway**, a stand-in for an outside company's API, at `127.0.0.1:9440`. A program pays with an API key that looks like `pg_live_` and 32 letters and digits. The gateway lets the shop have two active keys at a time. **`payctl`** is the shop's tool for its account there: `payctl keys`, `payctl new`, `payctl revoke ID`, `payctl uses` (the gateway's own record of every use), and `payctl check`, which says whether the key on its standard input still works. `payctl` fetches the gateway's admin key from OpenBao each time, where it is kept at `secret/paygate/admin`.
+  - **The shop's git server**, the repository `/srv/git/shop.git`. git is a tool that keeps every version of a folder of files; the lesson has the minimum, and the first step here shows it.
+  - **A container image**, `shop-export:1`, in which the export job was shipped last year. The lab has **podman**, a tool with docker's commands (`podman build`, `podman history`, `podman save`); here it needs `sudo`.
+  - **A demo of the export job**, `shop-demo.service`, which somebody left running as the user `export`. It charges a test order every 20 seconds.
+  - **PostgreSQL**, with a database `shop` and its `orders` table, for the last part.
+
+  Every key in this lab was made when the lab first started and guards nothing but the lab. Type each line yourself and read what it prints before you type the next. Lines that end in `|| true` are meant to fail: read the error.
+steps:
+  - label: "The history keeps everything"
+    lines: "1-6"
+    note: "`git clone` copies the whole repository, with its history, into `~/shop`, and `git log --oneline` lists the history: five **commits**, newest first, each a saved state of every file with a short name (`62083d5`; yours differ) and a message. Line 2 looks at the files as they are now: no `config` folder, and `grep` finds no key. Line 3 has **gitleaks** scan every commit, with the shop's settings: one finding, by the rule `paygate-key`, in `config/paygate.env`, in the commit `Add the gateway settings`. The next commit deleted that file, and the file is still in the commit before it, in this clone and in every clone anyone ever made. Line 4 asks git which commit added the file; line 5 prints the file as that commit has it (`git show COMMIT:PATH`), cut to 24 columns so the key isn't spread over your screen. Line 6 takes the key out of the old commit and asks the gateway: `200: key k1 is active`. A key deleted months ago, still in the history, still working."
+  - label: "An image keeps everything too"
+    lines: "7-10"
+    note: "`podman history` lists the build steps of the image, newest first. The image was built with `--build-arg PAYGATE_KEY=...`, and the step that used it carries the argument in front: `|1 PAYGATE_KEY=pg_live_...`. Anyone who has the image has that line. Line 8 saves the image as a tar archive and unpacks it: one `.tar` per **layer**, the files one build step added or changed. Line 9 lists each layer's files and keeps the lines about `deploy.token`: one layer holds `tmp/deploy.token`, and another holds `tmp/.wh.deploy.token`, the whiteout that hides the file from then on (Containers taught it). The recipe copied the token in and deleted it in the next step: deleted from the image's final view, and still in the earlier layer. Line 10 reads it straight out of that layer."
+  - label: "Who can read a running job's secret"
+    lines: "11-15"
+    note: "Line 11: you are not `export`, and `ps` shows you the demo job's whole command line, key included. Every user of the machine can do this. Line 12 shows why: `/proc/PID/cmdline` is `-r--r--r--`, readable by all, and `/proc/PID/environ`, the process's environment, is `-r--------`, readable by its own user. So line 13 fails for you, `Permission denied`, and line 14, as root, prints `PAYGATE_KEY=pg_live_...`: the job's environment holds the key too, for root, for the job's own user, and for every program the job starts. Line 15 is the worst of the three: the key was put in the service's unit file with `Environment=`, unit files are readable by all, and `systemctl show` prints it for `audit`, a user with no rights at all."
+  - label: "The journal"
+    lines: "16-17"
+    note: "The demo job logs at debug level, and its debug lines print each request with its `Authorization` header. Line 16 counts the journal lines that hold the key, and the count grows every 20 seconds. You can read them because you are in the group `adm`; so can everyone else in it, and every system the journal is shipped to."
+  - label: "Make the key worthless"
+    lines: "18-22"
+    note: "Four places, and no way to know who has read them. Cleaning them up comes second, because none of the copies can be called back. First the key must stop working. `payctl keys` shows the shop's one key, `k1`. `payctl uses` is the gateway's record, and line 19 keeps the lines that didn't come from this machine: three charges last night from `203.0.113.50`. Line 20 makes a second key and stores it in OpenBao in one pipe: `payctl new` prints `ID KEY`, `cut` keeps the key, and `bao kv put secret/paygate/shop-key key=-` reads the value from standard input (`-`). The new key was never on your screen, in a file, or on a command line. Line 21 **revokes** `k1`. Line 22 asks the gateway about both: the leaked key gets `401: key k1 has been revoked`, and the one in OpenBao `200: key k2 is active`."
+  - label: "Stop the leaking job, and what didn't need doing"
+    lines: "23-24"
+    note: "The demo job would leak any key it was given, so it is stopped for good (`disable --now`); the debug lab repairs a job like it properly. Line 24 looks at the old commit once more. The key is still there, and always will be: nobody rewrote the history, hunted down clones or deleted the image. It no longer matters, because the key opens nothing. `unset key` drops your shell's copy."
+  - label: "A password nobody has to keep: set up"
+    lines: "25-28"
+    note: "The database's admin left OpenBao an account, `bao_admin`, whose password is in OpenBao's key-value store at `secret/db/admin`. Line 25 switches on OpenBao's **database engine**. Line 26 tells it how to reach the database: the plugin for PostgreSQL, the connection address with places for a user name and a password, which roles may use this connection, and the admin account, its password read from a pipe again (`password=-`). Line 27, `rotate-root`, has OpenBao change that account's password to one only OpenBao knows: the copy in `secret/db/admin` no longer works, for anyone. Line 28 makes a **role** called `report`: the SQL that OpenBao will run to make an account each time one is asked for (OpenBao fills in `{{name}}`, `{{password}}` and `{{expiration}}`), here an account that may only read `orders`, and how long each one lasts: 10 minutes, renewable up to an hour."
+  - label: "Use one, and end it"
+    lines: "29-34"
+    note: "`bao read database/creds/report` makes a database account on the spot and returns it with a **lease**: a `lease_id`, and `lease_duration 10m`. Its name starts `v-token-le-report-`: `v-`, then who asked (your token is called `token-learner`), then the role. Line 30 shows the database's side: the account exists, with an end time (`rolvaliduntil`). Lines 31 and 32 use it: `psql` reads the user and password from the variables `PGUSER` and `PGPASSWORD`; counting orders works (25), and deleting them is refused, `permission denied for table orders`. Line 33 ends every account the role ever made, at once: `bao lease revoke -prefix`. Two seconds later the same user and password are refused: `password authentication failed`. That one command is the whole incident response for a dynamic secret, and without it the account would have gone by itself within the hour. Run the checks."
+skills: [keep-secrets-out, scan-for-leaks, rotate-and-revoke, dynamic-secrets]

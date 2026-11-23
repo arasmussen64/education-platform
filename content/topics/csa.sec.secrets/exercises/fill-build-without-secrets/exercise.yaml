@@ -1,0 +1,26 @@
+id: fill-build-without-secrets
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A build that keeps nothing"
+prompt: |
+  The export job's image is built on this server. The build downloads the shop's library from the package server (`http://127.0.0.1:8081/shop-lib.txt`), which wants the header `Authorization: Bearer TOKEN`. Last year's recipe took the token as a build argument, `ARG PKG_TOKEN`, and the worked example showed where that ends up: in the image's history, for everyone who has the image. The recipe and the build script have been rewritten, and each has lost values, marked `___`.
+
+  What is here: OpenBao (its basics are in Applied cryptography's first lab), whose key-value store holds the package token at `secret/ci/pkg-token`, in a field called `token`; the package server; and podman, which builds images with docker's commands and needs `sudo` here. The image starts `FROM busybox`, a tiny image that is already on this machine: a lab has no internet.
+
+  - **`~/shop-export/Containerfile`**, the recipe, has two `___`: what kind of mount shows a secret to one build step, and the path of the file that step reads it from.
+  - **`~/bin/build-shop`**, the script that builds, has three `___`: the signal that makes `trap` clean up however the script ends, the two words of the `bao` command that reads a secret from the key-value store, and the option of `podman build` that hands a file to the build as a secret.
+
+  With a `___` left in, the script still starts and stops at the first command that can't work: `trap` says `___` isn't a signal, `bao` that it has no such command, podman that it can't read the recipe. Read the comments in each file. Edit with `nano ~/shop-export/Containerfile` and `nano ~/bin/build-shop`, and replace each `___` and nothing else.
+
+  Then run it: `~/bin/build-shop`, and look at what you built: `sudo podman run --rm shop-export:2`, `sudo podman history --no-trunc --format '{{.CreatedBy}}' shop-export:2`. The history shows the command of the fetching step, and no token.
+
+  The checks run your script the way the build server will. They first give the package server a new token and put the same token in OpenBao, as a rotation would; then they run `~/bin/build-shop` with a token for OpenBao that may only read that one secret (the policy `ci-build`); then they look for the package token in every layer of the image, in its history and settings, and in the files left on the machine, as text, as base64 and as hex.
+hints:
+  - "A build step that needs a secret asks for it in the step itself: `RUN --mount=type=secret,id=NAME command`. For that one step the secret is a file, `/run/secrets/NAME`, and it is in no layer afterwards. The build is given the file with `--secret id=NAME,src=FILE`."
+  - "`trap 'COMMAND' EXIT` runs COMMAND when the script ends for any reason. `trap ... ERR` runs it only when a command fails, which would leave the token behind every time the build works."
+  - "Reading from the key-value store is `bao kv get PATH`, and `-field=NAME` prints one field alone. The worked example wrote there with `bao kv put`."
+skills: [keep-secrets-out]
