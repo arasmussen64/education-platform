@@ -1,0 +1,43 @@
+INCIDENT SHEET: the gift-card repository was public
+
+What happened
+  On 22 November 2026 a contractor pushed a copy of the gift-card service's
+  repository to a public mirror. It was public from 09:10 to 15:25 UTC,
+  with its whole history. Treat everything in that history as seen.
+
+The shop's own addresses
+  198.51.100.0/24   the office and the stores
+  192.0.2.32/28     the shop's cloud (the gift-card service calls out from 192.0.2.35)
+  Any other address is not the shop's.
+
+What must be true when you are done
+  1. ~/incident/leaked.tsv lists what the shop's scanner finds in the
+     repository's whole history, one finding a line: COMMIT PATH RULE
+     (the commit's id, the file's path, the scanner's rule id), separated by
+     spaces or tabs. The scanner's settings are /etc/gitleaks/server.toml.
+  2. A key that has leaked is no longer a secret: no key for the gift-card
+     company that was ever in the history still works there. The gift-card
+     service goes on issuing cards, with a new key that only the service's
+     own user can read, that is in no environment and no unit, and that is
+     in no file of the repository. The repository's current files hold no
+     secret.
+  3. The repository on the server refuses any push that brings a secret,
+     in any of its commits, by the shop's scanner settings, and takes a
+     clean one.
+  4. The leaked certificate is revoked for key compromise, in a fresh CRL
+     published where the tills read it (/srv/ca/public/issuing.crl). The
+     service serves a new certificate from the shop's issuing CA, with its
+     chain, on a new private key that only the service's own user can read.
+  5. ~/incident/exposure.txt says what the leaked key did, from the gift-card
+     company's trail (/srv/incident/provider-trail.log), once you know the
+     trail is the one the company sent (its last hash is in
+     /srv/incident/provider-trail.anchor). Three lines, exactly:
+       calls N        calls made with the leaked key from addresses that
+                      aren't the shop's, whatever they asked and however
+                      they were answered
+       issued D       the dollars of gift cards those calls were given
+                      (cards the company refused don't count)
+       first TIME     the time of the first of those calls, as the trail
+                      writes it
+  Everything you change lasts a restart. The trail, the CA's root and the
+  tills' program are evidence and scenery: leave them as they are.

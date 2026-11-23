@@ -1,0 +1,219 @@
+# The checks of part 3. What leaked is held to what the shop's scanner
+# found in the history when the lab was built (/usr/local/lib/lab/planted,
+# root only, with the leaked keys and certificate); the keys are put to
+# the gift-card company's stand-in itself; the hook is tried on a copy of
+# the repository with pushes made up as the check runs, never on the real
+# one; the certificate is read from the published CRL and from the running
+# service, and the leaked pair is served by a throwaway server of the
+# check's own to a real till; the figures are worked out from the trail.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: leaks-listed
+    description: "~/incident/leaked.tsv lists every finding of the shop's scanner in the repository's whole history, each once, as COMMIT PATH RULE, and nothing else."
+    command: |
+      f=/home/learner/incident/leaked.tsv
+      [ -s "$f" ] || { echo "~/incident/leaked.tsv is missing or empty"; exit 0; }
+      python3 - "$f" /usr/local/lib/lab/planted/leaks.tsv << 'PY'
+      import sys
+      want = [line.split() for line in open(sys.argv[2])]
+      got = [line.split() for line in open(sys.argv[1], errors="replace") if line.strip()]
+      def same(g, w):
+          return len(g) == 3 and len(g[0]) >= 7 and w[0].startswith(g[0]) and g[1:] == w[1:]
+      if len(got) == len(want) and all(any(same(g, w) for g in got) for w in want):
+          print("listed")
+      else:
+          print("the list isn't every finding in the history, each once, as COMMIT PATH RULE")
+      PY
+    expect:
+      equals: listed
+  - id: service-issues
+    description: "The gift-card service issues a card."
+    timeout: 20
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      # This check is about the key the service pays with; the certificate
+      # has checks of its own, so it trusts the issuing CA directly.
+      cat /srv/ca/public/root.pem /srv/ca/public/issuing.pem > /tmp/chk-cas.pem
+      wait_for 8 curl -s -m 2 -o /dev/null --cacert /tmp/chk-cas.pem https://gifts.shop.test:8443/health
+      got=$(curl -s -m 8 -X POST --cacert /tmp/chk-cas.pem "https://gifts.shop.test:8443/issue?amount=$((RANDOM % 90 + 10))")
+      rm -f /tmp/chk-cas.pem
+      case $got in "issued GC-"*) echo issues ;; *) echo "the gift-card service: ${got:-gives no answer}" ;; esac
+    expect:
+      equals: issues
+  - id: leaked-keys-dead
+    description: "The gift-card company refuses every key that was ever in the repository's history, and still takes the keys that never were."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      state() { printf 'Authorization: Bearer %s' "$1" | curl -s -m 5 -H @- http://127.0.0.1:9450/v1/whoami | json "d.get('state', 'unknown')" 2> /dev/null; }
+      for f in leaked old; do
+        [ "$(state "$(cat /usr/local/lib/lab/planted/$f.key)")" = revoked ] || { echo "a key that was in the history still works at the gift-card company"; exit 0; }
+      done
+      [ "$(state "$(cat /usr/local/lib/lab/planted/franchise.key)")" = active ] || { echo "a key that never leaked was revoked"; exit 0; }
+      echo dead
+    expect:
+      equals: dead
+  - id: key-kept-private
+    description: "The service's key works at the gift-card company, never leaked, is readable only by root and the service's own user, and is in no environment, no unit, no file others can read, and nowhere in the repository."
+    timeout: 20
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      file=$(awk -F= '$1 ~ /^[[:space:]]*provider_key_file[[:space:]]*$/ { gsub(/[[:space:]]/, "", $2); print $2 }' /etc/giftcards/giftcards.conf)
+      key=$(awk -F= '$1 == "GIFT_PROVIDER_KEY" { print $2 }' "$file" 2> /dev/null | tr -d '"' | head -n 1)
+      [ -n "$key" ] || { echo "the service's key file holds no key"; exit 0; }
+      grep -qxF "$key" /usr/local/lib/lab/planted/leaked.key /usr/local/lib/lab/planted/old.key && { echo "the service still pays with a key that leaked"; exit 0; }
+      state=$(printf 'Authorization: Bearer %s' "$key" | curl -s -m 5 -H @- http://127.0.0.1:9450/v1/whoami | json "d.get('state', 'unknown')" 2> /dev/null)
+      [ "$state" = active ] || { echo "the service's key doesn't work at the gift-card company"; exit 0; }
+      case $(stat -c '%U %G %a' "$file") in
+        "giftcards "*" 600" | "giftcards "*" 400" | "root giftcards 640" | "root giftcards 440") ;;
+        *) echo "the service's key file can be read by others than root and the service"; exit 0 ;;
+      esac
+      pid=$(systemctl show -p MainPID --value giftcards)
+      [ "$pid" != 0 ] && tr '\0' '\n' < "/proc/$pid/environ" | grep -qF "$key" && { echo "the key is in the service's environment"; exit 0; }
+      grep -rqF "$key" /etc/systemd /run/systemd/system /lib/systemd/system 2> /dev/null && { echo "the key is in a unit's files"; exit 0; }
+      for found in $(on_disk "$key"); do
+        [ -n "$(find "$found" -perm /004)" ] && { echo "the key is in a file anyone can read"; exit 0; }
+      done
+      [ -z "$(git -C /srv/git/giftcards.git log --all --format=%h -S"$key")" ] || { echo "the key is in the repository"; exit 0; }
+      echo private
+    expect:
+      equals: private
+  - id: current-files-clean
+    description: "The repository's current files, on the server, hold no secret by the shop's scanner settings."
+    timeout: 20
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      t=$(mktemp -d)
+      trap 'rm -rf "$t"' EXIT
+      git -C /srv/git/giftcards.git archive main | tar -x -C "$t"
+      gitleaks detect --no-git --source "$t" --config /etc/gitleaks/server.toml --no-banner > /dev/null 2>&1 && echo clean || echo "a file in the repository's current state holds a secret"
+    expect:
+      equals: clean
+  - id: push-guard
+    description: "The repository on the server refuses a push that brings a secret in any of its commits, to an old branch or a new one, and takes a clean push."
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      hook=/srv/git/giftcards.git/hooks/pre-receive
+      [ -x "$hook" ] || { echo "the repository has no pre-receive hook git can run"; exit 0; }
+      # Pushes to a copy of the server's repository, hook and all (owned by
+      # root, the check's own user, so git trusts it).
+      t=$(mktemp -d)
+      trap 'rm -rf "$t"' EXIT
+      cp -r --preserve=mode /srv/git/giftcards.git "$t/server.git"
+      git clone -q "$t/server.git" "$t/w" 2> /dev/null
+      cd "$t/w" && git config user.name check && git config user.email check@shop.test
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      key="gk_""live_$(openssl rand -hex 16)"
+      send() { timeout 20 git push -q origin "$@" > /dev/null 2>&1; }
+      echo "note $r" > "notes-$r.txt"
+      git add -A && git commit -qm "a note" && send main || { echo "the repository refuses a clean push"; exit 0; }
+      printf 'client = Gifts("%s")\n' "$key" > "app/try_$r.py"
+      git add -A && git commit -qm "try" && send main && { echo "a push that adds a secret is taken"; exit 0; }
+      git rm -q "app/try_$r.py" && git commit -qm "take it out again" && send main && { echo "a push whose last commit takes a secret out again is taken"; exit 0; }
+      send HEAD:refs/heads/try-$r && { echo "a new branch that brings a secret is taken"; exit 0; }
+      git reset -q --hard origin/main
+      echo "clean $r" > "notes-$r.txt"
+      git add -A && git commit -qm "another note" && send main || { echo "the repository refuses a clean push after a refused one"; exit 0; }
+      echo guarded
+    expect:
+      equals: guarded
+  - id: old-cert-revoked
+    description: "The CRL published where the tills read it is signed by the issuing CA, is newer than the one the lab began with, is still current, and lists the leaked certificate as revoked for key compromise."
+    command: |
+      crl=/srv/ca/public/issuing.crl
+      openssl crl -in "$crl" -CAfile /srv/ca/public/issuing.pem -noout 2>&1 | grep -x "verify OK" > /dev/null || { echo "the published CRL isn't one the issuing CA signed"; exit 0; }
+      number=$(openssl crl -in "$crl" -noout -crlnumber | cut -d= -f2)
+      [ $((16#${number#0x})) -ge $((16#$(cat /usr/local/lib/lab/planted/crlnumber-start))) ] || { echo "the published CRL is the one the lab began with"; exit 0; }
+      next=$(openssl crl -in "$crl" -noout -nextupdate | cut -d= -f2)
+      [ "$(date -d "$next" +%s)" -gt "$(date +%s)" ] || { echo "the published CRL is out of date"; exit 0; }
+      serial=$(cat /usr/local/lib/lab/planted/leaked-serial)
+      openssl crl -in "$crl" -noout -text | awk -v s="Serial Number: $serial" '$0 ~ s { found = 1; next } found && /Serial Number/ { exit } found && /Key Compromise/ { print "revoked"; exit }' | grep -x revoked > /dev/null \
+        && echo revoked || echo "the published CRL doesn't list the leaked certificate as revoked for key compromise"
+    expect:
+      equals: revoked
+  - id: tills-refuse-the-old
+    description: "A till refuses a server that presents the leaked certificate and key."
+    timeout: 20
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      p=/usr/local/lib/lab/planted
+      openssl s_server -accept 127.0.0.1:18443 -cert $p/leaked-cert.pem -key $p/leaked-tls.key -cert_chain /srv/ca/public/issuing.pem -www -quiet > /dev/null 2>&1 &
+      server=$!
+      trap 'kill $server 2> /dev/null' EXIT
+      wait_for 10 bash -c 'echo > /dev/tcp/127.0.0.1/18443' 2> /dev/null
+      got=$(till-check 127.0.0.1:18443)
+      case $got in "till: refused: certificate revoked"*) echo refused ;; *) echo "a till, shown the leaked certificate: $got" ;; esac
+    expect:
+      equals: refused
+  - id: new-cert-served
+    description: "The service presents a certificate from the shop's issuing CA for gifts.shop.test, with its chain, on a key that isn't the leaked one, and a till takes it."
+    timeout: 20
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      wait_for 8 curl -s -m 2 -k -o /dev/null https://gifts.shop.test:8443/health
+      got=$(till-check)
+      case $got in "till: ok"*) ;; *) echo "a till, at the service: $got"; exit 0 ;; esac
+      pub=$(openssl s_client -connect 127.0.0.1:8443 -servername gifts.shop.test < /dev/null 2> /dev/null | openssl x509 -noout -pubkey 2> /dev/null | sha256sum | cut -d' ' -f1)
+      [ "$pub" != "$(cat /usr/local/lib/lab/planted/leaked-tls.pub)" ] && echo new || echo "the service's certificate is on the leaked key"
+    expect:
+      equals: new
+  - id: key-file-private
+    description: "The private key the service serves with is readable only by root and the service's own user."
+    command: |
+      file=$(awk -F= '$1 ~ /^[[:space:]]*tls_key[[:space:]]*$/ { gsub(/[[:space:]]/, "", $2); print $2 }' /etc/giftcards/giftcards.conf)
+      case $(stat -c '%U %G %a' "$file" 2> /dev/null) in
+        "giftcards "*" 600" | "giftcards "*" 400" | "root giftcards 640" | "root giftcards 440") echo private ;;
+        *) echo "the service's private key can be read by others than root and the service" ;;
+      esac
+    expect:
+      equals: private
+  - id: trail-intact
+    description: "The gift-card company's trail still verifies against its anchor, and the evidence and the scenery are as they were."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      [ "$(sealed_ok)" = intact ] || { echo "the evidence or the scenery was changed"; exit 0; }
+      got=$(chain-verify /srv/incident/provider-trail.log "$(cat /srv/incident/provider-trail.anchor)")
+      case $got in "ok "*) echo intact ;; *) echo "the trail: $got" ;; esac
+    expect:
+      equals: intact
+  - id: exposure-right
+    description: "~/incident/exposure.txt holds the three figures the trail gives for the leaked key, from addresses that aren't the shop's, in the sheet's form."
+    command: |
+      python3 - /home/learner/incident/exposure.txt << 'PY'
+      import ipaddress, sys
+      shop = [ipaddress.ip_network("198.51.100.0/24"), ipaddress.ip_network("192.0.2.32/28")]
+      theirs = []
+      for line in open("/srv/incident/provider-trail.log"):
+          _, stamp, *pairs = line.split()
+          f = dict(p.split("=", 1) for p in pairs)
+          if f["key"] == "k-7208" and not any(ipaddress.ip_address(f["from"]) in n for n in shop):
+              theirs.append((stamp, f))
+      want = {
+          "calls": str(len(theirs)),
+          "issued": str(sum(int(f["amount"]) for _, f in theirs if f["action"] == "issue" and f["result"] == "ok")),
+          "first": theirs[0][0],
+      }
+      try:
+          got = [line.split() for line in open(sys.argv[1], errors="replace") if line.strip()]
+      except OSError:
+          sys.exit(print("~/incident/exposure.txt is missing"))
+      if [g[0] for g in got if g] != ["calls", "issued", "first"] or any(len(g) != 2 for g in got):
+          sys.exit(print("~/incident/exposure.txt isn't three lines: calls N, issued D, first TIME"))
+      said = {g[0]: g[1].lstrip("$") for g in got}
+      if said["first"] in (want["first"], want["first"][11:19]):
+          said["first"] = want["first"]
+      wrong = [name for name in ("calls", "issued", "first") if said[name] != want[name]]
+      print("right" if not wrong else "a figure isn't what the trail gives")
+      PY
+    expect:
+      equals: right
+  - id: lasting
+    description: "The gift-card service and the gift-card company's stand-in start at boot, and the repository's guard is in place."
+    command: |
+      for u in giftcards gift-provider lab-hosts; do
+        [ "$(systemctl is-enabled $u 2> /dev/null)" = enabled ] || { echo "something the service needs won't start at boot"; exit 0; }
+      done
+      [ -x /srv/git/giftcards.git/hooks/pre-receive ] && echo lasting || echo "the repository's guard isn't in place"
+    expect:
+      equals: lasting

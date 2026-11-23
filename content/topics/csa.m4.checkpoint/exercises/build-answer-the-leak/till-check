@@ -1,0 +1,46 @@
+#!/usr/bin/python3
+"""till-check: what every till runs before it takes a gift card.
+
+  till-check [HOST[:PORT]]     gifts.shop.test:8443 unless given
+
+It connects to the gift-card service the way a till does: it trusts only
+the shop's root CA (/srv/ca/public/root.pem), expects the server to send
+its certificate with the chain up to that root, and checks the server's
+certificate against the issuing CA's latest published CRL
+(/srv/ca/public/issuing.crl), so a revoked certificate is refused. It
+prints "till: ok" and who it reached, or "till: refused" and why.
+Scenery: the tills' own program, not yours to change.
+"""
+
+import socket
+import ssl
+import sys
+
+ROOT = "/srv/ca/public/root.pem"
+CRL = "/srv/ca/public/issuing.crl"
+
+target = sys.argv[1] if len(sys.argv) > 1 else "gifts.shop.test:8443"
+host, _, port = target.partition(":")
+port = int(port or 8443)
+
+context = ssl.create_default_context(cafile=ROOT)
+try:
+    context.load_verify_locations(cafile=CRL)
+except (OSError, ssl.SSLError) as error:
+    print(f"till: refused: the issuing CA's CRL can't be read ({error})")
+    sys.exit(1)
+context.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
+# The service is gifts.shop.test whatever address it was reached at, as on
+# the shop's network.
+try:
+    with socket.create_connection((host, port), timeout=5) as raw:
+        with context.wrap_socket(raw, server_hostname="gifts.shop.test") as tls:
+            cert = tls.getpeercert()
+except ssl.SSLCertVerificationError as error:
+    print(f"till: refused: {error.verify_message}")
+    sys.exit(1)
+except (OSError, ssl.SSLError) as error:
+    print(f"till: refused: {error}")
+    sys.exit(1)
+subject = dict(x[0] for x in cert["subject"])
+print(f"till: ok: {subject.get('commonName', '?')}, serial {cert['serialNumber']}")
