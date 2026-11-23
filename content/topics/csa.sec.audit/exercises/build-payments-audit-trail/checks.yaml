@@ -1,0 +1,114 @@
+# The checks of "The payments server's audit trail". What the trail records
+# is proved by making the shop do things, with every value made up as the
+# check runs (policy-check); what must last is read from the files that
+# outlast a reboot (trail.sh's `setting` leaves out anything under /run);
+# and the sealing is proved with the base's helpers, by a wait for a seal
+# and by tampering with a copy (content/lab-bases/pay/README.md).
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: audits-what-matters
+    description: "Sign-ins and failed sign-ins, role changes, configuration changes, refunds, data exports and card updates made a moment ago are in the trail, each with who, from where, what and how it ended; page views and health checks are not."
+    command: /usr/local/lib/lab/policy-check audited
+    expect:
+      equals: "as the policy asks"
+  - id: no-secrets
+    description: "No password, session ID or token of an event made a moment ago is in any journal or log file, in whole or in part, and a card number is there only as its last four digits."
+    command: /usr/local/lib/lab/policy-check secrets
+    expect:
+      equals: "as the policy asks"
+  - id: kept-a-year
+    description: "The audit journal's settings keep the trail for at least 365 days and delete it after at most 400."
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      value=$(setting MaxRetentionSec)
+      [ -n "$value" ] || { echo "the audit journal has no retention time set, so nothing is ever deleted for its age"; exit 0; }
+      kept=$(seconds "$value")
+      [ -n "$kept" ] || { echo "journald can't read the retention time \"$value\""; exit 0; }
+      [ "$kept" -ge $((365 * 86400)) ] || { echo "the trail is deleted after $((kept / 86400)) days"; exit 0; }
+      [ "$kept" -le $((400 * 86400)) ] || { echo "the trail is kept for $((kept / 86400)) days"; exit 0; }
+      echo "a year"
+    expect:
+      equals: "a year"
+  - id: room-for-13-months
+    description: "The audit journal may grow to hold 13 months of events, and to no more than 20 GB."
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      value=$(setting SystemMaxUse)
+      [ -n "$value" ] || { echo "the audit journal has no size set, so journald's own cap applies"; exit 0; }
+      room=$(bytes "$value")
+      [ -n "$room" ] || { echo "journald can't read the size \"$value\""; exit 0; }
+      # 60,000 events x 300 bytes x 395 days.
+      [ "$room" -ge 7110000000 ] || { echo "the journal may grow to $((room / 1000000)) MB, which 13 months of events don't fit in"; exit 0; }
+      [ "$room" -le $((20 * 1024 * 1024 * 1024)) ] || { echo "the journal may grow to $((room / 1000000000)) GB"; exit 0; }
+      echo "room"
+    expect:
+      equals: "room"
+  - id: on-disk
+    description: "The trail is kept on disk: a sign-in made a moment ago can be read from the audit journal's folder under /var/log/journal, and the settings that outlast a reboot say so too."
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      case $(setting Storage) in
+        "" | persistent | auto) ;;
+        *) echo "the audit journal's settings don't keep it on disk"; exit 0 ;;
+      esac
+      mark=$(marker)
+      shop-cli login.ok user="$mark" > /dev/null 2>&1 || { echo "the shop isn't answering (systemctl status shop-audit)"; exit 0; }
+      for try in $(seq 1 10); do
+        journalctl --directory="$journal_dir" -t shop-audit -o cat 2> /dev/null | grep -F "user=$mark " > /dev/null && { echo "on disk"; exit 0; }
+        sleep 0.5
+      done
+      echo "a sign-in made a moment ago isn't in the audit journal's files on disk"
+    expect:
+      equals: "on disk"
+  - id: sealed-for-auditors
+    description: "The audit trail's newest file, with a sign-in made a moment ago in it, is sealed every 10 seconds, by settings that outlast a reboot, and the key in /srv/auditors/verify-key validates it up to now."
+    # The one wait of a check run: a seal is written every 10 seconds, so
+    # the key can vouch for a new sign-in within about 20.
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      # The first seal of a file is written when the file is opened, so a
+      # trail sealed once an hour looks sealed for its first hour: the
+      # interval is read off the key itself.
+      every=$(seal_interval /srv/auditors/verify-key)
+      [ -z "$every" ] || [ "$every" -eq 10 ] || { echo "the key in /srv/auditors/verify-key is for a trail sealed every $every seconds, not every 10"; exit 0; }
+      sealed_now /srv/auditors/verify-key
+    expect:
+      equals: "sealed"
+  - id: forgery-shows
+    description: "A copy of the trail with a few bytes changed fails the auditors' verification, and a copy rewritten entry by entry has no sealed time range, while the trail itself has one."
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      key=$(cat /srv/auditors/verify-key 2> /dev/null | tr -d '[:space:]')
+      [ -n "$key" ] || { echo "there is no verification key in /srv/auditors/verify-key"; exit 0; }
+      mark=$(marker)
+      shop-cli login.ok user="$mark" > /dev/null 2>&1 || { echo "the shop isn't answering (systemctl status shop-audit)"; exit 0; }
+      wait_for_line "user=$mark " > /dev/null || { echo "a sign-in made a moment ago isn't in the trail"; exit 0; }
+      work=$(mktemp -d)
+      trap 'rm -rf "$work"' EXIT
+      # The file is being written while it is copied; a copy caught halfway
+      # is taken again.
+      for try in 1 2 3; do
+        cp "$journal_dir/system.journal" "$work/copy.journal" 2> /dev/null || { echo "the audit trail has no file on disk"; exit 0; }
+        real=$($lib/seal-range --file "$work/copy.journal" "$key")
+        case $real in sealed*) break ;; esac
+        sleep 1
+      done
+      case $real in sealed*) ;; *) echo "the trail itself has no sealed time range for the auditors' key: $real"; exit 0 ;; esac
+      # The careless attacker: bytes changed in place.
+      cp "$work/copy.journal" "$work/flipped.journal"
+      lab-flip "$work/flipped.journal" "user=$mark" "user=${mark/chk/xxx}" > /dev/null 2>&1 \
+        || { echo "the check's own sign-in isn't in the trail's file"; exit 0; }
+      flipped=$($lib/seal-range --file "$work/flipped.journal" "$key")
+      case $flipped in failed*) ;; *) echo "a copy with changed bytes went unnoticed: $flipped"; exit 0 ;; esac
+      # The careful attacker: every entry written again, one of them changed.
+      lab-forge-journal "$work/copy.journal" "$work/forged.journal" "user=$mark" "user=somebody-else" > /dev/null 2>&1
+      journalctl --file="$work/forged.journal" -t shop-audit -o cat 2> /dev/null | grep -F "user=somebody-else " > /dev/null \
+        || { echo "the check couldn't rewrite a copy of the trail"; exit 0; }
+      forged=$($lib/seal-range --file "$work/forged.journal" "$key")
+      [ "$forged" = unsealed ] || { echo "a rewritten copy wasn't told from the real trail: $forged"; exit 0; }
+      echo "both changes show"
+    expect:
+      equals: "both changes show"

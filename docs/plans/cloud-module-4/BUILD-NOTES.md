@@ -4,6 +4,26 @@ The plan ([MODULE-4-BRIEF.md](MODULE-4-BRIEF.md)) was written before any base ex
 
 Each base's README under `content/lab-bases/` is the reference for its helpers. This file only lists what a writer would otherwise get wrong.
 
+## What wave 1's writers and reviewers found
+
+Read these before writing a lab; each was a shortcut that passed, or a fault that shipped, in the first five topics.
+
+- **Probe made-up cases as well as the expected ones.** A least-privilege check that probes only known paths passes "allow everything, deny those paths".
+- **Try every pair of roles.** A policy right for each role alone can let a person with two roles do everything.
+- **Cap what a list-style answer may list,** and say so in the prompt. A threat model listing every threat and every control passed.
+- **Look for a secret in other encodings** (hex, base64) and other places, not only the literal string in one folder.
+- **A setting must outlast a reboot and be one the program reads.** Refuse anything under `/run`; a size written as `8GB` is ignored by journald.
+- **Collect evidence from the machine, not from files the learner can edit.** Editing dpkg's status file cleared a scan.
+- **A script lab's answer tool must not be runnable by the learner's script** (mode 700, root).
+- **An untouched lab must not say anything false,** or anything that points at a fault. Run every tool the learner will run on the pristine lab and read what it says.
+- **Protecting something means it must still be there afterwards.** New sealing keys over the auditors' copy passed until a check required the old history to verify.
+- **`journalctl --verify` reports the end of the sealing interval as validated,** which can be in the future. Read the interval off the key.
+- **Quote a standard from its own body, with its version.** A PCI DSS rule was quoted from superseded 4.0 wording through a vendor's page.
+- **Glossary terms collide across tracks.** "principal", "policy", "session", "control", "anchor" and "MAC" are everyday words or another track's terms; name the entry more exactly.
+- **The reading importer needs no `SITES` entry for OWASP's cheat sheets:** `--select article` works.
+- **`~/bin` is not on `PATH` in the checker's shells:** prompts say `~/bin/NAME`.
+- **A unit that keeps running a deleted program** (`lsof +L1`) is the honest way to show "patched but not restarted" on the `pay` base: an `openssh` upgrade restarts itself, the shop's own rsync daemon unit does not.
+
 ## Every base
 
 - **Format base scripts for Python 3.12, not the repository's 3.14.** The lab images run Ubuntu 24.04's Python 3.12. `ruff format` at the repository's target rewrote `except (A, B):` into a form 3.12 rejects, and every helper died at import. Scripts that run inside a lab are formatted with `--target-version py312`; a test parses them as 3.12.

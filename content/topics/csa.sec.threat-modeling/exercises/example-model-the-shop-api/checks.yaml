@@ -1,0 +1,103 @@
+# The checks of "Model the shop's order API": each runs one part of the
+# threat-model base's tm-check on the learner's model. The design's own
+# answers (the reference) are handed to tm-check on standard input ("-"),
+# from here, so they are never a file in the lab. tm-check prints ok, or
+# one sentence that says what is still wrong. The last check is that the
+# design note is as it was.
+checks:
+  - id: model-reads
+    description: "The model reads: every line is one of the format's."
+    timeout: 10
+    command: |
+      tm-check reads /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: diagram-matches-design
+    description: "Every part and flow the design names is there, of the right kind, drawn from the side that starts it."
+    timeout: 10
+    command: |
+      tm-check diagram /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: zones-where-trust-changes
+    description: "Two parts share a zone exactly when one organisation runs both on one network."
+    timeout: 10
+    command: |
+      tm-check boundaries /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: every-crossing-reviewed
+    description: "Every flow that crosses a boundary has all six letters reviewed, and no two threats read the same."
+    timeout: 10
+    command: |
+      tm-check stride /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: design-weaknesses-found
+    description: "Everything the design describes as weak has a threat on its flow, rated by the design's scales."
+    timeout: 10
+    command: |
+      tm-check findings /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: ranked-by-risk
+    description: "Each risk is likelihood times impact, and top lists every risk of 6 or more, highest first."
+    timeout: 10
+    command: |
+      tm-check ranking /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: every-threat-answered
+    description: "Every risk of 6 or more has a control of a kind that answers it, and every other threat a control or an accept line."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: attack-techniques
+    description: "The two threats the walkthrough names a technique for carry an ATT&CK technique that fits."
+    timeout: 10
+    command: |
+      tm-check attack /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: attack-tree
+    description: "A tree for the highest risk: three leaves or more, an and node with two steps, and the cheapest path's cost."
+    timeout: 10
+    command: |
+      tm-check tree /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: abuse-cases
+    description: "Every risk of 6 or more has an abuse case with a test."
+    timeout: 10
+    command: |
+      tm-check abuse /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"shop-api":["process","shop"],"orders-db":["store","shop"],"payments":["external","payments-co"],"courier":["external","courier-co"]},"flows":{"f1":["customer","shop-api"],"f2":["shop-api","orders-db"],"f3":["shop-api","payments"],"f4":["courier","shop-api"]},"weak":[{"flow":"f4","letters":["S"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"],"attack":["T1190"]},{"flow":"f4","letters":["R"],"L":2,"I":[1,2]},{"flow":"f1","letters":["S"],"L":2,"I":2,"controls":["mfa"],"attack":["T1110","T1078"]}]}
+      REF
+    expect:
+      equals: ok
+  - id: design-untouched
+    description: "~/design.md is as it was."
+    timeout: 10
+    command: echo 'af527ec063b04b3821964ccce75c6fd4e6a9bc1a147618f3a4fc4b65275c1a13  /home/learner/design.md' | sha256sum -c --status - && echo same
+    expect:
+      equals: same

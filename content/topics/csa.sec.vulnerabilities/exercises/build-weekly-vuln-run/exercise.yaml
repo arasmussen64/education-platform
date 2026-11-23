@@ -1,0 +1,37 @@
+id: build-weekly-vuln-run
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "This week's vulnerability run"
+prompt: |
+  It's your week to do the shop's vulnerability run. Two machines are on your list.
+
+  - **`pay1`**, the payments server, is this lab machine. It is reachable from the internet and the payments team (`payments`) owns it. It runs the SSH server, the shop's audit writer, and `shop-sync.service`, the shop's own unit: an rsync daemon on port 873 that the bank's server fetches settlement files from. Its packages come from its own patch repository (`apt` is already set up for it and nothing else).
+  - **`batch-01`** is an internal batch host that the data team (`data-team`) owns. You can't log in to it. Its package list arrives as a file, `/srv/inventory/batch-01/dpkg-status`, which the scanner reads with `-L dpkg-status:/srv/inventory/batch-01/dpkg-status`.
+
+  What you have:
+
+  - the scanner: `osv-scanner scan source --offline-vulnerabilities --offline -L /var/lib/dpkg/status --format vertical`;
+  - `/srv/inventory/assets.tsv`: each machine, whether it is exposed to the internet, and its owner;
+  - `/srv/vuln/first-seen.tsv`: the day each machine's findings were first reported;
+  - `/srv/vuln/policy.tsv`: the shop's policy, CISA's BOD 26-04 table. Its columns are exposed, in KEV, automatable, impact, days, forensic triage;
+  - in `/usr/share/lab-pay/`: `kev-2026.11.10.csv` (the fourth column is the day CISA listed the CVE), `ssvc.csv` (automatable, and total or partial impact) and `epss-2026-11-10.csv`.
+
+  Do the run:
+
+  1. **Scan both machines and keep the register** `~/vuln/register.tsv`: one line for each finding on each machine, seven fields separated by spaces or tabs: the CVE, the machine, the package, the due date, forensic triage, the status and the owner. Like this (a made-up line):
+
+     ```
+     CVE-2099-0001 pay1 bash 2026-11-12 no open payments
+     ```
+
+     The due date is the day the policy's timeline ends, as `YYYY-MM-DD`, counted in calendar days from the start the lesson gives, or `on-upgrade`. Forensic triage is `yes` or `no`, as the policy's row says. The status is `fixed` or `open`, as things stand when you finish.
+  2. **On `pay1`, fix every finding whose timeline is 14 days or shorter,** from the server's patch repository, and leave nothing running the old code. `batch-01` isn't yours to patch: its findings stay `open`, with their owner.
+  3. **Keep what the server needs.** Deploys use git, staff use less, the bank needs the settlement sync, and SSH's settings and host keys stay as they are. Don't change the scanner, its records or the files you were given.
+  4. **Save this week's rescan** of `pay1`, in the vertical format, as `~/vuln/rescan.txt`.
+
+  Then run the checks.
+skills: [scan-and-read, cvss-epss-kev, prioritise, patch-slas, remediate-and-track]

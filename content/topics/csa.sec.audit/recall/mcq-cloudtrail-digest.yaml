@@ -1,0 +1,18 @@
+id: mcq-cloudtrail-digest
+type: mcq
+rev: 1
+prompt: |
+  With log file validation switched on, CloudTrail delivers a digest file every hour. What is in it?
+choices:
+  - "A hash of each log file from the last hour, and the last digest's signature"
+  - "A compressed copy of each log file from the last hour, signed by the account"
+  - "One hash of the whole bucket's contents, taken at the end of each hour"
+  - "The list of users who read the log files in the last hour, with a signature"
+answer: 0
+explanation: |
+  It is a hash chain with signatures. Each hour's **digest file** lists the log files CloudTrail delivered in that hour with a SHA-256 hash of each, and carries the signature of the digest before it, and is itself signed by CloudTrail with a private key of its own (SHA-256 with RSA).
+
+  So a log file that was changed no longer matches its hash in the digest; a deleted one is listed and missing; and a digest can't be quietly replaced or removed, because the next one holds its signature. The AWS command line can then walk the chain and say for each file whether it was modified, deleted or unchanged. The signing key plays the part of the anchor: it is the thing the intruder in your account doesn't have.
+
+  Validation is off until you enable it on a trail.
+skills: [hash-chains]

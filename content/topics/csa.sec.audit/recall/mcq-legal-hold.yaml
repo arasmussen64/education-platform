@@ -1,0 +1,16 @@
+id: mcq-legal-hold
+type: mcq
+rev: 1
+prompt: |
+  The shop is being sued, and its lawyers say last year's audit logs must be kept until the case ends. Nobody knows when that will be. Which write-once feature fits?
+choices:
+  - "A legal hold, which protects the logs until someone removes it"
+  - "A compliance-mode retention period of ten years, to be sure"
+  - "A locked bucket retention policy set to the longest period allowed"
+  - "No feature: tell the admins to delete nothing until further notice"
+answer: 0
+explanation: |
+  A retention period needs a date, and here there isn't one. A **legal hold** is the same protection with no end date: the objects can't be changed or deleted until the hold is explicitly lifted. All three clouds have one (S3 Object Lock's legal hold, Azure's legal hold policy, Cloud Storage's object holds), and it works alongside a retention period: whichever lasts longer wins.
+
+  Guessing a long period instead goes wrong both ways. Too short, and the logs become deletable mid-case. Too long, in a mode that can't be shortened, and the shop is stuck storing personal data for years after it should have been deleted. And an instruction to the admins is not a control: the logs' own retention setting would go on deleting them on schedule.
+skills: [sealing-and-worm]

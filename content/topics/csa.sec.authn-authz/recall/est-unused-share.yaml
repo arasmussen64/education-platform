@@ -1,0 +1,22 @@
+id: est-unused-share
+type: estimate
+rev: 1
+prompt: |
+  A role grants 48 actions. An access analyzer reports that 9 of them were used in its window. What percentage of the role's actions went unused? Within 1.
+unit: "%"
+answer: 81.25
+tolerance: { absolute: 1 }
+given: { granted: 48, used: 9 }
+working: (granted - used) / granted * 100
+mistakes:
+  - id: used-share
+    value: 18.75
+    working: used / granted * 100
+    why: That's the share that was used. The question asks for the rest.
+  - id: a-count
+    value: 39
+    working: granted - used
+    why: That's how many actions went unused. As a share of the 48 granted it is 39 / 48.
+explanation: |
+  48 - 9 = 39 actions unused, and 39 / 48 is 81.25%. Four fifths of what this role can do, it never does, which is ordinary for a role that started from a broad template. Unused in the window is where the work starts, though: before cutting the 39, check each against what the job is for, because a task rarer than the window looks exactly like this.
+skills: [least-privilege]

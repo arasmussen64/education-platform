@@ -1,0 +1,66 @@
+# Each check asks the learner's policies about requests the policy base's
+# check library makes up as the check runs
+# (/usr/local/lib/lab-checks/ops-cases): accounts and resources with new
+# names every run, each role against every line of the catalogue. What a
+# job needs comes from jobs.txt, not from the log.
+checks:
+  - id: validates
+    description: "cedar validate accepts the policies against the operations schema."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/ops-cases validates
+    expect:
+      equals: ok
+  - id: report-writer-role
+    description: "An account in the report-writer role can do everything its job needs, and nothing else in the catalogue."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/ops-cases report-writer
+    expect:
+      equals: ok
+  - id: release-deployer-role
+    description: "An account in the release-deployer role can do everything its job needs, and nothing else in the catalogue."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/ops-cases release-deployer
+    expect:
+      equals: ok
+  - id: backup-operator-role
+    description: "An account in the backup-operator role can do everything its job needs, and nothing else in the catalogue."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/ops-cases backup-operator
+    expect:
+      equals: ok
+  - id: release-approver-role
+    description: "An account in the release-approver role can approve changes, and nothing else in the catalogue."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/ops-cases release-approver
+    expect:
+      equals: ok
+  - id: two-roles-add-up
+    description: "An account with two of the roles can do what either job needs, and nothing else in the catalogue."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/ops-cases two-roles
+    expect:
+      equals: ok
+  - id: no-role-nothing
+    description: "An account with no role can do nothing, whatever it is called."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/ops-cases no-role
+    expect:
+      equals: ok
+  - id: no-self-approval
+    description: "Release approvers approve other accounts' changes, and nobody approves a change they made, whatever roles they hold."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/ops-cases self-approval
+    expect:
+      equals: ok
+  - id: self-approval-rule-holds
+    description: "Nobody approves their own change even after a rule that permits everything is added to the file."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/ops-cases holds-later
+    expect:
+      equals: ok
+  - id: ops-untouched
+    description: "The schema, entities.json, the catalogue, jobs.txt and the access log are as they were."
+    timeout: 10
+    command: sha256sum -c --status /usr/local/lib/lab-checks/ops.sha256 && echo same
+    expect:
+      equals: same

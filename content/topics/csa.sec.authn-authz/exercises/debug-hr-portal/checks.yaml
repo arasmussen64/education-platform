@@ -1,0 +1,66 @@
+# Each rule check asks the learner's policies about requests the policy
+# base's check library makes up as the check runs
+# (/usr/local/lib/lab-checks/hr-cases): new names for every employee,
+# department and record, every role and some pairs of roles. Descriptions
+# state the end state, rule by rule, as the prompt does.
+checks:
+  - id: validates
+    description: "cedar validate accepts the policies against the portal's schema."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/hr-cases validates
+    expect:
+      equals: ok
+  - id: own-salary
+    description: "Rule 1: every employee can view their own salary."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/hr-cases own-salary
+    expect:
+      equals: ok
+  - id: managers-own-department
+    description: "Rule 2: managers can view the salaries of their own department, and only managers can, and only there."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/hr-cases managers
+    expect:
+      equals: ok
+  - id: hr-partner-departments
+    description: "Rule 3: HR partners can view the salaries of the departments they support, and no others."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/hr-cases hr-partners
+    expect:
+      equals: ok
+  - id: raise-requests
+    description: "Rule 4: managers can request raises in their own department, and nobody else can request one."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/hr-cases requests
+    expect:
+      equals: ok
+  - id: raise-approval
+    description: "Rule 5: HR partners can approve raises that someone else requested in the departments they support, and nobody can approve a raise they requested."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/hr-cases approval
+    expect:
+      equals: ok
+  - id: payroll-log
+    description: "Rule 6: auditors can read the payroll log and can't edit it; payroll clerks can read and edit it."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/hr-cases payroll-log
+    expect:
+      equals: ok
+  - id: nothing-more
+    description: "Rule 7: what no rule allows is denied, and someone with two roles can do what each role allows and nothing more."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/hr-cases nothing-more
+    expect:
+      equals: ok
+  - id: two-people-rule-holds
+    description: "Nobody can approve a raise they requested even after a rule that permits everything is added to the file, and that rule refuses nothing else."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/hr-cases holds-later
+    expect:
+      equals: ok
+  - id: hr-untouched
+    description: "The portal's schema and entities.json are as they were."
+    timeout: 10
+    command: sha256sum -c --status /usr/local/lib/lab-checks/hr.sha256 && echo same
+    expect:
+      equals: same

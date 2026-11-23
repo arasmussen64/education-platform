@@ -8,6 +8,18 @@
 # clock a machine can have wrong with a time sync that sets it, and the
 # helpers learners and checks use.
 # README.md, beside this file, is what an author reads before writing one.
+
+# A stage of its own, thrown away afterwards, so the compiler never
+# reaches the image: it builds faketime-noshm, twenty lines of C that
+# keep libfaketime away from /dev/shm (lib/faketime-noshm.c says why).
+FROM ubuntu:24.04 AS noshm
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gcc libc6-dev \
+ && rm -rf /var/lib/apt/lists/*
+COPY lib/faketime-noshm.c /src/
+RUN gcc -O2 -Wall -Werror -fPIC -shared -o /src/faketime-noshm.so /src/faketime-noshm.c
+
 FROM lab-base-net
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -44,12 +56,14 @@ RUN curl -fsSLo /tmp/keycloak.tar.gz https://github.com/keycloak/keycloak/releas
 # "ip netns exec" lays a machine's own copy over (it can only lay a copy
 # over something that exists).
 COPY lib/ /usr/local/lib/idlab/
+COPY --from=noshm /src/faketime-noshm.so /usr/local/lib/idlab/
 COPY bin/ /usr/local/bin/
 COPY units/ /etc/systemd/system/
 RUN chmod 755 /usr/local/lib/idlab/* /usr/local/bin/* \
  && chmod 644 /etc/systemd/system/keycloak@.service /etc/systemd/system/apache2@.service /etc/systemd/system/stock-api@.service \
       /etc/systemd/system/timesync@.service /etc/systemd/system/chrony@.service /etc/systemd/system/machine-clocks.service \
       /usr/local/lib/idlab/idlib.sh /usr/local/lib/idlab/jwtlib.py /usr/local/lib/idlab/kcapi.py \
+      /usr/local/lib/idlab/faketime-noshm.c /usr/local/lib/idlab/faketime-noshm.so \
  && /usr/local/lib/idlab/plain-units \
  && groupadd -r tlskey && useradd -r -d /opt/keycloak -s /usr/sbin/nologin -G tlskey keycloak \
  && usermod -a -G tlskey www-data \

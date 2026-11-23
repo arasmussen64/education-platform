@@ -1,0 +1,26 @@
+id: est-overdue-days
+type: estimate
+rev: 1
+prompt: |
+  CISA listed a flaw in KEV on 1 October. On your internet-facing server its row of the policy gives 3 days. Your first scan of the server is on 20 November of the same year. On the morning of that scan, how many days overdue is the fix? Exactly.
+unit: days
+answer: 47
+tolerance: { absolute: 0 }
+given: { listed: 1, days: 3, found: 20 }
+# October has 31 days, which the learner knows: it was due on 4 October,
+# so the rest of October, then 20 days of November.
+working: (31 - (listed + days)) + found
+mistakes:
+  - id: clock-from-found
+    value: 0
+    working: "0"
+    why: That starts the clock on the day of the scan. It started on 1 October, when CISA listed the flaw, so the fix was due on 4 October, long before you looked.
+  - id: from-listing
+    value: 50
+    working: (31 - listed) + found
+    why: That counts from the day of the listing. Overdue days count from the due date, 4 October, three days later.
+explanation: |
+  The clock started on the earlier day, 1 October, so the fix was due on 4 October. From 4 October to 31 October is 27 days, and 20 more to 20 November: 47 days overdue on the day it was found.
+
+  "Found late is already overdue" is the rule's whole point. A server nobody scans doesn't get extra time; it gets a register whose first entries are red. The honest record says 47 days overdue, found on 20 November, and the next line says when it was fixed.
+skills: [patch-slas]

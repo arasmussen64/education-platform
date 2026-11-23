@@ -19,6 +19,57 @@ Each topic is written by one helper from the plan, the build notes and its desig
 - _Nothing is copied in:_ the reading importer doesn't know this topic's sources, so all ten resources are optional links.
 - _CI time:_ the build and the debug take about five minutes each on a quiet machine, more than the plan's estimate for the whole topic.
 - _For the base, later:_ its "is the key on disk" helper still misses a key saved as raw bytes, or outside the folders it lists.
+**Threat modeling** (`csa.sec.threat-modeling`). Five labs on the `tm` base, a 4,900-word lesson, 32 quick questions, OWASP's cheat sheet copied in under its licence.
+
+- _What the cold review found._ A thoughtless model passed the build and the debug: every STRIDE letter at every rating on every flow, with every control on each threat. A new check caps what a model may list (three threats a flow under one letter, two controls and two techniques a threat), and the prompts say so. Three more shortcuts passed and now fail: a wrong gap covered by an added line, the fill-in's file replaced wholesale, and a script that ran the checks' own answer tool.
+- _The debug gave a fault away through the checker's own message;_ the planted control was changed so that every local part says `ok`.
+- _Two words were used untaught_ ("phish", and status code 401). The writer had not read the prerequisite topics; the reviewer did, and everything else held.
+- _The story_ was told from one news article; the reviewer read the Senate committee's staff report and corrected it to what the report supports.
+- _For the checkpoint:_ `tm-check` itself has no such cap, so Checkpoint 4's first part has the same hole until the base gets one.
+
+**Authentication and authorization** (`csa.sec.authn-authz`). Five labs on the `policy` base in Cedar, a 4,200-word lesson, 33 quick questions, part of OWASP's Authorization Cheat Sheet copied in.
+
+- _What the cold review found._ Six wrong policies passed, most of them holes that open when one person holds two roles: a nurse who is also a pharmacist could be permitted everything. Checks now try every pair of roles. "Permit everything to a role, then forbid the rest" is right for one role and wrong for two.
+- _A defensible right answer failed:_ "the deployer never approves" written as an explicit ban, which is what the lesson teaches. The check no longer rejects it.
+- _One fact corrected:_ an AWS analyzer's look-back period (1 to 365 days, not "continuous").
+- _Glossary names were chosen to avoid collisions:_ "security principal" (the finance track owns "principal"), "access policy", "sign-in session".
+
+**Audit logging** (`csa.sec.audit`). Five labs, three on the `pay` base, a 4,600-word lesson, 36 quick questions, three sections of OWASP's Logging Cheat Sheet copied in.
+
+- _What the cold review found,_ attacking as a tamperer. New sealing keys written over the auditors' copy passed the debug, though that makes the sealed history unverifiable; a new check requires the auditors' key to still validate it. Sealing once an hour passed the build, because the journal tool reports the *end* of the sealing interval as verified, even when that is in the future; the check now reads the interval off the key. Sealing switched on only until a reboot passed, and so did a size limit in a form the journal ignores. A verifier that says "ok" for an emptied log passed.
+- _The debug makes its keys, history and faults at first boot,_ since sealing keys can't be made at image build. The reviewer booted it 128 times, up to eight at once: the faults were identical every time.
+- _Left on judgement:_ the lesson names the three kinds of gap its debug contains, as ideas with no file or value. They are the topic.
+- _Not confirmed:_ the payment-card standard's logging requirements are quoted through Microsoft's documentation.
+
+**Vulnerability management** (`csa.sec.vulnerabilities`). Five labs on the `pay` base, a 4,900-word lesson, 30 quick questions, Appendix A of CISA's BOD 26-04 copied in.
+
+- _A rule from an out-of-date standard._ The lesson, its recap, the rubric and an estimate said the payment-card standard gives one month to patch "critical or high" flaws. That is version 4.0's wording, still shown on a vendor's pages. The standards body's own announcement of 4.0.1 says the month applies to critical flaws only. Corrected everywhere and no longer quoted word for word.
+- _What else the review found._ Editing the package database cleared the scan and passed two labs with nothing installed; checks now compare each program on disk with the one inside the patch package. A fix under `/run` passed and was gone after a reboot.
+- _"Patched but running old code" on this base._ An `openssh` upgrade restarts the service by itself here, so the plan's trap did not hold. The labs use an rsync daemon unit of the shop's own, which keeps running the deleted program until it is restarted.
+- _What is pinned._ The vulnerable versions, the scanner and the advisory records are. The patched versions are whatever Ubuntu's archive held when the base image was built; no lab reaches the archive and no check names a patched version.
+- _A risk left open:_ one build check compares SSH's settings before and after the day's update, so a future Ubuntu update that changes a default would break the reference solution.
+
+**Across the wave.**
+
+- _Every topic had shortcuts that passed._ Five reviews, about twenty shortcuts, each now a wrong-answer script that fails in CI. The patterns went into the writers' brief for the next wave: probe made-up cases as well as expected ones; look for a secret in other encodings; refuse settings that don't outlast a reboot or that the program ignores; try every pair of roles; cap what a list-style answer may list.
+- _Topic pull requests carried only their topic._ The changelog and devlog for the wave are this one entry, because every collision on those two files cost another hour-long lab run.
+- _Two web tests time out on this PC while helpers' Docker builds run,_ and pass alone and on CI.
+- _I read every writer's and reviewer's report and did not re-read the topics myself._ The owner is still each topic's first human reader.
+- _CI time is above the plan's:_ the reviews added wrong-answer scripts, each a container start. The lab-seconds file is refreshed from a full run when the module ends.
+
+## 2026-11-23, cloud Module 4: the identity base on CI
+
+**The failure.** The identity base's probe lab failed on GitHub's runners and never on the PC it was built on. A draft pull request (#364) that printed the services' own logs showed why: libfaketime, the tool that gives one lab machine a shifted clock, said `sem_open failed ... Permission denied` for a small semaphore file it keeps under `/dev/shm`, and exited. Every program started on a machine with its own clock loads the tool, so every one of them died at start; the time service was only the first to be reported.
+
+**What is and isn't known.** From the tool's source: the first program of a command creates the file and tells its children its name; each child must open it or make its own, and exits if it can do neither. **Why the runner refuses is not established.** A stricter kernel setting for shared files was the first guess, and this PC turned out to have the same setting. The base's own clean-up of old files was ruled out too.
+
+**The fix removes the code path.** A 70-line preload (`faketime-noshm.c`, compiled in a throwaway build stage) makes the tool's attempt to open that semaphore fail in the way the tool is written to shrug off, so no file is made and no name is passed on. The time service, which must read the real clock anyway, is started without the tool. Six Module 3 labs kept their contracts on the changed network base, and the probe kept its own alone and two at once.
+
+**Author notes:**
+
+- _This fixes a mechanism, not a diagnosed cause,_ so the lab run on the pull request is the only proof. If the runner refuses `/dev/shm` to these processes in general, Apache's own semaphore fails next, and the probe's solution prints what is needed to see that.
+- _The probe's solution keeps its diagnostic lines_ until an identity lab has passed on CI more than once.
+- _It held._ On the pull request's lab run the identity probe kept its contract on a GitHub runner in 208 seconds, among four labs at once, with every other lab green. That is inside the plan's limit, so the switch that counts an identity lab as two jobs (P6) stays off for now; the first topics on this base will show whether several identity labs in one share change that.
 
 ## 2026-11-22, cloud Module 4: the platform work
 

@@ -1,0 +1,27 @@
+id: fill-model-the-newsletter
+stage: fill_in
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Model the newsletter"
+prompt: |
+  The shop's newsletter has a sign-up: a visitor types an email address, the shop's sign-up API keeps the list, and a mailing company delivers the emails and reports back the ones that bounce. `~/design.md` describes it (`less ~/design.md`): four parts, four flows, what is already in place, and the scales to rate with.
+
+  `~/model.tm` is a threat model of it with **eight gaps**, each marked `___`:
+
+  1. the kind of element the subscribers' database is;
+  2. the zone the mailing company's servers belong in (the three zones are at the top of the file);
+  3. the risk of the first threat, from its likelihood and impact;
+  4. the STRIDE letter of the threat on the bounce hook: read its sentence, and ask which property it breaks;
+  5. the letters of the `none` line on the same flow: every letter the flow has no threat for, written together;
+  6. the kind of control that answers that threat (`tm-check --help` lists the kinds beside the letters they answer);
+  7. the cost of the cheapest path through the attack tree;
+  8. the end of the abuse case: what the attacker wants, in your own words.
+
+  Fill each gap with `nano ~/model.tm`, and change nothing else: no line added, none taken out. A check compares every other word with the file as it was given, and `cp /usr/local/lib/lab/model.tm ~/model.tm` gives you the gaps back to start again. Until every `___` is gone the model doesn't read at all: `tm-check reads ~/model.tm` names the first line that still has one. Once it reads, `tm-check stride`, `ranking`, `controls`, `tree` and `abuse` check the letters, the sum, the kind of control and the tree as you go. One of them is easier to please than the lab: your own `tm-check controls` says `ok` to any kind that fits the threat's letter, and the lab's check asks for a kind that stops this threat. Then run the checks, which compare the model with the design. Leave `~/design.md` as it is.
+hints:
+  - "A process changes or decides something; a store keeps something until asked; an external is outside the shop's control. A zone is one owner on one network: who runs the mailing company's servers?"
+  - "The threat's sentence says the attacker pretends to be someone. Which of the six properties is about who a caller really is? The `none` line then takes the other five letters, in any order, with no spaces between them."
+  - "A control must restore the property the threat breaks. HTTPS is already in place and the report still arrives: what would let the API tell a report the mailing company sent from one it didn't? For the tree: an `and` node adds its steps, and the goal takes the cheapest of the ways under it."
+skills: [draw-the-system, stride, rank-risks, respond-to-risk, attack-trees, attack-and-abuse]

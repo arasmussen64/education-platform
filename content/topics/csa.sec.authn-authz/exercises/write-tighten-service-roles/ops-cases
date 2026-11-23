@@ -1,0 +1,213 @@
+#!/usr/bin/python3
+"""ops-cases RULE: one part of the shop's operations policy, tried on
+requests made up now, with the policy base's check library. Every account
+and every resource has a new random name in every run.
+
+RULE is report-writer, release-deployer, backup-operator, release-approver,
+two-roles, self-approval, no-role or holds-later. Prints "ok" or the first
+three requests where the learner's policy and the jobs disagree.
+"ops-cases validates" prints "ok" or why cedar validate refuses the file.
+"""
+
+import os
+import sys
+import tempfile
+
+sys.path.insert(0, "/usr/local/lib/policy")
+from checklib import (  # noqa: E402
+    Case,
+    Names,
+    check,
+    entity,
+    ref,
+    uid,
+    validates,
+)
+
+HERE = "/home/learner/ops"
+SCHEMA = f"{HERE}/ops.cedarschema"
+POLICIES = f"{HERE}/policies.cedar"
+
+# What each role's job needs (jobs.txt), as (action, kind of resource).
+NEEDS = {
+    "report-writer": {("read", "Order"), ("write", "Report"), ("export", "Summary")},
+    "release-deployer": {
+        ("create", "Release"),
+        ("update", "Release"),
+        ("open", "Change"),
+    },
+    "backup-operator": {("read", "Order"), ("read", "StoreData"), ("write", "Vault")},
+    "release-approver": {("approve", "Change")},
+}
+SAID = {
+    "report-writer": "a report writer",
+    "release-deployer": "a deployer",
+    "backup-operator": "a backup operator",
+    "release-approver": "a release approver",
+}
+
+
+def catalogue():
+    """Every (action, kind) pair there is, from the lab's own catalogue."""
+    pairs = []
+    with open(f"{HERE}/catalogue.txt", encoding="utf-8") as file:
+        for line in file:
+            words = line.split("#")[0].split()
+            if len(words) == 2:
+                pairs.append((words[0], words[1]))
+    return pairs
+
+
+def allowed(roles, action, kind, own):
+    if action == "approve" and own:
+        return False
+    return any((action, kind) in NEEDS[role] for role in roles)
+
+
+def who(roles):
+    if not roles:
+        return "an account with no role"
+    if len(roles) == 1:
+        return SAID[roles[0]]
+    return "an account that is " + " and ".join(SAID[role] for role in roles)
+
+
+def request(names, roles, action, kind, own=False, account=None, allow=None, note=""):
+    """One request and its small world: an account with the roles and a
+    resource of the kind, with a name nobody has seen; a change was made by
+    the account itself (own) or by another."""
+    account = account or names.new("account")
+    other, thing = names.new("account"), names.new(kind.lower())
+    entities = [entity("Role", role) for role in NEEDS]
+    entities.append(entity("Account", account, {}, [("Role", role) for role in roles]))
+    entities.append(entity("Account", other, {}, [("Role", "release-deployer")]))
+    words = f"{who(roles)}, {action} on a {kind}"
+    if kind == "Change":
+        made_by = account if own else other
+        entities.append(entity("Change", thing, {"made_by": ref("Account", made_by)}))
+        words += " that it made itself" if own else " that another account made"
+    else:
+        entities.append(entity(kind, thing))
+    return Case(
+        words=words + note,
+        principal=uid("Account", account),
+        action=uid("Action", action),
+        resource=uid(kind, thing),
+        entities=entities,
+        allow=allowed(roles, action, kind, own) if allow is None else allow,
+    )
+
+
+def everything(names, roles, account=None):
+    """The account against every line of the catalogue, changes both ways."""
+    cases = []
+    for action, kind in catalogue():
+        for own in [False, True] if kind == "Change" else [False]:
+            cases.append(request(names, roles, action, kind, own, account))
+    return cases
+
+
+def cases_for(rule, names):
+    if rule in NEEDS:
+        # Every role, the approvers' too: a role nobody was asked to cut
+        # must not be the one left holding everything.
+        return everything(names, [rule])
+    if rule == "two-roles":
+        # An account with two roles can do what either job needs and
+        # nothing else. Narrow permits add up to that by themselves; a
+        # broad permit held back by forbids doesn't, because one role's
+        # forbids take away what the other role needs.
+        cases = []
+        for roles in (
+            ["report-writer", "backup-operator"],
+            ["release-deployer", "report-writer"],
+            ["backup-operator", "release-deployer"],
+        ):
+            cases += everything(names, roles)
+        return cases
+    if rule == "no-role":
+        cases = everything(names, [])
+        # An account gets its access from its role, never from its name.
+        for name in ("reports", "deployer", "backup", "maya"):
+            for case in everything(names, [], account=name):
+                case.words = case.words.replace(
+                    "an account with no role",
+                    f'an account called "{name}" that has been taken out of its role',
+                )
+                cases.append(case)
+        return cases
+    if rule == "self-approval":
+        cases = []
+        for roles in (
+            ["release-approver"],
+            ["backup-operator", "release-approver"],
+            ["report-writer", "release-approver"],
+        ):
+            for own in (False, True):
+                cases.append(request(names, roles, "approve", "Change", own))
+        # A deployer who has been made an approver as well: its own change
+        # is refused. Whether it may approve another account's is not
+        # asked: jobs.txt says the deployer never approves, and a forbid
+        # that says so is as right as no rule at all.
+        cases.append(
+            request(
+                names,
+                ["release-deployer", "release-approver"],
+                "approve",
+                "Change",
+                True,
+            )
+        )
+        return cases
+    sys.exit(f"ops-cases: no rule called {rule}")
+
+
+def with_a_broad_permit(names):
+    """The same question after someone adds a rule that permits everything:
+    approving your own change must still be refused, which only a forbid
+    can promise. An approver still approves another account's change, and
+    anyone can then open one, so a forbid that is too wide shows too.
+    Whether a deployer or an account with no role may then approve another
+    account's change is not asked: a forbid that keeps approving to the
+    approvers is a fair reading of jobs.txt."""
+    cases = []
+    note = ", after a rule that permits everything is added to your file"
+    for roles in (["release-approver"], ["release-deployer"], []):
+        cases.append(
+            request(names, roles, "approve", "Change", True, allow=False, note=note)
+        )
+        cases.append(
+            request(names, roles, "open", "Change", True, allow=True, note=note)
+        )
+    cases.append(
+        request(
+            names,
+            ["release-approver"],
+            "approve",
+            "Change",
+            False,
+            allow=True,
+            note=note,
+        )
+    )
+    return cases
+
+
+if __name__ == "__main__":
+    rule = sys.argv[1]
+    if rule == "validates":
+        print(validates(SCHEMA, POLICIES))
+        sys.exit(0)
+    if rule == "holds-later":
+        if not os.path.isfile(POLICIES):
+            print(f"there is no file {POLICIES}")
+            sys.exit(0)
+        with tempfile.TemporaryDirectory() as folder:
+            widened = os.path.join(folder, "policies.cedar")
+            with open(POLICIES, encoding="utf-8") as file:
+                text = file.read()
+            with open(widened, "w", encoding="utf-8") as file:
+                file.write(text + "\npermit (principal, action, resource);\n")
+            check(widened, with_a_broad_permit(Names()), schema=SCHEMA)
+        sys.exit(0)
+    check(POLICIES, cases_for(rule, Names()), schema=SCHEMA)

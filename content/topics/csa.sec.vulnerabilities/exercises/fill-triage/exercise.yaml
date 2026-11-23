@@ -1,0 +1,43 @@
+id: fill-triage
+stage: fill_in
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Finish triage"
+prompt: |
+  A scan gives every finding a CVSS score and nothing else. `~/bin/triage FINDINGS EPSS KEV` adds the other two signals and prints the findings in the order to work on them: the ones in CISA's KEV catalog first, then by EPSS from the highest to the lowest, then by CVSS from the highest to the lowest, then by CVE. Its opening comment describes the three files it reads and the five tab-separated fields it prints.
+
+  The script is one `awk` that reads all three files and one `sort`. Its comments explain the two things here that are new: `NR == FNR`, which is true only while `awk` reads the first file it was given, and an **array**, a set of values that `awk` keeps under names, here each score under its CVE.
+
+  Six gaps are left, each marked `...`:
+
+  - two on the line that reads the EPSS file: which field to keep the score under, and which field the score is;
+  - the EPSS of a finding whose CVE has no line in the EPSS file. A CVE published this week may not have a score yet, and it counts as the lowest score there can be;
+  - the two values of the `kev` field;
+  - `sort`'s keys. `-kN,N` sorts on field N alone; add `g` to compare it as a number and `r` to reverse it, so `-k2,2gr` puts the biggest second field first. Keys are used in the order you give them, each one settling the ties the ones before it left.
+
+  Fill them in with `nano ~/bin/triage`. While any of the five gaps inside the `awk` program is left, `awk` can't read its program at all: it prints `awk: 5: unexpected character '.'` (the number is the line of the program, counted from the line `awk` is on) and no findings. While the last gap is left, `sort` takes `...` for a file's name and says `sort: cannot read: ...: No such file or directory`. A week to try it on is in `~/week`: the payments server's seven findings with the lab's EPSS and KEV files.
+
+  ```
+  ~/bin/triage ~/week/findings.tsv ~/week/epss.csv ~/week/kev.csv
+  ```
+
+  Finished, it prints these seven lines. Read the second and third: git's flaw has an EPSS of 0.04379 and OpenSSH's 0.99506, and git's comes first, because it is in KEV.
+
+  ```
+  CVE-2025-32463	sudo	9.3	0.563	yes
+  CVE-2025-48384	git	8.0	0.04379	yes
+  CVE-2024-6387	openssh	8.1	0.99506	no
+  CVE-2024-12084	rsync	9.8	0.72514	no
+  CVE-2025-26465	openssh	6.8	0.07723	no
+  CVE-2025-32462	sudo	8.8	0.04477	no
+  CVE-2024-32487	less	8.6	0.00628	no
+  ```
+
+  Then run the checks. They make up a week of their own each time, with ties that a wrong order of keys, or scores compared as text, gets wrong.
+hints:
+  - "The EPSS file's lines are `cve,epss,percentile`, so on that line `$1` is the CVE and `$2` its score: keep `$2` under `$1`. The third field is the percentile, which this script doesn't use."
+  - "For the keys, say the order out loud: the kev field first, backwards, because as text `yes` comes after `no`; then field 4 as a number, biggest first; then field 3 the same way; then field 1."
+  - "A score compared as text goes wrong at 10.0: as text it sorts below 9.8, because the character 1 comes before 9. That is what `g` is for."
+skills: [cvss-epss-kev, prioritise]

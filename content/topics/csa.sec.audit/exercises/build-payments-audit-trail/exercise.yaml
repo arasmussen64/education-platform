@@ -1,0 +1,21 @@
+id: build-payments-audit-trail
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The payments server's audit trail"
+prompt: |
+  This lab machine is the shop's payments server. Next month its audit trail goes to the auditors, and today it isn't fit to be shown: it records sign-ins and nothing else, it isn't sealed, and nothing says how long it is kept. Make it the trail this policy describes, and make all of it last a restart.
+
+  The trail is the `audit` journal (`journalctl --namespace=audit`), written by `shop-audit.service` from the policy in `/etc/shop/audit.conf`; its journal's settings are in `/etc/systemd/journald@audit.conf`. `shop-cli events` lists everything the shop can do and the fields each event carries, and `shop-cli EVENT FIELD=VALUE` makes the shop do one, so you can see what your policy writes.
+
+  **1. What is recorded.** Every sign-in and failed sign-in, role change, configuration change, refund, data export and card update. Never page views or health checks. Each line says who did it or whom it concerns, from where, what was touched and how it changed, and how it ended. No password, session ID or token is ever written, in whole or in part. A card number is written only as its last four digits.
+
+  **2. Sealed, and the auditors hold the key.** The trail is kept on disk and sealed every 10 seconds (the lab's stand-in for the usual 15 minutes). The verification key goes in `/srv/auditors/verify-key`, the lab's stand-in for handing it to people who don't run this server. The auditors' copy has to stay the key that fits.
+
+  **3. A year, then gone.** The trail is kept for at least 365 days and deleted after at most 400. Give it room for 13 months (395 days) at 60,000 events a day of about 300 bytes each, and no more than 20 GB: the disk has other work to do.
+
+  The checks make the shop do one of everything, with people, addresses and amounts made up on the spot, and read what reached the trail. One of them changes a copy of the trail in two ways, as an attacker would, and passes only if the auditors' key gives both away.
+skills: [what-to-log, retention, sealing-and-worm]

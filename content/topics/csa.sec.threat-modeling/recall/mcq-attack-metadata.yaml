@@ -1,0 +1,16 @@
+id: mcq-attack-metadata
+type: mcq
+rev: 1
+prompt: |
+  An attacker who has a shell on a cloud virtual machine requests `http://169.254.169.254/` to get the credentials of the role the machine runs as. Which MITRE ATT&CK technique (version 20.1) is that request?
+choices:
+  - "T1078.004, Valid Accounts: Cloud Accounts"
+  - "T1098.001, Account Manipulation: Additional Cloud Credentials"
+  - "T1552.005, Unsecured Credentials: Cloud Instance Metadata API"
+  - "T1619, Cloud Storage Object Discovery"
+answer: 2
+explanation: |
+  `169.254.169.254` is the instance metadata service, which hands a machine its role's temporary credentials (you met it in Module 1's boot topic). Asking it for them from a shell you shouldn't have is **T1552.005**: the technique is Unsecured Credentials, the sub-technique after the dot is the Cloud Instance Metadata API, and its tactic, the attacker's reason, is Credential Access.
+
+  Using those credentials afterwards would be T1078.004, Valid Accounts: Cloud Accounts: a different step with a different control. T1098.001 is adding credentials of the attacker's own to an account, to keep access. T1619 is listing what a storage service holds. Naming the exact technique tells a team which control and which detection to look up: here, a metadata service that demands a session token (IMDSv2) and a role with as few rights as it can have.
+skills: [attack-and-abuse]

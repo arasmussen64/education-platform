@@ -1,0 +1,38 @@
+# The checks for "Finish triage": the script is still a script, and it puts
+# a week of findings in the right order. Each of the last four checks has
+# triage-cases (/usr/local/lib/lab-checks) make up a week as it runs: the
+# findings, an EPSS file and a KEV file in the real files' shapes, with
+# random CVEs and scores, so a script that knows one week by heart fails.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: still-a-script
+    description: "~/bin/triage still starts with its #!/bin/bash line, is executable, and has no gap left in it."
+    command: |
+      f=/home/learner/bin/triage
+      [ -x "$f" ] || { echo "~/bin/triage isn't executable"; exit 0; }
+      [ "$(head -n 1 "$f")" = "#!/bin/bash" ] || { echo "the first line isn't #!/bin/bash"; exit 0; }
+      if grep -v '^[[:space:]]*#' "$f" | grep -F '...' > /dev/null; then echo "a gap is still marked ..."; exit 0; fi
+      echo script
+    expect:
+      equals: script
+  - id: known-exploited-first
+    description: "For a week the check makes up, every line's last field says whether the CVE is in the KEV file, and those that are come before those that aren't."
+    command: /usr/local/lib/lab-checks/triage-cases kev
+    expect:
+      equals: right
+  - id: likelier-first
+    description: "Each line carries the EPSS the EPSS file gives its CVE, and within each of the two groups the lines run from the highest EPSS to the lowest."
+    command: /usr/local/lib/lab-checks/triage-cases epss
+    expect:
+      equals: right
+  - id: no-score-yet
+    description: "A finding that has no line in the EPSS file is printed with the lowest EPSS there can be, below its group's scored findings."
+    command: /usr/local/lib/lab-checks/triage-cases missing
+    expect:
+      equals: right
+  - id: whole-order
+    description: "The whole order is right, including findings with the same EPSS (the higher CVSS first, read as a number) and findings alike in all three (by CVE)."
+    command: /usr/local/lib/lab-checks/triage-cases cvss
+    expect:
+      equals: right

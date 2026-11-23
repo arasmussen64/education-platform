@@ -1,0 +1,80 @@
+# The checks of "Review gaps": the script is there, runnable and does its
+# own work; it gives the right lines for the example model; for a model in
+# which nothing crosses a boundary; and for five models it has never seen,
+# made up as the check runs (review-cases, in /usr/local/lib/lab), with
+# names, zones, flows and reviews made up then, so a script that knows
+# answers by heart fails. Every made-up model holds a fully reviewed flow,
+# a partly reviewed one, one with no review, a flow inside one zone with a
+# review of its own, none lines with jumbled letters, and reviews that are
+# commented out, so each rule of the task shows in every one of them. Each
+# answer is compared with the checks' own, line by line. A check that
+# finds something wrong prints what it found and exits 0, so the checker
+# shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/review-gaps exists, is executable, starts with #!/bin/bash, and does its own work with bash and awk."
+    command: |
+      f=/home/learner/bin/review-gaps
+      [ -f "$f" ] || { echo "there is no ~/bin/review-gaps"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/review-gaps isn't executable"; exit 0; }
+      [ "$(head -n 1 "$f")" = '#!/bin/bash' ] || { echo "~/bin/review-gaps's first line isn't #!/bin/bash"; exit 0; }
+      if grep -E 'python|perl|tm-check|/usr/local/lib/lab' "$f" > /dev/null; then
+        echo "~/bin/review-gaps hands the work to another program: bash and awk are this lab's tools"
+        exit 0
+      fi
+      echo ready
+    expect:
+      equals: ready
+  - id: example-model
+    description: "On the example model it prints the four lines the task shows."
+    command: |
+      model=/usr/local/lib/lab/example.tm
+      want=$(/usr/local/lib/lab/review-cases answer "$model")
+      got=$(cd /tmp && timeout 10 runuser -u learner -- /home/learner/bin/review-gaps "$model" 2>&1)
+      if [ "$want" != "$got" ]; then
+        expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+        printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+        echo "the right line is \"${expected:-nothing more}\", and the script printed \"${printed:-nothing in its place}\""
+        exit 0
+      fi
+      echo right
+    expect:
+      equals: right
+  - id: nothing-crosses
+    description: "On a model whose parts all share one zone, it prints the last line alone, with both counts 0."
+    command: |
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      chmod 755 "$dir"
+      /usr/local/lib/lab/review-cases flat "$dir/model.tm"
+      want=$(/usr/local/lib/lab/review-cases answer "$dir/model.tm")
+      got=$(cd /tmp && timeout 10 runuser -u learner -- /home/learner/bin/review-gaps "$dir/model.tm" 2>&1)
+      if [ "$want" != "$got" ]; then
+        expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+        printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+        echo "on a model with one zone, the right line is \"${expected:-nothing more}\", and the script printed \"${printed:-nothing in its place}\""
+        exit 0
+      fi
+      echo right
+    expect:
+      equals: right
+  - id: unseen-models
+    description: "On five models it has never seen, made up as the check runs, it prints the right line for every flow that crosses a boundary, in the file's order, and the right counts."
+    command: |
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      chmod 755 "$dir"
+      for n in 1 2 3 4 5; do
+        /usr/local/lib/lab/review-cases make "$dir/model$n.tm"
+        want=$(/usr/local/lib/lab/review-cases answer "$dir/model$n.tm")
+        got=$(cd /tmp && timeout 5 runuser -u learner -- /home/learner/bin/review-gaps "$dir/model$n.tm" 2>&1)
+        if [ "$want" != "$got" ]; then
+          expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+          printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+          echo "on a new model, the right line is \"${expected:-nothing more}\", and the script printed \"${printed:-nothing in its place}\""
+          exit 0
+        fi
+      done
+      echo right
+    expect:
+      equals: right

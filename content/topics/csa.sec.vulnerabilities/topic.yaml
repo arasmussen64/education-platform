@@ -1,14 +1,349 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.vulnerabilities
 kind: topic
-status: planned
+status: ready
 title: Vulnerability management
-summary: 'Run a vulnerability-management loop: scan, prioritize by exploitability (CVSS against EPSS and the KEV catalog), set patch SLAs, and track remediation.'
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "The loop that keeps known flaws out of your systems: scan a server's packages with a real scanner and read each finding; tell apart what CVSS (severity), EPSS (likelihood) and CISA's KEV catalog (evidence) say and act when they disagree; turn a finding into a due date with a written policy (CISA's BOD 26-04 table, PCI DSS's month); fix, prove the fix with a rescan and a look at what is still running the old code; and keep a register that shows it."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections 2,
+# 3 and 5), its designer's brief (csa.sec.vulnerabilities.md) and the build
+# notes (BUILD-NOTES.md), which change the brief: on the pay base an openssh
+# upgrade restarts sshd by itself, so "patched on disk, old code in memory"
+# is shown with the shop's own unit, shop-sync.service, which runs an rsync
+# daemon that a package upgrade never restarts (tried on the base,
+# 2026-11-22: after "apt-get install --only-upgrade rsync" the package's own
+# rsync.service was restarted and shop-sync's process still ran
+# "/usr/bin/rsync (deleted)").
+#
+# This topic builds on csa.sec.threat-modeling (risk, likelihood, impact,
+# residual risk, the four responses to a risk and control, all its terms)
+# and, through the track's order, on Module 1: csa.linux.packages (apt
+# update and upgrade, --only-upgrade, apt policy and the candidate, holds
+# and pins, "an upgrade replaces files and doesn't touch what is running",
+# immutable servers), csa.linux.hardening (scan, fix, scan again),
+# csa.linux.services (systemctl restart, systemctl cat, drop-ins),
+# csa.linux.storage (lsof +L1), csa.linux.shell and csa.linux.scripting
+# (grep, cut, sort, awk, a script with chmod +x), and Module 3's
+# csa.net.cidr and csa.net.nat (public against private addresses). New
+# here, each explained where it is first used: awk's arrays and NR == FNR,
+# sort's keys, date -d, grep -f.
+#
+# It defines, for the module (the plan's 3.5): vulnerability, exploit, CVE,
+# advisory, backport, CVSS, EPSS, KEV, SSVC, SLA, exception, compensating
+# control and MTTR.
+prerequisites: [csa.sec.threat-modeling]
+# Worked out: the lesson about 37 minutes (4,770 words with its tables at
+# 130 a minute), 22 practice quick items at 1.5 each 33, the worked example
+# 25, the fill-in 25, the write 40, the build 60, the debug 45 and the
+# explain 20: 285; the copied reading (CISA's Appendix A, 604 words) 5
+# more: 290, the plan's figure. Every other reading is an optional link
+# and is left out.
+estimated_minutes: 290
 rev: 1
 objectives:
-- 'Run a vulnerability-management loop: scan, prioritize by exploitability (CVSS against EPSS and the KEV catalog), set patch SLAs, and track remediation.'
+  - "Scan a server's packages with a real scanner (OSV-Scanner, offline) and read each finding: the advisory, the package, the installed and fixed versions, the severity; say what a scanner compares, and why a distribution's own advisories are the ones to trust for its packages (backports)."
+  - "Say what CVSS (how severe a flaw is, from its vector), EPSS (the probability of exploitation in the next 30 days) and CISA's KEV catalog (evidence of exploitation) each tell you, read a vector, and decide when they disagree."
+  - "Prioritise with the asset's context (exposed to the internet or not) and the flaw's (automatable or not, total or partial control), by applying a written policy, CISA's BOD 26-04 table, and say when a finding also needs forensic triage."
+  - "Work out due dates in calendar days from the right start (the earlier of the KEV listing and the day the flaw was found; PCI DSS's month from a patch's release), and write an exception with an owner, a compensating control and an expiry for a fix that can't make its date."
+  - "Fix a finding and prove it: patch from a repository, restart what still runs the old code, rescan; keep a register, and report mean time to remediate, the share fixed on time and the backlog's direction."
+# Facts the lesson, the items and the labs rely on, each read on
+# 2026-11-22 unless a line says otherwise:
+# - CISA's BOD 26-04, "Prioritizing Security Updates Based on Risk", issued
+#   June 10, 2026; it "supersedes and hereby revokes" BOD 19-02 (April 29,
+#   2019) and BOD 22-01 (Nov. 3, 2021). Four variables: asset exposure
+#   (publicly exposed), KEV status, exploit automation, technical impact
+#   (partial or total control). Table 1 is an image on the page
+#   (BOD_26-04_Table_1_Remediation_Timelines_0.png), read as an image:
+#   rows 1 Y/Y/Y/Total "3 days & forensic triage"; 2 Y/Y/Y/Partial 3 days;
+#   3 Y/Y/N/Total "3 days & forensic triage"; 4 Y/Y/N/Partial 14; 5
+#   Y/N/Y/Total 3; 6 Y/N/Y/Partial 14; 7 Y/N/N/Total 14; 8 Y/N/N/Partial 60;
+#   9 N/Y/Y/Total "3 days & forensic triage"; 10 N/Y/Y/Partial 14; 11
+#   N/Y/N/Total 14; 12 N/Y/N/Partial 14; 13 N/N/Y/Total 60; 14 N/N/Y/Partial
+#   60; 15 and 16 N/N/N "Fix on system upgrade". "Days are calendar days."
+#   The timelines begin when CISA adds the vulnerability to the KEV catalog
+#   or the agency identifies it on an asset: "Whichever event occurs first
+#   starts the remediation timeline." Remediated: "eliminated through
+#   patching, decommissioning the system, or another action". "& forensic
+#   triage": remediate or mitigate within the three days "and carry out a
+#   forensic triage of the asset to assess whether the system is
+#   compromised". "Fix on system upgrade": "the next time the vulnerable
+#   asset receives a scheduled major upgrade or rebuild". Removing a system
+#   from the internet changes "Publicly Exposed" from Yes to No and shifts
+#   the timeline. Phase III, "Within 180 days of issuance", is where
+#   agencies must meet Table 1's timelines: 180 days from 10 June 2026 is
+#   7 December 2026 (a date that will pass: the lesson says "from 7
+#   December 2026"). CISA reassesses the table once per fiscal year:
+#   cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+# - KEV: three criteria, "an assigned Common Vulnerabilities and Exposures
+#   (CVE) ID", "reliable evidence that the vulnerability has been actively
+#   exploited in the wild", "a clear remediation action for the
+#   vulnerability, such as a vendor-provided update"; scanning and a proof
+#   of concept "do not constitute as active exploitation":
+#   cisa.gov/known-exploited-vulnerabilities. The catalog's page showed
+#   1,790 entries on 2026-11-22, with a column "Forensic triage required
+#   per BOD 26-04": cisa.gov/known-exploited-vulnerabilities-catalog. The
+#   labs' extract is catalog version 2026.11.10 (1,779 entries), whose
+#   entry for CVE-2025-32463 says dateAdded 2025-09-29 and for
+#   CVE-2025-48384 2025-08-25 (content/lab-bases/pay/data/SOURCES.md).
+# - EPSS "estimates the probability that a published CVE will be exploited
+#   in the wild in the next 30 days", published every day for every CVE with
+#   percentiles: first.org/epss/. FIRST's research page speaks of a Version
+#   5 in use today and gives it no date: first.org/epss/research. The labs'
+#   file of 2026-11-10 says model_version v2026.06.15; its scores:
+#   CVE-2025-32463 0.563 (percentile 0.99059), CVE-2025-48384 0.04379,
+#   CVE-2024-6387 0.99506 (0.99945), CVE-2024-12084 0.72514, CVE-2024-32487
+#   0.00628, CVE-2025-26465 0.07723, CVE-2025-32462 0.04477.
+# - CVSS v4.0 Specification Document, version 1.2 (2024-06-18): ratings None
+#   0.0, Low 0.1 to 3.9, Medium 4.0 to 6.9, High 7.0 to 8.9, Critical 9.0 to
+#   10.0; CVSS-B, CVSS-BT, CVSS-BE, CVSS-BTE; "Consumers of CVSS should
+#   enrich the Base metrics with Threat and Environmental metric values";
+#   FIRST owns CVSS and licenses it free of charge with attribution, and
+#   publishers give both the score and the vector:
+#   first.org/cvss/v4.0/specification-document. The CVSS 3.1 vectors and
+#   scores of the seven advisories are in the records themselves
+#   (content/lab-bases/pay/data/advisories/), and each score was worked out
+#   again from its vector with the 3.1 formula: 9.3 and 7.8 for
+#   CVE-2025-32463, 2.8 and 8.8 for CVE-2025-32462.
+# - SSVC: created by Carnegie Mellon's Software Engineering Institute with
+#   CISA in 2019; CISA's tree has exploitation status, technical impact,
+#   automatable, mission prevalence and public well-being impact, and four
+#   outcomes, Track, Track*, Attend and Act:
+#   cisa.gov/stakeholder-specific-vulnerability-categorization-ssvc. The
+#   seven CVEs' values are CISA's Vulnrichment data in the base's ssvc.csv.
+# - PCI DSS. The version in force is 4.0.1 (published 11 June 2024; 4.0
+#   was retired on 31 December 2024). The PCI SSC's post about 4.0.1
+#   (blog.pcisecuritystandards.org/just-published-pci-dss-v4-0-1, read
+#   2026-11-22 by the reviewer) says 6.3.3 went back to v3.2.1's wording,
+#   so that the month applies to critical vulnerabilities only; the
+#   lesson, the items and the rubric say "critical", not "critical or
+#   high". The standard itself sits behind a licence click-through and
+#   was not opened; nothing of it is quoted. Microsoft's guidance still
+#   quotes version 4.0 (the PCI SSC's own text is never copied;
+#   identifiers and short quotations only): 6.3.3, critical or
+#   high-security patches "are installed within one month of
+#   release" and others "within an appropriate time frame as determined by
+#   the entity (for example, within three months of release)"; 11.3.1,
+#   internal scans "At least once every three months", and "Rescans are
+#   performed that confirm all high-risk and critical vulnerabilities ...
+#   have been resolved"; 11.3.2, external scans every three months by an
+#   approved scanning vendor:
+#   learn.microsoft.com/en-us/entra/standards/pci-requirement-6 and
+#   pci-requirement-11 (updated 2026-06-15).
+# - NCSC's "Vulnerability management" guidance, version 2.1, reviewed
+#   1 May 2026: update by default, respond to active exploitation, identify
+#   your assets, triage and prioritise, the organisation owns the risk of
+#   not updating, verify and review: ncsc.gov.uk/guidance/vulnerability-management.
+# - Equifax, 2017 (the lesson's story): US Government Accountability
+#   Office, GAO-18-559, "Data Protection: Actions Taken by Equifax and
+#   Federal Agencies in Response to the 2017 Breach" (30 August 2018), the
+#   summary page and the report's PDF, pages 10 to 16: the Apache Struts
+#   flaw US-CERT made public on 8 March 2017, the scan of 10 March by
+#   unidentified individuals, the out-of-date recipient list, the scan a
+#   week later that missed the dispute portal, 13 May, about 76 days, the
+#   certificate expired about 10 months, 29 July, at least 145.5 million
+#   individuals: gao.gov/products/gao-18-559.
+# - The clouds (the lesson's table): Amazon Inspector "discovers and scans
+#   Amazon EC2 instances, container images in Amazon ECR, and Lambda
+#   functions", rescans when a package changes or a new CVE is published,
+#   and gives an Amazon Inspector score that adjusts the CVSS base score
+#   to the environment:
+#   docs.aws.amazon.com/inspector/latest/user/what-is-inspector.html.
+#   Defender for Cloud's Defender for Servers plan scans machines with
+#   Microsoft Defender Vulnerability Management: agent-based in Plan 1 and
+#   Plan 2, agentless in Plan 2 only (ms.date 2026-07-03):
+#   learn.microsoft.com/en-us/azure/defender-for-cloud/auto-deploy-vulnerability-assessment.
+#   Google's Artifact Analysis scans container images automatically "every
+#   time you push a new image to Artifact Registry" and keeps the results
+#   up to date; on-demand scanning's results last 48 hours:
+#   docs.cloud.google.com/artifact-analysis/docs/artifact-analysis. VM
+#   Manager's vulnerability reports list known vulnerabilities in VMs'
+#   operating systems with CVE, severity and CVSS v3 score:
+#   docs.cloud.google.com/compute/vm-manager/docs/os-inventory/vulnerability-reports.
+#   No price is quoted for any of them.
+# - Trivy "uses the advisory database from the appropriate OS vendor" (the
+#   Ubuntu CVE Tracker for Ubuntu), because vendors backport fixes:
+#   trivy.dev/latest/docs/scanner/vulnerability/. Grype's README lists
+#   "Threat & risk prioritization with EPSS, KEV, and risk scoring":
+#   github.com/anchore/grype (Apache-2.0).
+# - OSV-Scanner's offline mode: --offline, --offline-vulnerabilities, and
+#   OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY with {dir}/osv-scalibr/{ecosystem}/all.zip:
+#   google.github.io/osv-scanner/usage/offline-mode/.
+# Tried in this topic's labs on the pay base (OSV-Scanner 2.7.0, apt 2.8,
+# OpenSSH 9.6p1, rsync 3.2.7, systemd 255 on Ubuntu 24.04), 2026-11-22: the
+# scan's 228 packages, seven findings in five packages and exit status 1;
+# "No issues found" and exit status 0 after the five upgrades; a held
+# package is "kept back" by apt-get upgrade, which still exits 0; a pin of
+# 1001 on the installed version makes the candidate the installed version;
+# "apt-get install --allow-change-held-packages" clears the hold it steps
+# past; a drop-in whose ExecStart runs a kept copy of sshd keeps the old
+# version on port 22 through an openssh upgrade and a reboot; lsof +L1 and
+# /proc/PID/exe both show "/usr/bin/rsync (deleted)". Every command output
+# in the lesson, the labs and the recall items marked "captured" is real
+# output of those labs.
+#
+# Licences, each read on 2026-11-22. CISA's pages are works of the US
+# government and carry no copyright notice: the directive's Appendix A is
+# shown in the lesson (ADR-0031, copied 2026-11-22 with
+# tools/import_reading.py ... --from "Appendix A: Vulnerability Response
+# Timeline" --drop "hr ~ *" --drop hr --drop .l-page-section--tags --drop
+# .c-block--view); everything else is linked, never copied. The KEV data is
+# CC0 1.0 (cisagov/kev-data's LICENSE); FIRST's pages are "Copyright ...
+# FIRST.Org, Inc. All Rights Reserved" (the footer), with EPSS data "freely
+# and openly accessible" and CVSS free to use with attribution; the NCSC's
+# page showed no licence line to the fetch (Crown copyright; its site's
+# terms were not confirmed, so it stays a link); OSV-Scanner's
+# documentation is part of its Apache-2.0 repository; the GAO's report is
+# a work of the US government (its PDF's own notice says it may be
+# reproduced without further permission, except material it marks as
+# copyrighted).
+resources:
+  - title: "BOD 26-04: Prioritizing Security Updates Based on Risk (CISA, June 2026): Appendix A, the table of sixteen rows and what its terms mean, about 5 minutes"
+    url: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    type: reading
+    use: embed
+    license: "US government work (CISA): not under copyright in the United States (17 U.S.C. 105); the page carries no copyright notice"
+    text:
+      file: readings/bod-26-04.html
+      by: "the Cybersecurity and Infrastructure Security Agency (CISA), US Department of Homeland Security"
+      license_url: "https://www.copyright.gov/title17/92chap1.html#105"
+      retrieved: "2026-11-22"
+      changes: "Appendix A alone, from its heading to the figure that restates Table 1. CISA letters the list of the terms' meanings a to j and it is numbered 1 to 10 here, so \"item (e)\" in its seventh item is item 5. The directive's background, scope and required actions above it are left out, as are the numbered source notes, the tags and the list of related directives below it, and the site's menus. Table 1 and the figure are pictures that load from cisa.gov."
+  - title: "Known Exploited Vulnerabilities Catalog (CISA): the catalog itself, searchable, with each entry's date added, due date and forensic-triage flag"
+    url: https://www.cisa.gov/known-exploited-vulnerabilities-catalog
+    type: reading
+    use: link
+    optional: true
+    license: "US government work (CISA); the catalog's data is CC0 1.0; linked, not copied"
+  - title: "Exploit Prediction Scoring System (FIRST): what EPSS estimates, with links to the daily data and the model's history"
+    url: https://www.first.org/epss/
+    type: reading
+    use: link
+    optional: true
+    license: "© FIRST.Org, Inc., all rights reserved (the page's footer); linked, not copied"
+  - title: "Vulnerability management (UK National Cyber Security Centre, version 2.1): six principles for an organisation's process, about 5 minutes"
+    url: https://www.ncsc.gov.uk/guidance/vulnerability-management
+    type: reading
+    use: link
+    optional: true
+    license: "Crown copyright (no licence line was on the page as fetched); linked, not copied"
+  - title: "CVSS v4.0 Specification Document (FIRST): section 2, the base metrics, as a reference for reading a vector"
+    url: https://www.first.org/cvss/v4.0/specification-document
+    type: reading
+    use: link
+    optional: true
+    license: "© FIRST.Org, Inc.; CVSS is free to use with attribution; linked, not copied"
+  - title: "Stakeholder-Specific Vulnerability Categorization, SSVC (CISA): the decision points behind \"automatable\" and \"technical impact\", and the four outcomes"
+    url: https://www.cisa.gov/stakeholder-specific-vulnerability-categorization-ssvc
+    type: reading
+    use: link
+    optional: true
+    license: "US government work (CISA); linked, not copied"
+  - title: "Offline Mode (OSV-Scanner's documentation): the flags and the local database the labs' scanner uses"
+    url: https://google.github.io/osv-scanner/usage/offline-mode/
+    type: reading
+    use: link
+    optional: true
+    license: "Apache 2.0 (the google/osv-scanner repository's LICENSE); linked, not copied"
+# The recall items read the labs' captured scan and the policy table with
+# Module 1's text tools, and work out due dates, lateness and the three
+# tracking numbers. The worked example, the build and the debug are systemd
+# labs on the payments-server base (content/lab-bases/pay/); the fill-in
+# and the write are plain labs whose inputs the checks make up as they run.
+practice:
+  - example-scan-to-fix
+  - mcq-what-a-scanner-does
+  - count-findings
+  - mcq-backport
+  - mcq-cvss-is-severity
+  - vector-parts
+  - mcq-epss-means
+  - typed-epss-window
+  - mcq-kev-criteria
+  - mcq-kev-beats-epss
+  - fill-triage
+  - bod-row
+  - mcq-same-flaw-two-hosts
+  - mcq-forensic-triage
+  - mcq-not-running
+  - est-kev-due-day
+  - est-overdue-days
+  - est-pci-late
+  - write-sla-due
+  - est-mttr
+  - est-sla-compliance
+  - est-backlog-weeks
+  - mcq-old-code-running
+  - typed-deleted-open
+  - mcq-fixed-means
+prove:
+  build: build-weekly-vuln-run
+  debug: debug-patched-but-flagged
+  explain:
+    prompt: |
+      A manager reads this week's scan: 1,400 findings, 90 of them "critical". She asks why the team fixed a "high" on the web servers before most of the criticals, and how you'll show the auditors that you patch in time. Explain, in your own words: what a scanner does and why a distribution's own advisories matter; what CVSS, EPSS and the KEV catalog each tell you, and what you do when they disagree; how the asset's exposure and the kind of control an attacker would get change the order; how you set and count due dates, and what you do when a fix can't make its date; and how you prove a finding is fixed and report progress.
+    rubric:
+      - id: scanner
+        required: true
+        description: "A scanner compares the versions of what is installed with a database of advisories; it attacks nothing and is only as good as its data. It must read the distribution's own advisories, because a distribution backports fixes into its old version numbers, so upstream's 'fixed in' version would flag patched servers."
+      - id: three-signals
+        required: true
+        description: "CVSS is severity in general, worked out from a vector worth reading; EPSS is a probability of exploitation in the next 30 days; KEV is evidence that a flaw has been exploited. KEV entries come first, then the likelier ones, with severity settling ties: never CVSS alone."
+      - id: context
+        required: true
+        description: "Whether the asset is exposed to the internet, whether the attack can be automated and whether it gives total or partial control change the timeline, as in a written policy such as CISA's BOD 26-04 table (3, 14 or 60 days, or at the next upgrade); on the rows that ask for it (an exploited flaw that gives total control, on an exposed asset or by an attack that can be automated) the asset also gets forensic triage, a look for signs it was already used. Saying only that an exploited flaw with total control gets triage is enough."
+      - id: slas
+        required: true
+        description: "Due dates are counted in calendar days from the earlier of the KEV listing and the day the flaw was found (so a flaw found late can be overdue at once); PCI DSS gives the patches for critical vulnerabilities one month from release. A fix that can't make its date gets a written exception: an owner, the reason, a compensating control and an expiry date."
+      - id: prove-and-track
+        required: true
+        description: "A finding is fixed when the patch is installed, whatever still ran the old code has been restarted (or the image rebuilt and the servers replaced), and a rescan no longer lists it. A register holds one line per finding with its due date, status and owner; progress is reported as mean time to remediate, the share fixed on time and the backlog's direction."
+      - id: example
+        required: false
+        description: "An example with real numbers, such as a KEV entry with an EPSS near 0.04 going ahead of a flaw at 0.995 that isn't in KEV, or the same flaw being 14 days on an exposed server and 'at the next upgrade' on an internal one."
+    model_answer: |
+      A scanner doesn't attack anything. It reads what is installed, package by package and version by version, and looks each one up in a database of advisories that say which versions have a known flaw and which version fixes it. So it is only as good as that database, and for a Linux distribution's packages it has to be the distribution's own advisories: Ubuntu fixes old versions by backporting the patch, so its fixed sudo is still called 1.9.15p5 while the project says "before 1.9.17p1", and a scanner that compared upstream numbers would flag patched servers for ever.
+
+      "Critical" is a CVSS word, and CVSS only says how bad a flaw would be if someone used it, in general, from a vector that describes the attack. Two other signals say whether anyone will. EPSS is a daily estimate of the chance that the flaw is exploited somewhere in the next 30 days. CISA's KEV catalog lists flaws for which there is evidence of real attacks. When they disagree, evidence comes first, then likelihood, and severity settles ties. Most of those 90 criticals have an EPSS near zero and aren't in KEV; the "high" on the web servers was in KEV. In my lab's data, git's flaw with an EPSS of 0.04 was in KEV and went ahead of an OpenSSH flaw at 0.995 that wasn't.
+
+      Then the asset matters. The web servers face the internet. Our policy is CISA's BOD 26-04 table: is the asset exposed, is the flaw in KEV, can the attack be automated, does it give total or partial control. Those four answers give 3, 14 or 60 days, or "fix at the next upgrade" for a flaw nobody exploits on a machine nobody outside can reach. For an exploited flaw that gives total control on an exposed server like these, we also do forensic triage: look for signs that it was used on that machine before we patched.
+
+      Due dates are calendar days, counted from the earlier of the day CISA listed the flaw and the day we found it, so something we find late can be overdue the day we find it, and the register says so. For the card systems PCI DSS also gives the patches for critical vulnerabilities one month from release. When a fix honestly can't make its date, we write an exception with a named owner, the reason, a compensating control such as blocking the port, and an expiry date.
+
+      A finding is fixed when the patch is in, the processes that were still running the old code have been restarted (on our image-built servers, when the image is rebuilt and the servers replaced), and a rescan no longer shows it. Every finding has a line in the register with its machine, due date, status and owner. For the auditors I'd show that register and three numbers from it: the mean time to remediate, the share of fixes made by their due date, and whether the backlog is shrinking, which means fixing more each week than arrives.
+review_pool:
+  - count-findings
+  - mcq-backport
+  - mcq-what-a-scanner-does
+  - vector-parts
+  - mcq-kev-beats-epss
+  - mcq-whose-score
+  - est-expected-exploited
+  - typed-kev-name
+  - bod-row
+  - mcq-same-flaw-two-hosts
+  - mcq-remediation-means
+  - est-kev-due-day
+  - est-overdue-days
+  - est-pci-late
+  - est-quarterly-scans
+  - est-mttr
+  - est-backlog-weeks
+  - est-exception-expiry
+  - mcq-old-code-running
+  - typed-deleted-open
+  - mcq-exception-shape
+  - mcq-immutable-fix
+# Labs short enough for a hands-on refresher in a review (ADR-0009, amended
+# 2026-11-16): the review asks one in place of a quick question.
+review_labs:
+  - write-sla-due
+  - fill-triage
+skills:
+  - id: scan-and-read
+    description: "What a scanner compares (installed versions against advisories) and where it looks (the package database; an app's lockfile; an image); running OSV-Scanner offline and reading a finding (the ID, the package, the installed and fixed versions, the severity); findings against packages; the distribution's own advisories and backports; false positives and false negatives"
+  - id: cvss-epss-kev
+    description: "What each of the three measures and who publishes it: CVSS (severity, from a vector: AV, AC, PR, UI, scope, C/I/A; the ratings from Low to Critical; more than one score for one CVE), EPSS (a probability for the next 30 days, with a percentile, new every day) and CISA's KEV catalog (evidence of exploitation; its three criteria); the order when they disagree"
+  - id: prioritise
+    description: "The asset's context (exposed to the internet or not), SSVC's decision points (exploitation, automatable, technical impact) and CISA's BOD 26-04 table as a policy that turns four answers into a timeline; forensic triage; a flaw in code that isn't running; what counts as remediation, and mitigation beside it"
+  - id: patch-slas
+    description: "Timelines from a policy, and due dates counted in calendar days from the earlier of the KEV listing and the day the flaw was found; found late is already overdue; PCI DSS 6.3.3's month from release and 11.3.1's quarterly scans and rescans; the arithmetic of due dates and lateness"
+  - id: remediate-and-track
+    description: "Patching from a repository; a patch run that reports success and still leaves a package behind, and asking apt why; processes that still run the old code and how to find and restart them; rescanning; rebuilding the image for immutable servers; exceptions with an owner, a compensating control and an expiry; the register; mean time to remediate, SLA compliance and the backlog's arithmetic"

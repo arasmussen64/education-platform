@@ -1,0 +1,47 @@
+id: write-sla-due
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Due dates from a policy"
+prompt: |
+  From a blank file, write `~/bin/sla-due`, a bash script that says when each finding is due under a written policy. It is run as `sla-due FINDINGS ASSETS POLICY`, three tab-separated files:
+
+  - `FINDINGS`, one finding a line: the CVE, the asset it is on, the day it was found there, the day CISA listed it in KEV (or `-` when it isn't in KEV), whether the attack is automatable (`yes` or `no`), and the impact (`total` or `partial`).
+  - `ASSETS`, one asset a line: its name, and whether it is exposed to the internet (`yes` or `no`).
+  - `POLICY`, one row a line, in the shape of CISA's BOD 26-04 table: exposed, in KEV, automatable, impact, then the timeline in days (a number, or `on-upgrade`), then whether the row also asks for forensic triage (`yes` or `no`).
+
+  For each finding, in FINDINGS' order, it prints one line of four fields separated by spaces: the CVE, the asset, the due date and the row's forensic triage. The due date is the day the timeline ends, as `YYYY-MM-DD`, counted in calendar days from the day the clock started: the day the finding was found or the day CISA listed it, whichever is earlier. A row with no number of days prints `on-upgrade` in place of a date.
+
+  A small week to try it on is in `~/week`:
+
+  ```
+  ~/bin/sla-due ~/week/findings.tsv ~/week/assets.tsv ~/week/policy.tsv
+  ```
+
+  which should print:
+
+  ```
+  CVE-2099-1001 web-1 2026-03-05 yes
+  CVE-2099-1002 web-1 2026-11-27 no
+  CVE-2099-1003 ledger 2026-11-13 no
+  CVE-2099-1004 ledger on-upgrade no
+  CVE-2099-1005 kiosk 2027-01-02 no
+  ```
+
+  Read the files beside that answer before you write anything: the first finding was found on 13 November and is due in March, and the third was listed in KEV three weeks after it was found.
+
+  What you need, all of it bash and tools you have used:
+
+  - `while IFS=$'\t' read -r cve asset found kev automatable impact; do ... done < "$findings"` runs the lines between `do` and `done` once for each line of the file, with the line's six tab-separated fields in six variables.
+  - `awk -F'\t' -v a="$asset" '$1 == a {print $2}' "$assets"` prints the second field of the line whose first field is the asset: `-v` hands a shell variable to `awk` under a name of its own. The same shape, with four `-v` and four tests joined by `&&`, finds the policy's row.
+  - `date -d "2026-11-09 + 3 days" +%F` prints `2026-11-12`: the date so many calendar days on, weekends and month ends included.
+  - Dates written `YYYY-MM-DD` compare correctly as text: `[[ $a < $b ]]` is true when `a` is the earlier day.
+
+  Make the file with `nano ~/bin/sla-due`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/sla-due`. Then run the checks. They make up their own findings, assets and policy each time: assets whose names say nothing true about their exposure, start days on every day of the week, and a policy table with other numbers than the shop's.
+hints:
+  - "Work one finding through by hand first. `web-1` is exposed (ASSETS), CVE-2099-1001 is in KEV, not automatable, total impact: the policy's row says 3 days and triage. It was listed on 2026-03-02 and found on 2026-11-13, so the clock started on 2026-03-02."
+  - "Inside the loop: look the asset's exposure up with `awk`; set `inkev` to `yes` unless the KEV field is `-`; set `start` to the found day, and change it to the KEV day when there is one and it is earlier; find the row's fifth and sixth fields with a second `awk`; then either print `on-upgrade` or ask `date -d \"$start + $days days\" +%F`."
+  - "To take one `awk` answer of two words apart, `${row% *}` is everything before the last space and `${row#* }` everything after the first. Or run `awk` twice, once printing `$5` and once `$6`."
+skills: [patch-slas, prioritise]

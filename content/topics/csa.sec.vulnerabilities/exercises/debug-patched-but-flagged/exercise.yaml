@@ -1,0 +1,20 @@
+id: debug-patched-but-flagged
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Patched on Monday, flagged on Tuesday"
+prompt: |
+  This lab machine is `pay2`, the shop's second payments server. It runs an SSH server on port 22 and the shop's audit writer, and it has the same five packages the scanner knows about: sudo, OpenSSH, less, rsync and git. Its packages come from its own patch repository, and every Monday a patch run does `apt-get update && apt-get -y upgrade`. This Monday's run printed no error, and the change ticket says all five packages were patched. The run's output is in `/var/log/patch-run.log`.
+
+  This morning two things don't fit the ticket:
+
+  - the scan still lists findings: `osv-scanner scan source --offline-vulnerabilities --offline -L /var/lib/dpkg/status --format vertical`;
+  - the security team's check from outside still sees the old OpenSSH version announced on port 22, though the scan no longer lists OpenSSH. `nc -w 2 127.0.0.1 22 < /dev/null` shows what they see.
+
+  There are three faults. Find and fix them, so that the scan is clean, port 22 announces the installed OpenSSH, and next Monday's run patches everything by itself.
+
+  The rules of the repair: patch only from the server's own patch repository; keep all five packages installed and working; keep SSH's settings and host keys as they are, and keep SSH logins working; don't change the scanner, its records or its data; and the repair must last a reboot.
+skills: [remediate-and-track, scan-and-read]

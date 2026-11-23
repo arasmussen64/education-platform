@@ -1,0 +1,19 @@
+id: typed-401
+type: typed
+rev: 1
+prompt: |
+  A request reaches an API with no credentials at all, so the API can't tell who is asking. Which HTTP status code should it answer with? Give the number.
+kind: text
+answers:
+  - "401"
+  - "401 Unauthorized"
+mistakes:
+  - id: forbidden
+    answers: ["403", "403 Forbidden"]
+    why: "403 is for a caller the server knows and refuses. This caller hasn't shown who it is yet, which is 401."
+  - id: not-found
+    answers: ["404", "404 Not Found"]
+    why: "404 says there is nothing at that address. Some servers do answer 404 to hide a thing from someone who may not see it, but a caller with no credentials is asked to authenticate: 401."
+explanation: |
+  **401**. Its name is `Unauthorized`, but it means unauthenticated: the request "lacks valid authentication credentials", and the response carries a `WWW-Authenticate` header that says how to sign in. `403 Forbidden` is the other half: the server knows who is asking, and the answer is no.
+skills: [authn-or-authz]

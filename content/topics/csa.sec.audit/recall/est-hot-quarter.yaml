@@ -1,0 +1,24 @@
+id: est-hot-quarter
+type: estimate
+rev: 1
+prompt: |
+  The shop's log platform keeps 90 days of audit logs searchable and moves anything older to an archive that takes a day to restore. On 30 September an auditor asks for all of July, August and September, 92 days, to be "immediately available". How many of those days are in the archive? Exactly.
+unit: days
+answer: 2
+tolerance: { absolute: 0 }
+given: { searchable: 90, asked: 92 }
+working: asked - searchable
+mistakes:
+  - id: ninety-is-three-months
+    value: 0
+    working: "0"
+    why: Ninety days isn't three months. July and August have 31 days each, so the quarter is 92 days, and the first two are already archived.
+  - id: the-searchable-days
+    value: 90
+    working: searchable
+    why: Those are the days that can still be searched. The question asks how many have moved to the archive.
+explanation: |
+  July has 31 days, August 31, September 30: 92. The platform keeps 90 searchable, so the first two days of July are in the archive, a day away.
+
+  PCI DSS 10.5.1 says "at least the most recent three months immediately available", and it counts in months. A setting of 90 days is short of that in most quarters. Set 100 days, or 3 months if the tool counts in months, and the question never comes up.
+skills: [retention]
