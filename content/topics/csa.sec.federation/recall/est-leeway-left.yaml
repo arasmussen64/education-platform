@@ -1,0 +1,30 @@
+id: est-leeway-left
+type: estimate
+rev: 1
+prompt: |
+  A token's `exp` is 1795514112. An API's clock reads 1795514137, and the API allows 90 seconds of leeway on expiry.
+
+  For how many more seconds will the API accept this token? Exactly.
+unit: seconds
+answer: 65
+tolerance: { absolute: 0 }
+given: { exp: 1795514112, now: 1795514137, leeway: 90 }
+working: exp + leeway - now
+mistakes:
+  - id: past-expiry
+    value: 25
+    working: now - exp
+    why: That is how long ago the token expired by this clock. With 90 seconds of leeway it is still accepted for a while.
+  - id: whole-leeway
+    value: 90
+    working: leeway
+    why: That is the whole leeway. 25 seconds of it are already used up.
+  - id: added
+    value: 115
+    working: now - exp + leeway
+    why: That adds the time since expiry to the leeway. The time since expiry comes off the leeway.
+explanation: |
+  By this clock the token ran out 1795514137 - 1795514112 = 25 seconds ago. The API forgives up to 90 seconds, so it goes on accepting the token for 90 - 25 = 65 more.
+
+  **Leeway** exists because no two clocks agree exactly, and a token shouldn't fail because one server is a second ahead of another. It also stretches every token's life by that much, for a thief as well as for an honest caller, so it is kept to seconds or a minute or two. A difference of minutes between clocks is a fault to fix, not a number to tolerate.
+skills: [validate-token]

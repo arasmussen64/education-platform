@@ -1,0 +1,16 @@
+id: mcq-alg-confusion
+type: mcq
+rev: 1
+prompt: |
+  An identity provider signs its tokens with RS256, an RSA signature. A token arrives at an API with `"alg":"HS256"` in its header, and the API's code verifies "with whatever algorithm the header says". Why is that dangerous?
+choices:
+  - "HS256 is HMAC: the attacker can use the public key as its secret"
+  - "HS256 is an older RSA variant that modern computers can break"
+  - "HS256 tokens can't carry an expiry, so they would never run out"
+  - "HS256 skips the signature and trusts the token's claims as sent"
+answer: 0
+explanation: |
+  HS256 is an HMAC, which uses one shared secret for making and for checking. The API's "key" for this provider is the RSA public key, which is published for everyone. If the header chooses the algorithm, an attacker writes any claims they like, computes an HMAC over them with the public key's bytes as the secret, and the API, checking an HMAC with the same bytes, finds it correct.
+
+  So the verifier decides the algorithm, from its own settings, and refuses anything else: the JWT best practice (RFC 8725) requires that a library let the caller name the algorithms it will accept. The same rule disposes of `"alg":"none"`, a token with no signature at all.
+skills: [validate-token]

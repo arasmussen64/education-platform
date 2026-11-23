@@ -1,0 +1,21 @@
+id: typed-scim-active
+type: typed
+rev: 1
+prompt: |
+  In SCIM, one attribute of a User says whether the account may be used. A provisioning client sets it to false to switch a leaver's account off without deleting it. Type the attribute's name.
+kind: text
+answers:
+  - active
+mistakes:
+  - id: enabled
+    answers: [enabled, accountEnabled, disabled]
+    why: "That is what many products call it in their own settings (Keycloak's realm file says `enabled`, Entra's directory `accountEnabled`). SCIM's own name for it is different."
+  - id: status
+    answers: [status, state]
+    why: "SCIM has no attribute of that name on a User. `status` appears in a SCIM error, as the HTTP status code."
+  - id: delete
+    answers: [delete, deleted]
+    why: "That removes the account for good. Switching a leaver off is a `PATCH` to one attribute, which can be undone."
+explanation: |
+  `active`. The request is `PATCH /Users/ID` with the operation `{"op": "replace", "path": "active", "value": false}`. The account stays, with its id, its history and its group memberships, and can no longer sign in. Set `active` when you create an account too: what a server does when it is left out is the server's own choice.
+skills: [scim-provisioning]

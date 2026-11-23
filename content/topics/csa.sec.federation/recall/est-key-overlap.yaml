@@ -1,0 +1,30 @@
+id: est-key-overlap
+type: estimate
+rev: 1
+prompt: |
+  An identity provider is changing its signing key. The apps that check its tokens keep a copy of the key set for up to 12 hours before fetching it again, and a token lasts 2 hours. The provider publishes the new key, waits until every app must have fetched it, starts signing with it, and then keeps the old key published until the last token it signed has run out.
+
+  At least how many hours are both keys in the published key set together? Exactly.
+unit: hours
+answer: 14
+tolerance: { absolute: 0 }
+given: { cache: 12, token: 2 }
+working: cache + token
+mistakes:
+  - id: cache-only
+    value: 12
+    working: cache
+    why: That is only the wait before the new key may sign. Tokens signed with the old key just before the switch still have 2 hours to live.
+  - id: token-only
+    value: 2
+    working: token
+    why: That is only how long the old key is needed after the switch. Before it, the new key has to be published for 12 hours, so that every app's copy has it.
+  - id: difference
+    value: 10
+    working: cache - token
+    why: The two waits follow one another, so they add.
+explanation: |
+  Two waits, one after the other. First the new key sits in the set, unused, for the 12 hours an app may go without fetching: only then is it sure that every app can check a token signed with it. Then the provider switches, and the old key stays for the 2 hours that its last token can live. 12 + 2 = 14 hours with both keys published.
+
+  This is why a key set holds more than one key, why a verifier picks by `kid`, and why a verifier that fetches the set again when it meets an unknown `kid` makes the whole dance much less delicate.
+skills: [validate-token]

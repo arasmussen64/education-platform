@@ -1,0 +1,26 @@
+id: est-device-polls
+type: estimate
+rev: 1
+prompt: |
+  A scanner starts a device sign-in. The identity provider's answer says `expires_in` 900 and `interval` 5: the code is good for 900 seconds, and the scanner should ask for its tokens every 5 seconds. Nobody ever approves the code. The scanner asks for the first time 5 seconds after the answer arrived and for the last time at second 900.
+
+  How many token requests does it send in all? Exactly.
+unit: requests
+answer: 180
+tolerance: { absolute: 0 }
+given: { expires: 900, interval: 5 }
+working: expires // interval
+mistakes:
+  - id: seconds
+    value: 900
+    working: expires
+    why: That is one request a second. The provider asked for one every 5 seconds.
+  - id: one-more
+    value: 181
+    working: expires // interval + 1
+    why: That counts a request at second 0. The first one goes out after the first wait, at second 5.
+explanation: |
+  One request every 5 seconds, from second 5 to second 900: 900 / 5 = 180, each answered `authorization_pending`. After the code's 900 seconds the answer changes to `expired_token` and the scanner has to start again.
+
+  It is a small number for one scanner and a real one for a fleet: a provider serving 500 scanners that all start a shift together sees 100 requests a second of pure waiting. That is why a provider may answer `slow_down`, and why a device must obey it.
+skills: [choose-flow]

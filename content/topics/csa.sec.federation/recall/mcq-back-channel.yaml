@@ -1,0 +1,16 @@
+id: mcq-back-channel
+type: mcq
+rev: 1
+prompt: |
+  Ana signs in to the orders site with the authorization code flow. Which of these messages does her browser never carry?
+choices:
+  - "The redirect that brings the authorization code back to the site"
+  - "The request that swaps the code and the verifier for tokens"
+  - "The form that sends Ana's password to the identity provider"
+  - "The redirect that takes the PKCE challenge and the state to the provider"
+answer: 1
+explanation: |
+  The token request is the back channel: the site calls the provider's token endpoint directly, server to server, with the code, its PKCE verifier and its own secret, and the tokens come back the same way. The browser never sees the request or the answer.
+
+  Everything else is the front channel, carried by the browser: the redirect out, with the client's name, the redirect address, the state, the nonce and the PKCE challenge; the sign-in form, which goes to the provider and never to the site; and the redirect back, with the code. That split is the design: what passes through the browser is either not secret (the challenge) or useless alone (the code).
+skills: [trace-oidc]

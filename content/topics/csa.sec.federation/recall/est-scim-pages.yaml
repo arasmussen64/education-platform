@@ -1,0 +1,26 @@
+id: est-scim-pages
+type: estimate
+rev: 1
+prompt: |
+  A SCIM server holds 2350 users and returns at most 100 in one answer. A script lists them all, a page at a time, with `startIndex` and `count`.
+
+  How many `GET` requests does it send? Exactly.
+unit: requests
+answer: 24
+tolerance: { absolute: 0 }
+given: { users: 2350, page: 100 }
+working: ceil(users / page)
+mistakes:
+  - id: rounded-down
+    value: 23
+    working: users // page
+    why: That leaves the last 50 users unlisted. A part page still takes a request.
+  - id: one-each
+    value: 2350
+    working: users
+    why: That is one request for each user. Each request brings back up to 100.
+explanation: |
+  23 full pages hold 2300 users, and the last 50 need a 24th request. In SCIM the pages are asked for by position: `startIndex=1&count=100`, then `startIndex=101`, and so on. `startIndex` counts from 1, not from 0, and each answer says how many there are in all (`totalResults`), which is how the script knows when to stop.
+
+  A script that reads only the first page works perfectly in a test with 30 users and silently ignores most of a real company.
+skills: [scim-provisioning]

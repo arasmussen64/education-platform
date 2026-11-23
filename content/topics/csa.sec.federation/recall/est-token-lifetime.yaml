@@ -1,0 +1,26 @@
+id: est-token-lifetime
+type: estimate
+rev: 1
+prompt: |
+  A decoded token's payload has `"iat":1795500000` and `"exp":1795500900`. Both are times in seconds.
+
+  For how many minutes is the token valid? Exactly.
+unit: minutes
+answer: 15
+tolerance: { absolute: 0 }
+given: { iat: 1795500000, exp: 1795500900 }
+working: (exp - iat) / 60
+mistakes:
+  - id: seconds
+    value: 900
+    working: exp - iat
+    why: That is the lifetime in seconds. The question asks for minutes.
+  - id: hours
+    value: 0.25
+    working: (exp - iat) / 3600
+    why: That is the lifetime in hours. A quarter of an hour is 15 minutes.
+explanation: |
+  `iat` is when the token was issued and `exp` is when it stops being valid, both counted in seconds since the start of 1970. 1795500900 - 1795500000 = 900 seconds, which is 15 minutes.
+
+  Access and ID tokens are kept short on purpose: a bearer token works for whoever holds it, and nothing can call one back once it is out, so its lifetime is the limit on what a stolen one is worth. The app gets a fresh one with its refresh token, without troubling the person.
+skills: [validate-token]

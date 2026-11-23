@@ -1,0 +1,16 @@
+id: mcq-saml-windows
+type: mcq
+rev: 1
+prompt: |
+  A captured assertion has `<Conditions NotBefore="05:22:09" NotOnOrAfter="05:23:09">`, and its `SubjectConfirmationData` has `NotOnOrAfter="05:27:09"`. What do the two times mean for the service provider that receives it?
+choices:
+  - "It may treat the assertion as valid only inside the minute, and it must arrive by 05:27:09"
+  - "Ana's session at the service provider lasts until 05:27:09, then she signs in again"
+  - "It may accept the assertion until 05:27:09 if its own clock is known to run slow"
+  - "Ana must finish typing her password by 05:23:09, or the provider cancels the sign-in"
+answer: 0
+explanation: |
+  `Conditions` is the assertion's validity window: one minute here, starting two seconds before it was issued. Outside it, the statement "this is Ana" no longer holds. The confirmation's `NotOnOrAfter` is the deadline for delivering it to the recipient, five minutes here. A service provider checks both against its own clock, and accepts an assertion once.
+
+  Neither time is the length of Ana's session at the HR pages: the site starts a session of its own once it has accepted the assertion, with its own lifetime. A slow clock is a reason to fix the clock, not to stretch a window. And the assertion is made after Ana has signed in, so its times say nothing about her typing.
+skills: [trace-saml]

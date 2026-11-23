@@ -1,0 +1,16 @@
+id: mcq-flow-nightly-job
+type: mcq
+rev: 1
+prompt: |
+  A nightly job on a server calls the stock API to reorder what is running low. No person is involved. How should it get its access token?
+choices:
+  - "The code flow with PKCE, signing in as a service user made for the job"
+  - "The password grant, with a service account's name and password"
+  - "Client credentials: the job signs in as itself, with a secret or a key"
+  - "The device grant, approved once by an administrator on install day"
+answer: 2
+explanation: |
+  The first question in choosing a flow is: is there a person? Here there isn't, so the job is the principal. With client credentials it presents its own client's secret (or better, proves it holds a private key) straight to the token endpoint and gets an access token for the API. There is no browser, no redirect and no refresh token: when the token runs out, it asks again.
+
+  The other three all pretend there is a person. A "service user" with a password is a person-shaped account that nobody owns, that can't do MFA, and whose password ends up in a file. The device grant ties the job to whoever approved it, and stops working when that person's session ends or they leave.
+skills: [choose-flow]

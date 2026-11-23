@@ -1,0 +1,17 @@
+id: jwt-which-aud
+type: predict_shell
+rev: 1
+prompt: |
+  `payload.json` is the decoded payload of the access token the command-line tool `trace-cli` was given for Ana, captured in the worked example (a few claims are left out). The command prints one claim. What does it print?
+files:
+  payload.json: |
+    {"exp":1795411623,"iat":1795411323,"iss":"https://login.shop.test/realms/shop","aud":"https://api.shop.test","sub":"0a000000-0000-4000-8000-000000000001","typ":"Bearer","azp":"trace-cli","scope":"openid profile email","preferred_username":"ana"}
+command: |
+  grep -o '"aud":[^,]*' payload.json
+expected_output: |
+  "aud":"https://api.shop.test"
+explanation: |
+  `[^,]*` runs up to the next comma, so the match is the claim and its value.
+
+  The token was issued to `trace-cli` (that is `azp`, the authorized party), and it is for the stock API (`aud`, the audience). The app that holds an access token is only carrying it: it sends it to the API in an `Authorization: Bearer` header and has no reason to read it. The API is the one that validates it, and the first thing it asks after the signature and the issuer is whether its own name is in `aud`.
+skills: [validate-token]

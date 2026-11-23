@@ -1,0 +1,17 @@
+id: discovery-grants
+type: predict_shell
+rev: 1
+prompt: |
+  `discovery.json` holds part of the discovery document of the lab's identity provider, captured in the worked example, on one line. The command picks out one field with its value. What does it print?
+files:
+  discovery.json: |
+    {"issuer":"https://login.shop.test/realms/shop","authorization_endpoint":"https://login.shop.test/realms/shop/protocol/openid-connect/auth","token_endpoint":"https://login.shop.test/realms/shop/protocol/openid-connect/token","jwks_uri":"https://login.shop.test/realms/shop/protocol/openid-connect/certs","grant_types_supported":["authorization_code","client_credentials","implicit","password","refresh_token","urn:ietf:params:oauth:grant-type:device_code"],"code_challenge_methods_supported":["plain","S256"]}
+command: |
+  grep -o '"code_challenge_methods_supported":\[[^]]*\]' discovery.json
+expected_output: |
+  "code_challenge_methods_supported":["plain","S256"]
+explanation: |
+  `[^]]*` matches everything up to the next `]`, so the match is the field's name and its whole list.
+
+  A discovery document says what the provider is able to do, not what any one client may do. This provider can take a `plain` challenge (the verifier itself, unhashed, which protects nothing from someone who reads the request), and its `grant_types_supported` still lists `implicit` and `password`. None of that is a recommendation. What a client is allowed is set on the client's own registration: the code flow only, and `S256` required, as the fill-in lab does for the orders site.
+skills: [choose-flow]

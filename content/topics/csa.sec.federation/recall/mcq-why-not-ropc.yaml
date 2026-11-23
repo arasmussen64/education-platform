@@ -1,0 +1,16 @@
+id: mcq-why-not-ropc
+type: mcq
+rev: 1
+prompt: |
+  A colleague wants a reporting script to use the password grant with their own account: "it's one request, no browser, done". What is the strongest reason to refuse?
+choices:
+  - "Tokens from the password grant last only a minute, so the script would loop"
+  - "The script then holds a person's password, and no second factor can take part"
+  - "The password grant can't return a refresh token, so reports stop overnight"
+  - "The identity provider and the script would have to be on the same network"
+answer: 1
+explanation: |
+  In the password grant the app collects the person's name and password and sends them to the token endpoint itself. So the password sits in a script or its settings, where single sign-on was meant to keep it away from every app; and since the whole sign-in is one request with a password in it, there is no step where a second factor, a security key or any sign-in policy can happen. The current best practice for OAuth 2.0 (RFC 9700, January 2025) says it plainly: this grant "MUST NOT be used".
+
+  The other three aren't true: the grant's tokens last as long as any others, it can return a refresh token, and it works across any network. A script with no person behind it should be a client of its own, with client credentials.
+skills: [choose-flow]

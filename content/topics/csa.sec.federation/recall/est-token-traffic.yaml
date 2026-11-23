@@ -1,0 +1,26 @@
+id: est-token-traffic
+type: estimate
+rev: 1
+prompt: |
+  A service runs 600 instances. Each holds a Microsoft Entra access token and asks for a new one when the old one expires. Entra gives each access token a lifetime chosen at random between 60 and 90 minutes, 75 minutes on average.
+
+  About how many token requests an hour do the 600 instances send between them? Within 10%.
+unit: requests an hour
+answer: 480
+tolerance: { percent: 10 }
+given: { instances: 600, average: 75 }
+working: instances * 60 / average
+mistakes:
+  - id: one-an-hour
+    value: 600
+    working: instances
+    why: That is one request an hour each. On average a token lasts 75 minutes, so each instance asks a little less often than hourly.
+  - id: longest
+    value: 400
+    working: instances * 60 / 90
+    why: That uses the longest lifetime, 90 minutes. The average is 75.
+explanation: |
+  Each instance asks once every 75 minutes on average, which is 60 / 75 = 0.8 times an hour. 600 × 0.8 = 480 requests an hour.
+
+  The random lifetime is deliberate. Microsoft's documentation (read 2026-11-22) says the variation "improves service resilience by spreading access token demand over a time, which prevents hourly spikes". If every token lasted exactly an hour, everything that started together would come back together, every hour, for ever.
+skills: [validate-token]

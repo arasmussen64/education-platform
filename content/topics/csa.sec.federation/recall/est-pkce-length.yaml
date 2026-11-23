@@ -1,0 +1,26 @@
+id: est-pkce-length
+type: estimate
+rev: 1
+prompt: |
+  An app makes its PKCE verifier from 48 random bytes, written in base64url with no padding. Base64 writes every 3 bytes as 4 characters.
+
+  How many characters long is the verifier? Exactly.
+unit: characters
+answer: 64
+tolerance: { absolute: 0 }
+given: { bytes: 48 }
+working: bytes * 4 // 3
+mistakes:
+  - id: bytes
+    value: 48
+    working: bytes
+    why: That is the number of bytes. Written in base64, 3 bytes take 4 characters.
+  - id: hex
+    value: 96
+    working: bytes * 2
+    why: That would be hexadecimal, two characters a byte. Base64 is denser, 4 characters for 3 bytes.
+explanation: |
+  48 bytes are 16 groups of 3, and each group is written as 4 characters: 64. Since 48 divides by 3 there is no padding to drop.
+
+  The standard (RFC 7636) allows a verifier of 43 to 128 characters, so 64 is fine. The challenge sent in the authorization request is always 43 characters, whatever the verifier's length: it is the SHA-256 of the verifier, 32 bytes, in base64url.
+skills: [choose-flow]

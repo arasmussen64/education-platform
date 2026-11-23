@@ -1,0 +1,33 @@
+id: est-device-slow-down
+type: estimate
+rev: 1
+prompt: |
+  A scanner starts a device sign-in with `expires_in` 600 and `interval` 5. Nobody approves the code. The scanner asks for the first time at second 5 and then every 5 seconds. Request number 8 is answered `slow_down`, and from then on it waits as the device grant's standard says it must.
+
+  How many token requests does it send in all before the 600 seconds are over? Exactly.
+unit: requests
+answer: 64
+tolerance: { absolute: 0 }
+given: { expires: 600, interval: 5, eighth: 8 }
+# RFC 8628, section 3.5: on slow_down "the interval MUST be increased by 5
+# seconds for this and all subsequent requests" (read 2026-11-22). The 5
+# is the rule the learner must know, so it is a plain number here.
+working: eighth + (expires - eighth * interval) // (interval + 5)
+mistakes:
+  - id: no-slow-down
+    value: 120
+    working: expires // interval
+    why: That ignores the `slow_down`. After it, the wait between requests is 5 seconds longer.
+  - id: slow-from-start
+    value: 60
+    working: expires // (interval + 5)
+    why: That waits 10 seconds from the very start. The first 8 requests were 5 seconds apart.
+  - id: doubled
+    value: 36
+    working: eighth + (expires - eighth * interval) // (interval * 4)
+    why: That waits 20 seconds after the `slow_down`. The standard adds 5 seconds to the interval, once.
+explanation: |
+  The first 8 requests go out at seconds 5 to 40. `slow_down` means: add 5 seconds to the interval, for this and every later request (RFC 8628). So from second 40 the scanner waits 10 seconds each time: seconds 50, 60 and on to 600, which is (600 - 40) / 10 = 56 more. 8 + 56 = 64.
+
+  A device that ignores `slow_down` may simply be refused. One that obeys halves the load it puts on the provider while it waits.
+skills: [choose-flow]

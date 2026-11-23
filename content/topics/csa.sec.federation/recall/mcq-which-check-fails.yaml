@@ -1,0 +1,16 @@
+id: mcq-which-check-fails
+type: mcq
+rev: 1
+prompt: |
+  A token arrives at the payroll API, whose name is `https://payroll.shop.test`. Its signature verifies with the identity provider's published key, `iss` is the shop's realm, `aud` is `https://api.shop.test`, and `exp` is four minutes away. What should the payroll API do?
+choices:
+  - "Serve it: the signature proves the shop's identity provider issued it"
+  - "Refuse it: the token was issued for another API, not for this one"
+  - "Serve it: the issuer is right, and the token hasn't run out yet"
+  - "Refuse it: an access token should never name a place in `aud`"
+answer: 1
+explanation: |
+  Every check passed except the audience. The token is real, and it is for the stock API. If the payroll API served it, any app that was ever handed a token for any API at the shop could use it on payroll: each API would be trusting every other API's callers. Checking `aud` is what keeps a token where it was meant to go.
+
+  A good signature and the right issuer say who made the token and that it wasn't altered. They say nothing about whom it was made for. And an audience naming the API it is for is exactly what an access token should have.
+skills: [validate-token]

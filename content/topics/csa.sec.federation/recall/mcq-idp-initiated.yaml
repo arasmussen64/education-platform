@@ -1,0 +1,16 @@
+id: mcq-idp-initiated
+type: mcq
+rev: 1
+prompt: |
+  A vendor asks you to switch on IdP-initiated single sign-on for their app "because it's simpler": staff click a tile at the identity provider, and a SAML response arrives at the app unasked. What does the app lose?
+choices:
+  - "The signature on the assertion, which only a requested response carries"
+  - "The audience restriction, so the assertion would be good at any app"
+  - "A request of its own to match the response against, with `InResponseTo`"
+  - "The encryption of Ana's attributes while they pass through the browser"
+answer: 2
+explanation: |
+  In the usual flow the app starts: it sends a request with an id, and accepts only a response whose `InResponseTo` is that id, in the browser that sent it. An unasked response answers nothing, so there is nothing to match. An attacker can then plant a response from their own sign-in in someone else's browser, and the victim is signed in as the attacker (a login CSRF). OWASP's guidance is to avoid the mode, or to check everything else twice and refuse replays.
+
+  The assertion is signed either way, and its audience restriction is still there: those checks don't depend on who started. Nothing here encrypts or stops encrypting the attributes.
+skills: [trace-saml]

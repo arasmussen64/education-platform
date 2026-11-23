@@ -1,0 +1,22 @@
+id: typed-pkce-method
+type: typed
+rev: 1
+prompt: |
+  In PKCE the app sends a challenge made from its verifier, and says how it was made in `code_challenge_method`. One method sends the SHA-256 hash of the verifier, and it is the one to require. Type that method's name, as it is written in the request.
+kind: text
+case: sensitive
+answers:
+  - S256
+mistakes:
+  - id: plain
+    answers: [plain]
+    why: "With that method the challenge is the verifier itself, unhashed, so anyone who reads the request has the verifier. The standard keeps it only for old clients that can't hash."
+  - id: hash-name
+    answers: [SHA256, SHA-256, sha256, sha-256]
+    why: "That is the hash it uses. The method's name in the request is shorter, a letter and the number."
+  - id: signature-alg
+    answers: [RS256, HS256]
+    why: "That is a token's signature algorithm, from a JWT's header. PKCE's method is a plain hash, with no key."
+explanation: |
+  `S256`: the challenge is the SHA-256 of the verifier, in base64url. The provider stores the challenge with the code, and at the token endpoint hashes the verifier it is shown and compares. The other method, `plain`, protects nothing from an attacker who can read the authorization request, and RFC 7636 says it "SHOULD NOT be used in new implementations". A provider can be told to insist on `S256` for a client, as the labs do.
+skills: [choose-flow]

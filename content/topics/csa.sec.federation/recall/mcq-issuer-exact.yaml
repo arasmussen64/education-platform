@@ -1,0 +1,16 @@
+id: mcq-issuer-exact
+type: mcq
+rev: 1
+prompt: |
+  An API is set to trust the issuer `https://login.shop.test/realms/shop`. A token arrives with a good signature and `iss` `https://login.shop.test/realms/shop-test`. The API's library compares issuers with "starts with". What goes wrong?
+choices:
+  - "Nothing: the same server runs both, so the issuer is the same"
+  - "A token from another realm on that server passes as the shop's"
+  - "Nothing: a signature that verifies already proves the issuer"
+  - "Tokens from the real realm are refused, as their name is shorter"
+answer: 1
+explanation: |
+  An issuer is a name, compared whole: OpenID Connect says the issuer "MUST exactly match". `.../realms/shop-test` is another realm, with its own people and its own rules about who gets an account: a test realm where anyone can register, say. With "starts with", an account made there passes as a member of the real shop.
+
+  One server hosting two realms doesn't make them one issuer, any more than two companies on one cloud are one company. And a good signature proves only that some key the verifier trusts signed the token. Whether that key speaks for this issuer is a separate check, and skipping it is how a stolen consumer-account key opened enterprise mailboxes in 2023.
+skills: [validate-token]

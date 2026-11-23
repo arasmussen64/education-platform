@@ -1,0 +1,30 @@
+id: est-reconcile-requests
+type: estimate
+rev: 1
+prompt: |
+  An HR file lists 1200 people. Since the last run there are 30 joiners, 12 leavers and 50 movers; everyone else is unchanged. A provisioning script first lists every existing account, 100 to a page, and then sends only the changes: one request to create each joiner, one to switch off each leaver, and for each mover one request to take them out of the old group and one to put them into the new one.
+
+  How many requests does it send in all? Exactly.
+unit: requests
+answer: 154
+tolerance: { absolute: 0 }
+given: { people: 1200, page: 100, joiners: 30, leavers: 12, movers: 50 }
+working: ceil(people / page) + joiners + leavers + 2 * movers
+mistakes:
+  - id: no-listing
+    value: 142
+    working: joiners + leavers + 2 * movers
+    why: That is the changes alone. The script can't know what to change before it has listed the accounts, which takes 12 requests.
+  - id: one-per-mover
+    value: 104
+    working: ceil(people / page) + joiners + leavers + movers
+    why: A mover needs two requests, one to leave the old group and one to join the new.
+  - id: lookup-each
+    value: 1342
+    working: people + joiners + leavers + 2 * movers
+    why: That looks each of the 1200 people up with a request of their own. Listing them takes 12 requests of 100.
+explanation: |
+  Listing: 1200 / 100 = 12 requests. Changes: 30 + 12 + 2 × 50 = 142. Together 154.
+
+  Compare that with a script that pushes every person every night: 1200 writes, almost all of them changing nothing. Reading first and writing only the differences is what makes a sync **idempotent**: run it twice and the second run sends 12 requests and changes nothing. It also keeps the server's change log honest: every write in it is a real change.
+skills: [scim-provisioning]

@@ -1,0 +1,16 @@
+id: mcq-nameid-mismatch
+type: mcq
+rev: 1
+prompt: |
+  A company signs staff in to AWS through IAM Identity Center, with its own identity provider as the source. SCIM has provisioned Ana there with the user name `ana.lima@shop.test`. The identity provider's SAML assertions carry the `NameID` `ana`. What happens when Ana signs in?
+choices:
+  - "It works: Identity Center matches her by the email attribute instead"
+  - "It works once, and Identity Center renames her account to `ana`"
+  - "A second account, `ana`, is created for her with no permissions"
+  - "The sign-in fails: the NameID isn't the provisioned user name"
+answer: 3
+explanation: |
+  AWS's guide says it in one line: the attribute the identity provider sends as the SAML `NameID` must be the same one that SCIM maps to the user name, and "if they differ, sign-in fails" (read 2026-11-22). Identity Center can't ask the identity provider who `ana` is: SAML has no way to query a provider about its users, which is also why the users have to be provisioned there first.
+
+  So the two halves of a federation have to agree on one stable name for each person: what provisioning writes, and what the assertion says. Identity Center doesn't fall back to another attribute, rename anyone, or create accounts at sign-in.
+skills: [trace-saml]

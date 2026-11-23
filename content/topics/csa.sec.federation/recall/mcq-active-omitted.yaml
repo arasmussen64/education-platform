@@ -1,0 +1,16 @@
+id: mcq-active-omitted
+type: mcq
+rev: 1
+prompt: |
+  In the lab, a `POST /Users` for a joiner that didn't mention `active` came back `201`, with `"active":false` in the body: the new account couldn't sign in. What is the lesson for a provisioning script?
+choices:
+  - "Send a second `POST` for each joiner, since the first only reserves the name"
+  - "Say `active` true when creating, and read back what the server stored"
+  - "Treat any `201` as a failure, and retry until the body says `active` true"
+  - "Leave `active` to each server, since the standard fixes its default"
+answer: 1
+explanation: |
+  The SCIM standard doesn't say what a server does when `active` is left out: "the definitive meaning of this attribute is determined by the service provider" (RFC 7643). This server stores false. Another would store true. A script that must work with more than one server says what it means, `"active": true`, and looks at the resource that comes back, which is what the server really stored.
+
+  A `201` is a success: the account exists, so a second `POST` gets `409`, and retrying changes nothing. And "the standard fixes its default" is exactly what it doesn't do.
+skills: [scim-provisioning]

@@ -1,0 +1,26 @@
+id: est-entra-initial-cycle
+type: estimate
+rev: 1
+prompt: |
+  Microsoft Entra ID is about to provision a new SaaS app for the first time. Assigned to the app are 4000 users and 50 groups, with 6000 group memberships between them. Microsoft's rule of thumb for the first cycle, when only assigned users and groups are synced: at most 0.08 minutes for each assigned user, group and group member.
+
+  At most how many minutes will the first cycle take, by that rule? Within 5%.
+unit: minutes
+answer: 804
+tolerance: { percent: 5 }
+given: { users: 4000, groups: 50, members: 6000, rate: 0.08 }
+working: rate * (users + groups + members)
+mistakes:
+  - id: users-only
+    value: 320
+    working: rate * users
+    why: That counts the users alone. Groups and group memberships are objects to sync too.
+  - id: minimum
+    value: 100.5
+    working: 0.01 * (users + groups + members)
+    why: That is Microsoft's figure for the shortest the cycle may take, 0.01 minutes an object. The question asks for the longest.
+explanation: |
+  4000 + 50 + 6000 = 10050 objects, at up to 0.08 minutes each: 804 minutes, over 13 hours. Microsoft's page gives the formula as approximate (minimum 0.01, maximum 0.08 minutes for each assigned user, group and group member; read 2026-11-22).
+
+  So the first sync of a big app is something to start the day before people need it, not on the morning. Later cycles send only what changed, and are far shorter.
+skills: [scim-provisioning]
