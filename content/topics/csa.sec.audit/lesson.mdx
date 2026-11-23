@@ -1,0 +1,192 @@
+<Intro>
+
+<Puzzle question="An intruder with root deletes the log lines that show the break-in. What kind of log would still give them away?">
+
+One in which every line is tied to the lines before it, with the proof kept where the intruder can't reach. Root can change any file on a server, so no log on that server can be made impossible to change. What can be arranged is that a change shows. If each line carries a fingerprint that depends on everything written before it, then taking lines out, or editing one, leaves a log whose fingerprints no longer fit. And if the newest fingerprint, or the key that checks them, is held by someone else, the intruder can't quietly make them fit again. Better still, a copy of the log has already left the server for storage that nobody can delete from. The log can't stop the break-in. It makes sure the break-in can't be hidden.
+
+</Puzzle>
+
+Applied cryptography gave you the hash, the MAC and the signature. This topic puts them to work on the record that every investigation and every audit starts from. By the end you can decide what belongs in an audit trail and what must never be written to one, say how long to keep it and what each cloud keeps if you do nothing, build a log that shows when it has been tampered with, seal a real one so that even root can't rewrite its past, and choose storage that nobody can delete from.
+
+The server labs are one machine, the shop's payments server. Its audit writer, `shop-audit`, writes one line for each thing the shop does that its policy file, `/etc/shop/audit.conf`, says to record; `shop-cli` makes the shop do things. The first lab introduces all of it.
+
+**Two kinds of log.** An **operational log** helps engineers fix the system: "cache miss", "retrying", an error with the line of code it came from. It can be noisy, and it can be thrown away after a few weeks. An **audit trail** (or audit log) answers a different question for different readers: who did what, to what, from where, when, and did it work? Its readers are an investigator after an incident and an auditor once a year, and both arrive months later. Think of a bank: the engineers' notebooks can go in the bin, and the ledger can't. So the two are kept apart, with different rules. The trail is smaller, kept longer, protected harder, and readable by fewer people.
+
+**What to record.** Every line of an audit trail answers five questions:
+
+| Question | In the shop's trail | Why |
+| --- | --- | --- |
+| **When** | `time=2026-11-23T03:34:15Z` | in UTC (the `Z`), so that lines from servers in different time zones go in one order |
+| **Who** | `actor=ana` or `user=ana` | the **actor**: the person or program that did it, or whom it concerns |
+| **From where** | `src=203.0.113.9` | the source address the request came from |
+| **What** | `event=refund order=42 amount=19.99` | the kind of event, the thing touched, and what changed |
+| **Outcome** | `outcome=ok` | whether it worked. A refused attempt is evidence too |
+
+One line of the shop's trail, whole: `time=2026-11-23T03:34:15Z event=refund actor=ana order=42 amount=19.99 src=203.0.113.9 outcome=ok`.
+
+The time is only as good as the clock. Two servers whose clocks have drifted two seconds apart will write honest times and still get the order of two events wrong, so every server in a system keeps its clock set from the same time source (the card rules below require it), and writes UTC.
+
+Which events? The ones somebody will be asked about. OWASP's Logging Cheat Sheet, copied in below the lesson, has the long list. The short one:
+
+- **Authentication, both ways:** every sign-in that worked and every one that failed. Five failures and then a success, from an address nobody knows, is the pattern you are looking for, and the success is the line that matters.
+- **Authorization failures:** someone asked for something they aren't allowed.
+- **Changes to who may do what:** new accounts, role changes, new keys.
+- **Admin actions and configuration changes,** including changes to the logging itself, and its starts and stops.
+- **Access to sensitive data and money:** card details, exports, refunds.
+
+Page views, searches and health checks are not on the list. A trail with millions of them hides the hundred lines that matter, and costs a fortune to keep for a year.
+
+For systems that handle payment cards, the card networks' security standard, **PCI DSS** (Compliance basics covers it), turns this into rules. Its requirement 10 asks for audit logs that capture "all invalid logical access attempts" and all changes to accounts and privileges, with these details in each: who, the type of event, the date and time, success or failure, where it came from, and what was affected. The same five questions.
+
+In a real application, code decides what is recorded. The clouds expose the same choices as switches, and the labs as a file, so that you can make them: `audit refund actor order amount src outcome` records refunds with those fields.
+
+<Check item="mcq-audit-or-not" />
+
+**What never to record.** A log is read by more people than the system it describes, copied to more places, and kept for longer. So some things never go in it:
+
+- **A password,** not even a wrong one: a wrong password is usually the right one with a typing slip, or the right one for another site.
+- **A session ID or an access token.** Those are what a browser or a program shows to prove it is already signed in, and whoever reads one in a log can use it. If a trail must tell sessions apart, write a hash of the session ID.
+- **A key,** or any other secret.
+- **A whole card number.** At most its last four digits, which is what a receipt shows.
+
+Showing part of a value is **masking**. Here it is done after the fact with `sed`, whose `-E` option lets a pattern count and remember: `[0-9]{12}` is twelve digits, the brackets in `([0-9]{4})` keep the next four, and `\1` in the replacement puts them back:
+
+```
+sed -E 's/card=[0-9]{12}([0-9]{4})/card=************\1/'
+```
+
+That turns `card=4111111111111111` into `card=************1111`. A filter run afterwards leaves the whole number in the file it read from, though. The right place to mask is before the line is written, which is what the shop's policy does with `mask card`.
+
+One more way for a trail to lie is **log injection**. A text log knows where an event ends only by the line break. If a program writes a user's input into the log as it came, a name that contains a line break starts a second line, and the attacker chooses what that line says: perhaps that root made them an admin. The cure is in the writer. A value is data and never gets to end a line: the shop's audit writer writes a line break inside a value as the two characters `\n`, and puts quotes round a value that holds a space.
+
+<Check item="mcq-never-in-the-trail" />
+
+**The same idea in the operating system.** Linux has an audit system of its own in the kernel, driven by a service called `auditd`. Its rules say what to watch. `-w /etc/shadow -p wa -k identity` watches the password file for writes (`w`) and changes to its attributes (`a`), and labels each record `identity`, the key you later search by. Every record carries `auid`, the ID the person logged in with, which stays the same through `sudo`. So when a record says `uid=0`, root, `auid` still says which person it was. A container can't run `auditd` (the kernel lets only the machine's first set of processes control auditing), so the labs don't, and two quick questions read its rules on paper.
+
+**How long to keep it.** **Retention**, how long records are kept before they are deleted, comes from rules, and it has two ends.
+
+- **Long enough.** PCI DSS 10.5.1: "Retain audit log history for at least 12 months, with at least the most recent three months immediately available for analysis." That sentence has two numbers in it. Logs are usually kept in two places: **hot** storage that can be searched now, and an **archive** that is cheap and takes hours or a day to restore. The three months must be hot. And three months is 92 days in some quarters, so "90 days searchable" falls short.
+- **Not too long.** An audit trail is full of personal data: names, addresses, who did what. The EU's data protection law, the GDPR, says personal data is kept "for no longer than is necessary" for its purpose. So the trail is deleted when its time is up, by a setting, on schedule.
+
+Then size it: events a day, times bytes an event, times days. 20,000 events a day at about 500 bytes each is 10 MB a day, and 400 days of that is 4,000 MB, 4 GB.
+
+The systemd journal has both ends as settings (in `journald.conf`, or for the shop's trail in `/etc/systemd/journald@audit.conf`). `SystemMaxUse=` is the most disk the journal may use, written with a unit, as in `SystemMaxUse=2G`; when it is reached, the oldest files are deleted. Unset, it is 10% of the filesystem and never more than 4 GB, so a busy server on defaults forgets its oldest months long before a year is up, and says nothing. `MaxRetentionSec=` deletes files older than a time span such as `400d`; unset, nothing is deleted for its age. A trail that must last a year needs the first raised, and one that must be deleted needs the second set.
+
+<Check item="est-trail-size" />
+
+**What each cloud records if you do nothing.** Every cloud keeps an audit trail of its own. Two words first, which Module 8 teaches in full: the **control plane** is where resources are managed (create a server, change who may use a bucket), and the **data plane** is what happens inside them (read this object, fetch that secret). All three clouds record the first for you and leave the second off. Where they differ (each provider's pages, read 2026-11-22):
+
+| | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| On with no setup | CloudTrail's **event history**: **management events** (operations on resources), the last 90 days, kept separately in each Region (one of AWS's groups of data centres), free | The **activity log**: control-plane operations, 90 days, free. The sign-in and audit logs of Entra ID, Microsoft's cloud directory, where staff sign in: 7 days on the Free licence, 30 on the paid P1 and P2 | **Admin Activity** and **System Event** logs, always written and impossible to switch off, kept 400 days in a log store called the `_Required` bucket; **Policy Denied** logs by default |
+| Off until you switch it on | **Data events** (reads and writes of objects in S3, AWS's object storage, for one), collected only by a **trail** or an event data store that you create | **Resource logs** (reading a secret from Key Vault, Azure's store for keys and secrets, for one), collected only once a **diagnostic setting** sends them somewhere | **Data Access** logs, for every service except BigQuery, Google's data warehouse |
+| To keep it longer | a trail that delivers to an S3 bucket, or an event data store in CloudTrail Lake, CloudTrail's own searchable store | a diagnostic setting to a Log Analytics workspace (Azure's searchable log store), a storage account or an event hub (a stream other tools read from) | a longer retention on the `_Default` bucket, which keeps 30 days unless a project changes it |
+| The gap that surprises | event history never shows data events, whatever you set | the activity log has no entry for a request refused at authentication or authorization, before an operation starts | Data Access logs are large, and switching them on can add to the bill |
+
+So in an account left on defaults, "who changed the firewall in March?" has an answer for 90 days, and "who read the customer export last week?" has none at all. Decide which data matters, switch on the record of reads for it, and send everything that must last a year to storage of your own.
+
+A CloudTrail record answers the five questions under its own names: `eventTime`, `userIdentity` (with the caller's `arn`), `sourceIPAddress`, `eventSource` and `eventName`, and an `errorCode` only when the call failed.
+
+<Story title="The mailbox intrusion one agency's audit log caught, 2023" source="https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-193a" sourceTitle="Enhanced Monitoring to Detect APT Activity Targeting Outlook Online" license="US government work; linked, not copied">
+
+In the middle of June 2023 a US federal agency noticed something odd in the audit log of its cloud mail service: `MailItemsAccessed` events, the record written when mail is read, coming from an application that didn't normally read mail there. The agency reported it to Microsoft and to CISA, the US government's cybersecurity agency.
+
+Microsoft found that an intruder had been reading unclassified mail in a small number of accounts, at several organisations, with sign-in tokens forged from a stolen signing key. It blocked the tokens and replaced the key. (SAML, OAuth 2.0 and OIDC tells the same incident from the key's side.)
+
+CISA's and the FBI's advisory is plain about what made the difference. The agency recorded that event and knew what normal looked like, and the two agencies knew of no other log that would have shown the intrusion. The advisory also notes that the provider's premium audit logging needed its G5 or E5 licences. An organisation without that record had nothing to notice.
+
+An event you don't record can't warn you. Find out what your cloud leaves off before you need it.
+
+</Story>
+
+<Check item="mcq-cloudtrail-default" />
+
+**Tamper-evident, not tamper-proof.** Anyone with root can change a file, so no log on a server can be made impossible to change. What can be arranged is that a change can't go unnoticed: the log is **tamper-evident**.
+
+Start with the hash from Applied cryptography: change one character of the data and the whole hash changes. A **hash chain** uses that on a log. Every line is a hash, a space, and the record, and the hash is the SHA-256 of two things joined by a space: the hash on the line before, and this line's record. The first line has no line before it, so it uses 64 zeros.
+
+```
+ed8f833f...9f782 event=login.ok user=ana src=203.0.113.9
+65835bfb...637c5 event=refund actor=ana order=42 amount=19.99
+5100f6fd...c8fbe event=role.change actor=root user=ben new=admin
+```
+
+In the shell, line 2's hash is `printf '%s %s' "$prev" "$record" | sha256sum`, with line 1's hash in `prev`. (`printf '%s %s'` prints its two values with one space between and nothing after; `echo` would add a line break, and a hash of the text plus a line break is a different hash.) Picture a paper chain: each link is made through the one before. A verifier walks down the log working each hash out again, and reports the first line that doesn't fit:
+
+| Someone... | The verifier sees |
+| --- | --- |
+| edits a record | that line's hash no longer matches its record |
+| deletes a line | the next line was made from a hash that is gone, so the line that moved up doesn't fit |
+| swaps two lines | the first of them sits after the wrong neighbour |
+| cuts lines off the end | **nothing:** every line that is left still fits |
+| edits a record and works out every later hash again | **nothing:** every line fits |
+
+The last two rows are the chain's blind spot. A hash has no key, so the intruder can compute hashes as well as anyone. Both are closed the same way: by something the intruder can't reach. Copy the newest hash, the chain's **anchor**, to another system, to the auditors, into a signed message. A log cut short ends on a different hash, and so does a rewritten one, since changing a line changes every hash after it. Or use a key the intruder doesn't hold: an HMAC in place of the plain hash, or a signature.
+
+CloudTrail does this at scale when you switch on log file validation. Every hour it delivers a **digest file** that holds a SHA-256 hash of each log file from that hour and the signature of the digest before it, and signs it with a key of its own. A changed log file doesn't match its hash; a deleted one is listed and missing; a digest can't be replaced, because the next one holds its signature. Certificate Transparency's logs, from Certificates and mutual TLS, are the public version: lists that can only grow, so a certificate nobody asked for stays visible.
+
+<Check item="mcq-chain-blind-spot" />
+
+**Sealing: a chain whose key moves on.** The systemd journal has tamper evidence built in, called **forward-secure sealing**. `sudo journalctl --setup-keys` makes two keys:
+
+- the **sealing key** stays on the server. At every interval (15 minutes unless `--interval=` says otherwise) journald seals what it has written, with a code only that key can make, and then moves the key forward in a way that can't be run backwards. The server never holds the key for an interval that has passed.
+- the **verification key** can check every seal, past and future. It is printed once, and it leaves the server: it goes to someone who doesn't run it.
+
+Sealing is switched on with `Seal=yes` in the journal's settings, and journald reads its settings and loads the key when it starts.
+
+Now suppose an intruder becomes root at 14:07 on a server that seals on the quarter hour. They have the sealing key as it is now, the one for the interval that began at 14:00. They can rewrite what was written since 14:00 and seal it again, and they control everything from now on. They can't make a seal for 13:59. Change an older entry, and the check fails. So sealing doesn't make the journal untouchable: it shrinks what can be rewritten to one interval, and a shorter interval shrinks it further.
+
+The check is `sudo journalctl --verify --verify-key=KEY`. For a sealed file it prints two lines, captured in the lab:
+
+```
+PASS: /var/log/journal/2478b1c1....audit/system.journal
+=> Validated from Mon 2026-11-23 03:34:17 UTC to Mon 2026-11-23 03:34:40 UTC, final 0 entries not sealed.
+```
+
+Here is the trap the first lab shows. `PASS` means only that the file is well formed: every entry matches the hash stored with it. Change a few bytes in place and you get `Invalid hash` and `FAIL`. But an attacker who knows the format writes the whole file again, entry by entry, with every hash right, and that file prints `PASS` too. What it can't have is the second line, because the seals behind it need the sealing key as it was at the time. A journal that was never sealed prints `PASS` alone as well. **Read the `Validated from ... to ...` line, and check that it covers the time you care about.**
+
+In the labs the shop's trail is a **journal namespace**: a journal of its own, with its own files, its own journald (`systemd-journald@audit`) and its own settings, read with `journalctl --namespace=audit`. A service is sent there by `LogNamespace=audit` in its unit. That is the two-kinds-of-log idea on one server. One thing in the lab is a stand-in: the audit journal's service is stopped the way a crash does, with a kill, each time it restarts, because on this version of systemd a sealed file that was closed cleanly and opened again fails verification (a known fault). A real server doesn't need that.
+
+<Check item="mcq-root-at-1407" />
+
+**When a trail goes quiet.** A trail fails silently. Nothing crashes: lines just aren't there, and you find out when an auditor asks for them. Three places to look.
+
+- **The settings in force.** A journal's settings can sit in its main file and in any number of drop-in files, and the last one read wins, as with units. `systemd-analyze cat-config systemd/journald@audit.conf` prints every file that applies, in order, each under its name. Read that, not the one file you remember editing. Two settings decide whether lines survive. `Storage=` says where the journal lives: on disk under `/var/log/journal`, or in memory under `/run/log/journal`, which a reboot empties (and a journal in memory is never sealed). And journald limits how fast one service may write, with `RateLimitIntervalSec=` and `RateLimitBurst=`: 10,000 messages in 30 seconds unless set otherwise. Past the limit it drops messages and, when the interval ends, writes one line of its own saying how many it suppressed. A limit is worth having, since a runaway program shouldn't be able to fill the disk. It has to fit the biggest honest burst.
+- **The trail itself, under load.** Make the biggest burst the system makes, and count what arrived.
+- **The writer's own complaints.** A program that reads a policy usually says what it couldn't use, once, at a low volume. The shop's audit writer logs a warning for each policy line it can't use, into the audit journal, since that is its only journal: `journalctl --namespace=audit -u shop-audit -p warning`.
+
+**Off the server, and write-once.** Sealing and chains detect. They don't keep the evidence: an intruder who can't rewrite the trail can still delete it, and PCI DSS asks for logs to be "promptly backed up to a secure, central, internal log server(s) or other media that is difficult to modify". So the trail is shipped, as it is written, to somewhere the server's own admins can't change, and best of all into **WORM** storage: write once, read many. An object in it can't be changed or deleted until a date. All three clouds have it (each provider's pages, read 2026-11-22):
+
+| | AWS: S3 Object Lock | Azure: immutable blob storage | Google Cloud: Bucket Lock |
+| --- | --- | --- | --- |
+| For trying it out | **governance mode:** protected, except from a user with the `s3:BypassGovernanceRetention` permission | an **unlocked** time-based retention policy: blobs are protected, but the policy can be shortened or deleted | a retention policy on the bucket, not yet locked |
+| For the real trail | **compliance mode:** nobody can delete or overwrite, "including the root user", and the period can't be shortened | a **locked** policy: it can't be deleted, and its period can be extended (five times at most for a container) but never shortened | a **locked** policy: "an irreversible action". The period can only be raised, and the bucket can be deleted only when every object has met it |
+| No end date known | a **legal hold**, until someone with the permission lifts it | a legal hold | an object hold |
+| Good to know | needs versioning (keeping every version of an object) switched on | periods from 1 day to 146,000 days | periods up to 100 years |
+
+A **legal hold** is the same protection with no date, for when a lawsuit or an investigation means nobody knows how long the records are needed. It works beside a retention period, and whichever lasts longer wins.
+
+The rule of thumb: try a policy in the mode that can be undone, check the period twice, and lock last, because the lock that your own mistakes can't undo is the one an intruder with your account can't undo either. And think about who holds what. The verification key, and the right to delete from the log store, go to people who don't run the servers the trail describes. That is separation of duties, from Authentication and authorization: the trail exists to check the admins too.
+
+<Check item="mcq-object-lock-mode" />
+
+**Going further (all optional, except the reading below).** Everything the questions and labs ask is in the lesson above. Below it is a part of OWASP's Logging Cheat Sheet, copied in: its full lists of what to log, what each entry should hold and what to leave out. Read it as a checklist to come back to; some of its words are from later modules. The other pages are for when you want more. LWN's "Forward secure sealing" explains the journal's sealing from the week it was announced. AWS's two CloudTrail pages, Azure's activity log page and Google's audit logs overview are behind the first table, and the three storage pages behind the second. The journalctl manual page lists every option used here.
+
+The quick questions read real output from the labs and work out retention and sealing windows. The labs seal the shop's trail and attack two copies of it, finish a script that adds to a hash chain, write the one that verifies a chain, build the payments server's audit trail from a policy, and repair a trail that has been losing events.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **An audit trail** answers who did what, to what, from where, when (UTC, from synchronised clocks) and with what outcome, months later. It is kept apart from operational logs. Record sign-ins both ways, authorization failures, changes to who may do what, admin and configuration changes, and access to sensitive data. Not page views.
+- **Never** a password, a session ID, a token or a key; a card number only **masked** to its last four digits, before the line is written. A writer escapes line breaks in values, or the log can be forged from a form (**log injection**).
+- **Retention** has two ends: PCI DSS's at least 12 months with three immediately available, and the GDPR's no longer than necessary. Size = events a day × bytes × days. journald: `SystemMaxUse=` (default 10% of the disk, capped at 4 GB) and `MaxRetentionSec=` (default: never).
+- **Clouds, with no setup:** AWS's event history, 90 days of management events; Azure's activity log, 90 days (Entra ID 7 days Free, 30 days P1 and P2); Google's Admin Activity, 400 days. **Who read data is off everywhere** until you switch it on: data events, resource logs through a diagnostic setting, Data Access logs.
+- **A hash chain:** each line's hash covers the line before's hash and its own record. An edit, a deletion or a swap breaks a link. A cut-off end or a full rewrite shows only against an **anchor**, the newest hash kept out of reach, or with a key. CloudTrail's signed hourly digests are a chain.
+- **Forward-secure sealing:** `journalctl --setup-keys`; the **sealing key** stays and moves on every interval, the **verification key** leaves the server. Root can rewrite only what was written since the last seal. `journalctl --verify --verify-key=KEY`: `PASS` proves nothing; **`Validated from ... to ...`** is the proof.
+- **When lines go missing:** `systemd-analyze cat-config` for the settings in force (where the journal is stored, and its rate limit), a count under the biggest burst, and the writer's own warnings.
+- **Ship it off the server into WORM storage:** S3 Object Lock's compliance mode, a locked Azure retention policy, a locked Cloud Storage bucket; a **legal hold** when there is no end date. Test in the mode that can be undone, and lock last. The verification key and the right to delete belong to people who don't run the servers.
+
+</Recap>
