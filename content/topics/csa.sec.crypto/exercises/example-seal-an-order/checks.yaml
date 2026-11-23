@@ -1,0 +1,81 @@
+# The walkthrough's end state, read through the vault base's helpers: what
+# openssl says of the signature, what OpenBao's key unwraps, what the key
+# and the two policies allow. The restart trial runs them all again, which
+# shows that OpenBao came back with its key versions and policies.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: order-signed
+    description: "~/orders/order.sig is a signature of order.txt that sign.pub verifies."
+    command: |
+      cd /home/learner/orders 2> /dev/null || { echo "there is no ~/orders"; exit 0; }
+      [ -s order.sig ] && [ -s sign.pub ] || { echo "order.sig or sign.pub is missing"; exit 0; }
+      [ "$(cat order.txt)" = "PAY 100 TO ALEX" ] || { echo "order.txt no longer says PAY 100 TO ALEX"; exit 0; }
+      openssl pkeyutl -verify -pubin -inkey sign.pub -rawin -in order.txt -sigfile order.sig 2>&1 | tail -n 1
+    expect:
+      equals: "Signature Verified Successfully"
+  - id: export-sealed
+    description: "The export is sealed with AES-GCM under a data key of its own, kept wrapped by the orders key, and the unencrypted export is gone."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      dir=/home/learner/orders
+      [ -s "$dir/export.csv.sealed" ] || { echo "there is no export.csv.sealed"; exit 0; }
+      grep -a '4111-0000' "$dir/export.csv.sealed" > /dev/null && { echo "export.csv.sealed holds card numbers anyone can read"; exit 0; }
+      [ -e "$dir/export.csv" ] && { echo "export.csv is still there, unencrypted"; exit 0; }
+      wrapped=$(cat "$dir/export.csv.key" 2> /dev/null)
+      case "$wrapped" in
+        vault:v*) ;;
+        *) echo "export.csv.key isn't a key wrapped by OpenBao"; exit 0 ;;
+      esac
+      key=$(bao write -field=plaintext transit/decrypt/orders ciphertext="$wrapped" 2> /dev/null) \
+        || { echo "OpenBao's orders key doesn't unwrap export.csv.key"; exit 0; }
+      opened=$(echo "$key" | gcm open "$dir/export.csv.sealed" - 2> /dev/null | sha256sum)
+      [ "$opened" = "$(sha256sum < /usr/local/lib/lab/example/export.csv)" ] \
+        || { echo "export.csv.sealed doesn't open to the export under the key in export.csv.key"; exit 0; }
+      found=$(on_disk "$key") && { echo "the data key is in a file, unwrapped: $(echo "$found" | head -n 1)"; exit 0; }
+      echo sealed
+    expect:
+      equals: sealed
+  - id: key-rewrapped
+    description: "The orders key has been rotated, and export.csv.key is wrapped by its latest version."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      latest=$(bao read -field=latest_version transit/keys/orders 2> /dev/null)
+      [ "${latest:-0}" -ge 2 ] || { echo "the orders key has only one version"; exit 0; }
+      case "$(cat /home/learner/orders/export.csv.key 2> /dev/null)" in
+        "vault:v$latest:"*) echo current ;;
+        *) echo "export.csv.key isn't wrapped by version $latest, the latest" ;;
+      esac
+    expect:
+      equals: current
+  - id: old-version-retired
+    description: "No version of the orders key older than the latest can be used to unwrap."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      latest=$(bao read -field=latest_version transit/keys/orders 2> /dev/null)
+      lowest=$(bao read -field=min_decryption_version transit/keys/orders 2> /dev/null)
+      [ "${latest:-0}" -ge 2 ] || { echo "the orders key has only one version"; exit 0; }
+      [ "$lowest" = "$latest" ] || { echo "version $lowest can still unwrap, and the latest is $latest"; exit 0; }
+      echo retired
+    expect:
+      equals: retired
+  - id: two-policies
+    description: "order-writer may make data keys and not unwrap; order-reader may unwrap and not make data keys."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      for policy in order-writer order-reader; do
+        bao policy read "$policy" > /dev/null 2>&1 || { echo "there is no policy called $policy"; exit 0; }
+      done
+      writer=$(token_for order-writer)
+      reader=$(token_for order-reader)
+      [ "$(caps "$writer" transit/datakey/plaintext/orders)" = update ] || { echo "order-writer can't make a data key"; exit 0; }
+      [ "$(caps "$writer" transit/decrypt/orders)" = deny ] || { echo "order-writer can unwrap"; exit 0; }
+      [ "$(caps "$reader" transit/decrypt/orders)" = update ] || { echo "order-reader can't unwrap"; exit 0; }
+      [ "$(caps "$reader" transit/datakey/plaintext/orders)" = deny ] || { echo "order-reader can make data keys"; exit 0; }
+      echo split
+    expect:
+      equals: split

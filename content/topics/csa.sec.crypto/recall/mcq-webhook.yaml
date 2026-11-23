@@ -1,0 +1,16 @@
+id: mcq-webhook
+type: mcq
+rev: 1
+prompt: |
+  GitHub sends your service a request each time someone pushes to a repository (a webhook). The request's `X-Hub-Signature-256` header is `sha256=` and an HMAC-SHA256 of the request's body, under a secret you typed into both GitHub and your service. Your service works out the same HMAC, and it matches. What do you now know?
+choices:
+  - "Someone who knows the webhook secret sent exactly this body"
+  - "GitHub sent it, since only GitHub's private key can sign it"
+  - "The body was encrypted on the way, and only you can read it"
+  - "Who the sender is, from the certificate inside the header"
+answer: 0
+explanation: |
+  An HMAC proves two things: whoever made it held the key, and the data hasn't changed since. So the body is exactly what a holder of the secret sent. In practice that's GitHub, as long as the secret hasn't leaked; but your own service holds the same secret and could have made the same value, which is why a MAC can't prove to a third party who sent something.
+
+  The header's name says "signature", but no private key is involved: it's a MAC, with one shared key. Nothing here encrypts the body, and the header holds no certificate. GitHub's documentation (read 2026-11-22) adds one instruction: compare the two values with a constant-time function, so that an attacker can't learn the right value one character at a time from how long the comparison takes.
+skills: [hash-mac-signature]

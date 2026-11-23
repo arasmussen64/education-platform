@@ -1,0 +1,50 @@
+# The checks state end states. Each reads real state: what the report's
+# and the front end's own tokens may do and can open, the archive against
+# the orders as they read before sealing, the key's settings, and an order
+# of the check's own going through the running sealer. debugcheck.sh,
+# beside this file, holds the steps; a check that finds something wrong
+# prints what it found.
+checks:
+  - id: report-opens-all
+    description: "The report's token, which may still only unwrap with the orders key, opens all 16 archived orders."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      check_report
+    expect:
+      equals: "16 of 16"
+  - id: sealed-untouched
+    description: "No archived .sealed file is changed."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      check_sealed
+    expect:
+      equals: untouched
+  - id: old-retired
+    description: "No version of the orders key older than the latest can be used to unwrap."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      check_old_retired
+    expect:
+      equals: retired
+  - id: front-end-least
+    description: "The web front end's token may make data keys from the orders key, and nothing else."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      check_front_end
+    expect:
+      equals: "data keys only"
+  - id: new-orders-sealed
+    description: "An order that arrives is sealed by the running sealer, under a data key wrapped by the orders key, and the sealer starts at boot."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      check_new_orders
+    timeout: 60
+    expect:
+      equals: "sealed under orders"
+  - id: programs-intact
+    description: "The sealer, the report program and their units are as they were."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      sealed_ok
+    expect:
+      equals: intact

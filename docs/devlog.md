@@ -2,6 +2,24 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-23, cloud Module 4: the topics
+
+Each topic is written by one helper from the plan, the build notes and its designer's brief, labs first; then read and attacked by a second helper who did not write it; then landed as its own pull request once every check passes on CI. This entry grows a topic at a time.
+
+**Applied cryptography** (`csa.sec.crypto`). Five labs on the keys-and-secrets base, a 4,500-word lesson, 31 quick questions, 275 minutes.
+
+- _What the cold review found._ The lesson and all fifteen facts it re-opened held. The labs did not: four shortcuts passed, and one right answer failed.
+  - A policy that allowed everything under the key service and then denied the paths the check probed passed as "least privilege". The checks now also probe paths with a made-up name.
+  - In the rewrap lab, a script could read "the newest key version" off the archive's own files, or swap the job's token for the admin's. The trial now rotates once more and runs a third time, and a new check reads the audit log for whose token did the work.
+  - A data key saved beside its file as hexadecimal passed "no key on disk". The check looks for hex too.
+  - A correct policy written with two capabilities was failed. Fixed.
+  - The explain question's first required point (what disk encryption does and doesn't protect) was not in the lesson. It is now.
+- _Left as they are, on judgement:_ the lesson teaches the principle behind the debug's first fault (retire a key version only after rewrapping what it sealed) without naming anything in the lab; and the debug's prompt states one symptom fairly exactly, which a symptom is allowed to be.
+- _Sources not opened:_ the Australian regulator's report behind the story answered 403, so the story tells only what the news article that was opened supports. Three figures the writer could not confirm were left out of the lesson.
+- _Nothing is copied in:_ the reading importer doesn't know this topic's sources, so all ten resources are optional links.
+- _CI time:_ the build and the debug take about five minutes each on a quiet machine, more than the plan's estimate for the whole topic.
+- _For the base, later:_ its "is the key on disk" helper still misses a key saved as raw bytes, or outside the folders it lists.
+
 ## 2026-11-22, cloud Module 4: the platform work
 
 The plan's section 7 lists what must exist before any topic is written. Four helpers built it in parallel, each in its own worktree, and each piece landed as its own pull request so that CI's machines, where nothing in this design had run, judged it. This entry grows as the pieces land.
@@ -39,6 +57,7 @@ The plan's section 7 lists what must exist before any topic is written. Four hel
 - _Each builder ran on this machine only._ The lab run on the pull request is the first time the `id`, `pay`, `policy` and `tm` bases run on a GitHub runner, and the first time the changed network base does.
 - _The identity base landed without its probe lab._ On CI's machines the probe's time-sync stand-in (`timesync@app`) failed to start, which never happened on this PC, not even with the lab's time server stopped by hand. The other three bases' probes passed there. The identity probe goes up alone, printing the services' logs when that step fails, so that CI shows the cause. No lab uses the identity base until it does.
 - _Three draft probe topics_ sit in Module 4's list in the track file (only a dev server shows them). They go when the topics that replace them are written, as Module 3's probe topic did.
+**The app bundles Module 4.** The first topic's writer found that a ready `csa.sec.*` topic fails one web test: the app loads the cloud track's unwritten topics only on demand, and names the written modules by pattern. Module 4's pattern and its checkpoint are added in the three places Module 3's are (the bundle, the on-demand outlines' exclusion, the test). The pattern is `csa.sec.*`, and the dot keeps Module 20's `csa.secarch.*` outlines out.
 
 ## 2026-11-22, cloud Module 4: the plan
 

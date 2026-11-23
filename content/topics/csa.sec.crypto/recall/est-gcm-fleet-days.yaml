@@ -1,0 +1,22 @@
+id: est-gcm-fleet-days
+type: estimate
+rev: 1
+prompt: |
+  20,000 sensors each send one reading every 30 seconds. Every reading is encrypted with AES-GCM under one key that all the sensors share, with a random 96-bit nonce. NIST's limit is 4,294,967,296 (2^32) encryptions under one key, and a day has 86,400 seconds. After how many days is the key used up? Within 5%.
+unit: days
+answer: 74.6
+tolerance: { percent: 5 }
+given: { sensors: 20000, every: 30, limit: 4294967296, day: 86400 }
+working: limit / (sensors * day / every)
+mistakes:
+  - id: one-sensor
+    value: 1491308.1
+    working: limit / (day / every)
+    why: That is one sensor's readings. All 20,000 share the key, so all of their readings count against it.
+  - id: per-minute
+    value: 149.13
+    working: limit / (sensors * day / 60)
+    why: That takes one reading a minute. Every 30 seconds is two a minute.
+explanation: |
+  One sensor sends 86,400 ÷ 30 = 2,880 readings a day, so 20,000 of them send 57,600,000. 4,294,967,296 ÷ 57,600,000 is 74.6 days. The limit counts every encryption under the key, wherever it happens, so a shared key is spent by the whole fleet together. Give each sensor a key of its own (2,880 a day would last four thousand years) or rotate the shared key well inside 74 days.
+skills: [authenticated-encryption]

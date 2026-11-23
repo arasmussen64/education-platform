@@ -1,0 +1,28 @@
+id: hmac-which-match
+type: predict_shell
+rev: 1
+prompt: |
+  The shop and its bank share the key `k1`. The shop sent `order.txt` and, with it, `tag.txt`: the HMAC-SHA256 of the order under that key, as `openssl dgst -sha256 -hmac k1 order.txt` prints it after the space. `received.txt` is what arrived at the bank. For each file, the command works out the HMAC again and compares it with the tag. What is printed?
+files:
+  order.txt: |
+    PAY 100 TO ALEX
+  received.txt: |
+    PAY 900 TO ALEX
+  tag.txt: |
+    00cd8dd020138f3efa27cc09907956b91c809dc924c10fef49dfbe46a6af9ddd
+command: |
+  for f in order.txt received.txt; do
+    if [ "$(openssl dgst -sha256 -hmac k1 "$f" | cut -d' ' -f2)" = "$(cat tag.txt)" ]; then
+      echo "$f ok"
+    else
+      echo "$f changed"
+    fi
+  done
+expected_output: |
+  order.txt ok
+  received.txt changed
+explanation: |
+  `openssl dgst -sha256 -hmac k1 FILE` prints `HMAC-SHA2-256(FILE)= ` and the tag, and `cut -d' ' -f2` keeps the tag. For `order.txt` it is the one in `tag.txt`; for `received.txt`, where one digit changed, it is a different 64 hex digits, so the bank knows the order was changed on the way.
+
+  A plain SHA-256 beside the order would have caught nothing here: whoever changed 100 to 900 could have worked out the new hash and replaced that too. They can't work out a new HMAC without `k1`. What the tag can't tell the bank is which holder of `k1` made it, the shop or the bank itself: for that, the shop would sign.
+skills: [hash-mac-signature]

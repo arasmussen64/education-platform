@@ -1,0 +1,24 @@
+id: mcq-which-still-open
+type: mcq
+rev: 1
+prompt: |
+  Three lines of `bao read transit/keys/demo`, captured in this topic's lab on 2026-11-22:
+
+  ```
+  keys                      map[2:1795400715 3:1795400715]
+  latest_version            3
+  min_decryption_version    2
+  ```
+
+  Which wrapped data keys will OpenBao unwrap with this key?
+choices:
+  - "Those that start vault:v2: or vault:v3:, and none that start vault:v1:"
+  - "Only those that start vault:v3:, since version 3 is the latest one"
+  - "All of them, v1 to v3: a rotation never takes a version out of use"
+  - "Those that start vault:v1: or vault:v2:, since only v3 is held back"
+answer: 0
+explanation: |
+  A ciphertext says which version of the key made it, and `min_decryption_version` is the oldest version that may still decrypt: here 2, so `v2` and `v3` work and `v1` is refused with `ciphertext or signature version is disallowed by policy (too old)`. The `keys` line agrees: it lists the versions in use, 2 and 3.
+
+  `latest_version` only decides which version new encryptions use. Rotation alone retires nothing; raising `min_decryption_version` does, and it should come after every wrapped key below it has been rewrapped. OpenBao archives a retired version and doesn't delete it: lowering the setting brings it back.
+skills: [envelope-encryption]

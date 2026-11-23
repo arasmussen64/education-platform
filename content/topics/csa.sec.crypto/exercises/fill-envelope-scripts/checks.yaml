@@ -1,0 +1,42 @@
+# Each check makes an order file of its own, with a marker and a length
+# made up on the spot, and runs the two scripts on it as the learner: the
+# sealer with a token that has only the order-writer policy, the opener
+# with one that has only order-reader. sealcheck.sh, beside this file,
+# holds the steps; a check that finds something wrong prints what it
+# found.
+checks:
+  - id: roundtrip
+    description: "seal-order seals an order it has never seen, and open-order prints it back, each with a token of its own policy."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_roundtrip
+    expect:
+      equals: "sealed and opened"
+  - id: envelope
+    description: "The sealed file is the order encrypted by gcm under a data key, FILE.key is that key wrapped by the orders key, and a sealed file that was changed is refused."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_envelope
+    expect:
+      equals: "an envelope"
+  - id: fresh-key
+    description: "Two files sealed one after the other have a data key each."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_fresh_key
+    expect:
+      equals: "a key each"
+  - id: no-key-on-disk
+    description: "After sealing, the data key is in no file under /home, /tmp, /srv, /var/tmp, /etc, /run or /var/log."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_no_key_on_disk
+    expect:
+      equals: clean
+  - id: policies-as-made
+    description: "order-writer may still only make data keys from the orders key, and order-reader only unwrap with it."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_policies
+    expect:
+      equals: "least privilege"

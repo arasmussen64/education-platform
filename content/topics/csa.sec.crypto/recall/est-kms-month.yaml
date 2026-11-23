@@ -1,0 +1,39 @@
+id: est-kms-month
+type: estimate
+rev: 1
+prompt: |
+  An app uses one AWS KMS key, now in its third year, so it has been rotated automatically twice. Each month it writes 2,000,000 objects (one `GenerateDataKey` request each) and reads 6,000,000 (one `Decrypt` request each).
+
+  AWS's prices: $1 a month for the key, plus $1 a month for each of its first two rotations; $0.03 for every 10,000 requests, after the first 20,000 requests each month, which are free.
+
+  What does KMS cost for the month, in dollars? Exactly, to the cent.
+unit: US dollars
+answer: 26.94
+tolerance: { absolute: 0.01 }
+given: { writes: 2000000, reads: 6000000, key: 1, price: 0.03, per: 10000, free: 20000 }
+# aws.amazon.com/kms/pricing/, read 2026-11-22: "$1/month (prorated
+# hourly)" a key; "the first and second rotation of the key adds $1/month",
+# capped at the second; the page's own example prices requests at $0.03 per
+# 10,000 after a free tier of 20,000 requests a month. The two rotations
+# are a plain 2 in the working: the prompt gives them in words.
+working: (writes + reads - free) * price / per + key + 2 * key
+mistakes:
+  - id: no-rotations
+    value: 24.94
+    working: (writes + reads - free) * price / per + key
+    why: That leaves out the two rotations, which each add $1 a month to the key.
+  - id: no-free-tier
+    value: 27
+    working: (writes + reads) * price / per + key + 2 * key
+    why: That charges for every request. The first 20,000 each month are free, which takes 6 cents off.
+  - id: requests-only
+    value: 23.94
+    working: (writes + reads - free) * price / per
+    why: That is the requests alone. The key costs $1 a month, and each of its two rotations another $1.
+prices_as_of: 2026-11-22
+prices_source: https://aws.amazon.com/kms/pricing/
+explanation: |
+  Requests: 2,000,000 + 6,000,000 = 8,000,000, less the 20,000 free, is 7,980,000; at $0.03 per 10,000 that is $23.94. The key: $1, plus $1 for each of its two rotations, $3. Together $26.94.
+
+  Almost all of it is requests, and three-quarters of the requests are reads: with envelope encryption every read of an object is one unwrap. That is the price of having the key service decide, and record, every time a key is used. Prices change: look them up on the day.
+skills: [envelope-encryption]

@@ -1,0 +1,22 @@
+id: est-bruteforce-112
+type: estimate
+rev: 1
+prompt: |
+  A 112-bit key has 2^112 possible values, and on average a search finds the right one after half of them, 2^111. An attacker has 1,000,000,000 machines that each try 1,000,000,000,000 keys a second. How many years does the search take, on average? A year is 365.25 days of 86,400 seconds. Within 10%.
+unit: years
+answer: 82267
+tolerance: { percent: 10 }
+given: { machines: 1000000000, rate: 1000000000000, half_bits: 111, days: 365.25, day: 86400 }
+working: 2 ** 64 * 2 ** (half_bits - 64) / (rate * machines) / (days * day)
+mistakes:
+  - id: whole-keyspace
+    value: 164534
+    working: 2 ** 64 * 2 ** (half_bits + 1 - 64) / (rate * machines) / (days * day)
+    why: That tries every key. On average the right one is found half way through.
+  - id: days
+    value: 30048014
+    working: 2 ** 64 * 2 ** (half_bits - 64) / (rate * machines) / day
+    why: That is the time in days. Divide by 365.25 for years.
+explanation: |
+  2^111 is about 2.6 × 10^33 keys; at 10^21 a second that is 2.6 × 10^12 seconds, about 82,000 years. Against 5.4 billion years for 128 bits on the same imaginary rig, the gap of 16 bits shows: 65,536 times less work. 82,000 years is still out of reach, which is why 112 bits is acceptable today; it is the smallest margin NIST allows, and the first to go.
+skills: [key-strength]

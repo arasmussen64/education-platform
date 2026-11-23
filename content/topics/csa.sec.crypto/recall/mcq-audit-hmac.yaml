@@ -1,0 +1,24 @@
+id: mcq-audit-hmac
+type: mcq
+rev: 1
+prompt: |
+  A program asked OpenBao to encrypt a card number. This is part of the request as OpenBao's audit log recorded it, captured in this topic's lab on 2026-11-22:
+
+  ```
+  "operation":"update"
+  "path":"transit/encrypt/demo"
+  "data":{"plaintext":"hmac-sha256:f2857983841e01cf1e05c892f41a6503cf1c1b970274912bb8cf5563019ce0e2"}
+  ```
+
+  The log holds an HMAC of the card number under a key only OpenBao has. Why not the plain SHA-256 of it, which would be simpler?
+choices:
+  - "A plain hash of a card number is undone by hashing every likely number"
+  - "SHA-256 is too slow to work out for every request the service handles"
+  - "An HMAC is shorter than a hash, so the log takes up less of the disk"
+  - "A SHA-256 value would let a reader of the log decrypt the request"
+answer: 0
+explanation: |
+  A hash can't be run backwards, but it can be run forwards on every candidate. A card number has few enough possible values that a laptop hashes all of them for one bank in about a second, and then the "hidden" values in the log are a lookup table. A plain hash of guessable data is as good as the data. An HMAC needs OpenBao's key, so nobody outside it can make the table.
+
+  The log stays useful all the same: `bao write sys/audit-hash/file input=VALUE` has OpenBao work out the HMAC of a value you already know, and you can search the log for it. SHA-256 is fast, which is the problem, not too slow. HMAC-SHA256 and SHA-256 are the same length, 64 hex digits. A hash decrypts nothing.
+skills: [hash-mac-signature]

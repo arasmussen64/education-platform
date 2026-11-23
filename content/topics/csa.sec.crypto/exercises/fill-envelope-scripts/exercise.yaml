@@ -1,0 +1,24 @@
+id: fill-envelope-scripts
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Two scripts and an envelope"
+prompt: |
+  The shop's front end is to seal every order as it arrives, and the nightly report is to open them. Two scripts do it, `~/bin/seal-order FILE` and `~/bin/open-order FILE.sealed`, and each has lost values, marked `___`. OpenBao runs on this server (its basics are in this topic's first lab, `example-seal-an-order`), with the transit key `orders` and two policies already made: `order-writer`, which may only make data keys from that key, and `order-reader`, which may only unwrap with it. `bao policy read order-writer` shows one.
+
+  The scripts should make an envelope:
+
+  1. **`seal-order FILE`** asks OpenBao for a new data key for this one file, saves the wrapped copy of it as `FILE.key`, and encrypts the file under the key itself with `gcm seal`, as `FILE.sealed`. The key itself goes down a pipe: it is never written to a file.
+  2. **`open-order FILE.sealed`** has OpenBao unwrap the key in `FILE.key`, and pipes it into `gcm open`, which prints the order.
+
+  Four `___`, three in `seal-order` and one in `open-order`: the path that makes a data key, which field of OpenBao's answer is kept in `FILE.key`, which field goes to `gcm`, and the path that unwraps. With a `___` left in, a script still starts, and stops at the first command that can't work: `bao` says the path isn't one it knows, or `gcm` says the key it was handed isn't a key. Read the comments in each script, and run `bao write -f` on the path you choose by hand first to see the table it answers with.
+
+  Edit with `nano ~/bin/seal-order` and `nano ~/bin/open-order`, and replace each `___` and nothing else. Then try them in `~/orders`, which has three orders: `~/bin/seal-order order-3001.txt`, `ls`, `~/bin/open-order order-3001.txt.sealed`. That runs them with your own token, which may do anything. The checks run them the way the shop will, each with a token that has only its own policy, and you can too: `BAO_TOKEN=$(bao token create -policy=order-writer -ttl=10m -field=token) ~/bin/seal-order order-3002.txt`. Leave the two policies as they are: a script that only works with a wider policy is the thing to fix.
+hints:
+  - "The transit engine's paths are named for what they do, then the key: `transit/encrypt/orders`, `transit/decrypt/orders`, `transit/rewrap/orders`, `transit/datakey/plaintext/orders`, `transit/datakey/wrapped/orders`. Only one of them returns a new key both as itself and wrapped, and it is the one path `order-writer` allows."
+  - "OpenBao names fields from its own point of view, as for anything it encrypts: what went in readable is the `plaintext`, what comes out encrypted is the `ciphertext`. A data key's wrapped copy is the encrypted one. `gcm` wants the key itself."
+  - "A wrapped data key is a ciphertext made by the `orders` key, so unwrapping it is an ordinary decrypt with that key, and the only path `order-reader` allows."
+skills: [envelope-encryption, authenticated-encryption]
