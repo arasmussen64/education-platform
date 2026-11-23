@@ -1,11 +1,23 @@
 #!/usr/bin/python3
-"""ca-cases REQUIREMENT: makes up sign-ins for the build's conditional-access
-requirements, works out what the shop's rules should decide for each, and asks
-the learner's policies through `ca-whatif --batch` on the provider. Fresh
-names and both sides of every signal each run. Run on idp, where the policies
-(/etc/shop/ca) and the realm are.
+"""ca-cases REQUIREMENT: makes up sign-ins for the shop's conditional-access
+rules, works out what the rules should decide for each, asks the policies in
+/etc/shop/ca through `ca-whatif --batch`, and prints "ok" or the first few
+sign-ins that disagree. Run on idp, where the policies and the realm are.
+
+The shop's rules: everyone does MFA; the admins group uses a
+phishing-resistant method; the payments app needs a compliant device; a
+high-risk sign-in and a legacy client are blocked; and the emergency-access
+group gets in whatever the sign-in looks like. A new policy for the admin app
+(a compliant device) is report-only.
+
+Every run invents fresh people, including a member of emergency-access the
+realm never named and a group nobody has heard of, and tries every app,
+device, client and sign-in risk with every person and method; the person's
+own risk, which no rule mentions, is drawn at random. The realm's own people
+are passed along too, so a policy may name them.
 """
 
+import itertools
 import json
 import os
 import random
@@ -14,11 +26,14 @@ import sys
 import tempfile
 
 POLICIES = "/etc/shop/ca"
+REALM = "/etc/keycloak/realms/shop.json"
 PHISHING_RESISTANT = {"hwk", "whfb", "cert"}
 PASSWORDLESS = PHISHING_RESISTANT | {"phone"}
 SOMETHING_YOU_HAVE = {"otp", "sms", "voice", "push"}
 APPS = ["trace-cli", "payments", "admin-app"]
-GROUPS = ["staff", "warehouse", "admins", "emergency-access"]
+DEVICES = ["compliant", "noncompliant", "unknown"]
+CLIENTS = ["browser", "mobileAppsAndDesktopClients", "exchangeActiveSync", "other"]
+RISKS = ["none", "low", "medium", "high"]
 
 
 def has_mfa(methods):
@@ -33,48 +48,60 @@ def has_pr(methods):
 
 
 def expect(attrs, s):
+    """What the shop's rules decide for one sign-in: allow or block. The
+    admin app's compliant-device policy is report-only, so it never blocks."""
     groups = set(attrs["groups"])
     if "emergency-access" in groups:
         return "allow"
-    if s.get("risk") == "high":
+    if s["risk"] == "high" or s["client"] in ("exchangeActiveSync", "other"):
         return "block"
-    if s.get("client") in ("exchangeActiveSync", "other"):
+    if not has_mfa(s["methods"]):
         return "block"
-    if not has_mfa(s.get("methods", [])):
+    if "admins" in groups and not has_pr(s["methods"]):
         return "block"
-    if "admins" in groups and not has_pr(s.get("methods", [])):
+    if s["app"] == "payments" and s["device"] != "compliant":
         return "block"
-    if s["app"] == "payments" and s.get("device") != "compliant":
-        return "block"
-    # admin-app compliant-device policy is report-only: it never blocks.
     return "allow"
 
 
-def name():
-    return "u-" + "".join(random.choice("0123456789abcdef") for _ in range(6))
+def hexname(kind):
+    return kind + "-" + "".join(random.choice("0123456789abcdef") for _ in range(6))
 
 
-def base(user, app):
-    return {
-        "user": user,
-        "app": app,
-        "methods": ["pwd"],
-        "risk": "none",
-        "userrisk": "none",
-        "device": "unknown",
-        "location": None,
-        "client": "browser",
-    }
+def realm_people():
+    """The realm file's people, groups and roles, as ca-whatif's directory."""
+    try:
+        with open(REALM) as handle:
+            realm = json.load(handle)
+    except (OSError, ValueError) as error:
+        print(f"the realm file can't be read: {error}")
+        sys.exit(0)
+    group_roles = {g["name"]: g.get("realmRoles", []) for g in realm.get("groups", [])}
+    users = []
+    for user in realm.get("users", []):
+        groups = [g.strip("/").split("/")[-1] for g in user.get("groups", [])]
+        roles = set(user.get("realmRoles", []))
+        for group in groups:
+            roles |= set(group_roles.get(group, []))
+        users.append({"id": user["username"], "groups": groups, "roles": sorted(roles)})
+    roles = [r["name"] for r in realm.get("roles", {}).get("realm", [])]
+    return users, sorted(group_roles), roles
 
 
-def run_batch(users, sign_ins):
+def run_batch(people, sign_ins):
+    """people: {name: {groups, roles}}. Returns ca-whatif's verdicts, or ends
+    the check (status 0) with ca-whatif's own complaint."""
+    users, groups, roles = realm_people()
+    known = {u["id"] for u in users}
+    users += [
+        {"id": n, "groups": a["groups"], "roles": a["roles"]}
+        for n, a in people.items()
+        if n not in known
+    ]
     directory = {
-        "users": [
-            {"id": n, "groups": a["groups"], "roles": a["roles"]}
-            for n, a in users.items()
-        ],
-        "groups": GROUPS,
-        "roles": ["admin"],
+        "users": users,
+        "groups": sorted(set(groups) | {g for u in users for g in u["groups"]}),
+        "roles": roles,
         "apps": APPS,
     }
     with tempfile.NamedTemporaryFile(
@@ -100,16 +127,22 @@ def run_batch(users, sign_ins):
     return json.loads(done.stdout)
 
 
+def described(s):
+    return (
+        f"to {s['app']}, {s['device']} device, sign-in risk {s['risk']}, "
+        f"user risk {s['userrisk']}, {s['client']}"
+    )
+
+
 def judge(cases):
-    users = {c[2]["user"]: c[1] for c in cases}
-    verdicts = run_batch(users, [c[2] for c in cases])
+    people = {c[2]["user"]: c[1] for c in cases}
+    verdicts = run_batch(people, [c[2] for c in cases])
     wrong = []
-    for (words, attrs, s), verdict in zip(cases, verdicts):
-        want = expect(attrs, s)
-        if verdict["result"] != want:
-            wrong.append(
-                f"{words}: the rules say {want}, your policies say {verdict['result']}"
-            )
+    for (words, attrs, s), verdict in zip(cases, verdicts, strict=True):
+        want, got = expect(attrs, s), verdict["result"]
+        if got != want:
+            said = f"the rules say {want}, your policies say {got}"
+            wrong.append(f"{words}, {described(s)}: {said}")
     if not wrong:
         print("ok")
         return
@@ -119,95 +152,162 @@ def judge(cases):
         print(f"...and {len(wrong) - 3} more")
 
 
+def every_signal(user, methods, apps=APPS, devices=DEVICES, clients=CLIENTS):
+    for app, device, client, risk in itertools.product(apps, devices, clients, RISKS):
+        yield {
+            "user": user,
+            "app": app,
+            "methods": methods,
+            "risk": risk,
+            "userrisk": random.choice(RISKS),
+            "device": device,
+            "location": None,
+            "client": client,
+        }
+
+
+def admins(groups):
+    return ["admin"] if "admins" in groups or "emergency-access" in groups else []
+
+
 METHOD_SETS = [
     ("a password alone", ["pwd"]),
     ("a password and an app code", ["pwd", "otp"]),
+    ("a password and a text code", ["pwd", "sms"]),
+    ("a security key alone", ["hwk"]),
     ("a password and a key", ["pwd", "hwk"]),
+]
+
+PEOPLE = [
+    ("a person in no group", []),
+    ("a staff member", ["staff"]),
+    ("a warehouse worker", ["warehouse"]),
+    ("an admin", ["admins"]),
 ]
 
 
 def req_rules():
     cases = []
-    for groups in ([], ["staff"], ["warehouse"], ["admins"]):
-        for app in APPS:
-            for _label, methods in METHOD_SETS:
-                for device in ("unknown", "compliant", "noncompliant"):
-                    for risk, client in (
-                        ("none", "browser"),
-                        ("high", "browser"),
-                        ("none", "other"),
-                    ):
-                        user = name()
-                        attrs = {
-                            "groups": groups,
-                            "roles": ["admin"] if groups == ["admins"] else [],
-                        }
-                        s = base(user, app)
-                        s.update(
-                            methods=methods, device=device, risk=risk, client=client
-                        )
-                        cases.append(
-                            (
-                                f"a person in {groups or 'no group'} at {app} with {_label}, {device} device, {risk} risk, {client}",
-                                attrs,
-                                s,
-                            )
-                        )
-    # keep the batch a sensible size
-    random.shuffle(cases)
-    return cases[:120]
+    people = PEOPLE + [
+        ("a person in a group the policies never name", [hexname("team")])
+    ]
+    for who, groups in people:
+        attrs = {"groups": groups, "roles": admins(groups)}
+        for label, methods in METHOD_SETS:
+            user = hexname("u")
+            for s in every_signal(user, methods):
+                cases.append((f"{who} signing in with {label}", attrs, s))
+    return cases
 
 
 def req_emergency():
+    """The emergency accounts sign in with their keys and get in whatever
+    else the sign-in looks like. A member the realm never named shows the
+    exclusion is the group, not a list of names."""
     cases = []
-    for who in ("bg-1", "bg-2", name()):
-        for label, over in (
-            ("a high-risk sign-in", {"risk": "high"}),
-            ("a legacy client", {"client": "other"}),
-            ("payments on an unknown device", {"app": "payments", "device": "unknown"}),
-            ("a password alone", {"methods": ["pwd"]}),
-        ):
-            attrs = {"groups": ["emergency-access"], "roles": ["admin"]}
-            s = base(who, over.get("app", "admin-app"))
-            s.update(over)
-            cases.append((f"the emergency account {who} with {label}", attrs, s))
+    attrs = {"groups": ["emergency-access"], "roles": ["admin"]}
+    for who in ("bg-1", "bg-2", hexname("bg")):
+        for s in every_signal(who, ["pwd", "hwk"]):
+            cases.append((f"the emergency account {who} with its key", attrs, s))
     return cases
 
 
 def req_exclusion_narrow():
+    """Anyone not in emergency-access is still held: a password alone, a
+    high-risk sign-in, a legacy client and payments on a device that isn't
+    compliant all stay blocked for them, an admin's included."""
     cases = []
-    for groups in ([], ["staff"], ["warehouse"], ["admins"]):
-        user = name()
-        attrs = {"groups": groups, "roles": ["admin"] if groups == ["admins"] else []}
-        s = base(user, "admin-app")
-        s.update(methods=["pwd", "otp"], risk="high")  # a block only emergency escapes
-        cases.append(
-            (f"a high-risk sign-in by a person in {groups or 'no group'}", attrs, s)
-        )
+    people = PEOPLE + [
+        ("a person in a group the policies never name", [hexname("team")]),
+        ("a staff member who also has the admin role", ["staff"]),
+    ]
+    for who, groups in people:
+        roles = ["admin"] if "admin role" in who else admins(groups)
+        attrs = {"groups": groups, "roles": roles}
+        user = hexname("u")
+        for label, methods, apps, devices, clients, risk in (
+            ("a password alone", ["pwd"], APPS, DEVICES, CLIENTS[:2], None),
+            (
+                "a key, flagged high risk",
+                ["pwd", "hwk"],
+                APPS,
+                DEVICES,
+                CLIENTS,
+                "high",
+            ),
+            (
+                "a key, over a legacy client",
+                ["pwd", "hwk"],
+                APPS,
+                DEVICES,
+                CLIENTS[2:],
+                None,
+            ),
+            (
+                "a key, at payments",
+                ["pwd", "hwk"],
+                ["payments"],
+                DEVICES[1:],
+                CLIENTS,
+                None,
+            ),
+        ):
+            for s in every_signal(user, methods, apps, devices, clients):
+                if risk:
+                    s["risk"] = risk
+                cases.append((f"{who} with {label}", attrs, s))
     return cases
 
 
 def req_report_only():
-    user = name()
-    attrs = {"groups": ["admins"], "roles": ["admin"]}
-    s = base(user, "admin-app")
-    s.update(methods=["pwd", "hwk"], device="noncompliant")
-    verdicts = run_batch({user: attrs}, [s])
-    verdict = verdicts[0]
-    if verdict["result"] != "allow":
-        print(
-            "an admin on a noncompliant device at the admin app was blocked: the new policy isn't report-only"
+    """The admin app's compliant-device policy is report-only: worked out and
+    shown, never enforced, and about the admin app."""
+    people, asks = {}, []
+    for app, device in (
+        ("admin-app", "noncompliant"),
+        ("admin-app", "unknown"),
+        ("admin-app", "compliant"),
+        ("trace-cli", "noncompliant"),
+    ):
+        user = hexname("u")
+        people[user] = {"groups": ["admins"], "roles": ["admin"]}
+        asks.append(
+            {
+                "user": user,
+                "app": app,
+                "methods": ["pwd", "hwk"],
+                "risk": "none",
+                "userrisk": "none",
+                "device": device,
+                "location": None,
+                "client": "browser",
+            }
         )
-        return
-    rows = [r for r in verdict["policies"] if r.get("outcome") == "report-only"]
-    if not rows:
-        print("no report-only policy applied to an admin-app sign-in")
-        return
-    if not any(r.get("blocks") or not r.get("passes") for r in rows):
-        print(
-            "the report-only policy would have passed a noncompliant device: it isn't the compliant-device rule"
-        )
-        return
+    verdicts = run_batch(people, asks)
+
+    def fails(row):
+        return row.get("blocks") or not row.get("passes")
+
+    for ask, verdict in zip(asks, verdicts, strict=True):
+        app, device = ask["app"], ask["device"]
+        where = f"an admin with a key at {app} on a {device} device"
+        if verdict["result"] != "allow":
+            print(f"{where} was blocked: a policy that should only report is enforced")
+            return
+        rows = [r for r in verdict["policies"] if r.get("outcome") == "report-only"]
+        if app == "admin-app" and device != "compliant":
+            if not any(fails(r) for r in rows):
+                print(f"{where} isn't shown as a report-only failure")
+                return
+        if app == "admin-app" and device == "compliant":
+            if not rows or any(fails(r) for r in rows):
+                print(f"{where} isn't shown as a report-only success")
+                return
+        if app != "admin-app" and any(fails(r) for r in rows):
+            print(
+                f"{where} is shown as a report-only failure: it is the admin app's rule"
+            )
+            return
     print("ok")
 
 

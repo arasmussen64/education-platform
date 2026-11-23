@@ -18,7 +18,7 @@ RUN netlab enable \
  && idlab seckey carol 0a000000-0000-4000-8000-000000000022 \
  && idlab seckey bg-1 0a000000-0000-4000-8000-000000000025 \
  && idlab seckey bg-2 0a000000-0000-4000-8000-000000000026 \
- && idlab otp ana ben \
+ && idlab otp ana ben carol \
  && install -d -m 755 /etc/shop \
  && printf 'bg-1\nbg-2\n' > /etc/shop/watched-accounts \
  && idlab bake \

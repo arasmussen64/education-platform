@@ -1,10 +1,12 @@
 #!/bin/bash
-# Three faults, each mended at its cause.
+# Three faults, each mended at its cause: the admins' sub-flow offered an
+# app code beside the key, the payments policy was left in report-only, and
+# the high-risk block excluded one emergency account by name rather than
+# the emergency-access group.
 set -e
 F=/etc/netns/idp/keycloak/realms/shop.json
 
-# 1. The admins' sub-flow offered the key and the app code side by side.
-#    Make the key the only way, and drop the code path for admins.
+# The sign-in flow, in the realm file.
 sudo python3 - "$F" <<'PY'
 import json, sys
 p = sys.argv[1]
@@ -23,17 +25,23 @@ json.dump(d, open(p, "w"), indent=2)
 PY
 sudo realm-apply shop
 
-# 2. The payments policy was left in report-only. 3. The high-risk block
-#    excluded one account by name instead of the emergency-access group.
-sudo python3 <<'PY'
-import json
-pay = "/etc/netns/idp/shop/ca/30-payments-compliant-device.json"
-d = json.load(open(pay))
+# The payments policy.
+P=/etc/netns/idp/shop/ca/30-payments-compliant-device.json
+sudo python3 - "$P" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
 d["state"] = "enabled"
-json.dump(d, open(pay, "w"), indent=2)
-risk = "/etc/netns/idp/shop/ca/40-high-risk-block.json"
-d = json.load(open(risk))
+json.dump(d, open(p, "w"), indent=2)
+PY
+
+# The high-risk block.
+R=/etc/netns/idp/shop/ca/40-high-risk-block.json
+sudo python3 - "$R" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
 d["conditions"]["users"].pop("excludeUsers", None)
 d["conditions"]["users"]["excludeGroups"] = ["emergency-access"]
-json.dump(d, open(risk, "w"), indent=2)
+json.dump(d, open(p, "w"), indent=2)
 PY

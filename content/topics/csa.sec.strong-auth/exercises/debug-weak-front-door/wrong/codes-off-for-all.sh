@@ -1,33 +1,50 @@
 #!/bin/bash
-# To kill the phishable code, a key is required for everyone, so staff who have no key are locked out.
+# To be rid of the phishable code, everyone is made to use a key, and staff
+# who have none are locked out.
 set -e
-sudo python3 <<'PY'
-import json
-F = "/etc/netns/idp/keycloak/realms/shop.json"
-d = json.load(open(F))
+F=/etc/netns/idp/keycloak/realms/shop.json
+
+# The sign-in flow, in the realm file.
+sudo python3 - "$F" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
 for flow in d["authenticationFlows"]:
     if flow["alias"] == "admins use a security key":
-        steps = [s for s in flow["authenticationExecutions"] if s.get("authenticator") != "auth-otp-form"]
-        for s in steps:
+        steps = []
+        for s in flow["authenticationExecutions"]:
+            if s.get("authenticator") == "auth-otp-form":
+                continue
             if s.get("authenticator") == "webauthn-authenticator":
                 s["requirement"] = "REQUIRED"
+            steps.append(s)
         flow["authenticationExecutions"] = steps
     if flow["alias"] == "others use a code":
         for s in flow["authenticationExecutions"]:
             if s.get("authenticator") == "auth-otp-form":
                 s["authenticator"] = "webauthn-authenticator"
-json.dump(d, open(F, "w"), indent=2)
+                s["authenticatorConfig"] = "hwk-ref"
+json.dump(d, open(p, "w"), indent=2)
 PY
 sudo realm-apply shop
-sudo python3 <<'PY'
-import json
-pay = "/etc/netns/idp/shop/ca/30-payments-compliant-device.json"
-d = json.load(open(pay)); d["state"] = "enabled"; json.dump(d, open(pay, "w"), indent=2)
+
+# The payments policy.
+P=/etc/netns/idp/shop/ca/30-payments-compliant-device.json
+sudo python3 - "$P" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d["state"] = "enabled"
+json.dump(d, open(p, "w"), indent=2)
 PY
-sudo python3 <<'PY'
-import json
-risk = "/etc/netns/idp/shop/ca/40-high-risk-block.json"
-d = json.load(open(risk)); d["conditions"]["users"].pop("excludeUsers", None)
+
+# The high-risk block.
+R=/etc/netns/idp/shop/ca/40-high-risk-block.json
+sudo python3 - "$R" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d["conditions"]["users"].pop("excludeUsers", None)
 d["conditions"]["users"]["excludeGroups"] = ["emergency-access"]
-json.dump(d, open(risk, "w"), indent=2)
+json.dump(d, open(p, "w"), indent=2)
 PY

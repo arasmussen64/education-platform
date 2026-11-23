@@ -1,6 +1,9 @@
-# The checks make throwaway people at the provider where they need them and
-# remove them in an EXIT trap, and read the conditional-access model on the
-# provider. A check that finds something wrong prints what it found and exits 0.
+# The checks make throwaway people at the provider where they need them
+# (names starting chk-) and remove them in an EXIT trap, and run the
+# conditional-access case generator on the provider, which makes up its own
+# people and sign-ins. A check that finds something wrong prints what it found
+# and exits 0. Timeouts leave room for a CI runner, where Keycloak answers
+# several times slower than on a quiet laptop.
 checks:
   - id: idp-ready
     description: "The identity provider answers."
@@ -11,62 +14,57 @@ checks:
     expect:
       equals: ready
   - id: admins-key-only
-    description: "An admin can only finish signing in with a security key, and the token records the key."
-    timeout: 45
+    description: "An admin can only finish signing in with a security key: one with a password and an app code can't, one with a password alone can't, and one with a key gets in with a token that records the key."
+    timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
       iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
       r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-a$r
       idp-user add shop "$u" "pw$r" --otp admins > /dev/null || { echo "couldn't make a test admin"; exit 0; }
       trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
-      otp=$(cat /etc/idlab/otp/"$u")
-      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$otp")
-      case $got in "{"*) echo "an admin finished signing in with an app code"; exit 0 ;; esac
-      amr=
-      for attempt in 1 2 3; do
-        toks=$(on office signin --code trace-cli "$red" "$iss" alice --key /etc/idlab/keys/alice.key)
-        case $toks in "{"*) ;; *) sleep 2; continue ;; esac
-        amr=$(printf '%s' "$toks" | python3 -c "import sys,json,base64; d=json.load(sys.stdin); p=d['id_token'].split('.')[1]; p+='='*(-len(p)%4); print(','.join(sorted(json.loads(base64.urlsafe_b64decode(p)).get('amr',[]))))")
-        [ "$amr" = "hwk,pwd" ] && break
-        sleep 2
-      done
-      [ "$amr" = "hwk,pwd" ] || { echo "alice's token records amr=$amr, not a key"; exit 0; }
-      echo keyed
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$(cat /etc/idlab/otp/"$u")")
+      case $got in "{"*) echo "an admin finished signing in with a password and an app code"; exit 0 ;; esac
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r")
+      case $got in "{"*) echo "an admin finished signing in with a password alone"; exit 0 ;; esac
+      toks=$(on office signin --code trace-cli "$red" "$iss" alice --key /etc/idlab/keys/alice.key)
+      case $toks in "{"*) ;; *) echo "alice couldn't sign in with her key: $(echo "$toks" | tail -n 1)"; exit 0 ;; esac
+      amr=$(printf '%s' "$toks" | python3 -c "import sys,json,base64; d=json.load(sys.stdin); p=d['id_token'].split('.')[1]; p+='='*(-len(p)%4); print(','.join(sorted(json.loads(base64.urlsafe_b64decode(p)).get('amr',[]))))")
+      case ",$amr," in *,hwk,*) echo keyed ;; *) echo "alice's token records amr=$amr: no key"; exit 0 ;; esac
     expect:
       equals: keyed
   - id: staff-still-in
-    description: "A staff member with a password and an app code still signs in."
-    timeout: 45
+    description: "A staff member still signs in with a password and an app code, and not with a password alone."
+    timeout: 75
     command: |
       . /usr/local/lib/idlab/idlib.sh
       iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
       r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-s$r
       idp-user add shop "$u" "pw$r" --otp staff > /dev/null || { echo "couldn't make a test staff member"; exit 0; }
       trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
-      otp=$(cat /etc/idlab/otp/"$u")
-      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$otp")
-      case $got in "{"*) echo in ;; *) echo "a staff member with an app code was refused: $(echo "$got" | tail -n 1)"; exit 0 ;; esac
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$(cat /etc/idlab/otp/"$u")")
+      case $got in "{"*) ;; *) echo "a staff member with an app code was refused: $(echo "$got" | tail -n 1)"; exit 0 ;; esac
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r")
+      case $got in "{"*) echo "a staff member got in with a password alone"; exit 0 ;; esac
+      echo in
     expect:
       equals: in
-  - id: payments-needs-compliant
-    description: "A sign-in to the payments app from a device that isn't compliant is blocked."
-    timeout: 20
+  - id: ca-rules
+    description: "The policies decide every made-up sign-in, by anyone but an emergency account, the way the shop's rules say: MFA for everyone, a phishing-resistant method for admins, a compliant device for payments, high risk and legacy clients blocked."
+    timeout: 45
     command: |
-      got=$(on idp ca-whatif ana payments methods=pwd,otp device=noncompliant | grep '^result:')
-      case "$got" in "result: block"*) echo blocked ;; *) echo "payments from a noncompliant device: $got" ;; esac
+      on idp /usr/local/lib/lab-checks/ca-cases rules
     expect:
-      equals: blocked
-  - id: emergency-gets-in-under-risk
-    description: "An emergency account flagged high risk still gets in."
-    timeout: 20
+      equals: ok
+  - id: emergency-gets-in
+    description: "Any member of emergency-access, today's two or one added tomorrow, who signs in with a key is allowed under every combination of signals, including ones that block everyone else."
+    timeout: 45
     command: |
-      got=$(on idp ca-whatif bg-2 admin-app methods=pwd,hwk risk=high | grep '^result:')
-      case "$got" in "result: allow"*) echo in ;; *) echo "bg-2 at high risk: $got" ;; esac
+      on idp /usr/local/lib/lab-checks/ca-cases emergency
     expect:
-      equals: in
+      equals: ok
   - id: exclusion-narrow
-    description: "A person who is not an emergency account is still held to the blocking policies, and the exclusion is no wider than the emergency accounts."
-    timeout: 30
+    description: "A person in any group other than emergency-access, an admin's included, is still held to the blocking and restricting policies."
+    timeout: 45
     command: |
       on idp /usr/local/lib/lab-checks/ca-cases exclusion-narrow
     expect:
@@ -80,7 +78,7 @@ checks:
       equals: enforced
   - id: lasts
     description: "The running realm is the one its file builds."
-    timeout: 60
+    timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
       kc_saved shop
