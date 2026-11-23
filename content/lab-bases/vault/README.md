@@ -22,7 +22,7 @@ RUN systemctl enable openbao postgresql lab-busybox-image \
 CMD ["/sbin/init"]
 ```
 
-Every lab on the base sets `lab: { init: systemd, restart_trial: true }`. `csa.sec.vault-probes`' `probe-keys-and-secrets` (a draft topic, for the CI spike) is a whole lab that uses every part below.
+Every lab on the base sets `lab: { init: systemd, restart_trial: true }`. `csa.sec.crypto`'s and `csa.sec.secrets`' labs are whole labs on it; `csa.sec.crypto`'s `example-seal-an-order` carries the key-service onboarding.
 
 Not in it: `jq` (checks read JSON with `python3`, through `json` below; a learner takes one field with `bao ... -field=NAME`), `uidmap` (so podman runs with `sudo`, below), manual pages, and anything else from outside Ubuntu's archive.
 
@@ -129,7 +129,7 @@ Module 3's rules stand (the [network base's README](../net/README.md), and `cont
 
 ## Kernel needs
 
-Seen on Docker Desktop 29.8.2 (kernel 6.18.33.2-microsoft-standard-WSL2) on 2026-11-22. **Nothing here has run on a GitHub runner yet**: `csa.sec.vault-probes` is the lab that tries it there (Module 4's brief, P4).
+Seen on Docker Desktop 29.8.2 (kernel 6.18.33.2-microsoft-standard-WSL2) on 2026-11-22. Since 2026-11-23 these labs run on GitHub's runners in every Labs job (first the base's probe lab, then the two topics' ten labs), podman inside the lab container included.
 
 | Need | Who | Docker Desktop | GitHub's runner |
 | --- | --- | --- | --- |

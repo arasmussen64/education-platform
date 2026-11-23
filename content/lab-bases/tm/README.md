@@ -33,7 +33,7 @@ RUN install -o learner -g learner -m 644 /dev/null /home/learner/model.tm
 USER learner
 ```
 
-The base ends as the learner, so a lab's own lines run between `USER root` and `USER learner`. `restart_trial: true` passes trivially (the model is a file), and every lab still sets it. The probe lab `csa.sec.plain-probes/probe-model-the-tracker` is the pattern until the topic's own labs exist.
+The base ends as the learner, so a lab's own lines run between `USER root` and `USER learner`. `restart_trial: true` passes trivially (the model is a file), and every lab still sets it. `csa.sec.threat-modeling`'s labs are the pattern; its first lab carries the threat-model onboarding.
 
 ## The format
 
