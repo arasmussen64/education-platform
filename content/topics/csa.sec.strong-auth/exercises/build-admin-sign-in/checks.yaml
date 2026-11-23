@@ -52,7 +52,7 @@ checks:
     expect:
       equals: two
   - id: brute-force
-    description: "The realm file and the running realm both lock an account after at most five failed passwords, and an account really is locked after five."
+    description: "The realm file and the running realm both lock an account after at most five failed passwords, for at least a minute, counting failures over at least an hour; and an account really is locked after five."
     timeout: 75
     command: |
       . /usr/local/lib/idlab/idlib.sh
@@ -62,6 +62,10 @@ checks:
       [ "$fon" = true ] && [ "${fcount:-0}" -ge 1 ] && [ "${fcount:-0}" -le 5 ] || { echo "the realm file doesn't turn brute-force detection on with a limit of five or less"; exit 0; }
       read -r on count < <(kc get shop | setting)
       [ "$on" = true ] && [ "${count:-0}" -ge 1 ] && [ "${count:-0}" -le 5 ] || { echo "the running realm doesn't lock after five failures or fewer"; exit 0; }
+      # A lock of a few seconds, or failures forgotten within seconds, lets a
+      # guesser go on for ever: Keycloak's own defaults are 60 s and 12 hours.
+      lasting=$(kc get shop | python3 -c "import json,sys; d=json.load(sys.stdin); lock=d.get('permanentLockout') or min(d.get('waitIncrementSeconds', 60), d.get('maxFailureWaitSeconds', 900)) >= 60; print('yes' if lock and d.get('maxDeltaTimeSeconds', 43200) >= 3600 else 'no')")
+      [ "$lasting" = yes ] || { echo "the running realm locks an account for less than a minute, or forgets failed passwords within the hour"; exit 0; }
       iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
       r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-b$r
       idp-user add shop "$u" "pw$r" --otp staff > /dev/null || { echo "couldn't make a test person"; exit 0; }
@@ -70,7 +74,11 @@ checks:
       # guessing anyway, whatever the limit), then the right password and code.
       for i in 1 2 3 4 5; do on office signin --code trace-cli "$red" "$iss" "$u" --password "wrong$i$r" > /dev/null; sleep 1.2; done
       got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$(cat /etc/idlab/otp/"$u")")
-      case $got in "{"*) echo "after five wrong passwords the account still let the right one in" ;; *) echo locked ;; esac
+      case $got in "{"*) echo "after five wrong passwords the account still let the right one in"; exit 0 ;; esac
+      # Refused, and refused because the provider locked the account.
+      id=$(kc get "shop/users?username=$u&exact=true" | json "d[0]['id']")
+      held=$(kc get "shop/attack-detection/brute-force/users/$id" | json "str(d.get('disabled')).lower()")
+      [ "$held" = true ] && echo locked || echo "after five wrong passwords the right one was refused, but the provider doesn't hold the account as locked"
     expect:
       equals: locked
   - id: emergency-key-only
