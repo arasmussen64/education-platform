@@ -94,18 +94,29 @@ same_key() {
 }
 
 # timer_ok UNIT MAX-SECONDS: the timer is switched on now and at every boot,
-# from a unit file that lasts, runs its service after a boot (a timer with
-# only OnUnitActiveSec never runs again once the machine has restarted), and
-# never waits longer than MAX-SECONDS between runs. Prints "ok", or what is
-# wrong.
+# from a unit file that lasts, starts the service of its own name, runs it
+# after a boot (a timer with only OnUnitActiveSec never runs again once the
+# machine has restarted, and one with only OnCalendar waits for the clock,
+# unless Persistent= makes up a run it missed), and never waits longer than
+# MAX-SECONDS between runs. Prints "ok", or what is wrong.
 timer_ok() {
-  local unit=$1 max=$2 path every
+  local unit=$1 max=$2 path every starts when
   [ "$(systemctl is-enabled "$unit" 2> /dev/null)" = enabled ] || { echo "$unit isn't switched on for every boot"; return; }
   [ "$(systemctl is-active "$unit" 2> /dev/null)" = active ] || { echo "$unit isn't running now"; return; }
   path=$(systemctl show "$unit" -p FragmentPath --value)
   case $path in /etc/systemd/system/*) ;; *) echo "$unit's file isn't in /etc/systemd/system, where a unit that lasts is kept"; return ;; esac
-  systemctl show "$unit" -p TimersMonotonic -p TimersCalendar | grep -E 'OnBootUSec=|OnStartupUSec=|OnActiveUSec=|OnCalendar=' > /dev/null ||
-    { echo "$unit has no setting that runs it after a boot"; return; }
+  starts=$(systemctl show "$unit" -p Unit --value)
+  [ "$starts" = "${unit%.timer}.service" ] || { echo "$unit starts $starts, not ${unit%.timer}.service"; return; }
+  when=$(systemctl show "$unit" -p TimersMonotonic -p TimersCalendar -p Persistent)
+  if printf '%s\n' "$when" | grep -E 'OnBootUSec=|OnStartupUSec=|OnActiveUSec=' > /dev/null; then
+    :
+  elif printf '%s\n' "$when" | grep 'OnCalendar=' > /dev/null; then
+    printf '%s\n' "$when" | grep -x 'Persistent=yes' > /dev/null ||
+      { echo "$unit has no setting that runs it after a boot: OnCalendar alone waits for the clock"; return; }
+  else
+    echo "$unit has no setting that runs it after a boot"
+    return
+  fi
   every=$(timer_gap "$unit")
   [ -n "$every" ] || { echo "$unit has no setting that repeats it"; return; }
   [ "$every" -le "$max" ] || { echo "$unit can wait $((every / 60)) minutes between runs"; return; }

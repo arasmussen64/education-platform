@@ -97,6 +97,7 @@ checks:
         { echo "the CRL address in the API's certificate, $cdp, doesn't give the office a CRL the issuing CA signed"; exit 0; }
       [ "$(seconds_left "$dir/the.crl")" -ge 86400 ] || { echo "the CRL at $cdp has less than a day left"; exit 0; }
       said=$(ocsp_status "$CA_PEM" "$dir/api.pem" "$ocsp")
+      [ -n "$said" ] || { echo "the OCSP address in the API's certificate, $ocsp, gives the office no answer signed by the issuing CA (is the address right, and ocsp-responder@ca running? If something hung it: sudo systemctl restart ocsp-responder@ca)"; exit 0; }
       [ "$said" = good ] || { echo "the OCSP address in the API's certificate, $ocsp, doesn't tell the office that the certificate is good"; exit 0; }
       echo verifies
     expect:
