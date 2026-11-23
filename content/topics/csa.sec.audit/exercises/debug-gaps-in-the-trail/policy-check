@@ -1,0 +1,264 @@
+#!/usr/bin/python3
+"""policy-check: does the shop's audit trail record what its policy should?
+
+For the checks of Audit logging's build and debug labs:
+
+    policy-check audited    one of each of the shop's nine events is made, with
+                            people, addresses, orders, amounts and outcomes
+                            made up now; the seven kinds that belong in an
+                            audit trail must each be there with who did it,
+                            from where, what it touched and how it ended, and
+                            the two kinds of noise must not be
+    policy-check secrets    the made-up password, session ID, token and card
+                            number of those events must be nowhere in any
+                            journal or log file; the card's last four digits
+                            must be
+    policy-check role       a role change made now is there, whole
+    policy-check noise      page views and health checks made now are not
+
+It prints "as the policy asks" when all is well, or one sentence about the
+first thing that isn't, and always exits 0, so the checker shows the
+sentence. Values are hex and digits, so none needs quoting in the trail.
+"""
+
+import secrets
+import subprocess
+import sys
+import time
+
+# What an audit line for each kind of event has to say. The names are the
+# shop's field names (shop-cli events).
+REQUIRED = {
+    "login.ok": ["user", "src", "outcome"],
+    "login.failed": ["user", "src", "outcome"],
+    "role.change": ["actor", "user", "old", "new", "src", "outcome"],
+    "config.change": ["actor", "setting", "old", "new", "src", "outcome"],
+    "refund": ["actor", "order", "amount", "src", "outcome"],
+    "export": ["actor", "table", "rows", "src", "outcome"],
+    "card.update": ["user", "card", "src", "outcome"],
+}
+NOISE = {"page.view": ["user", "src", "path"], "health.check": ["user", "src", "path"]}
+NEVER = ["password", "session", "token"]
+CALLED = {
+    "login.ok": "a sign-in",
+    "login.failed": "a failed sign-in",
+    "role.change": "a role change",
+    "config.change": "a configuration change",
+    "refund": "a refund",
+    "export": "a data export",
+    "card.update": "a card update",
+    "page.view": "a page view",
+    "health.check": "a health check",
+}
+MEANS = {
+    "user": "whom it concerns",
+    "actor": "who did it",
+    "src": "where it came from",
+    "outcome": "how it ended",
+}
+
+
+def say(sentence: str) -> None:
+    print(sentence)
+    sys.exit(0)
+
+
+def value_for(field: str) -> str:
+    """A made-up value for one field: new every run, and never a value the
+    shop would fill in by itself."""
+    if field in ("user", "actor"):
+        return "u" + secrets.token_hex(4)
+    if field == "src":
+        nets = ["192.0.2", "198.51.100", "203.0.113"]
+        return f"{nets[secrets.randbelow(3)]}.{1 + secrets.randbelow(250)}"
+    if field == "outcome":
+        return ["ok", "denied", "failed", "refused"][secrets.randbelow(4)]
+    if field == "amount":
+        return f"{1 + secrets.randbelow(900)}.{secrets.randbelow(100):02d}"
+    if field == "rows":
+        return str(100 + secrets.randbelow(90000))
+    if field == "card":
+        return "4" + "".join(str(secrets.randbelow(10)) for _ in range(15))
+    if field == "path":
+        return "/p" + secrets.token_hex(4)
+    # order, table, setting, old, new, password, session, token
+    return field[:3] + secrets.token_hex(5)
+
+
+def make(event: str, fields: list[str]) -> dict[str, str]:
+    """Has the shop do one thing, with every field made up here."""
+    values = {field: value_for(field) for field in fields}
+    done = subprocess.run(
+        ["shop-cli", event, *[f"{field}={value}" for field, value in values.items()]],
+        capture_output=True,
+        text=True,
+    )
+    if done.returncode != 0:
+        say("the shop isn't answering (systemctl status shop-audit)")
+    return values
+
+
+def trail() -> list[dict[str, str]]:
+    """The audit trail's lines, each as its fields."""
+    out = subprocess.run(
+        [
+            "journalctl",
+            "--namespace=audit",
+            "-t",
+            "shop-audit",
+            "-o",
+            "cat",
+            "--since=-5min",
+        ],
+        capture_output=True,
+        text=True,
+        errors="replace",
+    ).stdout
+    lines = []
+    for line in out.splitlines():
+        if line.startswith("time="):
+            lines.append(
+                dict(part.split("=", 1) for part in line.split(" ") if "=" in part)
+            )
+    return lines
+
+
+def line_for(
+    event: str, values: dict[str, str], lines: list[dict[str, str]]
+) -> dict | None:
+    """The trail's line for an event made here: the right kind, and holding
+    at least one of the made-up values that only this event has (the ones
+    with random hex in them: an address or an amount could repeat)."""
+    common = ("src", "outcome", "amount", "rows", "card")
+    mine = {value for field, value in values.items() if field not in common}
+    for line in lines:
+        if line.get("event") == event and mine & set(line.values()):
+            return line
+    return None
+
+
+def settle(
+    made: dict[str, dict[str, str]], expected: list[str]
+) -> list[dict[str, str]]:
+    """Waits up to 5 seconds for the expected events to reach the trail."""
+    lines: list[dict[str, str]] = []
+    for _ in range(10):
+        lines = trail()
+        if all(line_for(event, made[event], lines) for event in expected):
+            break
+        time.sleep(0.5)
+    return lines
+
+
+def make_all() -> dict[str, dict[str, str]]:
+    made = {}
+    for event, fields in {**REQUIRED, **NOISE}.items():
+        extra = (
+            NEVER[:2]
+            if event.startswith("login")
+            else NEVER[2:]
+            if event in ("refund", "export")
+            else []
+        )
+        made[event] = make(event, fields + extra)
+    return made
+
+
+def whole(
+    event: str, values: dict[str, str], line: dict[str, str], name_field: bool
+) -> None:
+    """Every required field of the event is in its line, with its value."""
+    for field in REQUIRED[event]:
+        want = values[field]
+        if field == "card":
+            continue
+        if line.get(field) != want:
+            if name_field:
+                what = MEANS.get(field, f"its {field}")
+                say(f"the trail's line for {CALLED[event]} doesn't say {what}")
+            say(
+                f"the trail's line for {CALLED[event]} is missing part of what the policy records"
+            )
+
+
+def audited() -> None:
+    made = make_all()
+    lines = settle(made, list(REQUIRED))
+    for event in REQUIRED:
+        line = line_for(event, made[event], lines)
+        if line is None:
+            say(
+                f"{CALLED[event]} made a moment ago isn't in the trail with the people it involved"
+            )
+        whole(event, made[event], line, name_field=True)
+    for event in NOISE:
+        if line_for(event, made[event], lines):
+            say(f"{CALLED[event]} made a moment ago is in the trail")
+    print("as the policy asks")
+
+
+def everything_logged() -> str:
+    """Every journal on the machine and every log file, as text."""
+    journals = subprocess.run(
+        ["journalctl", "--namespace=*", "-a", "-o", "export", "--since=-5min"],
+        capture_output=True,
+    ).stdout
+    default = subprocess.run(
+        ["journalctl", "-a", "-o", "export", "--since=-5min"], capture_output=True
+    ).stdout
+    files = subprocess.run(
+        ["grep", "-rhaI", "", "/var/log", "--exclude-dir=journal"], capture_output=True
+    ).stdout
+    return (journals + default + files).decode("utf-8", "replace")
+
+
+def no_secrets() -> None:
+    made = make_all()
+    lines = settle(made, list(REQUIRED))
+    logged = everything_logged()
+    for event, values in made.items():
+        for field in NEVER:
+            if field in values and values[field] in logged:
+                say(f"the {field} of {CALLED[event]} made a moment ago is in a log")
+    for line in lines:
+        for field in NEVER:
+            if field in line:
+                say(f"the trail has a line with a {field} field")
+    card = made["card.update"]["card"]
+    if card in logged:
+        say("a whole card number is in a log")
+    line = line_for("card.update", made["card.update"], lines)
+    if line is None or line.get("card") != card[-4:].rjust(len(card), "*"):
+        say(
+            "the trail's line for a card update doesn't show the card's last four digits, and only those"
+        )
+    print("as the policy asks")
+
+
+def role() -> None:
+    values = make("role.change", REQUIRED["role.change"])
+    lines = settle({"role.change": values}, ["role.change"])
+    line = line_for("role.change", values, lines)
+    if line is None:
+        say("a role change made a moment ago isn't in the trail")
+    whole("role.change", values, line, name_field=False)
+    print("as the policy asks")
+
+
+def noise() -> None:
+    made = {event: make(event, fields) for event, fields in NOISE.items()}
+    # A sign-in after them: once it is in the trail (or 5 seconds have
+    # passed), anything the trail was going to say about them is there.
+    made["login.ok"] = make("login.ok", REQUIRED["login.ok"])
+    lines = settle(made, ["login.ok"])
+    for event in NOISE:
+        if line_for(event, made[event], lines):
+            say(f"{CALLED[event]} made a moment ago is in the trail")
+    print("as the policy asks")
+
+
+if __name__ == "__main__":
+    cases = {"audited": audited, "secrets": no_secrets, "role": role, "noise": noise}
+    if len(sys.argv) != 2 or sys.argv[1] not in cases:
+        sys.exit("usage: policy-check audited|secrets|role|noise")
+    cases[sys.argv[1]]()

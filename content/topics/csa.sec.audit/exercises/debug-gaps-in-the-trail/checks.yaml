@@ -1,0 +1,128 @@
+# The checks of "Gaps in the trail". Each states an end state. What the
+# trail records is proved by making the shop do things with values made up
+# as the check runs (policy-check); what must last is read from the files
+# that outlast a reboot (trail.sh's `setting` leaves out anything under
+# /run); the sealing is proved with the base's helpers
+# (content/lab-bases/pay/README.md).
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: programs-intact
+    description: "The shop's programs and the audit writer's unit are as the shop ships them."
+    command: |
+      /usr/local/lib/lab-pay/base-intact > /dev/null 2>&1 || { echo "one of the server's own programs was changed"; exit 0; }
+      [ "$(systemctl cat shop-audit 2> /dev/null | sha256sum | cut -d' ' -f1)" = "$(cat /var/lib/lab/unit.sum)" ] \
+        || { echo "the audit writer's unit was changed"; exit 0; }
+      echo intact
+    expect:
+      equals: intact
+  - id: history-kept
+    description: "Everything the trail held before last week is still in it."
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      want=$(grep -c . /var/lib/lab/history)
+      have=$(trail | grep -c -Fx -f /var/lib/lab/history)
+      [ "$have" -ge "$want" ] || { echo "$((want - have)) of the $want entries the trail held before last week are gone"; exit 0; }
+      echo kept
+    expect:
+      equals: kept
+  - id: still-rate-limited
+    description: "The audit journal's settings still limit how fast one service may write to it: to at least a settlement batch in half a minute, and to no more than ten batches."
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      limit=$(rate_limit)
+      case $limit in
+        off) echo "the audit journal has no rate limit" ;;
+        unreadable) echo "journald can't read the audit journal's rate limit" ;;
+        *)
+          if [ "$limit" -lt 1500 ]; then echo "the limit that outlasts a reboot has no room for a settlement batch"
+          elif [ "$limit" -gt 15000 ]; then echo "the limit that outlasts a reboot lets through more than ten batches in half a minute"
+          else echo limited; fi ;;
+      esac
+    expect:
+      equals: limited
+  - id: role-changes-recorded
+    description: "A role change made a moment ago is in the trail, with everything the policy records for one."
+    command: /usr/local/lib/lab/policy-check role
+    expect:
+      equals: "as the policy asks"
+  - id: noise-stays-out
+    description: "Page views and health checks made a moment ago are not in the trail."
+    command: /usr/local/lib/lab/policy-check noise
+    expect:
+      equals: "as the policy asks"
+  - id: no-secrets
+    description: "No password, session ID or token of an event made a moment ago is in any journal or log file, and a card number is there only as its last four digits."
+    command: /usr/local/lib/lab/policy-check secrets
+    expect:
+      equals: "as the policy asks"
+  - id: on-disk
+    description: "The trail is kept on disk: a sign-in made a moment ago can be read from the audit journal's folder under /var/log/journal, and the settings that outlast a reboot say so too."
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      case $(setting Storage) in
+        "" | persistent | auto) ;;
+        *) echo "the audit journal's settings don't keep it on disk"; exit 0 ;;
+      esac
+      mark=$(marker)
+      shop-cli login.ok user="$mark" > /dev/null 2>&1 || { echo "the shop isn't answering (systemctl status shop-audit)"; exit 0; }
+      for try in $(seq 1 10); do
+        journalctl --directory="$journal_dir" -t shop-audit -o cat 2> /dev/null | grep -F "user=$mark " > /dev/null && { echo "on disk"; exit 0; }
+        sleep 0.5
+      done
+      echo "a sign-in made a moment ago isn't in the audit journal's files on disk"
+    expect:
+      equals: "on disk"
+  - id: sealed-for-auditors
+    description: "The audit trail's newest file, with a sign-in made a moment ago in it, is sealed, and the key in /srv/auditors/verify-key validates it up to now."
+    # The one seal wait of a check run: a seal is written every 10 seconds,
+    # so the key can vouch for a new sign-in within about 20.
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      sealed_now /srv/auditors/verify-key
+    expect:
+      equals: "sealed"
+  - id: batch-complete
+    description: "A settlement batch of 1,500 refunds, run a moment ago, is in the trail whole."
+    # Last, because a batch that overruns a limit silences the audit
+    # writer for the rest of that half minute, which would fail the
+    # checks after it for a reason that isn't theirs.
+    # A second try, half a minute later, when the first comes up short
+    # under a limit that has room for a batch: an earlier batch (the
+    # learner's own, or the last check run's) may have used this half
+    # minute's allowance.
+    timeout: 120
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      batch() {
+        local mark count last=-1 same=0 try
+        mark=$(marker)
+        shop-cli settle 1500 order="$mark" > /dev/null 2>&1 || { echo "-1"; return; }
+        for try in $(seq 1 30); do
+          count=$(trail | grep -c -F "order=$mark-")
+          [ "$count" -ge 1500 ] && break
+          if [ "$count" = "$last" ]; then same=$((same + 1)); else same=0; fi
+          [ "$same" -ge 4 ] && break
+          last=$count
+          sleep 0.5
+        done
+        echo "$count"
+      }
+      got=$(batch)
+      [ "$got" = -1 ] && { echo "the shop isn't answering (systemctl status shop-audit)"; exit 0; }
+      if [ "$got" -lt 1500 ]; then
+        limit=$(rate_limit)
+        case $limit in off | unreadable) limit=0 ;; esac
+        if [ "$limit" -ge 1500 ]; then
+          wait=$(seconds "$(setting RateLimitIntervalSec)")
+          wait=${wait:-30}
+          [ "$wait" -gt 60 ] && wait=60
+          sleep $((wait + 1))
+          got=$(batch)
+        fi
+      fi
+      [ "$got" -ge 1500 ] || { echo "$got of a batch's 1500 refunds reached the trail"; exit 0; }
+      echo whole
+    expect:
+      equals: whole

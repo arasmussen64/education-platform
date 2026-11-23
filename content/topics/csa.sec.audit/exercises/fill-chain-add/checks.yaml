@@ -1,0 +1,37 @@
+# The checks of "Finish the chain". Each runs the learner's ~/bin/chain-add
+# on logs and records made up as the check runs, and compares the log it
+# leaves with the hashes worked out in Python (chain-cases, in this
+# folder), so no answer can be typed in beforehand.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it, and is still ~/bin/chain-add, executable."
+    command: |
+      f=/home/learner/bin/chain-add
+      [ -f "$f" ] || { echo "there is no ~/bin/chain-add"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/chain-add isn't executable"; exit 0; }
+      if grep -F '...' "$f" > /dev/null; then echo "there is still a ... in the script"; exit 0; fi
+      echo filled
+    expect:
+      equals: filled
+  - id: first-line
+    description: "A record added to a log that doesn't exist yet gets the hash of 64 zeros, a space and the record."
+    command: /usr/local/lib/lab/chain-cases add first
+    expect:
+      equals: same
+  - id: continues-a-chain
+    description: "Records added to a log that already has lines are chained on from where it ended, one after another, and the lines that were there are untouched."
+    command: /usr/local/lib/lab/chain-cases add continues
+    expect:
+      equals: same
+  - id: exact-bytes
+    description: "Records with a percent sign, backslashes, a dollar sign, quotes, a tab and runs of spaces go into the log exactly as given, with the right hashes."
+    command: /usr/local/lib/lab/chain-cases add exact
+    expect:
+      equals: same
+  - id: one-line-each
+    description: "Each record becomes one line: 64 hex digits, one space, the record."
+    command: /usr/local/lib/lab/chain-cases add lines
+    expect:
+      equals: same

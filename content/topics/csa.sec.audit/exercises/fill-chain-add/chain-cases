@@ -1,0 +1,298 @@
+#!/usr/bin/python3
+"""chain-cases: the checks of the two hash-chain labs (Audit logging).
+
+    chain-cases add first|continues|exact|lines
+        runs the learner's ~/bin/chain-add on logs and records made up now
+    chain-cases verify intact|edited|deleted|swapped|truncated|rewritten|exit
+        runs the learner's ~/bin/chain-verify on logs made up now, some of
+        them tampered with, and compares its verdict with the truth
+
+Every log is made as the check runs, so no answer can be known beforehand,
+and the truth is worked out here with Python's hashlib, never with the
+learner's tools. The records that trip a careless script (a percent sign,
+backslashes, a dollar sign, quotes, a tab, runs of spaces, spaces at the
+end) are in every log, not drawn by chance: a script that mishandles one
+would otherwise pass some runs.
+
+It prints "same" when everything matched, or one sentence about the first
+thing that didn't, and always exits 0, so the checker shows the sentence.
+The same file is in both labs' folders.
+"""
+
+import hashlib
+import os
+import secrets
+import shutil
+import subprocess
+import sys
+import tempfile
+
+GENESIS = "0" * 64
+HOME = "/home/learner"
+TRICKY = [
+    "event=note text=100%s off, 50%d more, 5%% left",
+    "event=path file=C:\\temp\\new\\table\\",
+    "event=price cost=$HOME and $(id) and `id`",
+    "event=say text=\"quoted\" and 'single'",
+    "event=tab left\tright",
+    "event=gap two  spaces   three",
+    "event=trail ends with spaces   ",
+    "event=star * ? [a-z] -n -e",
+]
+EVENTS = ["login.ok", "login.failed", "refund", "role.change", "export", "card.update"]
+
+
+def say(sentence: str) -> None:
+    print(sentence)
+    sys.exit(0)
+
+
+def link(prev: str, record: str) -> str:
+    """The hash that chains a record to the line before it."""
+    return hashlib.sha256(f"{prev} {record}".encode()).hexdigest()
+
+
+def chain(records: list[str], prev: str = GENESIS) -> list[str]:
+    """The log's lines for these records, each chained to the one before."""
+    lines = []
+    for record in records:
+        prev = link(prev, record)
+        lines.append(f"{prev} {record}")
+    return lines
+
+
+def plain_record() -> str:
+    event = EVENTS[secrets.randbelow(len(EVENTS))]
+    return (
+        f"time=2026-11-{10 + secrets.randbelow(18)}T{secrets.randbelow(24):02d}:"
+        f"{secrets.randbelow(60):02d}:{secrets.randbelow(60):02d}Z event={event} "
+        f"actor=u{secrets.token_hex(3)} order={1000 + secrets.randbelow(9000)} "
+        f"amount={secrets.randbelow(500)}.{secrets.randbelow(100):02d} outcome=ok"
+    )
+
+
+def records(count: int) -> list[str]:
+    """`count` plain records with every tricky one among them, in a new order."""
+    made = [plain_record() for _ in range(max(count - len(TRICKY), 0))] + TRICKY
+    for index in range(len(made) - 1, 0, -1):
+        other = secrets.randbelow(index + 1)
+        made[index], made[other] = made[other], made[index]
+    return made
+
+
+def verdict(lines: list[str], anchor: str) -> tuple[str, int]:
+    """What a right chain-verify says about these lines and this anchor."""
+    prev = GENESIS
+    for number, line in enumerate(lines, start=1):
+        claimed, _, record = line.partition(" ")
+        if claimed != link(prev, record):
+            return f"broken at line {number}", 1
+        prev = claimed
+    if prev != anchor:
+        return "anchor mismatch", 1
+    return f"ok {len(lines)}", 0
+
+
+class Workspace:
+    """A folder of the learner's own, removed afterwards."""
+
+    def __enter__(self) -> str:
+        self.path = tempfile.mkdtemp(prefix="chain-", dir="/tmp")
+        shutil.chown(self.path, "learner", "learner")
+        return self.path
+
+    def __exit__(self, *_exc) -> None:
+        shutil.rmtree(self.path, ignore_errors=True)
+
+
+def write_log(path: str, lines: list[str]) -> None:
+    with open(path, "w", encoding="utf-8", newline="\n") as file:
+        file.write("".join(line + "\n" for line in lines))
+    shutil.chown(path, "learner", "learner")
+
+
+def run(script: str, *args: str) -> tuple[str, int]:
+    """The learner's script, run as the learner; its output and exit status."""
+    path = f"{HOME}/bin/{script}"
+    if not os.path.isfile(path):
+        say(f"there is no ~/bin/{script}")
+    if not os.access(path, os.X_OK):
+        say(f"~/bin/{script} isn't executable")
+    try:
+        done = subprocess.run(
+            ["runuser", "-u", "learner", "--", path, *args],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=10,
+            cwd=HOME,
+        )
+    except subprocess.TimeoutExpired:
+        say(f"~/bin/{script} was still running after 10 seconds")
+    return done.stdout, done.returncode
+
+
+# --- chain-add -------------------------------------------------------------
+
+
+def added(start: list[str], new: list[str]) -> None:
+    """Runs chain-add on a log that holds `start` and compares the result."""
+    with Workspace() as folder:
+        log = f"{folder}/audit.log"
+        if start:
+            write_log(log, start)
+        _, status = run("chain-add", log, *new)
+        if status != 0:
+            say(f"chain-add stopped with exit status {status}")
+        try:
+            with open(log, encoding="utf-8", newline="") as file:
+                got = file.read()
+        except OSError:
+            say("chain-add made no log")
+    prev = start[-1].split(" ", 1)[0] if start else GENESIS
+    want = start + chain(new, prev)
+    if not got.endswith("\n"):
+        say("the log's last line doesn't end with a line break")
+    lines = got[:-1].split("\n")
+    if len(lines) != len(want):
+        say(
+            f"after adding {len(new)} record(s) to a log of {len(start)} line(s),"
+            f" the log has {len(lines)} line(s)"
+        )
+    for number, (have, right) in enumerate(zip(lines, want, strict=True), start=1):
+        if have == right:
+            continue
+        if number <= len(start):
+            say(f"line {number}, which was already in the log, was changed")
+        claimed, _, record = have.partition(" ")
+        if record != right.split(" ", 1)[1]:
+            say(
+                f"line {number} doesn't hold its record exactly as it was given:"
+                f" it should end {right.split(' ', 1)[1][-30:]!r}"
+            )
+        if len(claimed) != 64 or any(c not in "0123456789abcdef" for c in claimed):
+            say(f"line {number} doesn't start with 64 hex digits and one space")
+        say(
+            f"line {number}'s hash isn't the SHA-256 of the line before's hash,"
+            " a space and the record"
+            + (
+                " (for a first line: 64 zeros, a space and the record)"
+                if number == 1
+                else ""
+            )
+        )
+
+
+def add(case: str) -> None:
+    if case == "first":
+        for _ in range(3):
+            added([], [plain_record()])
+    elif case == "continues":
+        for _ in range(3):
+            start = chain([plain_record() for _ in range(2 + secrets.randbelow(9))])
+            added(start, [plain_record()])
+        start = chain([plain_record() for _ in range(3 + secrets.randbelow(5))])
+        added(start, [plain_record() for _ in range(3)])
+        added([], [plain_record() for _ in range(4)])
+    elif case == "exact":
+        added([], records(len(TRICKY)))
+        added(chain(records(len(TRICKY) + 2)), records(len(TRICKY)))
+    elif case == "lines":
+        new = [plain_record() for _ in range(5)]
+        added(chain([plain_record()]), new)
+    else:
+        sys.exit(f"chain-cases: no such case: add {case}")
+    print("same")
+
+
+# --- chain-verify ----------------------------------------------------------
+
+
+def judged(lines: list[str], anchor: str, kind: str, exit_only: bool = False) -> None:
+    """Runs chain-verify on these lines and compares it with the truth."""
+    want, status = verdict(lines, anchor)
+    if not want.startswith(kind):
+        sys.exit(f"chain-cases: a {kind} case came out as {want}")
+    with Workspace() as folder:
+        log = f"{folder}/audit.log"
+        write_log(log, lines)
+        got, code = run("chain-verify", log, anchor)
+    if exit_only:
+        if code != status:
+            say(
+                f'for a log whose verdict is "{want.split()[0]}...", chain-verify'
+                f" exited {code}, not {status}"
+            )
+        return
+    if got != want + "\n":
+        shown = got.strip().replace("\n", "; ")[:80] or "nothing"
+        say(f'chain-verify printed "{shown}" where "{want}" was right')
+
+
+def a_log() -> tuple[list[str], str]:
+    lines = chain(records(len(TRICKY) + 2 + secrets.randbelow(30)))
+    return lines, lines[-1].split(" ", 1)[0]
+
+
+def edited_at(lines: list[str], at: int) -> list[str]:
+    """Line `at` (from 0) with one character of its record changed."""
+    claimed, _, record = lines[at].partition(" ")
+    spot = secrets.randbelow(len(record))
+    other = "x" if record[spot] != "x" else "y"
+    return (
+        lines[:at]
+        + [f"{claimed} {record[:spot]}{other}{record[spot + 1 :]}"]
+        + lines[at + 1 :]
+    )
+
+
+def verify(case: str) -> None:
+    for trial in range(4):
+        lines, anchor = a_log()
+        count = len(lines)
+        # Where the tampering goes: the first line, the last, then anywhere.
+        spots = [
+            0,
+            count - 1,
+            1 + secrets.randbelow(count - 2),
+            secrets.randbelow(count),
+        ]
+        at = spots[trial]
+        if case == "intact":
+            judged(lines, anchor, "ok")
+        elif case == "edited":
+            judged(edited_at(lines, at), anchor, "broken")
+        elif case == "deleted":
+            at = min(at, count - 2)  # never the last line: that is a cut-off end
+            judged(lines[:at] + lines[at + 1 :], anchor, "broken")
+        elif case == "swapped":
+            at = min(at, count - 2)
+            judged(
+                lines[:at] + [lines[at + 1], lines[at]] + lines[at + 2 :],
+                anchor,
+                "broken",
+            )
+        elif case == "truncated":
+            judged(lines[: count - 1 - secrets.randbelow(3)], anchor, "anchor")
+        elif case == "rewritten":
+            at = min(at, count - 1)
+            changed = edited_at(lines, at)
+            prev = changed[at - 1].split(" ", 1)[0] if at else GENESIS
+            rest = [line.split(" ", 1)[1] for line in changed[at:]]
+            judged(changed[:at] + chain(rest, prev), anchor, "anchor")
+        elif case == "exit":
+            judged(lines, anchor, "ok", exit_only=True)
+            judged(edited_at(lines, at), anchor, "broken", exit_only=True)
+            judged(lines[:-1], anchor, "anchor", exit_only=True)
+        else:
+            sys.exit(f"chain-cases: no such case: verify {case}")
+    print("same")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "add":
+        add(sys.argv[2])
+    elif len(sys.argv) == 3 and sys.argv[1] == "verify":
+        verify(sys.argv[2])
+    else:
+        sys.exit("usage: chain-cases add CASE | chain-cases verify CASE")

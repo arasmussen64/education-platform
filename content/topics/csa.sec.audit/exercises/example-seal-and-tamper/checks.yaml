@@ -1,0 +1,54 @@
+# The checks of "Seal the trail, then tamper with it": the end state of the
+# walkthrough. The sealing is proved with the base's helpers
+# (content/lab-bases/pay/README.md): a wait for a seal over an event made
+# now, and what the saved key says about the two tampered copies.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: verify-saved
+    description: "~/example/verify.txt holds a verification of the trail that validated a time range."
+    command: |
+      grep -F 'Validated from' /home/learner/example/verify.txt > /dev/null 2>&1 \
+        || { echo "~/example/verify.txt has no line that says a time range was validated"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: copy-fails
+    description: "~/example/copy.journal, the copy with bytes changed in place, fails verification with the saved key."
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      key=$(cat /home/learner/example/verify-key.txt 2> /dev/null | tr -d '[:space:]')
+      [ -n "$key" ] || { echo "there is no verification key in ~/example/verify-key.txt"; exit 0; }
+      [ -f /home/learner/example/copy.journal ] || { echo "there is no ~/example/copy.journal"; exit 0; }
+      said=$($lib/seal-range --file /home/learner/example/copy.journal "$key")
+      case $said in failed*) echo "it fails" ;; *) echo "the copy verifies: $said" ;; esac
+    expect:
+      equals: "it fails"
+  - id: forged-unsealed
+    description: "~/example/forged.journal, the copy rewritten entry by entry, holds the changed amount and verifies with no sealed time range, and ~/example/forged.txt shows that."
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      key=$(cat /home/learner/example/verify-key.txt 2> /dev/null | tr -d '[:space:]')
+      [ -n "$key" ] || { echo "there is no verification key in ~/example/verify-key.txt"; exit 0; }
+      forged=/home/learner/example/forged.journal
+      [ -f "$forged" ] || { echo "there is no ~/example/forged.journal"; exit 0; }
+      journalctl --file="$forged" -t shop-audit -o cat 2> /dev/null | grep -F 'amount=91.99' > /dev/null \
+        || { echo "the forged copy doesn't hold the changed amount"; exit 0; }
+      said=$($lib/seal-range --file "$forged" "$key")
+      [ "$said" = unsealed ] || { echo "the forged copy doesn't verify as an unsealed file: $said"; exit 0; }
+      txt=/home/learner/example/forged.txt
+      grep -F 'PASS' "$txt" > /dev/null 2>&1 || { echo "~/example/forged.txt doesn't show the forged copy passing"; exit 0; }
+      if grep -F 'Validated from' "$txt" > /dev/null; then echo "~/example/forged.txt shows a validated time range"; exit 0; fi
+      echo "passes, unsealed"
+    expect:
+      equals: "passes, unsealed"
+  - id: sealed
+    description: "The audit trail's newest file, with a sign-in made a moment ago in it, is sealed, and the key in ~/example/verify-key.txt validates it up to now."
+    # The one wait of a check run: a seal is written every 10 seconds, so
+    # the key can vouch for a new sign-in within about 20.
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      sealed_now /home/learner/example/verify-key.txt
+    expect:
+      equals: "sealed"
