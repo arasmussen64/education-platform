@@ -1,0 +1,24 @@
+id: est-sla-compliance
+type: estimate
+rev: 1
+prompt: |
+  Last quarter the team fixed 40 findings, 34 of them on or before their due date. What was its SLA compliance, in percent? Exactly.
+unit: "%"
+answer: 85
+tolerance: { absolute: 0 }
+given: { fixed: 40, on_time: 34 }
+working: on_time / fixed * 100
+mistakes:
+  - id: the-late-share
+    value: 15
+    working: (fixed - on_time) / fixed * 100
+    why: That is the share that was late. SLA compliance is the share fixed on time, 34 of the 40.
+  - id: a-count
+    value: 6
+    working: fixed - on_time
+    why: That is how many were late, a count. SLA compliance is a percentage, the on-time fixes over all the fixes.
+explanation: |
+  34 on time out of 40 fixed: 34 / 40 = 0.85, or 85%.
+
+  Like MTTR, this number counts only findings that were fixed. A team could reach 100% by fixing three easy findings on time and leaving three hundred open, so it is always read beside the backlog and the count of findings that are open and overdue today.
+skills: [remediate-and-track]

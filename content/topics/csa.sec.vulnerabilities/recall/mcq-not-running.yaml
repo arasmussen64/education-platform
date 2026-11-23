@@ -1,0 +1,16 @@
+id: mcq-not-running
+type: mcq
+rev: 1
+prompt: |
+  rsync's CVE-2024-12084 is in the rsync **daemon**. A scan flags the rsync package on an internal server where no rsync daemon is running. What do you do with the finding?
+choices:
+  - "Close it as not applicable: a flaw in code that isn't running can't be used"
+  - "Patch it on its timeline, and record that the daemon isn't running today"
+  - "Leave it open with no due date, until the day someone starts the daemon"
+  - "Remove rsync at once: removing a package is always the safest remediation"
+answer: 1
+explanation: |
+  The scanner compares versions; it can't see whether the vulnerable part is in use. A daemon that isn't running can't be attacked today, and that is worth writing in the register, because it explains why this finding isn't the first of the week. But the program is one command away from running, and nobody will rescan the server on the day someone starts it. So the finding keeps its timeline and gets patched.
+
+  Closing it or leaving it without a date both mean it is never fixed. Removing the package is a real remediation when nothing needs it, but "always" is wrong: backups and deploys often use rsync, and removing what a server needs is an outage.
+skills: [prioritise]

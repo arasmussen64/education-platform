@@ -1,0 +1,25 @@
+id: est-exception-expiry
+type: estimate
+rev: 1
+prompt: |
+  The shop's rule is that an exception lasts at most 90 days. One is approved on 10 March. Counting 10 March as day 0, on which day of June does it run out? Exactly.
+unit: June
+answer: 8
+tolerance: { absolute: 0 }
+given: { approved: 10, days: 90 }
+# March has 31 days, April 30 and May 31, which the learner knows.
+working: approved + days - 31 - 30 - 31
+mistakes:
+  - id: three-months
+    value: 10
+    working: approved
+    why: That takes 90 days for three months to the day. March and May have 31 days, so 90 days ends two days short of 10 June.
+  - id: day-one
+    value: 7
+    working: approved + days - 1 - 31 - 30 - 31
+    why: That counts 10 March as day 1. The rule counts it as day 0, so day 90 is one day later.
+explanation: |
+  21 days take you from 10 March to 31 March, April adds 30 (51) and May 31 (82), and 8 more reach 90: 8 June. `date -d "2027-03-10 + 90 days" +%F` prints `2027-06-08`.
+
+  The date matters because an exception without one never ends. On 8 June someone has to choose again: the fix is in, or the exception is renewed with a fresh reason and a named owner's signature, or the system goes.
+skills: [remediate-and-track]

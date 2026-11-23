@@ -1,0 +1,46 @@
+id: count-findings
+type: predict_shell
+rev: 1
+prompt: |
+  `scan.txt` is what OSV-Scanner printed for the payments server before anything was patched, captured in this topic's lab on 2026-11-22 (its first four lines, about reading the package list, are left off). The first command prints each advisory ID it finds, keeps one of each and counts them; the second counts the lines that introduce a package. What do the two commands print?
+files:
+  scan.txt: |
+    Total 5 packages affected by 7 known vulnerabilities (2 Critical, 4 High, 1 Medium, 0 Low, 0 Unknown) from 1 ecosystem.
+    7 vulnerabilities can be fixed.
+
+    Ubuntu:24.04
+
+    os:/var/lib/dpkg/status: found 5 packages with issues
+
+      git@1:2.43.0-1ubuntu7 (binary packages: git, git-man) has the following known vulnerabilities:
+        UBUNTU-CVE-2025-48384: Git is a fast, scalable, distributed revision control system with an unusually...
+          Severity: '8.0'; Minimal Fix Version: '1:2.43.0-1ubuntu7.3';
+      less@590-2ubuntu2 has the following known vulnerabilities:
+        UBUNTU-CVE-2024-32487: less through 653 allows OS command execution via a newline character in the...
+          Severity: '8.6'; Minimal Fix Version: '590-2ubuntu2.1';
+      openssh@1:9.6p1-3ubuntu13 (binary packages: openssh-client, openssh-server, openssh-sftp-server) has the following known vulnerabilities:
+        UBUNTU-CVE-2024-6387: A security regression (CVE-2006-5051) was discovered in OpenSSH's server...
+          Severity: '8.1'; Minimal Fix Version: '1:9.6p1-3ubuntu13.3';
+        UBUNTU-CVE-2025-26465: A vulnerability was found in OpenSSH when the VerifyHostKeyDNS option is...
+          Severity: '6.8'; Minimal Fix Version: '1:9.6p1-3ubuntu13.8';
+      rsync@3.2.7-1ubuntu1 has the following known vulnerabilities:
+        UBUNTU-CVE-2024-12084: A heap-based buffer overflow flaw was found in the rsync daemon. This issue is...
+          Severity: '9.8'; Minimal Fix Version: '3.2.7-1ubuntu1.1';
+      sudo@1.9.15p5-3ubuntu5 has the following known vulnerabilities:
+        UBUNTU-CVE-2025-32462: Sudo before 1.9.17p1, when used with a sudoers file that specifies a host that...
+          Severity: '8.8'; Minimal Fix Version: '1.9.15p5-3ubuntu5.24.04.1';
+        UBUNTU-CVE-2025-32463: Sudo before 1.9.17p1 allows local users to obtain root access because...
+          Severity: '9.3'; Minimal Fix Version: '1.9.15p5-3ubuntu5.24.04.1';
+
+      7 known vulnerabilities found in os:/var/lib/dpkg/status
+command: |
+  grep -o 'UBUNTU-CVE-[0-9]*-[0-9]*' scan.txt | sort -u | wc -l
+  grep -c 'has the following known vulnerabilities' scan.txt
+expected_output: |
+  7
+  5
+explanation: |
+  Seven findings in five packages, as the scan's own first line says: OpenSSH and sudo have two findings each. `grep -o` prints only the text that matched, one match a line, so each `UBUNTU-CVE-...` ID comes out once; `sort -u` would drop a repeat, and `wc -l` counts the lines. The pattern doesn't match the `CVE-2006-5051` in the middle of OpenSSH's description, because that one has no `UBUNTU-` in front: a plain `grep -o 'CVE-[0-9]*-[0-9]*'` would have counted eight. The second command counts lines, and each package has one line that ends "has the following known vulnerabilities".
+
+  Findings and packages are different counts, and both matter. "Seven findings" is what the register tracks, one line each with its own due date. "Five packages" is the work: five upgrades clear all seven.
+skills: [scan-and-read]
