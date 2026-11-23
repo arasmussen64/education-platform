@@ -71,6 +71,9 @@ checks:
       pid=$(systemctl show -p MainPID --value giftcards)
       [ "$pid" != 0 ] && tr '\0' '\n' < "/proc/$pid/environ" | grep -qF "$key" && { echo "the key is in the service's environment"; exit 0; }
       grep -rqF "$key" /etc/systemd /run/systemd/system /lib/systemd/system 2> /dev/null && { echo "the key is in a unit's files"; exit 0; }
+      # A command line is logged (sudo writes each one to the journal),
+      # and the journal is read by more than the service's user.
+      journalctl --no-pager -o cat 2> /dev/null | grep -qF "$key" && { echo "the key is in the journal"; exit 0; }
       for found in $(on_disk "$key"); do
         [ -n "$(find "$found" -perm /004)" ] && { echo "the key is in a file anyone can read"; exit 0; }
       done
@@ -112,6 +115,11 @@ checks:
       git add -A && git commit -qm "try" && send main && { echo "a push that adds a secret is taken"; exit 0; }
       git rm -q "app/try_$r.py" && git commit -qm "take it out again" && send main && { echo "a push whose last commit takes a secret out again is taken"; exit 0; }
       send HEAD:refs/heads/try-$r && { echo "a new branch that brings a secret is taken"; exit 0; }
+      git reset -q --hard origin/main
+      # A secret of another kind, which the built-in rules know: a hook
+      # that looks only for the company's key format lets it through.
+      openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "app/try_$r.key" 2> /dev/null
+      git add -A && git commit -qm "a key file" && send main && { echo "a push that adds a private key is taken"; exit 0; }
       git reset -q --hard origin/main
       echo "clean $r" > "notes-$r.txt"
       git add -A && git commit -qm "another note" && send main || { echo "the repository refuses a clean push after a refused one"; exit 0; }
