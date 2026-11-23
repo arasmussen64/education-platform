@@ -46,7 +46,7 @@ sign_in() {
 }
 
 check_api() {
-  local wanted user state
+  local wanted user state template
   need_bao || return 0
   for unit in shop-api shop-api-agent; do
     state="$(systemctl is-enabled "$unit" 2> /dev/null) $(systemctl is-active "$unit" 2> /dev/null)"
@@ -61,11 +61,20 @@ check_api() {
     echo "GET /orders doesn't answer with the number of orders: $(curl -s -m 8 "$api/orders" | cut -c 1-120)"
     return 0
   }
+  # An account's name says who asked for it ("v-", the start of the asking
+  # token's name, the role), unless the connection was given a name
+  # pattern of its own. A token from a sign-in at auth/jwt as
+  # "workload:..." is called "jwt-workload:...".
+  template=$(bao read -format=json database/config/shop 2> /dev/null | json "d['data']['connection_details'].get('username_template', '')")
+  [ -z "$template" ] || {
+    echo "the database connection shop has a username_template of its own, so an account's name no longer says who asked for it"
+    return 0
+  }
   user=$(api_user)
   case "$user" in
-    v-jwt-*) ;;
+    v-jwt-work-*) ;;
     *)
-      echo "the API's database account, $user, isn't one OpenBao made for a workload that signed in with its platform token"
+      echo "the API's database account, $user, isn't one OpenBao made for a workload that signed in at auth/jwt with its platform token"
       return 0
       ;;
   esac
@@ -151,7 +160,7 @@ check_db_least() {
 }
 
 check_static_gone() {
-  local old found b64 hex
+  local old found b64 hex role
   old=$(cat "$truth/app-password")
   logs_in shop_app "$old" && {
     echo "shop_app still logs in with its old password"
@@ -161,6 +170,15 @@ check_static_gone() {
     echo "shop_app can still log in to the database"
     return 0
   }
+  # The old password under any other name: an account that was renamed
+  # keeps its password.
+  while IFS= read -r role; do
+    [ -n "$role" ] || continue
+    logs_in "$role" "$old" && {
+      echo "the old password still logs in to the database, as $role"
+      return 0
+    }
+  done < <(pg "SELECT rolname FROM pg_roles WHERE rolcanlogin AND rolname <> 'postgres'")
   [ -e /etc/shop/db.conf ] && {
     echo "/etc/shop/db.conf is still there"
     return 0
@@ -194,7 +212,7 @@ check_root_rotated() {
 }
 
 check_identity() {
-  local roles role odd other good
+  local roles role odd other good others
   need_bao || return 0
   roles=$(bao list -format=json auth/jwt/role 2> /dev/null | json "' '.join(d)") || roles=""
   case " $roles " in
@@ -207,6 +225,15 @@ check_identity() {
   good=$(sign_in shop-api "$(signed --sub workload:shop-api)")
   [ -n "$good" ] || {
     echo "the order API's own platform token can't sign in with the role shop-api"
+    return 0
+  }
+  # Any other sign-in method that is switched on is another way in, which
+  # these trials would never see: there must be none (auth/token is
+  # OpenBao's own, and always there).
+  others=$(bao auth list -format=json 2> /dev/null | json "' '.join(sorted(k for k in d if k not in ('token/', 'jwt/')))")
+  [ -z "$others" ] || {
+    others=${others%% *}
+    echo "another way of signing in is switched on, at auth/${others%/}: the order API needs auth/jwt alone"
     return 0
   }
   # A key of the check's own: a token it signs has the right claims and
@@ -265,6 +292,7 @@ check_token_least() {
   odd="x$(openssl rand -hex 4)"
   for path in secret/data/db/admin secret/metadata/db/admin "secret/data/$odd" database/config/shop \
     database/roles/shop-api database/rotate-root/shop "database/creds/$odd" database/creds/report \
+    "database/creds/shop-api$odd" "database/creds/shop-api-$odd" "database/creds/shop-api/$odd" \
     "database/$odd" sys/policies/acl/shop-api "sys/policies/acl/$odd" sys/auth sys/mounts \
     auth/token/create "auth/jwt/role/$odd" auth/jwt/config "$odd/creds/shop-api" "$odd"; do
     [ "$(caps "$token" "$path")" = deny ] || {
@@ -279,7 +307,8 @@ check_no_standing() {
   local file token where pid found
   need_bao || return 0
   # Any live OpenBao token in a file outside the learner's and root's own
-  # token files must have come from a platform sign-in.
+  # token files must have come from a platform sign-in. Every folder a
+  # file can be kept in is searched, not only the usual ones.
   while IFS= read -r file; do
     for token in $(grep -a -o -E 's\.[A-Za-z0-9]{24}' "$file" 2> /dev/null | sort -u); do
       where=$(bao token lookup -format=json "$token" 2> /dev/null | json "d['data']['path']") || continue
@@ -291,8 +320,10 @@ check_no_standing() {
           ;;
       esac
     done
-  done < <(grep -rlaE 's\.[A-Za-z0-9]{24}' /etc /home /srv /run /tmp /var/tmp /usr/local/bin /usr/local/etc /opt 2> /dev/null \
-    | grep -v -e '^/home/learner/\.vault-token$' -e '^/opt/openbao/' -e '^/run/lab-' -e '^/run/log/' -e '^/etc/openbao/unseal.key$')
+  done < <(grep -rlaE 's\.[A-Za-z0-9]{24}' /etc /home /srv /run /tmp /var /usr/local /opt /root /mnt /media /dev/shm 2> /dev/null \
+    | grep -v -e '^/home/learner/\.vault-token$' -e '^/root/\.bao-root-token$' -e '^/var/lib/lab/' -e '^/opt/openbao/' \
+      -e '^/var/lib/postgresql/' -e '^/var/lib/containers/' -e '^/var/log/journal/' -e '^/var/log/openbao/' \
+      -e '^/run/lab-' -e '^/run/log/' -e '^/etc/openbao/unseal.key$' -e '^/usr/local/lib/lab/')
   # No token handed to a unit or a running program through its environment.
   found=$(systemctl show shop-api shop-api-agent -p Environment 2> /dev/null | grep -E 'TOKEN|s\.[A-Za-z0-9]{24}')
   [ -z "$found" ] || {
@@ -306,4 +337,42 @@ check_no_standing() {
     fi
   done
   echo "nothing standing"
+}
+
+check_private() {
+  local file owner mode password found
+  file=$(sed -n 's/^credentials *= *//p' /etc/shop/shop-api.conf | head -n 1)
+  [ -n "$file" ] && [ -f "$file" ] || {
+    echo "/etc/shop/shop-api.conf names no credentials file that is there"
+    return 0
+  }
+  owner=$(stat -c %U "$file")
+  mode=$(stat -c %a "$file")
+  [ "$owner" = shop ] || {
+    echo "$file belongs to $owner, not to shop"
+    return 0
+  }
+  case "$mode" in
+    400 | 600) ;;
+    *)
+      echo "$file has the mode $mode: users other than shop can read the database password in it"
+      return 0
+      ;;
+  esac
+  # Another workload's user tries.
+  as_user report cat "$file" > /dev/null 2>&1 && {
+    echo "the user report can read $file"
+    return 0
+  }
+  password=$(sed -n 's/^password=//p' "$file" | head -n 1)
+  [ -n "$password" ] || {
+    echo "$file has no password= line"
+    return 0
+  }
+  found=$(on_disk "$password" | grep -vxF "$file" | head -n 1)
+  [ -z "$found" ] || {
+    echo "the API's database password is in another file as well: $found"
+    return 0
+  }
+  echo "shop alone"
 }

@@ -17,10 +17,10 @@ prompt: |
 
   1. **OpenBao's database engine** at `database/`, with a connection called `shop` that uses the admin account from the key-value store, and then that account's password changed so that only OpenBao knows it.
   2. **A role `shop-api`** there, whose accounts can read and add orders and do nothing else in the database, last an hour unless renewed, and at most a day in all.
-  3. **Sign-in with platform tokens** at `auth/jwt`: OpenBao trusts the platform's public key and its issuer, and a role called `shop-api` lets in the order API's token and no other: not another workload's, not one meant for another audience.
+  3. **Sign-in with platform tokens** at `auth/jwt`: OpenBao trusts the platform's public key and its issuer, and a role called `shop-api` lets in the order API's token and no other: not another workload's, not one meant for another audience. Switch on no other way of signing in to OpenBao.
   4. **A policy** for the tokens that sign-in gives: they may read the API's own database credentials, and nothing else.
   5. **OpenBao Agent** as `shop-api-agent.service`, running as `shop`: it signs in with the platform token, writes the database credentials as a service file that only `shop` can read, in `/run/shop-api/db.conf`, and keeps them fresh. Point the API at that file. Both services run, and start at boot.
-  6. **The old way is gone:** `shop_app` can't log in to the database any more, and `/etc/shop/db.conf` and its password are deleted.
+  6. **The old way is gone:** `shop_app` can't log in to the database any more, its old password opens no account under any name, and `/etc/shop/db.conf` and its password are deleted.
 
   What you need to know of the agent: it is the same program, `bao agent -config=FILE`. Its configuration file has three blocks: `vault { address = "http://127.0.0.1:8200" }`; `auto_auth` with a `method "jwt"` whose `config` names the token file's `path` and the `role`, and says `remove_jwt_after_reading = false` (the platform owns that file); and a `template` with a `destination`, `perms`, and `contents`, in which `{{ with secret "PATH" }} ... {{ .Data.username }} ... {{ .Data.password }} ... {{ end }}` asks OpenBao for the secret at PATH and writes its fields. The lesson has a whole one. A unit doesn't get `BAO_ADDR` from your shell, which is why the address is in the file; `RuntimeDirectory=NAME` in a unit makes `/run/NAME` for the service's user at each start.
 
