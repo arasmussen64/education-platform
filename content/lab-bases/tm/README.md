@@ -61,7 +61,7 @@ A file with `___` in a line is refused ("this line still has a gap"), which is w
 ## tm-check
 
 ```text
-tm-check PART MODEL [REF.json] [--quiet] [--only N|rest]
+tm-check PART MODEL [REF.json] [--quiet] [--choose] [--only N|rest]
 ```
 
 It prints `ok`, or **one sentence**, and ends with status 0 either way, so a check is `expect: { equals: ok }` and a learner always sees the reason (Module 1's rule for checks with several steps). Status 2 means the command itself was wrong: an unknown part, or a reference the lab's author got wrong ("the lab's reference is wrong, which is not your doing").
@@ -86,6 +86,8 @@ It prints `ok`, or **one sentence**, and ends with status 0 either way, so a che
 **What a failure says.** Never the flow, the letter or the right value: "the design describes a weakness the model has no threat for", "a control is of a kind that doesn't answer its threat". Only `reads`, the risk sum and an empty tree node name a line, because those are about the file, not the design. `tools/tests/test_tm_check.py` holds every sentence and checks that none of them names a part of the model.
 
 **`--quiet`**, for debug labs, replaces each part's sentence with one fixed sentence, the end state still missing ("the zones are not yet where trust changes"), so a check never says which kind of fault is left. `reads` still names its line.
+
+**`--choose`**, for any lab whose model is written from a blank file, caps what a model may list: at most three threats on one flow under one letter, and at most two controls and two ATT&CK techniques on one threat. Without it, a model that writes a threat at every rating, or answers a threat with every kind of control, passes `findings`, `controls` and `attack`, because each looks for one right line among many. With it, each of those three parts refuses its own kind of list first ("the model lists where it should choose: a threat has more than two controls"), so a list fails only the check of the skill it dodged. Under `--only N` the cap on controls is that weakness's threat's alone, and under `--only rest` it covers every threat the reference doesn't narrow. Every part takes the flag, so a lab may pass it to every check; the other parts ignore it. A lab that turns it on says the cap in its prompt. The threat-modeling topic's labs check the same cap with an `awk` check of their own and don't pass the flag; Checkpoint 4 part 1 passes it.
 
 **`controls --only N`** checks only the control on the reference's Nth weakness (from 1): its threat exists and has a control of an allowed kind. An `accept` passes only when the weakness, at the design's own ratings, is below 6, so rating a risk down and accepting it fails. **`controls --only rest`** is everything `controls` checks except the kind of control on the weaknesses that have a `controls` list. Checkpoint 4 part 1 uses both: one check a high weakness, so a wrong control brings back one skill, and one for the rest.
 
@@ -129,7 +131,7 @@ A mistake in the reference (an unknown key, a flow with an end that isn't an ele
 
 ## What the tests hold
 
-`tools/tests/test_tm_check.py`, with the models in `tools/tests/tm_cases.py`: the checkout's 64-line reference model passes all ten parts, and each of its weaknesses alone and the rest; each of 25 wrong models fails exactly the part aimed at it, with its sentence; a wrong control fails only its own weakness's `--only`; a right model for another story fails; 26 kinds of bad line each get their line number and what was expected; every line of both models cut short at every word, and every line removed, never makes a part crash; `--quiet` says one sentence a part; a wrong reference is refused.
+`tools/tests/test_tm_check.py`, with the models in `tools/tests/tm_cases.py`: the checkout's 64-line reference model passes all ten parts, and each of its weaknesses alone and the rest; each of 25 wrong models fails exactly the part aimed at it, with its sentence; a wrong control fails only its own weakness's `--only`; a right model for another story fails; 26 kinds of bad line each get their line number and what was expected; every line of both models cut short at every word, and every line removed, never makes a part crash; `--quiet` says one sentence a part; `--choose` lets a model that lists pass without it and fails it with it, in the one part its list slips through (and, under `--only`, only on its own weakness), while three threats under one letter, two controls and two techniques still pass; a wrong reference is refused.
 
 ## Size and time
 
