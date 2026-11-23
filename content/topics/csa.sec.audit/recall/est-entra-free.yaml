@@ -1,0 +1,25 @@
+id: est-entra-free
+type: estimate
+rev: 1
+prompt: |
+  A monthly access review looks at the last 30 days of sign-ins to Microsoft Entra ID, the cloud directory the shop's staff sign in to. The shop's directory (its tenant) has the Free licence and exports its logs nowhere. How many of those 30 days can the reviewer not see? Exactly.
+unit: days
+answer: 23
+tolerance: { absolute: 0 }
+given: { review: 30 }
+# Entra ID Free keeps sign-in logs for 7 days, which the learner knows.
+working: review - 7
+mistakes:
+  - id: premium
+    value: 0
+    working: review - 30
+    why: Thirty days is what the paid P1 and P2 licences keep. This tenant has the Free licence, which keeps 7.
+  - id: the-kept-days
+    value: 7
+    working: "7"
+    why: Seven is how many days the reviewer can see. The question asks for the days that are gone.
+explanation: |
+  Entra ID Free keeps sign-in and audit logs for 7 days, so 30 − 7 = 23 days of the month are already deleted when the review starts. P1 and P2 keep 30 days, which would just cover it, with no margin.
+
+  Either way the fix is the same: route the logs to storage of your own through Azure Monitor and keep them as long as the review, and the rules, need.
+skills: [retention, cloud-audit-trails]

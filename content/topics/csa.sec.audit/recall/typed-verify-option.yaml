@@ -1,0 +1,22 @@
+id: typed-verify-option
+type: typed
+rev: 1
+prompt: |
+  You suspect someone has changed the audit journal's files. Which option do you give `journalctl` to have it check the files' insides, and their seals too when it is given the key? Type the option alone, with its dashes.
+kind: command
+answers:
+  - "--verify"
+  - "journalctl --verify"
+mistakes:
+  - id: the-key-option
+    answers: ["--verify-key", "--verify-key=KEY"]
+    why: "That option hands over the verification key. The check itself is asked for by a shorter option, and the key is given alongside it."
+  - id: setup
+    answers: ["--setup-keys", "journalctl --setup-keys"]
+    why: "That one makes a new pair of sealing keys. Run by mistake with --force on a sealed journal, it leaves the auditors holding a key that no longer fits."
+  - id: header
+    answers: ["--header", "journalctl --header"]
+    why: "That prints what a journal file says about itself, including whether it is SEALED. It checks nothing."
+explanation: |
+  `--verify`: `sudo journalctl --namespace=audit --verify --verify-key="$(cat KEYFILE)"` for the shop's trail. Without a key it checks only that each file is well formed, and for a sealed file it then fails with `Required key not available`. With the key it also checks every seal, and prints the time range the key vouches for.
+skills: [sealing-and-worm]

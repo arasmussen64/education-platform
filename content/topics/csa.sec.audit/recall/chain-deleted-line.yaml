@@ -1,0 +1,48 @@
+id: chain-deleted-line
+type: predict_shell
+rev: 1
+prompt: |
+  `audit.log` was a five-line chained log: each line is a hash, a space and a record, and the hash is the SHA-256 of the line before's hash, a space and the record (64 zeros stand in for the line before the first). `anchor` is the last line's hash as the auditors copied it down. Since then someone has deleted one whole line, the role change that made ben an admin, which was line 3. `chain-verify` walks the log, working each hash out again. What does the command print?
+files:
+  audit.log: |
+    ed8f833f60e6f25c11adf231f65b0e59c72a22517e84a6b0508e311b3d89f782 event=login.ok user=ana src=203.0.113.9
+    65835bfbc09fea16ebecce8b58c76cd04e284f9246dd90939bbdd247e67637c5 event=refund actor=ana order=42 amount=19.99
+    acd4b0701143622d145b93beb78999033c430e9729e5c300712ba6b5ca83814a event=refund actor=ben order=43 amount=250.00
+    a8ab96ffa0f136805f8f5c1efff15656b091ac505137f546adf94be6c0449601 event=login.ok user=cy src=192.0.2.44
+  chain-verify: |
+    #!/bin/bash
+    # chain-verify LOG ANCHOR: checks a chained log against the last hash
+    # the auditors hold.
+    log=$1
+    anchor=$2
+    prev=$(printf '%064d' 0)
+    n=0
+    while IFS= read -r line; do
+      n=$((n + 1))
+      hash=${line%% *}
+      record=${line#* }
+      want=$(printf '%s %s' "$prev" "$record" | sha256sum | cut -d' ' -f1)
+      if [ "$hash" != "$want" ]; then
+        echo "broken at line $n"
+        exit 1
+      fi
+      prev=$hash
+    done < "$log"
+    if [ "$prev" != "$anchor" ]; then
+      echo "anchor mismatch"
+      exit 1
+    fi
+    echo "ok $n"
+  anchor: |
+    a8ab96ffa0f136805f8f5c1efff15656b091ac505137f546adf94be6c0449601
+command: |
+  bash chain-verify audit.log "$(cat anchor)"
+expected_output: |
+  broken at line 3
+explanation: |
+  The deleted line took its hash with it. The refund that used to be line 4 is now line 3, and its hash was made from the deleted line's hash. The script hashes what is now above it, line 2's hash, with the refund's record, and the result doesn't match: `broken at line 3`.
+
+  So a deletion shows as a break at the place where the line used to be, on the line that moved up into it. The verdict can't say "a line is missing" (an edit to that refund would print the same thing), but it says where to look, and it says the log isn't the one that was written.
+
+  The last line's hash still equals the anchor here, and the script never got that far: the first broken link is reported first.
+skills: [hash-chains]

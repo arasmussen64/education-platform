@@ -1,0 +1,23 @@
+id: verify-pass-or-sealed
+type: predict_shell
+rev: 1
+prompt: |
+  Each file is what `journalctl --verify --verify-key=KEY` printed for one journal file, captured in this topic's lab on 2026-11-22 with the same key: `sealed.txt` for the audit trail's sealed file, `forged.txt` for a copy of it that was rewritten entry by entry with one amount changed. The command counts, in each file, the lines that say a time range was validated. What is printed?
+files:
+  sealed.txt: |
+    PASS: /var/log/journal/2478b1c16a084cbebc9e6e6294794ca4.audit/system.journal
+    => Validated from Mon 2026-11-23 03:34:17 UTC to Mon 2026-11-23 03:34:40 UTC, final 0 entries not sealed.
+  forged.txt: |
+    PASS: /home/learner/example/forged.journal
+command: |
+  grep -c 'Validated from' sealed.txt forged.txt
+expected_output: |
+  sealed.txt:1
+  forged.txt:0
+explanation: |
+  `grep -c` counts matching lines, and with two files it prints each file's name and count. The real trail has the line; the forgery doesn't.
+
+  Both files say `PASS`. For a journal, `PASS` means only that the file is well formed: every entry matches its own hash. A forger who writes the whole file again gets that for free. The `Validated from ... to ...` line is the part that needs the sealing key: it says the key vouches for everything written in that time range.
+
+  So read the second line, never the first. A check script should do what this command does: look for the validated range, and compare its times with the period it expects to be covered.
+skills: [sealing-and-worm]

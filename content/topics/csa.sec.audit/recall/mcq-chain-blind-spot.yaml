@@ -1,0 +1,18 @@
+id: mcq-chain-blind-spot
+type: mcq
+rev: 1
+prompt: |
+  A log is hash-chained: each line's hash covers the line before's hash and its own record. With nothing kept outside the log, which change can a verifier not detect?
+choices:
+  - "The last lines cut off the end"
+  - "A single record edited in the middle"
+  - "One line deleted from the middle"
+  - "Two neighbouring lines swapped"
+answer: 0
+explanation: |
+  A verifier walks down the log checking that each line fits the one before it. An edited record no longer matches its own hash. A deleted line leaves the next one pointing at a hash that is gone. Swapped lines each sit after the wrong neighbour. All three break a link.
+
+  Cutting lines off the end breaks nothing: every line that is left still fits the one before it, and a chain has no way to know it used to be longer. The last hour of an intruder's activity can vanish this way.
+
+  That is why a chain needs an **anchor**: the newest hash, copied somewhere the log's keeper can't reach. A log cut short ends on a different hash from the one the auditors hold.
+skills: [hash-chains]

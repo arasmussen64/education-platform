@@ -1,0 +1,26 @@
+id: est-journal-cap
+type: estimate
+rev: 1
+prompt: |
+  A server's journal lives on a 120 GB filesystem and journald runs with its default settings. The server writes about 25 MB of journal a day. For about how many days does it keep its journal? Within 10%.
+unit: days
+answer: 160
+tolerance: { percent: 10 }
+given: { disk: 120, daily: 25 }
+# journald's default: 10% of the filesystem, capped at 4 GB (4000 MB here),
+# which the learner knows.
+working: min(disk * 1000 / 10, 4000) / daily
+mistakes:
+  - id: no-cap
+    value: 480
+    working: disk * 1000 / 10 / daily
+    why: That is 10% of the disk, 12 GB. journald's default is 10% of the filesystem but never more than 4 GB, and here the 4 GB cap is the smaller of the two.
+  - id: whole-disk
+    value: 4800
+    working: disk * 1000 / daily
+    why: That gives the journal the whole disk. By default it may use 10% of the filesystem, and at most 4 GB.
+explanation: |
+  By default a journal may grow to 10% of its filesystem, capped at 4 GB. Ten per cent of 120 GB is 12 GB, so the cap decides: 4 GB, about 4,000 MB, at 25 MB a day is 160 days. After that journald deletes the oldest files to make room, quietly.
+
+  So a server left on defaults keeps about five months, not the twelve an audit trail needs. Two settings change that: `SystemMaxUse=` raises the size, and `MaxRetentionSec=` sets an age after which files are deleted, which is off unless you set it.
+skills: [retention]

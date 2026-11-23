@@ -1,0 +1,16 @@
+id: mcq-auid
+type: mcq
+rev: 1
+prompt: |
+  A Linux audit record of a command run through `sudo` shows `uid=0` and `auid=1004`. What does `auid` add?
+choices:
+  - "The ID the person logged in with, which stays the same through sudo"
+  - "The ID of the audit daemon's own account, which wrote the record"
+  - "The ID of the user who owns the file that the command touched"
+  - "A random ID given to each event so that duplicates can be found"
+answer: 0
+explanation: |
+  `uid=0` says the command ran as root, which is true of everything run through `sudo` and tells you nothing about who. `auid`, the audit user ID (also called the login UID), is set once, when a person logs in, and is carried by everything they start from then on, whatever they become. So root's actions trace back to a person: user 1004 ran this.
+
+  It is the kernel's answer to the first question of any audit trail, "who?", on a machine where several admins share root's powers. It is also why audit rules can say `auid>=1000`: "started by a real person", not by a system service.
+skills: [what-to-log]

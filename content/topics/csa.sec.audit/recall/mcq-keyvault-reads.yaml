@@ -1,0 +1,16 @@
+id: mcq-keyvault-reads
+type: mcq
+rev: 1
+prompt: |
+  An Azure Key Vault holds the payments service's database password. Who read that secret yesterday? Where is the answer?
+choices:
+  - "In the vault's resource logs, if a diagnostic setting was collecting them"
+  - "In the subscription's activity log, which records every operation for 90 days"
+  - "In Entra ID's audit log, which records reads of secrets for 30 days"
+  - "In the vault itself, which keeps its own record of reads for 90 days"
+answer: 0
+explanation: |
+  Azure splits its record the same way AWS does. The **activity log** covers the control plane: operations on resources, such as creating a vault or changing who may use it. It is on by default and kept 90 days. Reading a secret is a data-plane operation, inside the resource, and those go to **resource logs**, which Azure doesn't collect until someone creates a **diagnostic setting** that sends them to a Log Analytics workspace, a storage account or an event hub.
+
+  So if nobody set that up before yesterday, the answer doesn't exist. Entra ID's logs record sign-ins and changes to the directory, not what a signed-in identity then read. A vault keeps no log of its own.
+skills: [cloud-audit-trails]
