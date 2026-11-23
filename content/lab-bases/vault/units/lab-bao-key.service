@@ -1,0 +1,16 @@
+# Makes OpenBao's unseal key at this machine's first boot, before OpenBao
+# starts: 32 random bytes that only root and OpenBao can read. Nothing
+# secret is in the image or the repository. It runs only on a machine whose
+# lab enabled openbao.service (it is wanted by that unit), and only once.
+[Unit]
+Description=The lab's OpenBao unseal key, made at first boot
+Before=openbao.service
+ConditionPathExists=!/etc/openbao/unseal.key
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/lab/lab-bao-key
+
+[Install]
+WantedBy=openbao.service

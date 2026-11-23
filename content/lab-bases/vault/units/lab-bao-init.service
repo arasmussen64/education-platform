@@ -1,0 +1,20 @@
+# Sets OpenBao up at this machine's first boot, once it answers: initialises
+# it, saves the root token for the checks and an admin token for the
+# learner, and runs the lab's own seed scripts (/etc/lab/bao-seed.d/*.sh).
+# At later boots it only waits until OpenBao has unsealed itself, so that
+# "the machine has booted" always means "OpenBao answers".
+# After PostgreSQL too, when the lab runs it, because a seed script may
+# connect OpenBao to the database.
+[Unit]
+Description=The lab's OpenBao: first-boot setup and the lab's seed
+After=openbao.service postgresql.service postgresql@16-main.service
+Requires=openbao.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/lab/lab-bao-init
+TimeoutStartSec=120
+
+[Install]
+WantedBy=openbao.service

@@ -1,0 +1,99 @@
+#!/bin/bash
+# lab-bao-init: OpenBao's first-boot setup (lab-bao-init.service).
+#
+# First boot: initialise OpenBao, keep the root token where only root (the
+# checks) can read it, give the learner an admin token of their own, and run
+# the lab's seed scripts as root with the root token.
+# Every later boot: wait until OpenBao has unsealed itself, and stop.
+#
+# Every token and key is made here, in the container, at its first boot.
+# None is in the image or the repository.
+set -euo pipefail
+
+export BAO_ADDR=http://127.0.0.1:8200
+state=/var/lib/lab/bao
+seeds=/etc/lab/bao-seed.d
+mkdir -p "$state"
+chmod 700 "$state"
+
+say() { echo "lab-bao-init: $*"; }
+
+# One field of `bao status`, which answers before OpenBao is initialised
+# and while it is sealed (it then exits 2, which is not a failure here).
+status() {
+  bao status -format=json 2> /dev/null \
+    | python3 -c 'import json, sys
+try:
+    print(str(json.load(sys.stdin).get(sys.argv[1], "")).lower())
+except Exception:
+    print("")' "$1" || true
+}
+
+# OpenBao's unit counts as started before it answers on its port.
+for _ in $(seq 1 150); do
+  [ -n "$(status initialized)" ] && break
+  sleep 0.2
+done
+[ -n "$(status initialized)" ] || {
+  say "OpenBao didn't answer on $BAO_ADDR"
+  exit 1
+}
+
+if [ "$(status initialized)" != true ]; then
+  # With a seal that opens by itself there are no unseal keys to hand out;
+  # "recovery keys" take their place for the few operations that ask for
+  # one. One share is enough for a lab.
+  umask 077
+  bao operator init -recovery-shares=1 -recovery-threshold=1 -format=json > "$state/init.json"
+  python3 -c 'import json, sys
+print(json.load(open(sys.argv[1]))["root_token"])' "$state/init.json" > /root/.bao-root-token
+  chmod 600 /root/.bao-root-token
+  say "initialised"
+fi
+
+for _ in $(seq 1 150); do
+  [ "$(status sealed)" = false ] && break
+  sleep 0.2
+done
+[ "$(status sealed)" = false ] || {
+  say "OpenBao stayed sealed: is /etc/openbao/unseal.key the key it was initialised with?"
+  exit 1
+}
+
+[ -e "$state/seeded" ] && exit 0
+
+BAO_TOKEN=$(cat /root/.bao-root-token)
+export BAO_TOKEN
+
+# The learner's admin token: every permission, but a token of its own, so
+# the audit log tells the learner's requests from the checks'. Tokens
+# normally last 32 days at most; this one lasts ten years, because a
+# learner may come back to a lab after months. Only the token mount is
+# changed: every other lifetime in OpenBao keeps its default.
+bao policy write lab-admin - > /dev/null << 'EOF'
+path "*" {
+  capabilities = ["create", "read", "update", "patch", "delete", "list", "scan", "sudo"]
+}
+EOF
+bao auth tune -max-lease-ttl=87600h token/ > /dev/null
+bao token create -orphan -policy=lab-admin -ttl=87600h -display-name=learner -field=token \
+  > /home/learner/.vault-token
+chown learner:learner /home/learner/.vault-token
+chmod 600 /home/learner/.vault-token
+
+# The lab's own seed: keys, policies, secrets, the database connection. In
+# name order, as root, with the root token in BAO_TOKEN. A script that
+# fails stops the boot's setup here, and the journal says which one.
+if [ -d "$seeds" ]; then
+  for script in "$seeds"/*.sh; do
+    [ -e "$script" ] || continue
+    say "seed $(basename "$script")"
+    bash "$script" || {
+      say "seed $(basename "$script") failed"
+      exit 1
+    }
+  done
+fi
+
+touch "$state/seeded"
+say "ready"

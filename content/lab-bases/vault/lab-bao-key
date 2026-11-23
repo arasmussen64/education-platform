@@ -1,0 +1,15 @@
+#!/bin/bash
+# lab-bao-key: writes OpenBao's unseal key, /etc/openbao/unseal.key, at the
+# machine's first boot (lab-bao-key.service). The key is written under
+# another name and renamed, so a boot that is cut short never leaves half a
+# key behind for OpenBao to refuse.
+set -euo pipefail
+
+key=/etc/openbao/unseal.key
+[ -s "$key" ] && exit 0
+
+umask 077
+openssl rand -out "$key.new" 32
+chown root:openbao "$key.new"
+chmod 0640 "$key.new"
+mv "$key.new" "$key"
