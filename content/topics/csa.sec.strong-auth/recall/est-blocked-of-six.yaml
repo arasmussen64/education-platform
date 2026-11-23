@@ -1,0 +1,24 @@
+id: est-blocked-of-six
+type: estimate
+rev: 1
+prompt: |
+  A high-risk block policy applies to 5 of a morning's sign-ins. The policy excludes the emergency-access group, and 3 of those 5 sign-ins are emergency accounts.
+
+  How many sign-ins does the policy block? Exactly.
+unit: sign-ins
+answer: 2
+tolerance: { absolute: 0 }
+given: { applies: 5, excluded: 3 }
+working: applies - excluded
+mistakes:
+  - id: forgot-exclusion
+    value: 5
+    working: applies
+    why: The exclusion takes the emergency accounts out of the policy, so they are not blocked. An exclusion beats an inclusion.
+  - id: excluded-only
+    value: 3
+    working: excluded
+    why: That counts the ones excluded, which are the ones that get through, not the ones blocked.
+explanation: |
+  The policy's conditions match 5 sign-ins, but the exclusion removes the 3 emergency accounts, so 2 are blocked. An exclusion always wins over an inclusion: a person caught by both is left out. This is the rule that keeps a break-glass account working while everyone else is held to the policy, and getting it backwards either locks the emergency accounts out or lets everyone through.
+skills: [conditional-access]

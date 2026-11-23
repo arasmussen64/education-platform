@@ -1,0 +1,26 @@
+id: est-licence-cost
+type: estimate
+rev: 1
+prompt: |
+  A shop needs Conditional Access for 40 staff. It comes with Microsoft Entra ID P1, which is $7.00 per user per month, billed yearly (read on Microsoft's pricing page on 2026-11-23).
+
+  What does a year cost, in dollars? Exactly.
+unit: dollars
+answer: 3360
+tolerance: { absolute: 0 }
+given: { users: 40, price_per_user_month: 7 }
+working: users * price_per_user_month * 12
+prices_as_of: 2026-11-23
+prices_source: https://www.microsoft.com/en-us/security/business/microsoft-entra-pricing
+mistakes:
+  - id: one-month
+    value: 280
+    working: users * price_per_user_month
+    why: That is one month. P1 is priced per month but the question asks for a year, so multiply by 12.
+  - id: p2-price
+    value: 4800
+    working: users * 10 * 12
+    why: "$10.00 is P2, which adds risk-based policies. Plain Conditional Access needs only P1, at $7.00."
+explanation: |
+  Conditional Access needs Entra ID P1, $7.00 per user per month. For 40 staff over 12 months that is 40 x 7 x 12 = $3,360 a year. P2 ($10.00) buys the risk signals; if the shop doesn't use sign-in risk, P1 is enough. With no paid licence at all, the only option is security defaults, which can't be customised.
+skills: [conditional-access]

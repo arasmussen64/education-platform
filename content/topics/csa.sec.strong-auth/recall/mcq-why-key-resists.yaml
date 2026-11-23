@@ -1,0 +1,16 @@
+id: mcq-why-key-resists
+type: mcq
+rev: 1
+prompt: |
+  Alice used a security key at the same phishing site, and it gave the attacker nothing. Why?
+choices:
+  - "The browser and the key both tie the signature to the real site's name"
+  - "The key's signature is encrypted end to end, so the relay sitting in the middle cannot read it or pass it on"
+  - "Security keys only work from inside the company's own network, which the attacker was not on"
+  - "The phishing site's TLS certificate was invalid, so the key noticed and refused to answer"
+answer: 0
+explanation: |
+  WebAuthn ties the key to the real site's name in two ways. The browser will ask the key only for the name in the address bar, and the key holds a credential only for the name it was registered with, `login.shop.test`. At the lookalike, `login.shop-help.test`, the browser asks for the wrong name and the key has nothing to answer with; even a browser told to lie is caught, because the server checks the name inside what was signed.
+
+  So there is nothing for the relay to collect: no secret is typed, and the one signature that is made is useless anywhere but the real site. The phishing site's certificate was perfectly valid, which is the point: a padlock proves the name you reached, not that it is the name you meant.
+skills: [phishing-resistance]

@@ -1,0 +1,22 @@
+id: amr-read
+type: predict_shell
+rev: 1
+prompt: |
+  Three ID tokens' payloads, decoded to JSON and saved, one a person, captured in the lab. The `amr` claim lists how each sign-in was done. The command names the sign-ins that used a hardware key. What does it print?
+files:
+  alice.json: |
+    { "sub": "a-1", "preferred_username": "alice", "amr": ["pwd", "hwk"], "acr": "1" }
+  ana.json: |
+    { "sub": "a-2", "preferred_username": "ana", "amr": ["pwd", "otp"], "acr": "1" }
+  carol.json: |
+    { "sub": "a-3", "preferred_username": "carol", "amr": ["pwd", "hwk"], "acr": "1" }
+command: |
+  grep -l '"hwk"' *.json
+expected_output: |
+  alice.json
+  carol.json
+explanation: |
+  `grep -l` prints the name of each file that has a match, not the matching line, and the shell hands it the files in sorted order: `alice.json`, `ana.json`, `carol.json`. Only alice's and carol's tokens hold `"hwk"`, the reference value for a hardware key; ana's shows `"pwd"` and `"otp"`, a password and an app code.
+
+  `amr` ("authentication methods references") is how an app or a check reads what a sign-in actually used, rather than taking the person's word for it. The identity provider fills it in from the steps the sign-in passed, and only if its flow is set up to record them.
+skills: [authentication-strength]

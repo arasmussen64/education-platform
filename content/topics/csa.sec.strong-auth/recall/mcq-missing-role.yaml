@@ -1,0 +1,16 @@
+id: mcq-missing-role
+type: mcq
+rev: 1
+prompt: |
+  A conditional sub-flow requires a security key, but its condition names a role nobody actually has (`admins` instead of `admin`). What happens to real admins?
+choices:
+  - "The sub-flow is skipped, so they sign in without its second step"
+  - "Keycloak refuses to start with that realm"
+  - "Every sign-in is blocked until the role is fixed"
+  - "Keycloak falls back to requiring the strongest method"
+answer: 0
+explanation: |
+  A conditional sub-flow runs only when its condition matches. If the condition tests for a role no one holds, it never matches, so the whole sub-flow, key and all, is skipped. An admin then finishes on whatever is left, often a password alone. The sign-in fails open: the gate is there, but it opens for everyone because the condition caught no one.
+
+  Nothing crashes and nothing is blocked, which is what makes this dangerous: it looks configured, and only a test with a real admin shows the key is never asked for. Probe the exact role name.
+skills: [authentication-strength]

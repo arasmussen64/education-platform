@@ -1,0 +1,28 @@
+id: relay-log-read
+type: predict_shell
+rev: 1
+prompt: |
+  `relay.log` is what a phishing relay kept as it passed sign-ins through to the real site, captured in the lab (the secrets here are obviously fake). The command counts how many different one-time codes the phisher collected. What does it print?
+files:
+  relay.log: |
+    relay up: login.shop-help.test -> login.shop.test
+    caught username=ana
+    caught password=not-a-real-password
+    caught otp=481920
+    caught session cookie: KEYCLOAK_IDENTITY=fake-cookie-value-one
+    caught username=ana
+    caught password=not-a-real-password
+    caught otp=481920
+    caught username=ben
+    caught password=another-fake-password
+    caught otp=735104
+    caught session cookie: KEYCLOAK_IDENTITY=fake-cookie-value-two
+command: |
+  grep -o 'otp=[0-9]*' relay.log | sort -u | wc -l
+expected_output: |
+  2
+explanation: |
+  `grep -o` prints each `otp=NNN` match on its own line; `sort -u` drops the repeat (ana's `481920` is caught twice, once for each try), leaving `481920` and `735104`; `wc -l` counts the two lines.
+
+  Two codes, from two people, and the relay used each one to finish signing in to the real site within the thirty seconds it was good for. A one-time code is a secret the person types, so a site that relays what they type collects it like any other. The session cookie on the lines between is what the attacker really keeps: once they have it, they are signed in without a code at all.
+skills: [phishing-resistance]

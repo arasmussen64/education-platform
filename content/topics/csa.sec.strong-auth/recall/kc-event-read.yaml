@@ -1,0 +1,19 @@
+id: kc-event-read
+type: predict_shell
+rev: 1
+prompt: |
+  `events.txt` holds three of the identity provider's sign-in events, captured in the lab. The command pulls out the reason a security-key sign-in was refused. What does it print?
+files:
+  events.txt: |
+    type="LOGIN" realmName="shop" clientId="admin-app" username="ana" auth_method="openid-connect"
+    type="LOGIN_ERROR" realmName="shop" clientId="admin-app" error="invalid_user_credentials" credential_type="webauthn" web_authn_authentication_error="webauthn-error-bad-origin"
+    type="CODE_TO_TOKEN" realmName="shop" clientId="admin-app" grant_type="authorization_code"
+command: |
+  grep -o 'web_authn_authentication_error="[^"]*"' events.txt
+expected_output: |
+  web_authn_authentication_error="webauthn-error-bad-origin"
+explanation: |
+  `grep -o` prints only the matched part, and only the one line that has it: the `LOGIN_ERROR`. The reason, `webauthn-error-bad-origin`, is the server's own check firing: the key's signature covered an origin (`login.shop-help.test`) that was not the real site's, so the provider refused it even though the browser had been told to lie about where it was.
+
+  This is the last of the three guards a relayed key sign-in meets, after the browser's (it won't ask the key for another site's name) and the key's (it has no credential for the lookalike). The server checks the origin inside what was signed, so even a broken browser gets nowhere.
+skills: [phishing-resistance]
