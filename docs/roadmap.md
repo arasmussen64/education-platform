@@ -2,17 +2,17 @@
 
 ## Where the project stands
 
-_Last updated 2026-11-23._ This is the one place the project's status is written down. Other documents link here instead of repeating it.
+_Last updated 2026-11-24._ This is the one place the project's status is written down. Other documents link here instead of repeating it.
 
 **Current phase: Phases 1 and 2 are built (2026-11-09 and 2026-11-10). Phase 3's content is under way. Finance and Markets Module 1 was written on 2026-11-17, and the build returns to the Cloud Solutions Architect track until that track is finished.**
 
-**Content.** 158 topics are `ready`, meaning written, machine-checked and shown to learners. Another 341 are outlines: a title, a summary and prerequisites, shown on the map with nothing to learn yet.
+**Content.** 162 topics are `ready`, meaning written, machine-checked and shown to learners. Another 337 are outlines: a title, a summary and prerequisites, shown on the map with nothing to learn yet.
 
 | Track                                                           | Ready               | Outlines            |
 | --------------------------------------------------------------- | ------------------- | ------------------- |
 | [Python Foundations](specs/python-foundations.md)               | 36, the whole track | 0                   |
 | [Machine Learning Foundations](specs/ml-foundations.md)         | 64, Modules 1 to 8  | 8, Module 9         |
-| [Cloud Solutions Architect](specs/cloud-solutions-architect.md) | 46, Modules 1 to 3 and five topics of Module 4 | 333, the rest of it |
+| [Cloud Solutions Architect](specs/cloud-solutions-architect.md) | 50, Modules 1 to 3 and nine topics of Module 4 | 329, the rest of it |
 | [Finance and Markets](specs/finance-markets.md)                 | 12, Module 1        | 0                   |
 
 **Since the audit** (2026-11-11, details in the [devlog](devlog.md)):
