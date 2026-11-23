@@ -38,9 +38,12 @@ words() {
   esac
 }
 
-for kind in $kinds; do
+# The cases come in a different order at every run, each in a folder named
+# by numbers made up now: neither the folder the script is run in nor its
+# turn says which kind of case it is.
+for kind in $(printf '%s\n' $kinds | shuf); do
   tag=$((RANDOM % 9000 + 1000))
-  d=$dir/$kind
+  d=$dir/$tag$RANDOM
   mkdir -p "$d"
   want=$(/usr/local/lib/lab/make-case "$kind" "$d" "$tag" 2> "$dir/err") ||
     { echo "the check couldn't build its own case: $(head -n 2 "$dir/err" | tr '\n' ' ')"; exit 0; }
