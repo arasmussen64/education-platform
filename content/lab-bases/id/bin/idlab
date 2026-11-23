@@ -1,0 +1,183 @@
+#!/bin/bash
+# idlab: what an identity lab's Dockerfile runs after "netlab enable", at
+# image build, so that every name, certificate, password, secret and key is
+# made then and none is in the repository.
+#
+#   idlab idp MACHINE URL          MACHINE runs Keycloak at URL (always: idp
+#                                  https://login.shop.test); makes its
+#                                  certificate and keycloak.conf
+#   idlab names NAME=ADDRESS...    every machine's /etc/hosts knows these names
+#   idlab cert MACHINE NAME...     a certificate from the lab's CA for NAME, in
+#                                  MACHINE's /etc/tls/NAME.crt and NAME.key
+#   idlab secret NAME...           a random value NAME in the realm's secrets.env
+#   idlab account USER...          a random password for USER: USER_PASSWORD in
+#                                  secrets.env, and "USER PASSWORD" in /etc/idlab/accounts
+#   idlab key REALM NAME [passive] a signing key for REALM (names sort; the last
+#                                  active one signs, the others stay published)
+#   idlab seckey USER USER-ID      a security key USER already has (signin --key /etc/idlab/keys/USER.key)
+#   idlab otp USER...              an authenticator-app secret for USER (/etc/idlab/otp/USER)
+#   idlab a2 MACHINE mod|site N... switch on an Apache module or site on MACHINE
+#   idlab secret-of NAME           print a secret made earlier (to write it into an app's file)
+#   idlab bake                     build every realm from its file into Keycloak's database
+set -euo pipefail
+NS=/etc/netns
+CA=/etc/idlab/ca
+# Certificates start two days ago, so a machine whose clock is behind still
+# finds them valid, on a CI runner where the image is seconds old.
+old() { faketime -f '-2d' "$@"; }
+
+idp_machine() {
+  [[ -e /etc/idlab/idp ]] || { echo "idlab: run 'idlab idp MACHINE URL' first" >&2; exit 2; }
+  . /etc/idlab/idp
+}
+
+# NAME_OF user suffix: the name a person's value has in secrets.env
+# ("ana" PASSWORD -> ANA_PASSWORD, "mary-ann" KEY -> MARY_ANN_KEY).
+name_of() { echo "$(echo "$1" | tr 'a-z-' 'A-Z_')_$2"; }
+
+make_ca() {
+  [[ -e $CA/ca.crt ]] && return
+  mkdir -p $CA
+  (umask 077; openssl ecparam -name prime256v1 -genkey -noout -out $CA/ca.key)
+  old openssl req -x509 -new -key $CA/ca.key -subj "/O=Shop/CN=Shop Lab Root CA" -days 3650 \
+    -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" -out $CA/ca.crt
+  cp $CA/ca.crt /usr/local/share/ca-certificates/shop-lab-root.crt
+  update-ca-certificates > /dev/null 2>&1
+}
+
+make_cert() {
+  local m=$1 name dir
+  shift
+  make_ca
+  dir=$NS/$m/tls
+  mkdir -p "$dir"
+  for name in "$@"; do
+    (umask 077; openssl ecparam -name prime256v1 -genkey -noout -out "$dir/$name.key")
+    openssl req -new -key "$dir/$name.key" -subj "/CN=$name" -out "/tmp/$name.csr"
+    old openssl x509 -req -in "/tmp/$name.csr" -CA $CA/ca.crt -CAkey $CA/ca.key -CAcreateserial -days 825 \
+      -extfile <(printf 'subjectAltName=DNS:%s\nextendedKeyUsage=serverAuth\n' "$name") -out "$dir/$name.crt" 2> /dev/null
+    rm "/tmp/$name.csr"
+    # Readable by root and by the daemons that serve with it (Keycloak and
+    # Apache are in the tlskey group), by nobody else.
+    chgrp tlskey "$dir/$name.key"
+    chmod 640 "$dir/$name.key"
+  done
+}
+
+case ${1:-} in
+  idp)
+    m=$2 url=$3 host=${3#https://}
+    printf 'IDP_MACHINE=%s\nIDP_URL=%s\n' "$m" "$url" > /etc/idlab/idp
+    mkdir -p "$NS/$m/keycloak/realms"
+    make_cert "$m" "$host"
+    cat > "$NS/$m/keycloak/keycloak.conf" << EOF
+# Keycloak on $m. The realm's own settings are in realms/, not here.
+hostname=$url
+https-port=443
+http-enabled=false
+https-certificate-file=/etc/tls/$host.crt
+https-certificate-key-file=/etc/tls/$host.key
+# One Keycloak, no cluster. Without this it looks for the other members of a
+# cluster through its database at every start, and after a restart that
+# killed it, waits 20 seconds or more for the instance it used to be.
+cache=local
+log-level=info
+# Sign-ins and token requests go to the journal, the good ones too.
+spi-events-listener--jboss-logging--success-level=info
+spi-events-listener--jboss-logging--error-level=warn
+EOF
+    touch "$NS/$m/keycloak/secrets.env"
+    chmod 600 "$NS/$m/keycloak/secrets.env"
+    ;;
+  names)
+    shift
+    for dir in "$NS"/*/; do
+      for pair in "$@"; do
+        printf '%s %s\n' "${pair#*=}" "${pair%%=*}" >> "${dir}hosts"
+      done
+    done
+    ;;
+  cert)
+    shift
+    make_cert "$@"
+    ;;
+  secret)
+    shift
+    idp_machine
+    for name in "$@"; do
+      printf '%s=%s\n' "$name" "$(openssl rand -hex 20)" >> "$NS/$IDP_MACHINE/keycloak/secrets.env"
+    done
+    ;;
+  account)
+    shift
+    idp_machine
+    for user in "$@"; do
+      password=$(openssl rand -hex 9)
+      printf '%s=%s\n' "$(name_of "$user" PASSWORD)" "$password" >> "$NS/$IDP_MACHINE/keycloak/secrets.env"
+      printf '%s %s\n' "$user" "$password" >> /etc/idlab/accounts
+    done
+    ;;
+  key)
+    idp_machine
+    dir=$NS/$IDP_MACHINE/keycloak/keys/$2
+    mkdir -p "$dir"
+    (umask 077; openssl genrsa -out "$dir/$3.key" 2048 2> /dev/null)
+    old openssl req -x509 -new -key "$dir/$3.key" -subj "/CN=$2 signing key $3" -days 825 -out "$dir/$3.crt"
+    if [[ ${4:-} == passive ]]; then touch "$dir/$3.passive"; fi
+    ;;
+  seckey)
+    # idlab seckey USER USER-ID: a software security key USER already has
+    # when the lab starts. The key is /etc/idlab/keys/USER.key (for "signin
+    # --key"); its public half is USER_KEY in secrets.env, which the realm
+    # file carries as a webauthn credential's "credentialData". USER-ID is
+    # the person's "id" in the realm file.
+    idp_machine
+    mkdir -p /etc/idlab/keys
+    data=$(/usr/local/lib/idlab/make-key "$3" "${IDP_URL#https://}" "/etc/idlab/keys/$2.key")
+    printf '%s=%s\n' "$(name_of "$2" KEY)" "$data" >> "$NS/$IDP_MACHINE/keycloak/secrets.env"
+    ;;
+  otp)
+    # idlab otp USER...: an authenticator-app secret for USER: USER_OTP in
+    # secrets.env (the realm file's otp credential), and its base32 form,
+    # what the app holds, in /etc/idlab/otp/USER (for "signin --otp-secret"
+    # and oathtool).
+    shift
+    idp_machine
+    mkdir -p /etc/idlab/otp
+    for user in "$@"; do
+      value=$(openssl rand -hex 10)
+      printf '%s=%s\n' "$(name_of "$user" OTP)" "$value" >> "$NS/$IDP_MACHINE/keycloak/secrets.env"
+      printf '%s' "$value" | base32 | tr -d '=\n' > "/etc/idlab/otp/$user"
+    done
+    ;;
+  secret-of)
+    idp_machine
+    awk -F= -v n="$2" '$1 == n { print substr($0, length(n) + 2) }' "$NS/$IDP_MACHINE/keycloak/secrets.env"
+    ;;
+  a2)
+    # idlab a2 MACHINE mod|site NAME...: switch on a module or a site in
+    # MACHINE's own Apache, as a2enmod and a2ensite do on a server (the
+    # package's default site goes when the first site is switched on).
+    m=$2 kind=$3
+    shift 3
+    for name in "$@"; do
+      found=no
+      for f in "$NS/$m/apache2/${kind}s-available/$name".{load,conf}; do
+        [[ -e $f ]] || continue
+        ln -sf "../${kind}s-available/$(basename "$f")" "$NS/$m/apache2/${kind}s-enabled/"
+        found=yes
+      done
+      [[ $found == yes ]] || { echo "idlab a2: $m has no $kind called $name in /etc/apache2/${kind}s-available" >&2; exit 1; }
+    done
+    if [[ $kind == site ]]; then rm -f "$NS/$m/apache2/sites-enabled/000-default.conf"; fi
+    ;;
+  bake)
+    idp_machine
+    KC_ETC=$NS/$IDP_MACHINE/keycloak /usr/local/lib/idlab/kc-build-run python3 /usr/local/lib/idlab/kcapi.py apply
+    chown -R keycloak:keycloak /opt/keycloak/data
+    ;;
+  *)
+    sed -n '2,21p' "$0" >&2
+    exit 2
+    ;;
+esac

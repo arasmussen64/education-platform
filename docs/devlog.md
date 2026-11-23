@@ -15,6 +15,30 @@ The plan's section 7 lists what must exist before any topic is written. Four hel
 - _Its first run on CI passed:_ the probe lab kept its contract on a GitHub runner in 148 seconds, the container build inside the lab included. That was the open question.
 - _The same run failed on an older lab, by chance._ The CORS audit lab's check starts a small server of its own on a random port between 30000 and 39999, and Linux gives out ports from 32768 up for its own connections; this once the port was taken, the server didn't start, and the reference solution was marked wrong. One other lab (the probe script in network troubleshooting) picked from the same range. Both now pick from 10000 to 19999. Both kept their contracts locally afterwards.
 
+**The other four bases and the checker change,** landed together so that CI ran its long lab check once for all of them.
+
+- _The lab checker builds a base on a base._ `id` starts from the network base, so the checker now reads a base's own `Dockerfile` and builds what it names first. A base that names itself, or a parent that doesn't exist, is refused by name. ADR-0018 has a fourth amendment, Proposed, which also says a check may make people and devices of its own at a lab's identity provider and remove them, and lists the module's pinned downloads.
+- _The network base changed, and was shown not to disturb what stands on it._ It learned five services, per-machine folders for Apache and chrony, a clock for each machine, and a `date` that refuses `-s`. Six Module 3 labs of different kinds kept their contracts on it, restart trials included.
+- _The `id` base._ Keycloak 26.8.2 at `login.shop.test`. Its probe lab kept its contract every time: 174 seconds alone, 366 each with four at once, about 620 MB of memory. Keycloak answered 8 to 13 seconds after boot alone and 20 to 24 with four at once, on a machine with twice a CI runner's processors.
+- _The `pay` base._ A payments server. Its probe lab (a sealed journal that a check tampers with and catches, the vulnerability scanner offline, a patch) kept its contract four times: 157 to 276 seconds, 196 MB.
+- _The `policy` and `tm` bases._ Small. Their probe labs kept their contracts in about a minute each. `tm-check` passes its 64-line reference and fails each of 25 wrong models for the right reason.
+
+**What building them found** is in the plan's [build notes](plans/cloud-module-4/BUILD-NOTES.md), for the topic writers. The ones that change a topic's design:
+
+- An `openssh` upgrade restarts the service by itself on the `pay` base, so the vulnerabilities topic's "patched but not restarted" trap needs another service.
+- One compliance rule the plan chose as the accepted exception reports "not applicable", so the compliance build needs another.
+- The compliance scanner hung once in 28 whole-profile runs; labs run named rules only, and the helper stops a stuck run.
+- Python's `sleep` fails on a lab machine with a shifted clock, so the base's time service runs outside the shift.
+- The API module keeps serving a token it has already accepted after the token expires.
+
+**Author notes:**
+
+- _Two newest releases were too young to pin_ (the two-week rule), so OSV-Scanner and OpenBao are one release behind the plan's. OSV-Scanner's older release needs a small workaround at build, noted in the base.
+- _No seventh pin._ A newer libfaketime would fix the `sleep` fault; I left Ubuntu's and kept the workaround, since one more download from outside the archive is a cost and the workaround is three lines.
+- _The helper tests grew a lot:_ 801 Python tests pass on the combined branch, up from about 530.
+- _Each builder ran on this machine only._ The lab run on the pull request is the first time the `id`, `pay`, `policy` and `tm` bases run on a GitHub runner, and the first time the changed network base does.
+- _The identity base landed without its probe lab._ On CI's machines the probe's time-sync stand-in (`timesync@app`) failed to start, which never happened on this PC, not even with the lab's time server stopped by hand. The other three bases' probes passed there. The identity probe goes up alone, printing the services' logs when that step fails, so that CI shows the cause. No lab uses the identity base until it does.
+- _Three draft probe topics_ sit in Module 4's list in the track file (only a dev server shows them). They go when the topics that replace them are written, as Module 3's probe topic did.
 **The app bundles Module 4.** The first topic's writer found that a ready `csa.sec.*` topic fails one web test: the app loads the cloud track's unwritten topics only on demand, and names the written modules by pattern. Module 4's pattern and its checkpoint are added in the three places Module 3's are (the bundle, the on-demand outlines' exclusion, the test). The pattern is `csa.sec.*`, and the dot keeps Module 20's `csa.secarch.*` outlines out.
 
 ## 2026-11-22, cloud Module 4: the plan

@@ -1578,6 +1578,77 @@ def test_the_validator_wants_a_labs_base_to_exist(tmp_path: Path) -> None:
     ]
 
 
+# --- A base on a base (ADR-0018, fourth amendment) ----------------------------------
+
+
+def test_a_base_that_starts_from_a_base_has_that_one_built_first(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # The identity base is the network base with more on it. On a machine
+    # with neither image (every CI runner), net must be built before id.
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-id\nCOPY topology /x\n")
+    write(tmp_path, "content/lab-bases/id/Dockerfile", "FROM lab-base-net\n")
+    write(tmp_path, "content/lab-bases/net/Dockerfile", "FROM ubuntu:24.04\n")
+    labcheck.build_image(lab)
+    bases = tmp_path / "content" / "lab-bases"
+    assert docker.calls == [
+        ("build", "-q", "-t", "lab-base-net", str(bases / "net")),
+        ("build", "-q", "-t", "lab-base-id", str(bases / "id")),
+        ("build", "-q", "-t", IMAGE, str(lab.folder)),
+    ]
+
+
+def test_a_bases_missing_parent_is_refused_by_name(tmp_path: Path, monkeypatch) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-id\n")
+    write(tmp_path, "content/lab-bases/id/Dockerfile", "FROM lab-base-nett\n")
+    with pytest.raises(
+        LabError,
+        match=r"no lab base called nett: a Dockerfile says FROM lab-base-nett, "
+        r"and .*content/lab-bases/nett/Dockerfile doesn't exist",
+    ):
+        labcheck.build_image(lab)
+    assert docker.calls == []
+
+
+def test_a_base_that_starts_from_itself_is_refused(tmp_path: Path, monkeypatch) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-id\n")
+    write(tmp_path, "content/lab-bases/id/Dockerfile", "FROM lab-base-id\n")
+    with pytest.raises(LabError, match=r"lab base id starts from itself \(id -> id\)"):
+        labcheck.build_image(lab)
+    # And by way of another base.
+    write(tmp_path, "content/lab-bases/id/Dockerfile", "FROM lab-base-net\n")
+    write(tmp_path, "content/lab-bases/net/Dockerfile", "FROM lab-base-id\n")
+    with pytest.raises(
+        LabError, match=r"lab base id starts from itself \(id -> net -> id\)"
+    ):
+        labcheck.build_image(lab)
+    assert docker.calls == []
+
+
+def test_the_validator_reads_each_bases_own_dockerfile(tmp_path: Path) -> None:
+    tree = make_valid_tree(tmp_path)
+    write(tree, "content/lab-bases/net/Dockerfile", "FROM ubuntu:24.04\n")
+    write(tree, "content/lab-bases/id/Dockerfile", "FROM lab-base-net\n")
+    assert validate(tree, run=False).problems == []
+    write(tree, "content/lab-bases/id/Dockerfile", "FROM lab-base-nett\n")
+    assert validate(tree, run=False).problems == [
+        "content/lab-bases/id/Dockerfile: starts FROM lab-base-nett, but there is "
+        "no content/lab-bases/nett/Dockerfile to build it from (the bases are: id, "
+        "net); fix the name, or add that base"
+    ]
+    write(tree, "content/lab-bases/id/Dockerfile", "FROM lab-base-id\n")
+    assert validate(tree, run=False).problems == [
+        "content/lab-bases/id/Dockerfile: this base starts from itself (id -> id); "
+        "a base starts FROM another base, or FROM ubuntu:24.04"
+    ]
+
+
 # --- The restart trial (ADR-0018, third amendment) ----------------------------------
 
 # Two checks that pass on exit status 0, so a stand-in Docker decides them.

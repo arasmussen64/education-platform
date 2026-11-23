@@ -1,0 +1,222 @@
+#!/usr/bin/python3
+"""timesync: keep this machine's clock right, as a time-sync client does.
+
+It runs on a machine (timesync@M) and reads the `server` and `pool` lines of
+the machine's /etc/chrony/chrony.conf, the file chronyd's client reads. Every
+32 seconds it asks the first server that answers for the time (SNTP, RFC
+4330: one NTP packet each way) and, if this machine's clock is more than half
+a second out, steps it to the server's time, as chronyd's `makestep` does.
+
+It is a stand-in. chronyd would steer the kernel's clock, which every machine
+of the lab shares with Docker's whole machine; a machine's own clock here is
+libfaketime's offset in the machine's /etc/faketimerc (machine-clock says
+how), so stepping the clock means rewriting that offset. What the learner
+sees is what they'd see of a real client: the servers it uses, whether they
+answer, and by how much it stepped the clock, in "journalctl -u timesync@M".
+
+It reads the machine's clock the way it sets it: the real time plus the
+offset in the file. It does not run under libfaketime itself (it starts
+itself again without it): Ubuntu 24.04's libfaketime, 0.9.10, breaks
+Python's time.sleep (the base's README, "Clocks").
+"""
+
+import os
+import re
+import socket
+import struct
+import sys
+import time
+
+CONF = "/etc/chrony/chrony.conf"
+OFFSET = "/etc/faketimerc"
+NTP_EPOCH = 2208988800  # seconds from 1900 (NTP's epoch) to 1970 (Unix's)
+
+
+class Unsynchronised(Exception):
+    """The server answered, and said its own clock is not to be trusted."""
+
+
+def say(text):
+    print(text, flush=True)
+
+
+def servers(text):
+    """The time servers a chrony.conf names, in order."""
+    found = []
+    for line in text.splitlines():
+        words = line.split("#")[0].split()
+        if len(words) >= 2 and words[0] in ("server", "pool"):
+            found.append(words[1])
+    return found
+
+
+def read_reply(data, sent, back):
+    """The server's time minus ours, from its 48-byte answer; or raises
+    Unsynchronised when the answer says the server has no time to give
+    (leap indicator 3, or stratum 0: a server that never found its own
+    source)."""
+    if len(data) < 48:
+        raise OSError("short answer")
+    if data[0] >> 6 == 3 or data[1] == 0:
+        raise Unsynchronised()
+    seconds, fraction = struct.unpack("!II", data[40:48])  # its transmit time
+    server = seconds - NTP_EPOCH + fraction / 2**32
+    return server - (sent + back) / 2
+
+
+def now():
+    """This machine's clock: the real time plus the machine's offset."""
+    return time.time() + (current_offset() or 0)
+
+
+def ask(name):
+    """(server's time minus ours, the address asked), or raise OSError."""
+    address = socket.getaddrinfo(name, 123, socket.AF_INET, socket.SOCK_DGRAM)[0][4]
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.settimeout(2)
+        sent = now()
+        s.sendto(b"\x23" + 47 * b"\0", address)  # version 4, client mode
+        data, _ = s.recvfrom(48)
+        back = now()
+    return read_reply(data, sent, back), address
+
+
+def parse_offset(text):
+    """A faketimerc's offset in seconds ("+480", "-1200", "+0"), or None
+    when the file holds something this client didn't write."""
+    m = re.fullmatch(r"([+-]?\d+(?:\.\d+)?)s?", text.strip() or "+0")
+    return float(m.group(1)) if m else None
+
+
+def current_offset():
+    try:
+        return parse_offset(open(OFFSET, encoding="utf-8").read())
+    except FileNotFoundError:
+        return None
+
+
+def main():
+    reported = None
+    started = time.monotonic()
+    while True:
+        try:
+            names = servers(open(CONF, encoding="utf-8").read())
+        except FileNotFoundError:
+            names = []
+        if not names:
+            message = (
+                f"no time servers in {CONF} (a 'server NAME iburst' line names one); "
+                "the clock is not synchronized"
+            )
+        else:
+            message = None
+            for name in names:
+                try:
+                    difference, (addr, port) = ask(name)
+                except Unsynchronised:
+                    message = (
+                        f"time server {name} answered, but says its own clock is not "
+                        "synchronized; the clock is not synchronized"
+                    )
+                    continue
+                except (OSError, IndexError) as e:
+                    why = (
+                        "the name doesn't resolve"
+                        if isinstance(e, socket.gaierror)
+                        else "no answer"
+                    )
+                    message = f"time server {name}: {why}; the clock is not synchronized"
+                    continue
+                offset = current_offset()
+                if abs(difference) > 0.5 and offset is not None:
+                    # Written in place: the file is laid over /etc/faketimerc,
+                    # and replacing it would leave the old one in use.
+                    with open(OFFSET, "w", encoding="utf-8") as f:
+                        f.write(f"{round(offset + difference):+d}\n")
+                    say(
+                        f"synchronized to time server {addr}:{port} ({name}): "
+                        f"clock stepped by {difference:+.1f} s"
+                    )
+                    # libfaketime reads the file again within a second.
+                    time.sleep(3)
+                    reported = None
+                elif abs(difference) > 0.5:
+                    message = (
+                        f"time server {name} says the clock is {difference:+.1f} s "
+                        "out, and it can't be set"
+                    )
+                else:
+                    message = f"in sync with time server {addr}:{port} ({name})"
+                break
+        if message and message != reported:
+            say(message)
+            reported = message
+        if message and message.startswith("in sync"):
+            time.sleep(32)
+        elif time.monotonic() - started < 15:
+            # Just started, at boot or by hand: the time server may be a
+            # second behind, so ask again soon.
+            time.sleep(1)
+        else:
+            time.sleep(8)
+
+
+def state():
+    """(in sync?, what to say, worth asking again?) right now, without
+    touching the clock: does a server the file names answer, and does this
+    machine's clock agree with it?"""
+    try:
+        names = servers(open(CONF, encoding="utf-8").read())
+    except FileNotFoundError:
+        names = []
+    if not names:
+        return False, f"no time servers in {CONF}", False
+    why, again = "", False
+    for name in names:
+        try:
+            difference, _ = ask(name)
+        except Unsynchronised:
+            why = f"time server {name} says its own clock is not synchronized"
+            again = True
+            continue
+        except socket.gaierror:
+            why = why or f"time server {name}: the name doesn't resolve"
+            continue
+        except (OSError, IndexError):
+            why, again = f"time server {name}: no answer", True
+            continue
+        if abs(difference) <= 0.5:
+            return True, f"in sync with time server {name}", False
+        return False, f"the clock is {difference:+.1f} s from time server {name}", True
+    return False, why, again
+
+
+def check(settle):
+    """timesync --check: "in sync with time server NAME" and exit 0, or why
+    not and exit 1 (the checks' clock_synced). timesync --settle SECONDS:
+    the same question asked for up to SECONDS until the answer is yes, for
+    the unit's ExecStartPost, so "started" means "has had its chance to set
+    the clock"; it gives up at once when asking again can't help (no server
+    named, a name that doesn't resolve) and always exits 0."""
+    deadline = time.monotonic() + settle
+    while True:
+        ok, text, again = state()
+        if ok or not again or time.monotonic() >= deadline:
+            break
+        time.sleep(0.5)
+    if settle:
+        return 0
+    say(text)
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    if "faketime" in os.environ.get("LD_PRELOAD", ""):
+        # Started on a machine with a clock of its own: again, without it.
+        del os.environ["LD_PRELOAD"]
+        os.execv(sys.argv[0], sys.argv)
+    if sys.argv[1:2] == ["--check"]:
+        sys.exit(check(0))
+    if sys.argv[1:2] == ["--settle"]:
+        sys.exit(check(float(sys.argv[2])))
+    sys.exit(main())

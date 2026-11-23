@@ -892,6 +892,38 @@ def check_lab_base(dockerfile: Path, report: Report) -> None:
         )
 
 
+def check_lab_bases(report: Report) -> None:
+    """A base may start FROM another base (ADR-0018, fourth amendment). Each
+    base's own Dockerfile gets the check a lab's gets (the base it names
+    exists, in the form the checker reads), and no base may lead back to
+    itself, or the checker would refuse every lab built on it."""
+    import labcheck
+
+    bases = report.root / "content" / "lab-bases"
+    for dockerfile in sorted(bases.glob("*/Dockerfile")):
+        check_lab_base(dockerfile, report)
+        seen = [dockerfile.parent.name]
+        while True:
+            current = bases / seen[-1] / "Dockerfile"
+            if not current.exists():
+                break
+            parent = labcheck.base_named_in(current.read_text(encoding="utf-8"))
+            if parent is None:
+                break
+            if parent in seen:
+                # Said at each base that is part of the loop, not at one
+                # that only leads into it.
+                if parent == seen[0]:
+                    chain = " -> ".join([*seen, parent])
+                    report.add(
+                        dockerfile,
+                        f"this base starts from itself ({chain}); a base starts "
+                        "FROM another base, or FROM ubuntu:24.04",
+                    )
+                break
+            seen.append(parent)
+
+
 def check_lab(folder: Path, exercise: Exercise, report: Report, run: bool) -> None:
     """A lab (ADR-0018) needs its image, its checks and its solution. Its
     contract (pristine fails, the solution passes, wrong fixes fail) needs
@@ -1764,6 +1796,7 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
             folder, topics, places.get(folder.topic.id), report, run=run, labs=labs
         )
 
+    check_lab_bases(report)
     check_glossaries(topics, report)
     check_diagnostics(content, topics, report)
     report_long_answers(report)

@@ -1,0 +1,71 @@
+#!/usr/bin/python3 -u
+"""shop-audit: the shop's audit writer (scenery, run by shop-audit.service).
+
+It listens on a local socket for what the shop does (shop-cli sends it) and
+writes one line to its standard output for each event that the audit policy,
+/etc/shop/audit.conf, says to record, with only the fields the policy names.
+The unit's LogNamespace=audit puts those lines in the "audit" journal:
+
+    journalctl --namespace=audit -t shop-audit
+
+Every line of the trail starts "time=". A policy line it can't use is left
+out and reported once, when the policy is read, as a warning in that same
+journal (a unit with LogNamespace= has no other):
+
+    journalctl --namespace=audit -u shop-audit -p warning
+
+It reads the policy at start and at "systemctl reload shop-audit".
+"""
+
+import json
+import os
+import signal
+import socket
+import sys
+from datetime import datetime, timezone
+
+sys.path.insert(0, "/usr/local/lib/shop")
+from shop_events import POLICY, SOCKET, parse_policy, trail_line  # noqa: E402
+
+policy: tuple[dict, set] = ({}, set())
+
+
+def load_policy(*_signal) -> None:
+    global policy
+    try:
+        with open(POLICY, encoding="utf-8") as file:
+            text = file.read()
+    except OSError as error:
+        text = ""
+        print(f"<4>audit.conf: {error.strerror}; nothing is audited", file=sys.stderr)
+    audited, masked, problems = parse_policy(text)
+    for problem in problems:
+        # "<4>" marks the line as a warning for the journal (sd-daemon(3)).
+        print(f"<4>{problem}", file=sys.stderr)
+    policy = (audited, masked)
+
+
+def main() -> None:
+    load_policy()
+    signal.signal(signal.SIGHUP, load_policy)
+    if os.path.exists(SOCKET):
+        os.unlink(SOCKET)
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    listener.bind(SOCKET)
+    os.chmod(SOCKET, 0o666)  # anyone on the server can use the shop
+    while True:
+        try:
+            message = json.loads(listener.recv(65536))
+            event, fields = message["event"], message["fields"]
+        except InterruptedError:
+            continue
+        except (ValueError, KeyError, TypeError):
+            continue
+        when = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        line = trail_line(event, fields, policy[0], policy[1], when)
+        if line is not None:
+            print(line)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,19 @@
+# The shop's audit writer (scenery). LogNamespace=audit sends everything it
+# prints to a journal of its own, the "audit" journal namespace, which has
+# its own journald (systemd-journald@audit.service), its own settings
+# (/etc/systemd/journald@audit.conf) and its own files:
+#   journalctl --namespace=audit
+[Unit]
+Description=The shop's audit writer
+
+[Service]
+User=shop
+RuntimeDirectory=shop
+ExecStart=/usr/local/bin/shop-audit
+ExecReload=/bin/kill -HUP $MAINPID
+LogNamespace=audit
+SyslogIdentifier=shop-audit
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

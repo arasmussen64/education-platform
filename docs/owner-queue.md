@@ -56,7 +56,7 @@ Module 2 is complete without them: every topic is proven locally, for free. Thes
 - **2026-11-22, cloud Module 4's plan** ([the plan](plans/cloud-module-4/MODULE-4-BRIEF.md), section 10 has all fifteen). The ones you'd most want to know:
   - _Order:_ strong authentication is taught after single sign-on, because its labs read sign-in tokens.
   - _One identity provider, Keycloak,_ for every sign-in lab, run locally and free. No real-cloud lab and no cost anywhere in the module; the clouds' paid identity features are taught from their documentation.
-  - _Five new lab bases,_ and the lab checker learns to build one base on another ([ADR-0018](decisions/0018-lab-checker-local-mode.md), a fourth amendment, to be proposed with that change).
+  - _Five new lab bases,_ and the lab checker learns to build one base on another ([ADR-0018](decisions/0018-lab-checker-local-mode.md), a fourth amendment, written and marked Proposed on 2026-11-23: say "accept it" or what to change).
   - _Six programs downloaded from outside Ubuntu's own archive,_ each pinned to an exact version and checksum, all open source.
   - _Checkpoint 4 gets a third part,_ answering a leak (find the secrets, rotate the key, replace the certificate, read the audit trail), if its prototype holds. Without it, secrets, certificates and audit logs would end the module with no hands-on proof.
   - _No videos are assigned in Module 4;_ each lesson is the app's own text, as ADR-0031 asks.

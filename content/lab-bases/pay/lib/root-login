@@ -1,0 +1,26 @@
+#!/bin/bash
+# root-login: can root log in to this server over SSH with a key?
+# For checks: what the running SSH server does, which "sshd -T" and a
+# benchmark rule can't show (both read the files, and a server keeps the
+# settings it started with until it is reloaded). It tries a real login as
+# root on 127.0.0.1 with a throwaway key that the image authorised for root
+# when it was built, and prints one line:
+#   allowed       root got in
+#   refused       the server answered and turned root away
+#   key removed   the throwaway key is no longer in root's authorized_keys,
+#                 so the login proves nothing
+#   no answer: REASON    no SSH server answered
+key=/usr/local/lib/lab-pay/root-test-key
+if ! grep -qsF "$(cut -d' ' -f1,2 "$key.pub")" /root/.ssh/authorized_keys; then
+  echo "key removed"
+  exit 0
+fi
+said=$(ssh -i "$key" -p 22 -o BatchMode=yes -o IdentitiesOnly=yes \
+  -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 \
+  root@127.0.0.1 echo root-is-in 2>&1 < /dev/null)
+case $said in
+  *root-is-in*) echo allowed ;;
+  *"Permission denied"*) echo refused ;;
+  *) echo "no answer: $(echo "$said" | tail -n 1)" ;;
+esac

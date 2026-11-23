@@ -8,7 +8,7 @@ Everything learners see: tracks, topics, lessons and exercises, as plain files i
 content/
 ├── tracks/<track-id>.yaml           modules, and which topics are in each; one file per track
 ├── diagnostics/<id>.yaml            a ladder the placement test walks, e.g. math (ADR-0021)
-├── lab-bases/<name>/                a base image labs can start FROM: net, the network labs' (below)
+├── lab-bases/<name>/                a base image labs can start FROM: net, id, vault, pay, policy, tm (below)
 └── topics/<topic-id>/
     ├── topic.yaml                   metadata, prerequisites, resources, which items to use
     ├── lesson.mdx                   the AI-written intro and recap around the main resource
@@ -242,6 +242,26 @@ Then try it as a learner, with the commands the lab page lists (`python -m uv ru
 ## Network labs
 
 A lab of several machines (routers, name servers, VPN gateways, load balancers: the cloud track's Module 3 and later) starts from the shared **network-lab base**, `content/lab-bases/net/`, and **[its README](lab-bases/net/README.md) is what to read before writing one**: the topology file's words, `on MACHINE`, services as `name@machine` (`frr@r1`, `nginx@web`), a machine's own `/etc/sysctl.d/` and `/etc/network/up`, `netlab verify`, `netlab link`, the check helpers, the rules every check on the base follows, and the kernel features it needs. The lab's own `Dockerfile` is four lines (`FROM lab-base-net`, its topology, its machines' files, `netlab enable`); `tools/labcheck.py` builds the base first, and the validator refuses a lab that names a base that doesn't exist ([ADR-0018](../docs/decisions/0018-lab-checker-local-mode.md), third amendment). Every network lab sets `lab: { init: systemd, restart_trial: true }`. Module 1's single-machine pattern ("A lab with a network", above) stays as it is for Module 1's labs.
+
+### The security module's lab bases
+
+Cloud Module 4's labs start from five more bases, built from [its plan](../docs/plans/cloud-module-4/README.md). **Read the base's own README before writing a lab on it,** and the plan's [build notes](../docs/plans/cloud-module-4/BUILD-NOTES.md), which list where a base as built differs from the plan's briefs.
+
+| Base | For | What it holds | Read |
+| --- | --- | --- | --- |
+| `id` | **Identity labs:** single sign-on, strong authentication, zero trust, Checkpoint 4 part 2 | Keycloak (an open-source identity provider) on the network base, at `login.shop.test`; a scripted browser (`signin`); token tools (`jwt`, `mint-token`); a clock for each machine (`clock`) | [lab-bases/id/README.md](lab-bases/id/README.md) |
+| `vault` | Cryptography, secrets, Checkpoint 4 part 3 | OpenBao (keys and secrets), PostgreSQL, git, gitleaks, podman | [lab-bases/vault/README.md](lab-bases/vault/README.md) |
+| `pay` | Audit logging, vulnerabilities, compliance | A payments server with a sealed audit journal, OSV-Scanner with frozen records, OpenSCAP | [lab-bases/pay/README.md](lab-bases/pay/README.md) |
+| `policy` | Authentication and authorization | The Cedar command-line tool and helpers that try a policy against made-up requests | [lab-bases/policy/README.md](lab-bases/policy/README.md) |
+| `tm` | **Threat-model labs:** threat modeling, Checkpoint 4 part 1 | `tm-check`, which reads a threat model written as plain lines of text | [lab-bases/tm/README.md](lab-bases/tm/README.md) |
+
+Three rules these bases add:
+
+- **A base may start from another base.** `id` is `FROM lab-base-net`; `tools/labcheck.py` builds the parent first ([ADR-0018](../docs/decisions/0018-lab-checker-local-mode.md), fourth amendment).
+- **In an identity lab the realm file is the configuration.** A change made only in the running identity provider is lost when the realm is applied again, and a check compares the two, so a fix has to be in the file.
+- **A lab never sets the real clock.** A machine's clock is shifted with the base's `clock` tool; `date -s` is refused.
+
+A script that runs inside a lab is formatted for the lab's Python 3.12, not the repository's 3.14 (the build notes say why).
 
 Module 3's **plain labs** (address plans, reports and casebooks with no network to build) share one first `RUN`, Module 1's plain line plus the tools their checks use. Python is the checks' tool, never the learner's, and a throwaway server in a plain lab listens on 127.0.0.1, since a plain lab has no privilege to make namespaces:
 

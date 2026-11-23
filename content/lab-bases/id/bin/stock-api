@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""The shop's stock API: the identity labs' stand-in resource server.
+GET /stock/level answers only a request that carries an access token which
+passes the checks its settings ask for, and its log says why it refused
+one. Its settings are /etc/stock-api/api.conf on its machine:
+
+  name = api.shop.test          (its certificate is /etc/tls/NAME.crt and .key)
+  issuer = https://login.shop.test/realms/shop
+  audience = https://api.shop.test
+  jwks_uri = https://login.shop.test/realms/shop/protocol/openid-connect/certs
+  leeway = 60                   (seconds of clock difference it forgives)
+  check_audience = yes          (the switches a hurried fix reaches for)
+  check_expiry = yes
+
+It reads the file when it starts, fetches the keys when it first needs
+them, and fetches them once more when a token names a key it doesn't have.
+"""
+
+import http.server
+import json
+import ssl
+import sys
+import time
+
+sys.path.insert(0, "/usr/local/lib/idlab")
+import jwtlib  # noqa: E402
+
+CONF = "/etc/stock-api/api.conf"
+conf = {"leeway": "60", "check_audience": "yes", "check_expiry": "yes"}
+for line in open(CONF, encoding="utf-8"):
+    line = line.split("#", 1)[0].strip()
+    if "=" in line:
+        key, value = line.split("=", 1)
+        conf[key.strip()] = value.strip()
+
+jwks = {"keys": []}
+fetched = 0.0
+
+
+def say(text):
+    print(text, flush=True)
+
+
+def refresh():
+    global jwks, fetched
+    if time.time() - fetched < 5:
+        return
+    fetched = time.time()
+    try:
+        jwks = jwtlib.fetch_jwks(conf["jwks_uri"])
+    except Exception as error:  # noqa: BLE001
+        say(f"couldn't fetch the keys from {conf['jwks_uri']}: {error}")
+
+
+def judge(token):
+    audience = conf["audience"] if conf["check_audience"] == "yes" else None
+    leeway = int(conf["leeway"]) if conf["check_expiry"] == "yes" else None
+    if not jwks["keys"]:
+        refresh()
+    verdict, payload = jwtlib.verify(token, conf["issuer"], audience, jwks, None, leeway)
+    if verdict == "key":
+        refresh()
+        verdict, payload = jwtlib.verify(token, conf["issuer"], audience, jwks, None, leeway)
+    return verdict, payload
+
+
+REASONS = {
+    "format": "not a JSON Web Token",
+    "alg": "its alg is not RS256",
+    "key": "signed with a key the issuer doesn't publish",
+    "signature": "the signature doesn't verify",
+    "issuer": "issuer {iss!r} is not {issuer!r}",
+    "audience": "audience {aud!r} doesn't include {audience!r}",
+    "expired": "expired (exp {exp}, now {now}, leeway {leeway} s)",
+    "not-yet-valid": "not valid yet (iat {iat}, now {now}, leeway {leeway} s)",
+}
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *_):
+        pass
+
+    def answer(self, status, body, extra=None):
+        raw = (json.dumps(body) + "\n").encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        for name, value in (extra or {}).items():
+            self.send_header(name, value)
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def do_GET(self):
+        if self.path != "/stock/level":
+            return self.answer(404, {"error": "not found"})
+        auth = self.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            say(f"{self.client_address[0]} refused: no bearer token")
+            return self.answer(401, {"error": "no token"}, {"WWW-Authenticate": "Bearer"})
+        verdict, payload = judge(auth[7:])
+        if verdict != "valid":
+            why = REASONS[verdict].format(
+                iss=payload.get("iss"), aud=payload.get("aud"), exp=payload.get("exp"), iat=payload.get("iat"),
+                issuer=conf["issuer"], audience=conf["audience"], now=int(time.time()), leeway=conf["leeway"],
+            )
+            say(f"{self.client_address[0]} refused: {why}")
+            header = f'Bearer error="invalid_token", error_description="{verdict}"'
+            return self.answer(401, {"error": "invalid_token", "reason": verdict}, {"WWW-Authenticate": header})
+        caller = payload.get("preferred_username") or payload.get("azp") or payload.get("sub")
+        say(f"{self.client_address[0]} served: {caller}")
+        return self.answer(200, {"item": "kettle", "level": 42, "caller": caller})
+
+
+server = http.server.ThreadingHTTPServer(("0.0.0.0", 443), Handler)
+context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+context.load_cert_chain(f"/etc/tls/{conf['name']}.crt", f"/etc/tls/{conf['name']}.key")
+server.socket = context.wrap_socket(server.socket, server_side=True)
+say(f"listening on 443 as {conf['name']}: issuer {conf['issuer']}, audience {conf['audience']}, "
+    f"leeway {conf['leeway']} s, check_audience {conf['check_audience']}, check_expiry {conf['check_expiry']}")
+server.serve_forever()

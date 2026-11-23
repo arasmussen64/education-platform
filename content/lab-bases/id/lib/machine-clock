@@ -1,0 +1,77 @@
+#!/bin/bash
+# The lab's clocks. Every machine of a lab shares the kernel's one clock,
+# which in a privileged container is the real clock of Docker's whole
+# machine, so nothing here ever sets it. A machine with a clock of its own
+# (the topology runs timesync on it) has two files in its /etc (on the lab
+# machine, /etc/netns/M/):
+#   clock/hwclock  how far off its hardware clock is, in whole seconds
+#                  ("+480", "-1200", "0"), or with libfaketime's m, h or d
+#                  after the number ("+8m"). Scenery: a lab seals it.
+#   faketimerc     how far off the machine's clock is right now, in seconds.
+#                  lab-enter gives every program started on the machine
+#                  libfaketime, which adds this to the real time.
+#
+#   machine-clock boot       every such machine's clock := its hardware clock
+#                            (machine-clocks.service, at every boot: the
+#                            state a server is in before its time sync has
+#                            spoken)
+#   machine-clock offset M   M's clock minus the real time, in seconds
+#   machine-clock show       each machine with a clock of its own, and its offset
+set -euo pipefail
+
+# seconds_of TEXT: "+8m" -> 480, "-1200" -> -1200, "" -> 0; exit 1 on
+# anything else.
+seconds_of() {
+  local text=$1 sign=1 number unit
+  text=${text//[$' \t\r\n']/}
+  [[ -z $text ]] && { echo 0; return; }
+  [[ $text =~ ^([+-]?)([0-9]+)([smhd]?)$ ]] || return 1
+  [[ ${BASH_REMATCH[1]} == - ]] && sign=-1
+  number=$((10#${BASH_REMATCH[2]}))
+  unit=${BASH_REMATCH[3]}
+  case $unit in
+    m) number=$((number * 60)) ;;
+    h) number=$((number * 3600)) ;;
+    d) number=$((number * 86400)) ;;
+  esac
+  echo $((sign * number))
+}
+
+case ${1:-} in
+  boot)
+    for f in /etc/netns/*/faketimerc; do
+      [[ -e $f ]] || continue
+      m=$(basename "$(dirname "$f")")
+      hw=/etc/netns/$m/clock/hwclock
+      off=0
+      if [[ -s $hw ]]; then
+        off=$(seconds_of "$(cat "$hw")") || {
+          echo "machine-clock: $m: $hw must hold seconds, like +480 or -1200 (or +8m)" >&2
+          off=0
+        }
+      fi
+      # Written in place: once the machine is up, the file is laid over its
+      # /etc/faketimerc.
+      printf '%+d\n' "$off" > "$f"
+      echo "machine-clock: $m starts $off s from the real time (its hardware clock)" >&2
+    done
+    ;;
+  offset)
+    there=$(ip netns exec "$2" /usr/local/lib/netlab/lab-enter "$2" /usr/bin/date +%s)
+    here=$(/usr/bin/date +%s)
+    echo $((there - here))
+    ;;
+  show)
+    for f in /etc/netns/*/faketimerc; do
+      [[ -e $f ]] || continue
+      echo "$(basename "$(dirname "$f")") $(cat "$f")"
+    done
+    ;;
+  seconds-of)
+    seconds_of "${2:-}"
+    ;;
+  *)
+    echo "usage: machine-clock boot | offset MACHINE | show" >&2
+    exit 2
+    ;;
+esac

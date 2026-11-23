@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""mint-token: a token made by a check, to prove an app refuses what it
+should. Signed with a key made on the spot (so no app that checks the
+identity provider's signature accepts it), or unsigned with --alg none.
+
+  mint-token --iss URL --aud AUD [--sub SUB] [--kid KID] [--exp-in SECONDS] [--alg none]
+             [--claims JSON]
+"""
+
+import argparse
+import json
+import sys
+import time
+
+sys.path.insert(0, "/usr/local/lib/idlab")
+import jwtlib  # noqa: E402
+from cryptography.hazmat.primitives import hashes  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric import padding, rsa  # noqa: E402
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--iss", required=True)
+parser.add_argument("--aud", required=True)
+parser.add_argument("--sub", default="intruder")
+parser.add_argument("--kid", default="check-key")
+parser.add_argument("--exp-in", type=int, default=300)
+parser.add_argument("--alg", default="RS256")
+parser.add_argument("--claims", default="{}")
+args = parser.parse_args()
+
+now = int(time.time())
+payload = {"iss": args.iss, "aud": args.aud, "sub": args.sub, "iat": now, "exp": now + args.exp_in}
+payload.update(json.loads(args.claims))
+header = {"alg": args.alg, "typ": "JWT", "kid": args.kid}
+signed = jwtlib.b64url(json.dumps(header).encode()) + "." + jwtlib.b64url(json.dumps(payload).encode())
+if args.alg == "none":
+    print(signed + ".")
+else:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    print(signed + "." + jwtlib.b64url(key.sign(signed.encode(), padding.PKCS1v15(), hashes.SHA256())))

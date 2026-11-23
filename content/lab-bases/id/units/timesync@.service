@@ -1,0 +1,27 @@
+# Time sync on one of the lab's machines: "systemctl status timesync@app",
+# "journalctl -u timesync@app". A stand-in for chronyd's client side, which
+# can't steer a machine's clock here (every machine shares the one real
+# clock of Docker's whole machine): it asks the servers in the machine's
+# /etc/chrony/chrony.conf for the time, as chronyd does, and steps the
+# machine's own clock to it. Enabled, it does so from every boot on;
+# stopped or disabled, the machine keeps whatever time it has.
+[Unit]
+Description=Time sync (from /etc/chrony/chrony.conf) on %i
+After=netlab.service machine-clocks.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+Type=simple
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/lib/idlab/timesync
+# Started means it has had its chance: up to ten seconds for a time server
+# that is still starting, no wait at all when the file names none that
+# resolves. So the boot (and labcheck's wait for it) covers the clock, and
+# "systemctl restart timesync@app" returns with the clock set.
+ExecStartPost=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/lib/idlab/timesync --settle 10
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

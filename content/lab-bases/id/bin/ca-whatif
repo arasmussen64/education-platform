@@ -1,0 +1,703 @@
+#!/usr/bin/python3
+"""ca-whatif: what would these conditional-access policies do to a sign-in?
+
+    ca-whatif USER APP [SIGNAL=VALUE ...]     one sign-in, in words
+    ca-whatif --lint                          are the policy files well formed?
+    ca-whatif --batch < sign-ins.json         many sign-ins, as JSON (checks)
+
+A model of Microsoft Entra Conditional Access as its documentation
+describes it, in the lab: not Entra, and not its What If tool. Policies are
+JSON files in Microsoft Graph's shape (conditionalAccessPolicy), one a
+file, read in the order of their names.
+
+SIGNALS (what is known about the sign-in):
+    methods=pwd,otp    how the person signed in: pwd, otp, sms, voice, push,
+                       phone (Authenticator phone sign-in), tap, hwk (a FIDO2
+                       security key or passkey), whfb, cert
+    risk=none|low|medium|high          the sign-in's risk (none)
+    userrisk=none|low|medium|high      the person's risk (none)
+    device=compliant|noncompliant|unknown    (unknown)
+    location=NAME      a named location from the locations file (none)
+    client=browser|mobileAppsAndDesktopClients|exchangeActiveSync|other
+                       (browser; the last two are legacy authentication)
+
+HOW IT DECIDES, in two passes, as Entra does:
+ 1. Which policies apply. A policy applies when every condition it sets
+    matches: the user (included by name, group or role, and not excluded:
+    an exclusion beats an inclusion), the app, the client, the risks, the
+    location. A condition a policy doesn't set matches everything. The
+    first condition that doesn't match is the reason it is "not applied".
+ 2. What they demand. If any policy that applies blocks, the sign-in is
+    blocked. Otherwise every policy that applies must be satisfied: all of
+    its controls (operator AND) or one of them (OR).
+ A policy in report-only (enabledForReportingButNotEnforced) is worked out
+ and shown, and never changes the result. A disabled policy is skipped.
+
+WHERE IT READS, unless told (--policies DIR, --directory FILE or --realm
+FILE, --locations FILE): ./policies/, ./directory.json and ./locations.json
+when the current folder has them; else ~/ca/ the same way; else
+/etc/shop/ca/ with the people, groups and roles of Keycloak's realm file
+/etc/keycloak/realms/shop.json.
+"""
+
+import glob
+import json
+import os
+import sys
+
+STATES = ("enabled", "disabled", "enabledForReportingButNotEnforced")
+CLIENTS = ("browser", "mobileAppsAndDesktopClients", "exchangeActiveSync", "other")
+RISKS = ("none", "low", "medium", "high")
+DEVICES = ("compliant", "noncompliant", "unknown")
+METHODS = ("pwd", "otp", "sms", "voice", "push", "phone", "tap", "hwk", "whfb", "cert")
+METHOD_ALIASES = {
+    "password": "pwd",
+    "totp": "otp",
+    "fido2": "hwk",
+    "passkey": "hwk",
+    "key": "hwk",
+}
+# Microsoft's table of built-in authentication strengths ("Overview of
+# Conditional Access authentication strengths", read 2026-11-22).
+PHISHING_RESISTANT = {"hwk", "whfb", "cert"}
+PASSWORDLESS = PHISHING_RESISTANT | {"phone"}
+SOMETHING_YOU_HAVE = {"otp", "sms", "voice", "push"}
+STRENGTHS = {
+    "mfa": "mfa",
+    "multifactor authentication": "mfa",
+    "passwordless": "passwordless",
+    "passwordless mfa": "passwordless",
+    "phishingresistant": "phishingResistant",
+    "phishing-resistant mfa": "phishingResistant",
+}
+# The grant controls this model can work out, and Graph's others, which it
+# knows by name and refuses, so a policy never seems to pass by accident.
+CONTROLS = ("block", "mfa", "compliantDevice")
+UNMODELLED_CONTROLS = (
+    "domainJoinedDevice",
+    "approvedApplication",
+    "compliantApplication",
+    "passwordChange",
+    "riskRemediation",
+)
+
+POLICY_KEYS = {
+    "id",
+    "displayName",
+    "state",
+    "conditions",
+    "grantControls",
+    "sessionControls",
+}
+CONDITION_KEYS = {
+    "users",
+    "applications",
+    "clientAppTypes",
+    "signInRiskLevels",
+    "userRiskLevels",
+    "locations",
+}
+USER_KEYS = {
+    "includeUsers",
+    "excludeUsers",
+    "includeGroups",
+    "excludeGroups",
+    "includeRoles",
+    "excludeRoles",
+}
+APP_KEYS = {"includeApplications", "excludeApplications"}
+LOCATION_KEYS = {"includeLocations", "excludeLocations"}
+GRANT_KEYS = {"operator", "builtInControls", "authenticationStrength"}
+
+
+class Problem(Exception):
+    """Something the person at the keyboard can fix; the text says what."""
+
+
+def read_json(path, what):
+    try:
+        with open(path, encoding="utf-8") as file:
+            return json.load(file)
+    except OSError:
+        raise Problem(f"there is no {what} at {path}") from None
+    except ValueError as error:
+        raise Problem(f"{path} isn't valid JSON: {error}") from None
+
+
+# --- who there is ------------------------------------------------------------
+
+
+def directory_from(data):
+    """{"users": {id: {"groups": set, "roles": set}}, "groups", "roles", "apps"}
+    from the lab's own directory.json."""
+    users = {}
+    for user in data.get("users", []):
+        users[user["id"]] = {
+            "groups": set(user.get("groups", [])),
+            "roles": set(user.get("roles", [])),
+        }
+    return {
+        "users": users,
+        "groups": set(data.get("groups", []))
+        | {g for u in users.values() for g in u["groups"]},
+        "roles": set(data.get("roles", []))
+        | {r for u in users.values() for r in u["roles"]},
+        "apps": set(data.get("apps", [])),
+    }
+
+
+def directory_from_realm(realm):
+    """The same, from a Keycloak realm file: its users with their groups and
+    realm roles, and its clients as the apps."""
+    users = {}
+    for user in realm.get("users", []):
+        users[user["username"]] = {
+            "groups": {g.strip("/").split("/")[-1] for g in user.get("groups", [])},
+            "roles": set(user.get("realmRoles", [])),
+        }
+    return {
+        "users": users,
+        "groups": {g["name"] for g in realm.get("groups", [])}
+        | {g for u in users.values() for g in u["groups"]},
+        "roles": {r["name"] for r in realm.get("roles", {}).get("realm", [])}
+        | {r for u in users.values() for r in u["roles"]},
+        "apps": {c["clientId"] for c in realm.get("clients", [])},
+    }
+
+
+def locations_from(data):
+    """{name: trusted?} from a list of named locations in Graph's shape."""
+    return {place["displayName"]: bool(place.get("isTrusted")) for place in data}
+
+
+# --- are the policy files well formed? ---------------------------------------
+
+
+def lint_policy(name, policy, directory, locations):
+    """The problems in one policy file, each a sentence that names the file."""
+    found = []
+
+    def say(text):
+        found.append(f"{name}: {text}")
+
+    def keys(where, value, allowed):
+        if not isinstance(value, dict):
+            say(f"{where} should be an object, in braces")
+            return False
+        for key in value:
+            if key not in allowed:
+                say(f'{where} has no property "{key}"{close_to(key, allowed)}')
+        return True
+
+    def names(where, value, known, what, specials=()):
+        if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+            say(f"{where} should be a list of names in quotes, in square brackets")
+            return
+        for item in value:
+            if item not in specials and item not in known:
+                say(
+                    f'{where} names "{item}", and there is no such {what}{close_to(item, known)}'
+                )
+
+    if not keys("the policy", policy, POLICY_KEYS):
+        return found
+    if not isinstance(policy.get("displayName"), str) or not policy.get("displayName"):
+        say('it needs a "displayName", the policy\'s name')
+    if policy.get("state") not in STATES:
+        say(
+            f'"state" is one of {", ".join(STATES)}, and this one says {json.dumps(policy.get("state"))}'
+        )
+    if "sessionControls" in policy and policy["sessionControls"] is not None:
+        say('"sessionControls" are not part of this model: leave them out')
+
+    conditions = policy.get("conditions")
+    if conditions is None:
+        say('it needs "conditions": who it is for, and which apps')
+    elif keys('"conditions"', conditions, CONDITION_KEYS):
+        users = conditions.get("users")
+        if users is None:
+            say('"conditions" needs "users": who the policy is for')
+        elif keys('"users"', users, USER_KEYS):
+            names(
+                '"includeUsers"',
+                users.get("includeUsers", []),
+                directory["users"],
+                "user",
+                ("All", "None"),
+            )
+            names(
+                '"excludeUsers"',
+                users.get("excludeUsers", []),
+                directory["users"],
+                "user",
+            )
+            for key in ("includeGroups", "excludeGroups"):
+                names(f'"{key}"', users.get(key, []), directory["groups"], "group")
+            for key in ("includeRoles", "excludeRoles"):
+                names(f'"{key}"', users.get(key, []), directory["roles"], "role")
+            if not any(
+                users.get(k) for k in ("includeUsers", "includeGroups", "includeRoles")
+            ):
+                say(
+                    '"users" includes nobody: give "includeUsers", "includeGroups" or "includeRoles"'
+                )
+        apps = conditions.get("applications")
+        if apps is None:
+            say('"conditions" needs "applications": which apps the policy is for')
+        elif keys('"applications"', apps, APP_KEYS):
+            names(
+                '"includeApplications"',
+                apps.get("includeApplications", []),
+                directory["apps"],
+                "app",
+                ("All", "None"),
+            )
+            names(
+                '"excludeApplications"',
+                apps.get("excludeApplications", []),
+                directory["apps"],
+                "app",
+            )
+            if not apps.get("includeApplications"):
+                say('"applications" includes no app: give "includeApplications"')
+        names(
+            '"clientAppTypes"',
+            conditions.get("clientAppTypes", []),
+            CLIENTS,
+            "client app type",
+            ("all",),
+        )
+        for key in ("signInRiskLevels", "userRiskLevels"):
+            names(f'"{key}"', conditions.get(key, []), RISKS, "risk level")
+        places = conditions.get("locations")
+        if places is not None and keys('"locations"', places, LOCATION_KEYS):
+            names(
+                '"includeLocations"',
+                places.get("includeLocations", []),
+                locations,
+                "named location",
+                ("All", "AllTrusted"),
+            )
+            names(
+                '"excludeLocations"',
+                places.get("excludeLocations", []),
+                locations,
+                "named location",
+                ("AllTrusted",),
+            )
+            if not places.get("includeLocations"):
+                say('"locations" includes no location: give "includeLocations"')
+
+    grant = policy.get("grantControls")
+    if grant is None:
+        say('it needs "grantControls": block, or what a sign-in must have')
+    elif keys('"grantControls"', grant, GRANT_KEYS):
+        if grant.get("operator") not in ("AND", "OR"):
+            say(
+                f'"operator" is AND or OR, and this one says {json.dumps(grant.get("operator"))}'
+            )
+        built_in = grant.get("builtInControls", [])
+        if not isinstance(built_in, list):
+            say('"builtInControls" should be a list, in square brackets')
+            built_in = []
+        for control in built_in:
+            if control in UNMODELLED_CONTROLS:
+                say(
+                    f'the control "{control}" exists in Entra and is not part of this model'
+                )
+            elif control not in CONTROLS:
+                say(f'there is no control "{control}"{close_to(control, CONTROLS)}')
+        strength = grant.get("authenticationStrength")
+        if strength is not None and strength_of(strength) is None:
+            say(
+                '"authenticationStrength" is {"displayName": ...} with Multifactor '
+                "authentication, Passwordless MFA or Phishing-resistant MFA"
+            )
+        if "block" in built_in and (len(built_in) > 1 or strength is not None):
+            say("a policy that blocks can't also ask for controls: block stands alone")
+        if "mfa" in built_in and strength is not None:
+            say(
+                '"mfa" and "authenticationStrength" can\'t be in one policy: Entra refuses the pair'
+            )
+        if not built_in and strength is None:
+            say(
+                '"grantControls" asks for nothing: give "builtInControls" or "authenticationStrength"'
+            )
+    return found
+
+
+def close_to(word, known):
+    import difflib
+
+    close = difflib.get_close_matches(
+        str(word), [str(k) for k in known], n=1, cutoff=0.6
+    )
+    return f' (did you mean "{close[0]}"?)' if close else ""
+
+
+def strength_of(value):
+    """mfa, passwordless or phishingResistant for a policy's strength, or None."""
+    if isinstance(value, dict):
+        value = value.get("displayName", value.get("id"))
+    if not isinstance(value, str):
+        return None
+    return STRENGTHS.get(value.strip().lower())
+
+
+def load_policies(folder, directory, locations):
+    """[(file name, policy)] in name order, and every lint problem found."""
+    if not os.path.isdir(folder):
+        raise Problem(f"there is no policies folder at {folder}")
+    policies, problems = [], []
+    for path in sorted(glob.glob(os.path.join(folder, "*.json"))):
+        name = os.path.basename(path)
+        try:
+            policy = read_json(path, "policy")
+        except Problem as problem:
+            problems.append(str(problem).replace(path, name))
+            continue
+        found = lint_policy(name, policy, directory, locations)
+        problems += found
+        if not found:
+            policies.append((name, policy))
+    return policies, problems
+
+
+# --- one sign-in -------------------------------------------------------------
+
+
+def signals_from(words):
+    """A sign-in's signals from SIGNAL=VALUE words (or a batch's object)."""
+    signals = {
+        "methods": {"pwd"},
+        "risk": "none",
+        "userrisk": "none",
+        "device": "unknown",
+        "location": None,
+        "client": "browser",
+    }
+    allowed = {"risk": RISKS, "userrisk": RISKS, "device": DEVICES, "client": CLIENTS}
+    for key, value in words.items():
+        if key == "methods":
+            given = value.split(",") if isinstance(value, str) else list(value)
+            methods = {METHOD_ALIASES.get(m, m) for m in given if m}
+            unknown = sorted(methods - set(METHODS))
+            if unknown:
+                raise Problem(
+                    f'"{unknown[0]}" is not a sign-in method: the methods are {", ".join(METHODS)}'
+                )
+            signals["methods"] = methods
+        elif key == "location":
+            signals["location"] = value or None
+        elif key in allowed:
+            if value not in allowed[key]:
+                raise Problem(
+                    f'{key} is one of {", ".join(allowed[key])}, not "{value}"'
+                )
+            signals[key] = value
+        else:
+            raise Problem(
+                f'"{key}" is not a signal: the signals are methods, risk, userrisk, '
+                "device, location and client"
+            )
+    return signals
+
+
+def has_mfa(methods):
+    """Microsoft's MFA strength: a method that is two factors by itself, or
+    a password with something the person has."""
+    if methods & (PASSWORDLESS | {"tap"}):
+        return True
+    return "pwd" in methods and bool(methods & SOMETHING_YOU_HAVE)
+
+
+def satisfied(control, signals):
+    methods = signals["methods"]
+    if control == "mfa":
+        return has_mfa(methods)
+    if control == "passwordless":
+        return bool(methods & PASSWORDLESS)
+    if control == "phishingResistant":
+        return bool(methods & PHISHING_RESISTANT)
+    if control == "compliantDevice":
+        return signals["device"] == "compliant"
+    raise AssertionError(control)
+
+
+def unmatched(policy, user, app, signals, directory, locations):
+    """The first condition of the policy that this sign-in doesn't match, in
+    words, or None when the policy applies."""
+    conditions = policy["conditions"]
+    users = conditions["users"]
+    person = directory["users"].get(user, {"groups": set(), "roles": set()})
+    included = (
+        "All" in users.get("includeUsers", [])
+        or user in users.get("includeUsers", [])
+        or bool(person["groups"] & set(users.get("includeGroups", [])))
+        or bool(person["roles"] & set(users.get("includeRoles", [])))
+    )
+    if not included:
+        return "users"
+    excluded = (
+        user in users.get("excludeUsers", [])
+        or bool(person["groups"] & set(users.get("excludeGroups", [])))
+        or bool(person["roles"] & set(users.get("excludeRoles", [])))
+    )
+    if excluded:
+        return "the user is excluded"
+    apps = conditions["applications"]
+    include = apps.get("includeApplications", [])
+    if not ("All" in include or app in include):
+        return "applications"
+    if app in apps.get("excludeApplications", []):
+        return "the application is excluded"
+    clients = conditions.get("clientAppTypes") or ["all"]
+    if "all" not in clients and signals["client"] not in clients:
+        return "client app"
+    for key, signal, words in (
+        ("signInRiskLevels", "risk", "sign-in risk"),
+        ("userRiskLevels", "userrisk", "user risk"),
+    ):
+        levels = conditions.get(key) or []
+        if levels and signals[signal] not in levels:
+            return words
+    places = conditions.get("locations")
+    if places:
+        here = signals["location"]
+        trusted = bool(here) and locations.get(here, False)
+
+        def within(listed):
+            return (
+                "All" in listed
+                or (here is not None and here in listed)
+                or ("AllTrusted" in listed and trusted)
+            )
+
+        if not within(places.get("includeLocations", [])):
+            return "location"
+        if within([x for x in places.get("excludeLocations", []) if x != "All"]):
+            return "the location is excluded"
+    return None
+
+
+def demands(policy):
+    """(operator, [controls]) a policy asks of a sign-in it applies to."""
+    grant = policy["grantControls"]
+    controls = list(grant.get("builtInControls", []))
+    strength = strength_of(grant.get("authenticationStrength"))
+    if strength:
+        controls.append(strength)
+    return grant["operator"], controls
+
+
+def evaluate(policies, user, app, signals, directory, locations):
+    """The verdict on one sign-in: {"result": "allow" or "block", "why",
+    "controls": what an allowed sign-in was asked for, "policies": one line
+    of findings per policy}."""
+    rows, blockers, unmet, asked = [], [], [], []
+    for name, policy in policies:
+        row = {"file": name, "name": policy["displayName"], "state": policy["state"]}
+        rows.append(row)
+        if policy["state"] == "disabled":
+            row["outcome"] = "disabled"
+            continue
+        reason = unmatched(policy, user, app, signals, directory, locations)
+        if reason:
+            row["outcome"], row["reason"] = "not applied", reason
+            continue
+        operator, controls = demands(policy)
+        blocks = "block" in controls
+        met = [c for c in controls if c != "block" and satisfied(c, signals)]
+        missing = [c for c in controls if c != "block" and c not in met]
+        passes = not blocks and (not missing if operator == "AND" else bool(met))
+        row.update(outcome="applied", blocks=blocks, controls=controls, passes=passes)
+        row["missing"] = missing if operator == "AND" else ([] if met else controls)
+        row["operator"] = operator
+        if policy["state"] != "enabled":
+            row["outcome"] = "report-only"
+            continue
+        if blocks:
+            blockers.append(name)
+        elif not passes:
+            unmet += [c for c in row["missing"] if c not in unmet]
+        asked += [c for c in controls if c != "block" and c not in asked]
+    if blockers:
+        verdict = {
+            "result": "block",
+            "why": f"blocked by {blockers[0]}",
+            "controls": [],
+        }
+    elif unmet:
+        need = " and ".join(unmet)
+        verdict = {
+            "result": "block",
+            "why": f"can't sign in with {need}",
+            "controls": asked,
+        }
+    else:
+        verdict = {"result": "allow", "why": "", "controls": asked}
+    verdict["policies"] = rows
+    return verdict
+
+
+def in_words(verdict, user, app, signals):
+    """What one sign-in's verdict looks like on the screen."""
+    methods = ",".join(m for m in METHODS if m in signals["methods"]) or "none"
+    lines = [
+        f"sign-in: {user} to {app}  (methods {methods}; risk {signals['risk']}; "
+        f"user risk {signals['userrisk']}; device {signals['device']}; "
+        f"location {signals['location'] or 'none'}; client {signals['client']})",
+    ]
+    if verdict["result"] == "block":
+        lines.append(f"result: block ({verdict['why']})")
+    elif verdict["controls"]:
+        lines.append(f"result: allow after {', '.join(verdict['controls'])}")
+    else:
+        lines.append("result: allow (no policy asks for anything)")
+    lines.append("policies:")
+    width = max((len(row["file"]) for row in verdict["policies"]), default=0)
+    for row in verdict["policies"]:
+        lines.append(f"  {row['file']:<{width}}  {row_in_words(row)}")
+    if not verdict["policies"]:
+        lines.append("  none")
+    return "\n".join(lines)
+
+
+def row_in_words(row):
+    if row["outcome"] == "disabled":
+        return "disabled"
+    if row["outcome"] == "not applied":
+        return f"not applied ({row['reason']})"
+    if row["blocks"]:
+        does = "blocks"
+    else:
+        joiner = " and " if row["operator"] == "AND" else " or "
+        met = "satisfied" if row["passes"] else "not satisfied"
+        if not row["passes"] and len(row["controls"]) > 1:
+            met += f" ({', '.join(row['missing'])})"
+        does = f"requires {joiner.join(c for c in row['controls'])}: {met}"
+    if row["outcome"] == "report-only":
+        would = "Failure" if row["blocks"] or not row["passes"] else "Success"
+        return f"(report-only) would have applied: {does}. Report-only: {would}"
+    return f"applied: {does}"
+
+
+# --- the command line --------------------------------------------------------
+
+
+def find_files(options):
+    """Where the policies, the directory and the locations are."""
+    home = os.path.join(os.path.expanduser("~"), "ca")
+    if os.path.isdir("policies") and os.path.isfile("directory.json"):
+        base = {
+            "policies": "policies",
+            "directory": "directory.json",
+            "locations": "locations.json",
+        }
+    elif os.path.isdir(os.path.join(home, "policies")):
+        base = {
+            "policies": os.path.join(home, "policies"),
+            "directory": os.path.join(home, "directory.json"),
+            "locations": os.path.join(home, "locations.json"),
+        }
+    else:
+        if not os.path.isdir("/etc/shop/ca") and "policies" not in options:
+            raise Problem(
+                "there are no policies here: run it in the folder that holds "
+                "policies/ and directory.json, or name them with --policies and "
+                "--directory"
+            )
+        base = {
+            "policies": "/etc/shop/ca",
+            "realm": "/etc/keycloak/realms/shop.json",
+            "locations": "/etc/shop/ca/locations.json",
+        }
+    if "realm" in options or "directory" in options:
+        base.pop("realm", None)
+        base.pop("directory", None)
+    base.update(options)
+    return base
+
+
+def load_world(files):
+    if "realm" in files:
+        directory = directory_from_realm(read_json(files["realm"], "realm file"))
+    else:
+        directory = directory_from(read_json(files["directory"], "directory"))
+    locations = {}
+    if os.path.isfile(files["locations"]):
+        locations = locations_from(read_json(files["locations"], "locations file"))
+    return directory, locations
+
+
+def run(argv, stdin=None):
+    """(what to print, exit status) for these arguments."""
+    options, mode, words = {}, "one", []
+    args = list(argv)
+    while args:
+        arg = args.pop(0)
+        if arg in ("-h", "--help"):
+            return __doc__.strip(), 0
+        if arg in ("--lint", "--batch"):
+            mode = arg[2:]
+        elif arg in ("--policies", "--directory", "--realm", "--locations"):
+            if not args:
+                return f"ca-whatif: {arg} needs a path", 1
+            options[arg[2:]] = args.pop(0)
+        elif arg.startswith("--"):
+            return f"ca-whatif: {arg} is not an option (ca-whatif --help lists them)", 1
+        else:
+            words.append(arg)
+    try:
+        files = find_files(options)
+        directory, locations = load_world(files)
+        policies, problems = load_policies(files["policies"], directory, locations)
+        if mode == "lint":
+            return ("\n".join(problems), 1) if problems else ("ok", 0)
+        if problems:
+            more = (
+                f" (and {len(problems) - 1} more: ca-whatif --lint lists them)"
+                if len(problems) > 1
+                else ""
+            )
+            raise Problem(f"a policy file isn't well formed. {problems[0]}{more}")
+        if mode == "batch":
+            sign_ins = json.load(stdin or sys.stdin)
+            out = []
+            for sign_in in sign_ins:
+                given = dict(sign_in)
+                user, app = given.pop("user"), given.pop("app")
+                verdict = evaluate(
+                    policies, user, app, signals_from(given), directory, locations
+                )
+                out.append(verdict)
+            return json.dumps(out), 0
+        names = [w for w in words if "=" not in w]
+        pairs = dict(w.split("=", 1) for w in words if "=" in w)
+        if len(names) != 2:
+            raise Problem(
+                "give a user and an app, as in: ca-whatif alice admin-app methods=pwd,otp"
+            )
+        user, app = names
+        if user not in directory["users"]:
+            raise Problem(
+                f'there is no user "{user}"{close_to(user, directory["users"])}'
+            )
+        if app not in directory["apps"]:
+            raise Problem(f'there is no app "{app}"{close_to(app, directory["apps"])}')
+        signals = signals_from(pairs)
+        if signals["location"] and signals["location"] not in locations:
+            raise Problem(
+                f'there is no named location "{signals["location"]}"'
+                f"{close_to(signals['location'], locations)}"
+            )
+        verdict = evaluate(policies, user, app, signals, directory, locations)
+        return in_words(verdict, user, app, signals), 0
+    except Problem as problem:
+        return f"ca-whatif: {problem}", 1
+
+
+if __name__ == "__main__":
+    text, status = run(sys.argv[1:])
+    print(text)
+    sys.exit(status)
