@@ -1,0 +1,23 @@
+id: probe-refund-rules
+stage: build
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Probe: the shop's refund rules, in Cedar"
+prompt: |
+  A probe for the policy lab base's CI trial, not a lesson: the Authentication and authorization topic will teach this.
+
+  The shop's order system asks a policy file whether each request is allowed. `~/shop/` holds `shop.cedarschema` (staff have a `store`; orders have a `store`, an `amount` and `handled_by`, the member of staff who handled them; the actions are `view`, `refund` and `export`; every request says whether the session used MFA), `entities.json` (three members of staff and five orders) and `policies.cedar`, which is empty, so every request is denied.
+
+  Write the shop's rules in `~/shop/policies.cedar` (`nano ~/shop/policies.cedar`):
+
+  1. Support staff may view an order of their own store.
+  2. Support staff may refund an order of their own store when its amount is 100 or less.
+  3. Nobody may refund an order they handled themselves.
+  4. A refund needs a session that used MFA.
+  5. Everything else is denied.
+
+  Two tools help. `cedar validate --schema shop.cedarschema --policies policies.cedar`, run in `~/shop`, checks every name in your policies against the schema. `ask PRINCIPAL ACTION RESOURCE`, run in `~/shop`, asks one question and names the policies that decided it: `ask alice refund o-1002 mfa=yes`.
+
+  The checks ask your policies about people, stores and orders that are made up when the checks run, so a rule has to hold for any store, not for the ones in `entities.json`. Change only `policies.cedar`: the schema and `entities.json` are the system as it is.

@@ -1,0 +1,183 @@
+#!/usr/bin/python3
+"""ask: may this principal do this to that? One request, decided by Cedar.
+
+    ask PRINCIPAL ACTION RESOURCE [KEY=VALUE ...]
+    ask -v alice refund o-1004 mfa=yes
+
+Run it in the folder that holds the policies (or name it with --dir): it
+reads policies.cedar, entities.json and, when there is one, the folder's
+*.cedarschema. PRINCIPAL and RESOURCE are names from entities.json ("alice"
+for Staff::"alice"; write the full form when two kinds share a name).
+KEY=VALUE pairs are the request's context, the facts about this one request:
+yes and no (or true and false) are a Boolean, digits a number, anything
+else text. A Boolean the schema asks for and you leave out counts as no.
+
+It prints ALLOW or DENY and the policies that decided it. Cedar's rule: a
+request is denied unless a permit applies, and any forbid that applies
+wins. With -v it also prints each deciding policy's kind and the request
+as Cedar got it.
+"""
+
+import glob
+import json
+import os
+import subprocess
+import sys
+
+sys.path.insert(0, "/usr/local/lib/policy")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import checklib  # noqa: E402
+
+
+def value_of(text):
+    low = text.lower()
+    if low in ("yes", "true"):
+        return True
+    if low in ("no", "false"):
+        return False
+    if text.lstrip("-").isdigit():
+        return int(text)
+    return text
+
+
+def schema_actions(schema):
+    """The schema's actions, each with its context attributes: name -> type."""
+    done = subprocess.run(
+        [
+            checklib.CEDAR,
+            "translate-schema",
+            "--direction",
+            "cedar-to-json",
+            "--schema",
+            schema,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        actions = json.loads(done.stdout)[""]["actions"]
+    except (ValueError, KeyError, TypeError):
+        return {}
+    found = {}
+    for name, action in actions.items():
+        try:
+            attributes = action["appliesTo"]["context"]["attributes"]
+        except (KeyError, TypeError):
+            attributes = {}
+        found[name] = {key: spec.get("name") for key, spec in attributes.items()}
+    return found
+
+
+def effects(policies):
+    """Each policy's kind (permit or forbid), by its id."""
+    done = subprocess.run(
+        [
+            checklib.CEDAR,
+            "translate-policy",
+            "--direction",
+            "cedar-to-json",
+            "--policies",
+            policies,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        static = json.loads(done.stdout)["staticPolicies"]
+    except (ValueError, KeyError):
+        return {}
+    return {name: policy.get("effect", "?") for name, policy in static.items()}
+
+
+def main(argv):
+    verbose, folder, words = False, ".", []
+    args = list(argv)
+    while args:
+        arg = args.pop(0)
+        if arg in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        if arg == "-v":
+            verbose = True
+        elif arg == "--dir":
+            folder = args.pop(0) if args else "."
+        else:
+            words.append(arg)
+    names = [w for w in words if "=" not in w or "::" in w]
+    pairs = [w for w in words if "=" in w and "::" not in w]
+    if len(names) != 3:
+        print(
+            "ask: give a principal, an action and a resource, as in: ask alice view o-1001"
+        )
+        print("     (ask --help says more)")
+        return 1
+
+    policies = os.path.join(folder, "policies.cedar")
+    entities_path = os.path.join(folder, "entities.json")
+    schemas = sorted(glob.glob(os.path.join(folder, "*.cedarschema")))
+    for path in (policies, entities_path):
+        if not os.path.isfile(path):
+            print(
+                f"ask: there is no {os.path.basename(path)} in {os.path.abspath(folder)}:"
+            )
+            print(
+                "     cd to the folder that holds the policies, or name it with --dir"
+            )
+            return 1
+    schema = schemas[0] if len(schemas) == 1 else None
+
+    try:
+        entities = checklib.load_entities(entities_path)
+        principal = checklib.find_entity(names[0], entities, "principal")
+        action = names[1] if "::" in names[1] else checklib.uid("Action", names[1])
+        resource = checklib.find_entity(names[2], entities, "resource")
+        context = {}
+        for pair in pairs:
+            key, _, text = pair.partition("=")
+            context[key] = value_of(text)
+        actions = schema_actions(schema) if schema else {}
+        if actions:
+            action_name = action.split("::")[-1].strip('"')
+            if action_name not in actions:
+                raise checklib.PolicyError(
+                    f'there is no action called "{action_name}" in the schema: '
+                    f"the actions are {', '.join(sorted(actions))}"
+                )
+            for key, kind in actions[action_name].items():
+                if key not in context and kind in ("Bool", "__cedar::Bool"):
+                    context[key] = False
+        allowed, deciding, errors = checklib.authorize(
+            policies, entities_path, principal, action, resource, context, schema
+        )
+    except checklib.PolicyError as error:
+        print(f"ask: {error}")
+        return 1
+
+    facts = ", ".join(
+        f"{key}={'yes' if value is True else 'no' if value is False else value}"
+        for key, value in context.items()
+    )
+    print("ALLOW" if allowed else "DENY")
+    if verbose:
+        print(
+            f"  asked: may {principal} do {action} to {resource}?"
+            + (f" ({facts})" if facts else "")
+        )
+    kinds = effects(policies) if verbose else {}
+    if deciding:
+        for name in deciding:
+            kind = f" (a {kinds[name]})" if name in kinds else ""
+            print(f"  decided by {name}{kind}")
+    elif allowed:
+        print("  decided by a permit")
+    else:
+        print("  no policy applies, and what no permit allows is denied")
+    for error in errors:
+        print(f"  {error}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

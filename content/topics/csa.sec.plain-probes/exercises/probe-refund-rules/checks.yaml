@@ -1,0 +1,72 @@
+# The checks of the policy base's probe. The four rule checks ask the
+# learner's policies about requests the base's check library makes up as
+# the check runs (/usr/local/lib/lab-checks/shop-cases): new names for every
+# person, store and order, and both sides of the refund limit. The last
+# three run the base's helpers, so the CI trial shows them working: ask on
+# the learner's own policies, access-review and ca-whatif on scenery under
+# /srv/probe, whose answers were captured from a first run.
+checks:
+  - id: validates
+    description: "cedar validate accepts the policies against the shop's schema."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases validates
+    expect:
+      equals: ok
+  - id: view-rules
+    description: "Support staff can view the orders of their own store, and nobody else can view anything."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases view
+    expect:
+      equals: ok
+  - id: refund-rules
+    description: "Support staff can refund an order of their own store of 100 or less, and nothing over."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases refund
+    expect:
+      equals: ok
+  - id: forbid-rules
+    description: "Nobody can refund an order they handled, or refund in a session without MFA."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases forbid
+    expect:
+      equals: ok
+  - id: default-deny
+    description: "What no rule allows is denied."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases default-deny
+    expect:
+      equals: ok
+  - id: shop-untouched
+    description: "The shop's schema and entities.json are as they were."
+    timeout: 10
+    command: sha256sum -c --status /usr/local/lib/lab-checks/shop.sha256 && echo same
+    expect:
+      equals: same
+  - id: ask-agrees
+    description: "ask says Alice may refund order o-1002 with MFA, and may not refund o-1004, which she handled."
+    timeout: 10
+    command: |
+      cd /home/learner/shop
+      { ask alice refund o-1002 mfa=yes | head -n 1; ask alice refund o-1004 mfa=yes | head -n 1; } | paste -sd' '
+    expect:
+      equals: ALLOW DENY
+  - id: access-review-answers
+    description: "The base's access-review reads the scenery's log: two permissions unused in 90 days, one in 120."
+    timeout: 10
+    command: |
+      { access-review --dir /srv/probe/ops reports | sed -n '/never used/,$p'
+        access-review --dir /srv/probe/ops --days 120 reports | sed -n '/never used/,$p'; } | xargs
+    expect:
+      equals: "granted, never used in 90 days: export Order delete Order granted, never used in 120 days: delete Order"
+  - id: ca-whatif-answers
+    description: "The base's ca-whatif decides the scenery's sign-ins: the files are well formed, an admin needs a security key, the emergency account gets in."
+    timeout: 10
+    command: |
+      cd /srv/probe/ca
+      { ca-whatif --lint
+        ca-whatif carol admin-app methods=pwd,otp | sed -n 2p
+        ca-whatif carol admin-app methods=pwd,hwk | sed -n 2p
+        ca-whatif alice portal methods=pwd,otp risk=high | sed -n 2p
+        ca-whatif bg-1 admin-app risk=high | sed -n 2p; } | paste -sd'|'
+    expect:
+      equals: "ok|result: block (can't sign in with phishingResistant)|result: allow after mfa, phishingResistant|result: block (blocked by 30-high-risk-block.json)|result: allow (no policy asks for anything)"
