@@ -39,7 +39,9 @@ mkdir -p "$state"
 exec 9> "$state.lock"
 flock 9
 for d in /var/cache/bind /var/lib/bind /var/lib/unbound /var/log/frr /var/lib/frr \
-         /var/log/nginx /var/lib/nginx /var/lib/haproxy; do
+         /var/log/nginx /var/lib/nginx /var/lib/haproxy \
+         /var/log/apache2 /var/lib/apache2 /var/cache/apache2 \
+         /var/lib/chrony /var/log/chrony; do
   [[ -d $d ]] || continue
   if [[ ! -d $state$d ]]; then
     mkdir -p "$state$d"
@@ -51,6 +53,30 @@ for d in /var/cache/bind /var/lib/bind /var/lib/unbound /var/log/frr /var/lib/fr
 done
 # Let go of the lock, so the command below doesn't hold it.
 exec 9>&-
+
+# The machine's clock. Every machine shares the kernel's one real clock, so
+# a machine that needs a time of day of its own (the identity-lab base's
+# clock labs: the topology runs timesync on it, which gives it its own
+# /etc/faketimerc) gets libfaketime: every program started here reads the
+# real time moved by the seconds that file holds, read again every second.
+# It works on programs that ask the C library for the time (Apache, curl,
+# openssl, date, the shell's sleep), not on Go programs, and it breaks
+# Python's time.sleep (the identity-lab base's README, "Clocks"). A machine
+# without the file, or an image without the library, is left exactly as it
+# was: that is every lab on this base alone.
+faketime=/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1
+if [[ -e /etc/netns/$m/faketimerc && -e $faketime ]]; then
+  # libfaketime leaves two small files in /dev/shm for every command started
+  # here (faketime_shm_PID and sem.faketime_sem_PID, 8 kB between them), and
+  # stops working when /dev/shm is full (64 MB: some 8,000 commands). So the
+  # ones whose process is gone, and has been for an hour, are removed here.
+  # (An hour, because a process's children go on using its two files.)
+  for f in $(find /dev/shm -maxdepth 1 -name 'faketime_shm_*' -mmin +60 2> /dev/null); do
+    [[ -e /proc/${f##*_} ]] || rm -f "$f" "/dev/shm/sem.faketime_sem_${f##*_}"
+  done
+  export LD_PRELOAD=$faketime
+  export FAKETIME_CACHE_DURATION=1 DONT_FAKE_MONOTONIC=1 FAKETIME_DONT_FAKE_MONOTONIC=1
+fi
 
 # The machine's name, in a namespace of its own (the prompt reads root@r1),
 # and no domain name: given the container's, FRR would write a "domainname"

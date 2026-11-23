@@ -33,7 +33,10 @@
 #                                   a tunnel interface that is scenery
 #   run r1 frr                      the services a machine runs: frr,
 #                                   strongswan, named, unbound, nginx,
-#                                   haproxy, nftables, radvd, web-svc
+#                                   haproxy, nftables, radvd, web-svc; and
+#                                   on the identity-lab base, which brings
+#                                   their programs and units: keycloak,
+#                                   apache2, stock-api, timesync, chrony
 #
 # A machine's own settings, which last because they are files in it:
 #   /etc/sysctl.d/*.conf   its kernel settings, applied at every boot after
@@ -98,6 +101,14 @@ declare -A ETC_OF=(
   [nftables]="nftables.conf"
   [radvd]="radvd.conf"
   [web-svc]=""
+  # The five below are the identity-lab base's (content/lab-bases/id), which
+  # starts from this one. Their folders exist on the lab machine only there,
+  # so on this base alone the words are known and copy nothing.
+  [keycloak]="keycloak"
+  [apache2]="apache2"
+  [stock-api]="stock-api"
+  [timesync]="faketimerc clock chrony"
+  [chrony]="chrony"
 )
 declare -A STATE_OF=(
   [frr]="/var/log/frr /var/lib/frr"
@@ -109,6 +120,11 @@ declare -A STATE_OF=(
   [nftables]=""
   [radvd]=""
   [web-svc]=""
+  [keycloak]=""
+  [apache2]="/var/log/apache2 /var/lib/apache2 /var/cache/apache2"
+  [stock-api]=""
+  [timesync]=""
+  [chrony]="/var/lib/chrony /var/log/chrony"
 )
 
 say() { echo "netlab: $*" >&2; }
