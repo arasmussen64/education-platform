@@ -1,15 +1,368 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.audit
 kind: topic
-status: planned
+status: ready
 title: Audit logging
-summary: Decide what to log and how long to keep it.
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "The log that answers who did what, when and from where: which events belong in an audit trail and what must never be written to one; how long to keep it, and what each cloud keeps if you do nothing; how a hash chain and an anchor make tampering show; sealing a real journal so that even root can't rewrite its past; and write-once storage and legal holds on the three clouds."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections
+# 2, 3, 4.3 and 5) and its designer's brief (csa.sec.audit.md), with the
+# pay base as it was built (content/lab-bases/pay/README.md).
+# The plan's prerequisite is csa.sec.crypto, for hash (sha256sum), MAC and
+# HMAC, signature and key, which the tamper-evidence half of this topic
+# stands on. Through it the topic also uses csa.sec.authn-authz's
+# authentication, authorization, session, token, least privilege and
+# separation of duties, by name. It builds on Module 1 (the journal and
+# journalctl, drop-ins, sed, awk, grep, cut, scripts and chmod +x) and on
+# csa.net.certificates (Certificate Transparency's append-only logs).
+# Taught here because no earlier lesson has them: a journal namespace,
+# `systemd-analyze cat-config`, `sed -E` with a group, `printf '%s'`, and
+# the `while IFS= read -r` loop (the worked example's last step).
+# This topic defines, for the module (the plan's 3.5): audit trail, actor,
+# retention, tamper-evident, hash chain (and anchor), WORM, legal hold and
+# forward-secure sealing (with its two keys), and log injection and
+# masking. It says "secret" and "token" in plain words (Secrets is not a
+# prerequisite), gives clock synchronisation one sentence (SAML, OAuth 2.0
+# and OIDC owns time sync) and control plane and data plane one sentence
+# each (Module 8 owns them). It is the first topic on the payments-server
+# base, so its worked example carries the onboarding that Vulnerability
+# management and Compliance basics point back to.
+prerequisites: [csa.sec.crypto]
+# Worked out: the lesson about 33 minutes (4,570 words with its tables and
+# its story, which is counted below, at 130 a minute), the copied reading
+# 11 (1,433 words), 24 practice quick questions at 1.5 each 36, then the
+# worked example 30, the fill-in 25, the write 40, the build 60, the debug
+# 45 and the explain 20, and the puzzle and the story about 5: 305. The
+# plan's 295 counted a 15-minute
+# lesson and 29 minutes of assigned reading; the other readings are
+# optional now (ADR-0031, step 3) and the lesson carries the topic.
+estimated_minutes: 305
 rev: 1
 objectives:
-- Decide what to log and how long to keep it.
-- Make logs tamper-evident.
+  - "Decide which events belong in an audit trail (who did what, to what, from where, when, with what outcome) and which don't; say what must never be written to one and how a field is masked; recognise log injection."
+  - "Decide how long to keep an audit trail from the rules that apply, size the storage for it, and say what each cloud keeps by default and for how long."
+  - "Name each cloud's audit trail and what it leaves out until you switch it on: CloudTrail's management and data events, Azure's activity log and resource logs, Google Cloud's Admin Activity and Data Access logs."
+  - "Make a log tamper-evident with a hash chain: build one in the shell, verify it, find the first broken line, and say why a chain needs an anchor or a key to catch a cut-off end or a full rewrite."
+  - "Seal a real audit trail with journald's forward-secure sealing, hand the verification key to someone else and verify it; say what an intruder with root can and can't change; choose write-once storage and legal holds on the three clouds."
+# Facts the lesson and the items rely on, each read on 2026-11-22 unless a
+# line says otherwise:
+# - OWASP Logging Cheat Sheet: the events to always log (authentication
+#   successes and failures, authorization failures, session management
+#   failures, higher-risk functionality such as user administration,
+#   administrative actions, access to cardholder data, key use, data
+#   exports), the when, where, who and what attributes, the data to exclude
+#   (session identifiers, "a hashed value can be used if tracking is
+#   needed", access tokens, passwords, keys, payment card data), "Synchronize
+#   time across all servers and devices", "Build in tamper detection so you
+#   know if a record has been modified or deleted", log injection by CR and
+#   LF; its footer: "This work is licensed under Creative Commons
+#   Attribution-ShareAlike 4.0 International":
+#   cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
+# - PCI DSS's requirement 10 as Microsoft quotes it (the standard itself
+#   was not opened: its library needs a browser): 10.2.1.4 "Audit logs
+#   capture all invalid logical access attempts"; 10.2.2's details per event
+#   (user identification, type of event, date and time, success and failure
+#   indication, origination of event, the affected resource); 10.3.3 logs
+#   "promptly backed up to a secure, central, internal log server(s) or
+#   other media that is difficult to modify"; 10.5.1 "Retain audit log
+#   history for at least 12 months, with at least the most recent three
+#   months immediately available for analysis"; 10.6.1 "System clocks and
+#   time are synchronized using time-synchronization technology":
+#   learn.microsoft.com/en-us/entra/standards/pci-requirement-10
+# - GDPR Article 5(1)(e), "kept in a form which permits identification of
+#   data subjects for no longer than is necessary for the purposes for
+#   which the personal data are processed": EUR-Lex's own text of
+#   Regulation (EU) 2016/679, CELEX 32016R0679, where the reviewer found
+#   those words on 2026-11-22 (the writer had read an unofficial copy,
+#   gdpr-info.eu/art-5-gdpr/, which says the same).
+# - CloudTrail "is enabled by default"; event history is "a viewable,
+#   searchable, downloadable, and immutable record of the past 90 days of
+#   management events in an AWS Region", with "no CloudTrail charges"; it
+#   "only shows management events. It does not show data events, Insights
+#   events, or network activity events"; "For an ongoing record ... create
+#   an event data store or a trail":
+#   docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events.html
+# - A CloudTrail record's fields (eventTime in UTC, eventVersion "1.11",
+#   userIdentity, eventSource, eventName, awsRegion, sourceIPAddress,
+#   userAgent, errorCode only "if the request returns an error",
+#   requestParameters, responseElements, readOnly, eventType,
+#   managementEvent, eventCategory "Management" or "Data"):
+#   docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference-record-contents.html
+#   (userIdentity's type, principalId, arn, accountId and userName are on
+#   the page it links to, read by the designer; the record in cloudtrail-who
+#   is made up for the question and says so.)
+# - CloudTrail log file validation: "SHA-256 for hashing and SHA-256 with
+#   RSA for digital signing"; "Every hour, CloudTrail also creates and
+#   delivers a file that references the log files for the last hour and
+#   contains a hash of each"; "Each digest file also contains the digital
+#   signature of the previous digest file if one exists"; it tells whether
+#   a log file "was modified, deleted, or unchanged"; it has to be enabled:
+#   docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-validation-intro.html
+# - Azure's activity log records control plane operations, with "no
+#   required configuration"; "Azure retains activity log events for 90 days
+#   and then deletes them. You aren't charged"; "Activity Log isn't an
+#   authentication or authorization audit log. Requests that Azure Resource
+#   Manager rejects during authentication or authorization before an
+#   operation starts don't generate Activity Log entries"; resource logs
+#   "aren't collected by default and require configuration with a
+#   diagnostic setting" (ms.date 2026-11-03):
+#   learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/activity-log
+# - Microsoft Entra ID keeps audit logs and sign-ins "Seven days" on Free
+#   and "30 days" on P1 and P2; longer by routing them to a storage account
+#   through Azure Monitor (ms.date 2026-01-06):
+#   learn.microsoft.com/en-us/entra/identity/monitoring-health/reference-reports-data-retention
+# - Google Cloud Audit Logs: four types; "Admin Activity audit logs are
+#   always written; you can't configure, exclude, or disable them", System
+#   Event the same; Policy Denied is generated by default; "Except for
+#   BigQuery, Data Access audit logs are disabled by default", and enabling
+#   them may add to logging charges: docs.cloud.google.com/logging/docs/audit.
+#   The _Required bucket keeps 400 days, not configurable; _Default keeps
+#   30 days, configurable for a project: docs.cloud.google.com/logging/quotas
+# - S3 Object Lock: write-once-read-many; "works only in buckets that have
+#   S3 Versioning enabled"; in compliance mode a protected version "can't be
+#   overwritten or deleted by any user, including the root user", and "its
+#   retention period can't be shortened"; governance mode is overridden
+#   with s3:BypassGovernanceRetention; a legal hold "has no expiration
+#   date" and is placed and removed with s3:PutObjectLegalHold:
+#   docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
+# - Azure immutable storage: time-based retention policies and legal
+#   holds; one day to 146,000 days; an unlocked policy can be shortened,
+#   extended or deleted, a locked one can't be deleted or decreased, with
+#   at most five increases at container level; "lock the policy in a
+#   reasonable amount of time, typically less than 24 hours" (ms.date
+#   2026-08-18): learn.microsoft.com/en-us/azure/storage/blobs/immutable-storage-overview
+# - Cloud Storage Bucket Lock: "Locking a bucket's retention policy is an
+#   irreversible action"; "Once you lock a policy, you cannot remove it or
+#   reduce the retention period it has"; "You cannot delete a bucket with a
+#   locked policy unless every object in the bucket has met the retention
+#   period"; at most 3,155,760,000 seconds (100 years); object holds:
+#   docs.cloud.google.com/storage/docs/bucket-lock
+# - journalctl(1): --setup-keys makes a sealing key that "shall remain on
+#   the host" and a verification key that "should be stored externally";
+#   --interval "Defaults to 15min"; --verify, --verify-key:
+#   freedesktop.org/software/systemd/man/latest/journalctl.html.
+#   journald.conf(5): Storage is persistent in a namespace; Seal is on by
+#   default once keys exist; 10000 messages in 30s per service, 0 turns the
+#   limit off, and the limit "is multiplied by a factor derived from the
+#   available free disk space"; SystemMaxUse defaults to 10% of the file
+#   system, "capped to 4G"; MaxRetentionSec's default of 0 "turns off this
+#   feature"; a namespace reads journald@NAMESPACE.conf:
+#   freedesktop.org/software/systemd/man/latest/journald.conf.html
+# - LWN, "Forward secure sealing", Jake Edge, 22 August 2012: sealed every
+#   15 minutes by default, the sealing key on the system, the verification
+#   key elsewhere and able to work out the sealing key for any time; an
+#   intruder gets only the current key; "may be redistributed under the
+#   terms of the Creative Commons CC BY-SA 4.0 license":
+#   lwn.net/Articles/512895/
+# - The story: CISA and the FBI, "Enhanced Monitoring to Detect APT
+#   Activity Targeting Outlook Online" (AA23-193A, 12 July 2023, updated 14
+#   July): in mid-June 2023 a federal agency "observed MailItemsAccessed
+#   events with an unexpected ClientAppID and AppID" in its Microsoft 365
+#   audit logs and reported it; Microsoft found that the actors had used a
+#   consumer signing key to forge tokens and had taken unclassified mail
+#   from "a small number of accounts"; the agencies are "not aware of other
+#   audit logs or events that would have detected this activity"; Purview
+#   Audit (Premium) logging "requires licensing at the G5/E5 level":
+#   cisa.gov/news-events/cybersecurity-advisories/aa23-193a
+# Tried in this topic's labs (systemd 255.4-1ubuntu8.19 on Ubuntu 24.04,
+# the pay base), 2026-11-22: a sealed audit namespace verifies with
+# "=> Validated from ... to ..., final 0 entries not sealed"; a copy with 12
+# bytes changed in place fails with "Invalid hash" and "FAIL ... (Bad
+# message)"; a copy rewritten entry by entry passes with no Validated line;
+# a file from before sealing passes with no Validated line and no SEALED
+# flag; with RateLimitBurst=50 a batch of 1,500 refunds kept 187, and
+# journald then wrote "Suppressed N messages"; a journal with
+# Storage=volatile writes under /run, is never sealed, and is gone after a
+# restart; journald's own line at start, "System Journal (...) is 8.0M, max
+# 4.0G", shows the default cap; `journalctl --setup-keys`, redirected,
+# writes only the verification key to standard output. auditd was not run:
+# a container can't (the kernel allows audit control only from the first
+# PID namespace; the designer's finding), so its rules are taught on paper
+# and the rule file in audit-rule-keys is written for the question.
+# Every output in the lesson, the labs and the recall items marked
+# "captured" is real output of those labs; keys, hashes of journal entries
+# and times differ in a new run.
+#
+# The main resource's assigned part is copied into readings/ (ADR-0031; the
+# plan says "copy in"), made with tools/import_reading.py and --select
+# article, since the importer has no entry for OWASP's site; the file was
+# read through afterwards: the source's words, in order, nothing else.
+# Every other page is an optional "go deeper" link, and the lesson's own
+# text carries the topic (ADR-0031, step 3).
+# Licences, each read on 2026-11-22: OWASP's cheat sheets are CC BY-SA 4.0
+# (the page's footer); LWN's article is CC BY-SA 4.0 (the line under it);
+# AWS's documentation is (c) Amazon Web Services; Microsoft Learn's Azure
+# and Entra pages are CC BY 4.0 (the MicrosoftDocs repositories the pages
+# name as their source); Google's documentation pages are CC BY 4.0
+# "except as otherwise noted" (Google's site policies; the footer wasn't in
+# the text fetched); systemd's manual pages come with its source,
+# LGPL-2.1-or-later; CISA's advisory is a US government work.
+resources:
+  - title: "Logging Cheat Sheet (OWASP): the sections \"Which events to log\", \"Event attributes\" and \"Data to exclude\", the long lists behind the lesson's short ones"
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
+    type: reading
+    use: embed
+    license: CC BY-SA 4.0
+    text:
+      file: readings/logging-cheat-sheet.html
+      by: "OWASP Cheat Sheet Series Team (the OWASP Foundation; the page's footer credits the \"Cheat Sheets Series Team\")"
+      license_url: "https://creativecommons.org/licenses/by-sa/4.0/"
+      retrieved: "2026-11-22"
+      changes: "Three sections of the cheat sheet, from 'Which events to log' to the end of 'Data to exclude'. Everything before and after them is left out (the introduction, purpose and event sources, and customizable logging, deployment, attacks on logs and the references), with the page's menus and heading anchors."
+  - title: "Forward secure sealing (LWN, Jake Edge, 2012): how the journal's sealing keys work, from the week it was announced"
+    url: https://lwn.net/Articles/512895/
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY-SA 4.0 (the article's own licence line); linked, not copied"
+  - title: "Working with CloudTrail event history (AWS): what an account records with no setup, and its limits"
+    url: https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Validating CloudTrail log file integrity (AWS): digest files, a hash chain with signatures"
+    url: https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-validation-intro.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Activity Log in Azure Monitor (Microsoft Learn): read \"Activity log entries\" and \"Retention period\""
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/activity-log
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0 (MicrosoftDocs/azure-monitor-docs); linked, not copied"
+  - title: "Cloud Audit Logs overview (Google Cloud): the four kinds of audit log and which are on"
+    url: https://docs.cloud.google.com/logging/docs/audit
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "Locking objects with Object Lock (AWS): retention modes and legal holds"
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Immutable storage for blob data (Microsoft Learn): time-based retention, locked and unlocked policies, legal holds"
+    url: https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-storage-overview
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Bucket Lock (Google Cloud): retention policies and what locking one means"
+    url: https://docs.cloud.google.com/storage/docs/bucket-lock
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "journalctl(1): look up --setup-keys, --interval, --verify and --verify-key"
+    url: https://www.freedesktop.org/software/systemd/man/latest/journalctl.html
+    type: reading
+    use: link
+    optional: true
+    license: "LGPL-2.1-or-later (systemd's documentation, with its source); linked, not copied"
+# The recall items read real output of this topic's labs and of the text
+# tools of Module 1, and work out retention and sealing windows. The worked
+# example, the build and the debug are systemd labs on the payments-server
+# base (one machine: the shop's audit writer, its policy file, and an audit
+# journal namespace to seal). The fill-in and the write are plain labs: a
+# hash chain needs no server.
+practice:
+  - example-seal-and-tamper
+  - mcq-audit-or-not
+  - mcq-never-in-the-trail
+  - mask-card
+  - mcq-log-injection
+  - audit-rule-keys
+  - est-trail-size
+  - est-event-history-gap
+  - est-entra-free
+  - est-journal-cap
+  - mcq-cloudtrail-default
+  - mcq-s3-read-missing
+  - mcq-keyvault-reads
+  - mcq-gcp-off-by-default
+  - fill-chain-add
+  - chain-edited-line
+  - chain-deleted-line
+  - mcq-chain-blind-spot
+  - mcq-rewrite-everything
+  - mcq-cloudtrail-digest
+  - write-chain-verify
+  - mcq-root-at-1407
+  - est-unsealed-window
+  - verify-pass-or-sealed
+  - typed-verify-option
+  - mcq-object-lock-mode
+  - mcq-azure-unlocked
+prove:
+  build: build-payments-audit-trail
+  debug: debug-gaps-in-the-trail
+  explain:
+    prompt: |
+      Your company's payments service is moving to the cloud, and the security lead asks you how its audit trail will work. Explain, in your own words: what the trail records and what it must never record, with a reason for each; how long it's kept, what decides that, and what the cloud keeps for you by default if you do nothing; how someone could alter or delete the trail, and how each of hash chains, sealing and write-once storage makes that detectable or impossible, including what an intruder with root can still do; and who should hold the keys and the delete permission. Say one way the three clouds differ.
+    rubric:
+      - id: what-and-not
+        required: true
+        description: "Records sign-ins (successes and failures), privilege and configuration changes, admin actions and access to sensitive data, each with who, what, when (UTC, from synchronised clocks), from where and the outcome; never passwords, session IDs, tokens or keys (anyone who reads the log could use them), and a card number only as its last four digits; kept apart from operational logs."
+      - id: how-long
+        required: true
+        description: "From the rules that apply: PCI DSS's at least 12 months with the most recent three immediately available; GDPR's no longer than necessary, so it is deleted afterwards; storage sized from events a day, bytes an event and days. Defaults are short (CloudTrail's event history 90 days of management events, Azure's activity log 90 days, Entra ID 7 or 30 days, Google's _Default bucket 30 days and _Required 400), and the record of who read data is off until enabled."
+      - id: tamper-evidence
+        required: true
+        description: "A hash chain makes an edit, a deletion or a reordering show, but not a cut-off end or a rewrite of every later hash, unless the newest hash (an anchor) is kept out of reach, or a key is used; sealing moves its key forward so an intruder with root can alter only entries since the last seal; a verification that names no validated time range proves nothing."
+      - id: keep-it
+        required: true
+        description: "Detection doesn't stop deletion, so the trail is shipped off the server to write-once storage (S3 Object Lock in compliance mode, a locked Azure policy, a locked Cloud Storage bucket), with a legal hold when no end date is known; the verification key and the right to delete are held by people who don't run the servers."
+      - id: clouds-differ
+        required: false
+        description: "For example: Google always keeps 400 days of admin activity where AWS's event history and Azure's activity log keep 90; Azure's activity log leaves out requests rejected before they start; S3 has governance and compliance modes, Azure unlocked and locked policies, and Google one lock that can't be undone."
+    model_answer: |
+      The audit trail is the record an investigator or an auditor reads months later to answer "who did what, to what, from where, and did it work?". So it records the events that question is asked about: every sign-in, failed and successful, every change to who may do what, admin actions and configuration changes, and access to sensitive data such as refunds, exports and card details. Each line says who, what, when (in UTC, from clocks that are synchronised, or lines from two servers can't be put in order), from where, and the outcome. It never holds a password, a session ID, a token or a key, because whoever reads the log could then use them, and a card number appears only as its last four digits. It isn't the debug log: page views and errors go elsewhere, so the trail stays readable.
+
+      How long is decided by rules, not taste. The card rules, PCI DSS, want at least 12 months with the latest three immediately searchable. Data protection law wants personal data kept no longer than needed, so the trail is also deleted on schedule. I'd size the storage from events a day times bytes an event times days. If we do nothing, the cloud keeps little: AWS's event history is 90 days of management events, Azure's activity log 90 days, Entra ID's sign-in logs 7 days on the free licence and 30 on the paid ones, Google's default bucket 30 days (its admin activity 400). And none of them records who read our data until we switch that on: data events in CloudTrail, resource logs through a diagnostic setting in Azure, Data Access logs in Google Cloud. So we export what must last a year, and switch on the data-plane record for what matters.
+
+      Someone with root can edit a log file. We can't stop that on the server itself, but we can make it show. A hash chain puts on every line a hash of the line before's hash and this line's record, so an edit, a deletion or a swap breaks a link. It can't show lines cut off the end, or an attacker who redoes every hash after their change, unless the newest hash is kept somewhere they can't reach, or a key they don't have is involved. Sealing does that with keys: the journal seals itself every interval and then moves its key forward, so an intruder who gets root can rewrite only what was written since the last seal, and the check has to show a validated time range, since a forged file still says PASS. Detection doesn't stop deletion, so the trail is also shipped off the server into write-once storage: S3 Object Lock in compliance mode, a locked retention policy in Azure, a locked bucket in Google Cloud, with a legal hold if a lawsuit means we don't know the end date.
+
+      The verification key and the permission to delete go to people who don't run the payments servers: the trail exists to check the admins too. One difference between the clouds: Azure's activity log has no entry for a request refused before it starts, so failed attempts have to be found in the sign-in and resource logs.
+review_pool:
+  - mask-card
+  - audit-rule-keys
+  - mcq-log-injection
+  - mcq-auid
+  - mcq-utc-clock
+  - est-trail-size
+  - est-event-history-gap
+  - est-hot-quarter
+  - est-journal-cap
+  - mcq-gdpr-forever
+  - mcq-s3-read-missing
+  - mcq-gcp-off-by-default
+  - mcq-azure-rejected
+  - cloudtrail-who
+  - typed-data-events
+  - chain-deleted-line
+  - mcq-rewrite-everything
+  - mcq-ct-append-only
+  - est-unsealed-window
+  - verify-pass-or-sealed
+  - typed-validated-line
+  - mcq-object-lock-mode
+  - mcq-key-where
+  - mcq-legal-hold
+  - mcq-gcs-lock-undo
+# Labs short enough for a hands-on refresher in a review (ADR-0009,
+# amended 2026-11-16): the review asks one in place of a quick question.
+review_labs:
+  - write-chain-verify
+skills:
+  - id: what-to-log
+    description: "Which events belong in an audit trail (sign-ins both ways, privilege and configuration changes, admin actions, access to sensitive data) and which fields (who, what, when in UTC from synchronised clocks, from where, the outcome); what is never recorded (passwords, session IDs, tokens, keys) and how a card number is masked; log injection; the audit trail as a stream of its own; auditd's watch rules and auid, on paper"
+  - id: retention
+    description: "How long to keep a trail, from the rules that apply (PCI DSS's 12 months with three immediately available, GDPR's storage limitation); sizing storage from events a day, bytes an event and days; journald's 4 GB default cap, SystemMaxUse= and MaxRetentionSec=; the clouds' default windows"
+  - id: cloud-audit-trails
+    description: "What each cloud records with no setup and what it doesn't: CloudTrail's event history against trails and data events; Azure's activity log, resource logs through diagnostic settings, and Entra ID's logs by licence; Google Cloud's four audit logs and two buckets; reading who did what in a record"
+  - id: hash-chains
+    description: "Chaining each record to the hash before it; what an edit, a deletion, a swap, a cut-off end and a full rewrite each look like to a verifier; the anchor; CloudTrail's signed hourly digests and Certificate Transparency as the same idea at scale"
+  - id: sealing-and-worm
+    description: "journald's forward-secure sealing: the two keys, the interval, verifying, what root can and can't change, PASS without a validated range; shipping logs off the server; write-once storage on three clouds (S3 Object Lock's modes, Azure's locked and unlocked policies, Cloud Storage's Bucket Lock) and legal holds"

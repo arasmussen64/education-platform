@@ -1,0 +1,53 @@
+id: example-seal-and-tamper
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Seal the trail, then tamper with it"
+prompt: |
+  **Before your first payments-server lab.** Three labs of this topic, and labs of Vulnerability management and Compliance basics after it, are one machine: the shop's payments server. What you need to know about it fits in five lines:
+
+  - **`shop-cli`** makes the shop do something, as a customer or an admin would: `shop-cli refund order=42 amount=19.99`. `shop-cli events` lists the nine things it can do and the fields each carries. A field you don't give gets an everyday value (you as the person, this server as the address).
+  - **`shop-audit.service`** is the shop's audit writer. For each thing the shop does, it writes one line to the audit trail, if the policy says to.
+  - **`/etc/shop/audit.conf`** is that policy: `audit EVENT FIELD...` records an event with those fields, and `mask FIELD` writes only a field's last four characters. In a real application these choices are made in its code; the file is how the lab lets you make them. After a change, `sudo systemctl reload shop-audit`.
+  - **The trail is a journal of its own**, the `audit` journal namespace: its own files (under `/var/log/journal`, in a folder whose name ends `.audit`), its own journal service (`systemd-journald@audit`) and its own settings (`/etc/systemd/journald@audit.conf`). Read it with `journalctl --namespace=audit`; `-t shop-audit` keeps the audit writer's lines and leaves out the journal service's own.
+  - **Two helpers play the attacker**, on copies only: `lab-flip` changes bytes in a file in place, and `lab-forge-journal` writes a journal file again, entry by entry.
+
+  A lab like this needs about 700 MB of disk for its image, once, and very little memory.
+
+  **The lab.** The shop's audit trail records sign-ins, refunds and card updates, and nothing protects it: whoever becomes root on this server can change a refund's amount and leave no mark. The walkthrough reads the trail and its policy; makes sealing keys and saves the verification key, which in real life goes to someone who doesn't run this server; switches sealing on and verifies the trail; then attacks two copies of it, carelessly and carefully, and reads what verification says about each. It ends with the shell loop that the next two labs are built on.
+
+  Sealing happens every 10 seconds here. That is the lab's stand-in for the usual 15 minutes, so that you wait seconds and not a quarter of an hour.
+
+  Type each line yourself and read what it prints before you type the next. The line that ends in `|| true` is meant to fail: read the error.
+steps:
+  - label: "Read the policy and the trail"
+    lines: "1-5"
+    note: "The policy records four kinds of event, each with who (`user` or `actor`), from where (`src`), what, and how it ended (`outcome`), and it masks `card`. Line 2 makes a refund, line 3 a card update with the card networks' test number, line 4 a page view. Line 5 reads the trail's newest lines (`-o cat` prints each message alone, without the journal's own date and host in front). The refund is there, with you as `actor`. The card update shows `card=************1111`: only the last four digits ever reached the disk. The page view is nowhere: the policy doesn't record it, and a trail full of page views is one nobody can read. Every line starts with `time=` in UTC (the `Z`), so lines from servers in different time zones can be put in one order."
+  - label: "Is anything protecting it?"
+    lines: "6"
+    note: "`--header` prints what each journal file says about itself, and `grep flags` keeps two lines of it. `Compatible flags` has no `SEALED` in it: this file is an ordinary journal. Anyone who is root can rewrite it."
+  - label: "Make the keys"
+    lines: "7-8"
+    note: "`journalctl --setup-keys` makes two keys. The **sealing key** stays on this server, with the journal, and journald uses it to seal. The **verification key** is the one line the command prints on its standard output, so `>` puts it in a file; the progress lines you see (`Generating seed...`, and a harmless `Unable to set file attribute` that containers always give) are on standard error. `--interval=10s` is how often the sealing key moves on. Line 8 shows the verification key: a few groups of hex digits. Whoever holds it can check every seal this server ever makes, and nobody on the server needs it. Treat `~/example/verify-key.txt` as standing in for the auditors' safe."
+  - label: "Switch sealing on"
+    lines: "9-12"
+    note: "Line 9 changes `Seal=no` to `Seal=yes` in the audit journal's settings (`sed -i` edits the file in place; `nano` does as well). journald reads its settings and loads the sealing key when it starts, so line 10 restarts the audit journal's own service; it starts a new, sealed file. Line 11 makes one more refund, with the same amount as the first: the attack below needs one in the sealed file. Line 12 waits: a seal is written every 10 seconds, so within about 20 the new refund is under one."
+  - label: "Verify"
+    lines: "13-14"
+    note: "`--verify` checks every file of the trail, and `--verify-key=` gives it the key to check the seals with (`\"$(cat FILE)\"` puts the file's contents there; `2>&1 | tee FILE` shows the output and saves it too). Two files, two `PASS` lines, and one line that matters: `=> Validated from ... to ..., final 0 entries not sealed`. That line belongs to `system.journal`, the sealed file: the key vouches for everything written between those two times. The older file, from before sealing, also says `PASS`, with no `Validated` line under it: its insides are consistent, and nothing proves who wrote them. Line 14 shows why: the new file's flags say `SEALED`, the old file's don't."
+  - label: "The careless attacker"
+    lines: "15-17"
+    note: "Line 15 copies the sealed file (never attack the real trail, even in a lab). Line 16 is someone with root and a hex editor: `lab-flip` overwrites the first `amount=19.99` in the copy with `amount=91.99`, 12 bytes, and touches nothing else. Line 17 verifies the copy: `Invalid hash`, then `FAIL ... (Bad message)`. Every entry in a journal file is stored with a hash of its contents, and the changed bytes no longer match theirs. That much any journal catches, sealed or not. It is also easy to get round, which is the next step."
+  - label: "The careful attacker"
+    lines: "18-21"
+    note: "This attacker knows the format. `lab-forge-journal` reads every entry out of a fresh copy, changes the amount, and has systemd's own tools write a brand-new journal file: every hash in it is right, because they were all worked out again. Line 20 shows the forged trail saying the refund was 91.99. Line 21 verifies it with the auditors' key: `PASS`. And nothing else: no `Validated` line. The forger could redo every hash, but not the seals, because a seal needs the sealing key as it was at that moment, and the server no longer has it. So the two files differ in one line of output. **`PASS` alone proves nothing. The `Validated from ... to ...` line is the proof.** `forged.txt` keeps the evidence."
+  - label: "A loop that reads a file line by line"
+    lines: "22-24"
+    note: "The next two labs read a log one line at a time, with a loop you haven't written before. Line 22 makes a three-line file: one plain line, one that starts with three spaces, one with backslashes. `while read line; do ...; done < FILE` runs its body once for each line of the file, with the line in `$line`. Line 23 does it the bare way, and two of the three lines come out damaged: the leading spaces are gone, and `C:\\new\\table.csv` has lost its backslashes, because `read` trims spaces at a line's ends and treats a backslash as an instruction. Line 24 is the form to use, always: `IFS=` (set to nothing, for this one command) stops the trimming, and `-r` leaves backslashes alone. A log line has to be read exactly as it was written, or its hash won't match."
+  - label: "What you made"
+    lines: "25"
+    note: "The auditors' key, a verification of the sealed trail that names a time range, a copy that fails verification, and a forgery that passes it with no time range. Run the checks. One of them makes a new sign-in and waits up to half a minute for the key to vouch for it."
+skills: [sealing-and-worm, hash-chains]

@@ -1,0 +1,16 @@
+id: mcq-s3-read-missing
+type: mcq
+rev: 1
+prompt: |
+  Someone downloaded objects from an S3 bucket last week. CloudTrail's event history shows nothing about it. Why?
+choices:
+  - "Reads of objects are data events, which event history never shows"
+  - "The downloads are in the event history of another AWS Region"
+  - "Downloads made by the account's own users are never recorded"
+  - "CloudTrail holds data events back for 30 days before showing them"
+answer: 0
+explanation: |
+  CloudTrail sorts what it records. **Management events** are operations on resources: make a bucket, change its policy. **Data events** are operations inside one: read this object, write that one. Event history shows management events only. Data events are recorded only by a trail (or event data store) that you created and told to collect them, because there are so many of them.
+
+  So "who read the customer export?" has no answer in an account left on defaults. That is the gap an architect closes on day one for the buckets that matter. The other choices describe things CloudTrail doesn't do: it records the account's own users like anyone else, and it has no 30-day delay.
+skills: [cloud-audit-trails]

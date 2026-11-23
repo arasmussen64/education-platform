@@ -1,0 +1,18 @@
+id: mcq-rewrite-everything
+type: mcq
+rev: 1
+prompt: |
+  An intruder with root edits line 50 of a hash-chained log, then works out every hash from line 50 to the end again. Every line now fits the one before it. What catches the change?
+choices:
+  - "Comparing the last hash with a copy kept where the intruder couldn't reach"
+  - "Running the verifier a second time, which rechecks each link from the start"
+  - "The file's modification time, which shows the log was written to later"
+  - "Switching the chain to a longer hash such as SHA-512 before verifying"
+answer: 0
+explanation: |
+  A hash has no key: anyone can compute one, the intruder included. So a chain by itself stops only the lazy edit. Someone who redoes every hash after their change produces a log in which every link fits, and a verifier that looks only at the log passes it, as often as you run it.
+
+  What the intruder can't do is make the new chain end on the old last hash: changing line 50 changes every hash after it. So the defence is outside the log. Keep the newest hash, the **anchor**, where root on this server can't change it (another system, the auditors, a signed message), and compare. A key the intruder doesn't hold does the same job, which is what an HMAC or a sealing key adds.
+
+  A file's modification time is the intruder's to set, and a longer hash is just as easy to recompute.
+skills: [hash-chains]

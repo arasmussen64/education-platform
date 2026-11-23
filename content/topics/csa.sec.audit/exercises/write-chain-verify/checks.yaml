@@ -1,0 +1,63 @@
+# The checks of "Verify the chain". Each makes chained logs as it runs (10
+# to 39 lines, with the records that trip a careless script in every one),
+# tampers with a copy in one way, runs the learner's ~/bin/chain-verify and
+# compares what it prints with the verdict worked out in Python
+# (chain-cases, in this folder). Four logs a check: the tampering lands on
+# the first line, the last, and two places between.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/chain-verify exists, is executable, starts with a shebang, and does its own work with the shell and sha256sum."
+    command: |
+      f=/home/learner/bin/chain-verify
+      [ -f "$f" ] || { echo "there is no ~/bin/chain-verify"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/chain-verify isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/chain-verify's first line isn't a shebang"; exit 0; }
+      if grep -E 'python|perl|/usr/local/lib/lab' "$f" > /dev/null; then
+        echo "~/bin/chain-verify hands the work to another program: the shell and sha256sum are this lab's tools"
+        exit 0
+      fi
+      echo ready
+    expect:
+      equals: ready
+  - id: intact
+    description: "For a log nobody touched, with its true anchor, it prints ok and the number of lines."
+    command: /usr/local/lib/lab/chain-cases verify intact
+    expect:
+      equals: same
+  - id: edited
+    description: "For a log with one record changed and its hash left alone, it names that line."
+    command: /usr/local/lib/lab/chain-cases verify edited
+    expect:
+      equals: same
+  - id: deleted
+    description: "For a log with one line taken out of the middle, it names the first line that no longer fits."
+    command: /usr/local/lib/lab/chain-cases verify deleted
+    expect:
+      equals: same
+  - id: swapped
+    description: "For a log with two neighbouring lines swapped, it names the first line that no longer fits."
+    command: /usr/local/lib/lab/chain-cases verify swapped
+    expect:
+      equals: same
+  - id: truncated
+    description: "For a log with its last lines cut off, it reports an anchor mismatch."
+    command: /usr/local/lib/lab/chain-cases verify truncated
+    expect:
+      equals: same
+  - id: emptied
+    description: "For a log with every line gone, it reports an anchor mismatch, never ok."
+    command: /usr/local/lib/lab/chain-cases verify emptied
+    expect:
+      equals: same
+  - id: rewritten
+    description: "For a log with a record changed and every hash from there on worked out again, it reports an anchor mismatch."
+    command: /usr/local/lib/lab/chain-cases verify rewritten
+    expect:
+      equals: same
+  - id: exit-status
+    description: "It exits 0 for ok and 1 for anything else."
+    command: /usr/local/lib/lab/chain-cases verify exit
+    expect:
+      equals: same

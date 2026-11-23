@@ -1,0 +1,16 @@
+# Tells the lab's story once, at the first boot (story.sh says why not at
+# build). After the audit writer, which it needs; a boot counts as finished
+# only once this has run.
+[Unit]
+Description=The lab's story, told at first boot
+After=shop-audit.service
+Wants=shop-audit.service
+ConditionPathExists=!/var/lib/lab/story-told
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/lab/story.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

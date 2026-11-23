@@ -1,0 +1,27 @@
+id: audit-rule-keys
+type: predict_shell
+rev: 1
+prompt: |
+  `audit.rules` is a rule file for `auditd`, the Linux kernel's audit system, written for this question in its real syntax. Each rule ends with `-k` and a key, the label its records will carry. The command prints the word after every `-k`, sorted. What is printed?
+files:
+  audit.rules: |
+    -w /etc/shadow -p wa -k identity
+    -w /etc/sudoers -p wa -k scope
+    -w /etc/ssh/sshd_config -p wa -k sshd
+    -a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=unset -k rootcmd
+    -w /var/log/journal -p wa -k logs
+command: |
+  awk '{for (i = 1; i <= NF; i++) if ($i == "-k") print $(i + 1)}' audit.rules | sort
+expected_output: |
+  identity
+  logs
+  rootcmd
+  scope
+  sshd
+explanation: |
+  `awk` walks along each line's words (`NF` is how many there are) and, where a word is `-k`, prints the next one. `sort` puts the five keys in order.
+
+  Four of the rules are **watches**: `-w FILE` watches a file or folder, and `-p wa` says for what, writes (`w`) and changes to its attributes (`a`), such as its owner or permissions. So any change to the password file is recorded under `identity`, to who may use `sudo` under `scope`, and to the journal's own folder under `logs`: a trail should record attempts on itself. The fourth rule records a system call: every program started (`execve`) with root's powers (`euid=0`) by someone who logged in as a person (`auid>=1000`), which is how "what did admins run as root?" gets answered.
+
+  The key is what you search by later: `ausearch -k identity`.
+skills: [what-to-log]

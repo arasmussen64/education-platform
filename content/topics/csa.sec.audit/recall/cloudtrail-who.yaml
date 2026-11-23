@@ -1,0 +1,45 @@
+id: cloudtrail-who
+type: predict_shell
+rev: 1
+prompt: |
+  `rec.json` is one CloudTrail record, written for this question with CloudTrail's real field names, one field to a line. The command keeps four of its lines and prints the fourth piece of each, counting pieces between double quotes. What is printed?
+files:
+  rec.json: |
+    {
+      "eventVersion": "1.11",
+      "userIdentity": {
+        "type": "IAMUser",
+        "principalId": "AIDAEXAMPLE7QK2JHTU4N",
+        "arn": "arn:aws:iam::111122223333:user/ben",
+        "accountId": "111122223333",
+        "userName": "ben"
+      },
+      "eventTime": "2026-11-20T10:05:55Z",
+      "eventSource": "cloudtrail.amazonaws.com",
+      "eventName": "StopLogging",
+      "awsRegion": "eu-west-1",
+      "sourceIPAddress": "198.51.100.7",
+      "userAgent": "aws-cli/2.31.4",
+      "requestParameters": {
+        "name": "arn:aws:cloudtrail:eu-west-1:111122223333:trail/payments"
+      },
+      "responseElements": null,
+      "readOnly": false,
+      "eventType": "AwsApiCall",
+      "managementEvent": true,
+      "eventCategory": "Management"
+    }
+command: |
+  grep -E '"(arn|eventName|sourceIPAddress|eventTime)"' rec.json | cut -d'"' -f4
+expected_output: |
+  arn:aws:iam::111122223333:user/ben
+  2026-11-20T10:05:55Z
+  StopLogging
+  198.51.100.7
+explanation: |
+  `grep -E` keeps the lines whose field name, quotes included, is one of the four, in the file's order; the `"name"` line inside `requestParameters` isn't one of them. `cut -d'"' -f4` splits each line at its double quotes: piece 2 is the field's name and piece 4 its value.
+
+  The four values are an audit line's four questions. **Who**: `userIdentity`'s `arn`, the user `ben` in account 111122223333. **When**: `eventTime`, in UTC. **What**: `eventName`, with `eventSource` saying which service: here `StopLogging` on CloudTrail, someone switching a trail off, which is one of the first things to alert on. **From where**: `sourceIPAddress`.
+
+  The outcome is in what isn't there: a failed call carries an `errorCode` field, and this record has none. `managementEvent: true` says which kind of event it is, so this one would be in event history too.
+skills: [cloud-audit-trails]
