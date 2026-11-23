@@ -132,22 +132,37 @@ check_fresh_key() {
 }
 
 check_no_key_on_disk() {
-  local key found
+  local key hex found
   seal_setup || return 0
   seal_one "$work/order.txt" || return 0
   key=$(data_key "$work/order.txt") || {
     echo "FILE.key isn't a data key wrapped by the orders key"
     return 0
   }
-  found=$(on_disk "$key") && {
+  # The key as OpenBao returns it (base64), and the same 32 bytes written
+  # as hex, in small letters or capitals: a copy kept "for recovery" in
+  # another spelling is the key all the same.
+  hex=$(echo "$key" | base64 -d | xxd -p -c 64)
+  found=$(on_disk "$key") || found=$(on_disk "$hex") || found=$(on_disk "${hex^^}") && {
     echo "the data key is in a file, unwrapped: $(echo "$found" | head -n 1)"
     return 0
   }
   echo clean
 }
 
+# may_write TOKEN PATH: true when the token may write at PATH and do no
+# more there. "create" beside "update" is allowed: bao write needs only
+# update on these paths, but many people write the two together, and
+# create adds nothing here.
+may_write() {
+  case "$(caps "$1" "$2")" in
+    update | "create update") ;;
+    *) return 1 ;;
+  esac
+}
+
 check_policies() {
-  local policy
+  local policy odd
   bao_root || {
     echo "OpenBao was never set up on this machine"
     return 0
@@ -160,17 +175,23 @@ check_policies() {
   done
   writer=$(token_for order-writer)
   reader=$(token_for order-reader)
-  [ "$(caps "$writer" transit/datakey/plaintext/orders)" = update ] || {
+  may_write "$writer" transit/datakey/plaintext/orders || {
     echo "order-writer can't make a data key"
     return 0
   }
-  [ "$(caps "$reader" transit/decrypt/orders)" = update ] || {
+  may_write "$reader" transit/decrypt/orders || {
     echo "order-reader can't unwrap"
     return 0
   }
+  # Paths with a name made up on the spot stand for everything a policy
+  # doesn't list: one that allows all of transit and then denies the paths
+  # it expects to be asked about allows these.
+  odd="x$(openssl rand -hex 4)"
   for path in transit/decrypt/orders transit/encrypt/orders transit/rewrap/orders transit/keys/orders \
     transit/keys/orders/config transit/keys/orders/rotate transit/export/encryption-key/orders \
-    transit/datakey/plaintext/other sys/policies/acl/order-writer; do
+    transit/datakey/plaintext/other sys/policies/acl/order-writer \
+    "transit/datakey/plaintext/$odd" "transit/$odd/orders" "transit/$odd" \
+    transit/hmac/orders transit/sign/orders transit/backup/orders auth/token/create; do
     [ "$(caps "$writer" "$path")" = deny ] || {
       echo "order-writer may do more than make data keys from the orders key"
       return 0
@@ -178,7 +199,9 @@ check_policies() {
   done
   for path in transit/datakey/plaintext/orders transit/datakey/wrapped/orders transit/encrypt/orders \
     transit/rewrap/orders transit/keys/orders transit/keys/orders/config transit/keys/orders/rotate \
-    transit/export/encryption-key/orders transit/decrypt/other sys/policies/acl/order-reader; do
+    transit/export/encryption-key/orders transit/decrypt/other sys/policies/acl/order-reader \
+    "transit/decrypt/$odd" "transit/$odd/orders" "transit/$odd" \
+    transit/hmac/orders transit/sign/orders transit/backup/orders auth/token/create; do
     [ "$(caps "$reader" "$path")" = deny ] || {
       echo "order-reader may do more than unwrap with the orders key"
       return 0
