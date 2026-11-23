@@ -1,0 +1,24 @@
+id: est-exposure-api-token
+type: estimate
+rev: 1
+prompt: |
+  A stock API accepts any access token until the token expires, and the shop's identity provider issues access tokens that last 20 minutes. A warehouse contractor's account is switched off 6 minutes after their scanner fetched a token. The scanner can't get another.
+
+  For how many more minutes does the API serve that scanner? Exactly.
+unit: minutes
+answer: 14
+tolerance: { absolute: 0 }
+given: { lifetime: 20, used: 6 }
+working: lifetime - used
+mistakes:
+  - id: whole-life
+    value: 20
+    working: lifetime
+    why: "The token was 6 minutes old when the account was switched off. Only the rest of its life is left."
+  - id: none
+    value: 0
+    working: "0"
+    why: "Switching the account off stops new tokens. The API never asks the identity provider about a token it already holds; it checks the signature and the expiry, and both are still good."
+explanation: |
+  20 − 6 = 14 minutes. A bearer token is checked without asking anyone: that is what makes it fast, and what makes its lifetime the exposure window. Shorter tokens shrink the window and raise the load on the identity provider; the usual answer is a short access token (minutes) with a refresh token the provider can refuse.
+skills: [continuous-verification]

@@ -1,0 +1,16 @@
+id: mcq-any-certificate
+type: mcq
+rev: 1
+prompt: |
+  An access proxy asks every browser for a client certificate, and lets payroll through for any signed-in member of hr whose browser shows one. The proxy never checks who signed the certificate. Who can now get payroll?
+choices:
+  - "Only hr on laptops the company manages, since only those were given certificates"
+  - "Nobody at all: a certificate from an unknown CA makes the TLS handshake fail"
+  - "Anyone in hr, on any device: making yourself a certificate takes one command"
+  - "Anyone on any device, signed in or not, since the certificate replaces the sign-in"
+answer: 2
+explanation: |
+  A certificate is easy to have. `openssl req -x509 ...` makes one in a second, with any name in it. What a personal laptop can't have is a certificate signed by the company's device CA, because only the CA's private key can make that signature. So "shows a certificate" checks nothing; "shows a certificate that verifies against the device CA" checks that the company issued it.
+
+  It is the server-certificate lesson from the other side: a browser doesn't trust a site for having a certificate, it trusts the chain to a CA it knows. The person still has to be signed in and in hr; the device check is a second condition, not a replacement.
+skills: [device-trust]

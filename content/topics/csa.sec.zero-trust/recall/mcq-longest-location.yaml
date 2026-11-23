@@ -1,0 +1,23 @@
+id: mcq-longest-location
+type: mcq
+rev: 1
+prompt: |
+  An nginx access proxy has two locations for a reporting app:
+
+  ```
+  location /reports/        { auth_request /decide/finance; proxy_pass http://10.30.0.5:9000/; }
+  location /reports/export/ { proxy_pass http://10.30.0.5:9000/export/; }
+  ```
+
+  A browser with no session asks for `/reports/export/2026.csv`. What happens?
+choices:
+  - "nginx passes it straight to the app: the longer location matches, and it asks nobody"
+  - "nginx asks about it at /decide/finance first, since /reports/ comes first in the file"
+  - "nginx refuses it with 404, since two locations match one address"
+  - "nginx runs both locations in turn, and the stricter of the two wins"
+answer: 0
+explanation: |
+  For each request nginx chooses one prefix location: the longest one that matches the address, wherever it stands in the file. `/reports/export/` is longer than `/reports/`, so it is the only one that applies, and it has no `auth_request`. The export is open to the internet.
+
+  Nothing is inherited from the shorter location. Every location that passes requests to an app carries its own policy, and the safe habit after adding one is to ask for it with no session and see what comes back.
+skills: [access-proxy]

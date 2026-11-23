@@ -1,0 +1,26 @@
+id: est-exposure-token
+type: estimate
+rev: 1
+prompt: |
+  A Microsoft Entra access token lasts 60 minutes by default, and an API that doesn't take part in continuous access evaluation accepts it until it expires. A person's account is disabled 5 minutes after their token was issued.
+
+  For how many more minutes can that token still be used at the API? Exactly.
+unit: minutes
+answer: 55
+tolerance: { absolute: 0 }
+given: { lifetime: 60, used: 5 }
+working: lifetime - used
+mistakes:
+  - id: whole-life
+    value: 60
+    working: lifetime
+    why: "The token was already 5 minutes old when the account was disabled. Only the rest of its life is left."
+  - id: cae-figure
+    value: 15
+    working: "15"
+    why: "15 minutes is the worst case Microsoft gives for continuous access evaluation, among the services that take part. This API doesn't."
+explanation: |
+  60 − 5 = 55 minutes. Nobody tells the API that the account is gone: it checks the token's signature and its expiry, and both are still fine. Disabling the account stops new tokens, not the one already issued.
+
+  This is why a token's lifetime is a security setting. Continuous access evaluation (CAE) is Microsoft's way round it for Exchange, SharePoint and Teams: the identity provider tells those services about a disabled account, with a delay Microsoft puts at up to 15 minutes (read 2026-11-23).
+skills: [continuous-verification]

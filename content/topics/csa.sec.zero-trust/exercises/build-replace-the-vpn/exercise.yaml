@@ -1,0 +1,33 @@
+id: build-replace-the-vpn
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Replace the VPN"
+prompt: |
+  The shop's staff reach its internal apps over a VPN, and anyone the VPN lets in can reach every port of every machine behind it. Replace it with an access proxy, so that each request is decided by who is asking and from which device, and nothing reaches an app any other way.
+
+  **What is there.** Eight machines on two networks.
+
+  - On the internet (203.0.113.0/24): `laptop` (.10), a staff laptop the shop manages, with the VPN client and a device certificate in `/etc/device/`; `byod` (.11), someone's own laptop, with neither; `idp` (.90), the identity provider at `https://login.shop.test`; `vpngw` (.2), the VPN gateway; and `zt` (.80), a new server that will be the access proxy, `apps.shop.test`.
+  - On the apps network (10.20.0.0/24): `vpngw` (.1), `zt` (.2), `wiki` (.10, the wiki on port 8080), `payroll` (.11, payroll on port 8081) and `db` (.12, payroll's database on port 5432, a stand-in that accepts connections).
+  - **The VPN** is an IPsec tunnel from `laptop` to `vpngw` (`on laptop swanctl --list-sas`). `vpngw`'s firewall, `/etc/nftables.conf`, forwards whatever comes out of a tunnel into the apps network, so today `on laptop curl http://10.20.0.11:8081/` gets payroll with nobody signed in.
+  - **The apps** have no firewall: each has an `/etc/nftables.conf` that only says `flush ruleset`, and `nftables@wiki`, `nftables@payroll` and `nftables@db` are not enabled. Each app greets whoever the `X-User` request header names, because it expects a proxy in front of it to set that header.
+  - **The identity provider** has the realm `shop` with three groups (`staff`, `hr`, `warehouse`) and three people: `ana` (staff), `hana` (staff and hr) and `ben` (warehouse). Their passwords are in `/etc/idlab/accounts`. A client for the proxy is registered already: `access-proxy`, confidential, with the redirect address `https://apps.shop.test/oauth2/callback` and a `groups` claim in its tokens (`on idp less /etc/keycloak/realms/shop.json`). The realm ends a refresh token the moment it has been used once, and hands out a new one with each refresh.
+  - **On `zt`:** nginx runs with an empty site, `/etc/nginx/sites-enabled/default`. Its certificate for `apps.shop.test` is `/etc/tls/apps.shop.test.crt` with the key beside it (`.key`). oauth2-proxy is installed and has no settings yet: it reads `/etc/oauth2-proxy/oauth2-proxy.cfg`, its unit is `oauth2-proxy@zt` (not enabled), and the client's secret is in `/etc/oauth2-proxy/client-secret`. The certificate of the shop's device CA, which signs a certificate for every laptop the shop manages, is `/etc/nginx/tls/device-ca.crt`.
+
+  **What to build.**
+
+  1. Staff reach the wiki at `https://apps.shop.test/wiki/` after signing in at the identity provider, from any device. Only people in the group `staff`. The wiki is told the signed-in person's user name in `X-User`, whatever the browser sent.
+  2. Payroll at `https://apps.shop.test/payroll/` answers only people in the group `hr`, and only from a device that shows a certificate from the shop's device CA.
+  3. Nothing reaches the wiki or payroll except the access proxy, and nothing reaches the database except payroll. The three open no connections of their own, except payroll's to the database. A machine someone adds to the apps network tomorrow must reach none of them. oauth2-proxy answers nothing but nginx on `zt` itself.
+  4. The VPN carries nothing into the apps network any more.
+  5. Someone switched off at the identity provider is turned away within 10 seconds (the lab's fast clock: a real shop would say a few minutes), and their colleagues notice nothing.
+  6. All of it comes back after a reboot.
+
+  **Rules.** Open nothing wider than a job needs. Believe nothing a browser says about its user or its device. The identity provider, the laptops and the apps' own pages are not yours to change.
+
+  **Trying it.** `on laptop signin https://apps.shop.test/payroll/ hana -v` opens a page as Hana's browser on the managed laptop, which shows the laptop's certificate when a site asks for one; `on byod signin ...` is a browser with no certificate. `journalctl -u oauth2-proxy@zt -f` shows each decision. Edit with `on zt nano FILE`; test nginx's file with `on zt nginx -t` and load it with `sudo systemctl reload nginx@zt`. `sudo systemctl enable --now nftables@wiki` loads `wiki`'s `/etc/nftables.conf` now and at every boot.
+skills: [access-proxy, device-trust, micro-segmentation, continuous-verification]

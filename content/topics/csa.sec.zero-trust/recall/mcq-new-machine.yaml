@@ -1,0 +1,16 @@
+id: mcq-new-machine
+type: mcq
+rev: 1
+prompt: |
+  The wiki's firewall accepts port 8080 from the whole apps network, 10.20.0.0/24. Every other machine there has outbound rules that stop it calling the wiki, except the proxy. A test from each existing machine shows the wiki unreachable from all but the proxy. Why does that test prove too little?
+choices:
+  - "Outbound rules aren't applied to connections that stay inside one network"
+  - "The wiki's rule takes effect only after the wiki is next restarted"
+  - "A machine added to the network later has no outbound rules, and gets in"
+  - "The proxy can still pass other machines' packets on to the wiki"
+answer: 2
+explanation: |
+  The wiki is being protected by everyone else's good behaviour. Its own rule says "anyone on this network", and the only thing in the way is each neighbour's outbound firewall. A machine an attacker adds, a forgotten test server or a neighbour whose firewall was flushed during an incident has no such rule, and walks in.
+
+  So a segmentation test tries from every existing machine and from a new one with no firewall at all. And the rule itself names one source for one port: the job, not the network. This was found the hard way while this topic's labs were designed: a subnet rule passed every test until a new machine was added.
+skills: [micro-segmentation]

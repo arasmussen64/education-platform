@@ -1,0 +1,83 @@
+# zt: the shop's access proxy, apps.shop.test. Every request for an app is
+# put to oauth2-proxy first (auth_request): 202 lets it through, 401 sends
+# the browser to sign in, 403 stops it.
+#
+# Five values are missing, each marked ___ (a sixth is in
+# /etc/oauth2-proxy/oauth2-proxy.cfg).
+server {
+    listen 203.0.113.80:443 ssl;
+    server_name apps.shop.test;
+    ssl_certificate /etc/tls/apps.shop.test.crt;
+    ssl_certificate_key /etc/tls/apps.shop.test.key;
+
+    # Gap 1. A device may show a certificate, and need not: the wiki is for
+    # any device. One that is shown must be from the shop's device CA.
+    ssl_client_certificate /etc/nginx/tls/device-ca.crt;
+    ssl_verify_client ___;
+
+    # Sign-in, the callback and sign-out are oauth2-proxy's own pages.
+    location /oauth2/ {
+        proxy_pass http://127.0.0.1:4180;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # The questions nginx asks oauth2-proxy before it lets a request through.
+    location = /decide/staff {
+        internal;
+        proxy_pass http://127.0.0.1:4180/oauth2/auth?allowed_groups=staff;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    # Gap 2. The question payroll asks.
+    location = /decide/payroll {
+        internal;
+        proxy_pass http://127.0.0.1:4180/oauth2/auth?allowed_groups=___;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location @sign_in {
+        return 302 /oauth2/start?rd=$request_uri;
+    }
+
+    # The wiki: everyone in staff, on any device.
+    location /wiki/ {
+        auth_request /decide/staff;
+        error_page 401 = @sign_in;
+        # Gap 3. oauth2-proxy answers with the signed-in person's user name
+        # in a response header, X-Auth-Request-Preferred-Username; this line
+        # keeps it in $user. The wiki must be told that name, whatever the
+        # browser sent.
+        auth_request_set $user $upstream_http_x_auth_request_preferred_username;
+        proxy_set_header X-User ___;
+        # Gap 4. When oauth2-proxy has refreshed a session, its answer
+        # carries a new cookie in a Set-Cookie header, which the browser
+        # must be given.
+        auth_request_set $new_cookie ___;
+        add_header Set-Cookie $new_cookie always;
+        proxy_pass http://10.20.0.10:8080/;
+    }
+
+    # Payroll: hr only, and only on a device whose certificate nginx
+    # verified.
+    location /payroll/ {
+        # Gap 5. What $ssl_client_verify holds for such a device.
+        if ($ssl_client_verify != ___) {
+            return 403;
+        }
+        auth_request /decide/payroll;
+        error_page 401 = @sign_in;
+        auth_request_set $user $upstream_http_x_auth_request_preferred_username;
+        proxy_set_header X-User $user;
+        auth_request_set $new_cookie $upstream_http_set_cookie;
+        add_header Set-Cookie $new_cookie always;
+        proxy_pass http://10.20.0.11:8081/;
+    }
+}

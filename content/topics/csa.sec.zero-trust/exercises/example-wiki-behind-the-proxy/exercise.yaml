@@ -1,0 +1,52 @@
+id: example-wiki-behind-the-proxy
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The wiki moves behind the proxy"
+prompt: |
+  This is an identity lab: the identity provider, the realm file and `signin`, the lab's scripted browser, are introduced in "Before your first identity lab", at the top of `example-trace-a-sign-in` in SAML, OAuth 2.0 and OIDC. One thing is new here: on a machine that has a device certificate in `/etc/device/`, `signin` shows it when a site asks for one, as a managed laptop's browser does.
+
+  **The shop.** Staff reach the shop's internal apps over a VPN. Eight machines on two networks:
+
+  - On the internet (203.0.113.0/24): `laptop` (.10), a staff laptop with the VPN client; `byod` (.11), someone's own laptop, with no VPN; `idp` (.90), the identity provider at `https://login.shop.test`; `vpngw` (.2), the VPN gateway; and `zt` (.80), a new server, `apps.shop.test`.
+  - On the apps network (10.20.0.0/24): `vpngw` (.1), `zt` (.2), `wiki` (.10, port 8080), `payroll` (.11, port 8081) and `db` (.12, payroll's database, port 5432).
+
+  The walkthrough looks at what the VPN gives a laptop; puts an access proxy in front of the first app, the wiki, so that every request is decided by who is asking; closes the wiki to everything except the proxy; and switches off someone who has left, to watch their access end. Payroll and the database stay on the VPN for now: apps move one at a time, and the VPN goes last. The three files the walkthrough installs are in `~/example`, written out and commented; read each one when a step shows it. Type each line yourself and read what it prints before you type the next.
+steps:
+  - label: "The machines and the people"
+    lines: "1-2"
+    note: "`netlab show` lists the eight machines and what each runs. Four people have passwords made for this lab: `ana`, `hana` and `lee` are in the group `staff` (`hana` is in `hr` too), and `ben` is in `warehouse`."
+  - label: "What the VPN gives a laptop"
+    lines: "3-7"
+    note: "The laptop's VPN client has an IPsec tunnel to `vpngw`, as the office had to the cloud in VPNs and IPsec: `ESTABLISHED`, and a child `INSTALLED` whose remote side is `10.20.0.0/24`. That last line is the whole problem. The tunnel was let in once, on a shared secret saved on the laptop, and now carries anything for the whole apps network. Line 4 gets the wiki with nobody signed in (`wiki: hello`, and no name). Line 5 gets payroll, and payroll believes the `X-User` header the laptop made up: `payroll: hello the boss`. Line 6 opens the database's port. Whoever holds this laptop, or runs a program on it, has all of that. Line 7 is the laptop without the VPN: no answer."
+  - label: "The half that decides: oauth2-proxy"
+    lines: "8-12"
+    note: "An **access proxy** stands in front of the apps and decides each request. Here it is two programs on `zt`. oauth2-proxy is the one that knows who is signed in. Read its file: it is an OpenID Connect client of the identity provider, registered as `access-proxy`; it listens on `127.0.0.1:4180`, zt's own loopback, so only a program on `zt` can ask it anything; and `cookie_refresh` makes it ask the identity provider again whenever a session is 5 seconds old. Line 9 makes the secret it encrypts its cookie with, readable by root alone. `enable --now` starts it now and at every boot, and its journal ends with `OAuthProxy configured for OpenID Connect Client ID: access-proxy` and its cookie settings."
+  - label: "The half that enforces: nginx"
+    lines: "13-16"
+    note: "Read the site file. nginx is in the path of every request. For anything under `/wiki/` it first asks oauth2-proxy (`auth_request /decide/staff`, which goes to `/oauth2/auth?allowed_groups=staff`): `202` lets the request through, `401` sends the browser to sign in, `403` stops it. It then tells the wiki who is asking, in `X-User`, replacing whatever the browser sent. `nginx -t` checks the file; the reload loads it."
+  - label: "Signed in, and allowed"
+    lines: "17-18"
+    note: "With no cookie, the wiki's address answers `302` to `/oauth2/start?rd=/wiki/`. With `-v`, Ana's browser shows the rest: on to the identity provider, the password typed there and nowhere else, back to `/oauth2/callback` with a code (the code flow you traced by hand), and at last `200` and `wiki: hello ana`. Nothing here needed the VPN: `byod` has none."
+  - label: "Signed in, and not allowed"
+    lines: "19-20"
+    note: "Ben signs in just as well, and gets `403`: he is in `warehouse`, not `staff`. Authentication succeeded; authorization said no. The journal shows both decisions, one line a request: the address asked (`/oauth2/auth?allowed_groups=staff`) and the answer, `202` for Ana and `403` for Ben, with `401` for the first request each browser made before it had a cookie."
+  - label: "The way round the proxy is still open"
+    lines: "21"
+    note: "`wiki: hello the boss`. The wiki still answers the laptop directly over the VPN, and still believes any `X-User` it is sent. A proxy that can be walked round decides nothing. The app must answer the proxy and nobody else."
+  - label: "A firewall on the wiki itself"
+    lines: "22-24"
+    note: "Read the file: default drop in both directions, and one accept, for the proxy's address (10.20.0.2) on the wiki's port. Splitting a network this finely, one rule per job, is **micro-segmentation**. `tee` writes the file on `wiki` (it is the wiki's `/etc/nftables.conf`), and `enable --now` loads it now and at every boot."
+  - label: "Prove it by traffic, from every side"
+    lines: "25-28"
+    note: "From the laptop on the VPN: nothing for two seconds, then `timed out`. From `payroll`, a neighbour on the same network: the same. From `zt`: `succeeded`. And Ana's browser still gets the wiki through the proxy. A firewall is proved by what gets through, from every machine that might try."
+  - label: "Lee leaves"
+    lines: "29-33"
+    note: "Lee signs in and gets the wiki; `--jar` keeps the browser's cookies, so the browser stays signed in. Then Lee's account is switched off at the identity provider, as the HR sync does on someone's last day. Nobody tells the proxy. Six seconds later Lee's browser, with the same cookie, gets `refused: Account is disabled, contact your administrator.` The journal says why: at its next refresh oauth2-proxy asked the identity provider about the session, was told `\"invalid_grant\" \"User disabled\"`, and cleared it. Access ended within one refresh interval of trust ending, which is why that interval is a number to choose on purpose."
+  - label: "What is left"
+    lines: "34"
+    note: "Payroll still answers the laptop over the VPN, with nobody signed in. Moving it behind the proxy, with a stricter policy, is the next lab; closing the VPN is the build. Now run the checks: they sign in as people made up on the spot, try connections from every side and from a machine they add to the apps network, and switch one of their people off."
+skills: [access-proxy, micro-segmentation, continuous-verification]

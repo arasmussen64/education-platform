@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""signin, on a machine that may have a device certificate.
+
+The identity-lab base's scripted browser (kept beside this file as
+signin-browser) can't show a client certificate. A managed laptop's browser
+does: when a site asks for one, it offers the certificate the company put
+on the laptop. This wrapper gives signin that one habit and changes nothing
+else:
+
+  on laptop signin URL USER          shows the certificate in the machine's
+                                     /etc/device (device.crt and device.key),
+                                     if it has one
+  ... --device DIR                   shows the one in DIR instead
+  ... --no-device                    shows none
+
+Every other option is the base's own (signin --help).
+"""
+
+import os
+import runpy
+import ssl
+import sys
+import urllib.request
+
+BROWSER = "/usr/local/lib/zt/signin-browser"
+
+
+def main():
+    folder = "/etc/device"
+    arguments = sys.argv[1:]
+    if "--no-device" in arguments:
+        arguments.remove("--no-device")
+        folder = None
+    if "--device" in arguments:
+        at = arguments.index("--device")
+        if at + 1 >= len(arguments):
+            sys.exit("signin: --device needs a folder")
+        folder = arguments[at + 1]
+        del arguments[at : at + 2]
+    if folder and os.path.exists(f"{folder}/device.crt"):
+        context = ssl.create_default_context()
+        try:
+            context.load_cert_chain(f"{folder}/device.crt", f"{folder}/device.key")
+        except (OSError, ssl.SSLError) as error:
+            sys.exit(
+                f"signin: the device certificate in {folder} can't be used: {error}"
+            )
+        build_opener = urllib.request.build_opener
+        urllib.request.build_opener = lambda *handlers: build_opener(
+            urllib.request.HTTPSHandler(context=context), *handlers
+        )
+    sys.argv = ["signin", *arguments]
+    runpy.run_path(BROWSER, run_name="__main__")
+
+
+if __name__ == "__main__":
+    main()

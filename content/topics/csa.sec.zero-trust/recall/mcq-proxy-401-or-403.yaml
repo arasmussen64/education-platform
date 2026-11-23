@@ -1,0 +1,16 @@
+id: mcq-proxy-401-or-403
+type: mcq
+rev: 1
+prompt: |
+  At the shop's access proxy, a contractor asks for payroll and gets a `403` page. A stranger who asks for the same address is sent to the identity provider's sign-in page. Why does the proxy treat them differently?
+choices:
+  - "The stranger isn't signed in; the contractor is, and isn't in the group payroll asks for"
+  - "The contractor's session cookie has run out, so the proxy refuses it and offers nothing more"
+  - "The stranger's request reaches the identity provider first, before the proxy ever sees it"
+  - "The contractor's password was wrong, and the identity provider told the proxy to refuse"
+answer: 0
+explanation: |
+  The proxy's two halves give two different answers. To the stranger's request oauth2-proxy says `401`, "nobody is signed in", and nginx turns that into a redirect to the sign-in. To the contractor's it says `403`: there is a session, the person is known, and the group the page asks for isn't among theirs. Signing in again would change nothing, so no sign-in is offered.
+
+  An expired or missing session looks like the stranger's case, not the contractor's. And a wrong password never reaches the proxy at all: it is typed at the identity provider, which shows its own error.
+skills: [access-proxy]

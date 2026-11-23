@@ -1,0 +1,16 @@
+id: mcq-which-component
+type: mcq
+rev: 1
+prompt: |
+  In the walkthrough's access proxy, nginx on `zt` sits in the path of every request, asks oauth2-proxy about it, and passes it on to the wiki or sends `403`. Which part of a zero-trust design is nginx playing?
+choices:
+  - "The policy engine, which makes and logs each decision"
+  - "The policy enforcement point, which lets a request through or stops it"
+  - "The policy administrator, which opens and shuts each path"
+  - "The identity provider, which signs each person in and vouches for them"
+answer: 1
+explanation: |
+  nginx enforces: it is the one thing in the traffic's path, and it opens or closes that path for each request. It decides nothing itself. It asks.
+
+  The answer comes from oauth2-proxy together with the identity provider: who is signed in, which groups they are in, whether the session still stands. That pair plays the policy engine and the policy administrator at once, which NIST says many products do. Telling the two jobs apart matters when something goes wrong: a request that got through wrongly is either a bad decision (the policy, the groups) or a path that never asked for one.
+skills: [zt-model]
