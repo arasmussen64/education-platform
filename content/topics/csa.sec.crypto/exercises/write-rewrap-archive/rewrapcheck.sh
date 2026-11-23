@@ -8,10 +8,11 @@
 # folder's name has a space), their keys wrapped by versions picked at
 # random; and a token that may rewrap with that key and read its
 # description, and nothing else. It runs the learner's script on the tree
-# twice, as the learner, and writes down what it found. It then removes its
+# twice, as the learner, rotates the key once more and runs it a third
+# time, and writes down what it found. It then removes its
 # key, its policy and its tree: nothing of the learner's is changed.
 #
-# All five checks ask about one script, so the trial runs once for the five:
+# All six checks ask about one script, so the trial runs once for the six:
 # its findings are kept for a minute in /run/lab-rewrap, under the
 # checksum of the script they are about. A changed script, or a minute
 # gone by, means a new trial.
@@ -34,7 +35,7 @@ note() {
 
 all_aspects() {
   local aspect
-  for aspect in all-current sealed-untouched counts idempotent no-unwrap; do
+  for aspect in all-current sealed-untouched counts idempotent no-unwrap given-token; do
     note "$aspect" "$1"
   done
 }
@@ -141,7 +142,28 @@ EOF
       || note all-current "a rewrapped .key file no longer opens its order"
   done < <(find "$tree" -name '*.key' -print0)
   [ "$(find "$tree" -name '*.key' | wc -l)" = "$n" ] || note all-current "a .key file is gone"
+
+  # Third run, after one more rotation. No key is current now, so a script
+  # that takes "the latest version" from the newest one it sees in the
+  # archive, and never asks OpenBao, finds nothing to do.
+  bao write -f "transit/keys/$key/rotate" > /dev/null
+  as_learner "$token" "$script" "$tree" "$key" > "$truth/out3" 2> "$truth/err3"
+  while IFS= read -r -d '' file; do
+    case "$(cat "$file")" in
+      "vault:v$((latest + 1)):"*) ;;
+      *) note all-current "after the key was rotated once more, a run left a .key file at an older version" ;;
+    esac
+  done < <(find "$tree" -name '*.key' -print0)
   note all-current "ok"
+
+  # Whose token asked for the rewraps? The trial itself never rewraps, so
+  # every rewrap request in the audit log is the script's, and each names
+  # the policies of the token that sent it.
+  if grep -F "\"path\":\"transit/rewrap/$key\"" /var/log/openbao/audit.log     | grep -vF "\"token_policies\":[\"$key\",\"default\"]" > /dev/null; then
+    note given-token "a rewrap was asked with another token than the one the script was given"
+  else
+    note given-token "ok"
+  fi
 
   if (cd "$tree" && sha256sum --check --quiet "$truth/sealed.sums" > /dev/null 2>&1); then
     note sealed-untouched "ok"

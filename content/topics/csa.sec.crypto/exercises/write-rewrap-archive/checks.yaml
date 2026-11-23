@@ -3,11 +3,12 @@
 # and 5 to 12 sealed orders in folders of several depths, one with a space
 # in its name, their keys wrapped by versions picked at random. The script
 # runs twice, as the learner, with a token that may only rewrap with that
-# key and read its description. rewrapcheck.sh, beside this file, is the
-# trial; it runs once for all five checks.
+# key and read its description; then the key is rotated once more and the
+# script runs a third time. rewrapcheck.sh, beside this file, is the
+# trial; it runs once for all six checks.
 checks:
   - id: all-current
-    description: "After a run, every .key file under DIR, at any depth, is wrapped by the latest version of KEY and still opens its order."
+    description: "After a run, every .key file under DIR, at any depth, is wrapped by the latest version of KEY and still opens its order; and again after KEY is rotated once more."
     command: |
       . /usr/local/lib/lab/rewrapcheck.sh
       rewrap_finding all-current
@@ -43,6 +44,14 @@ checks:
     command: |
       . /usr/local/lib/lab/rewrapcheck.sh
       rewrap_finding no-unwrap
+    timeout: 60
+    expect:
+      equals: ok
+  - id: given-token
+    description: "Every rewrap is asked with the token the script was given in BAO_TOKEN, which may only rewrap with KEY and read its description."
+    command: |
+      . /usr/local/lib/lab/rewrapcheck.sh
+      rewrap_finding given-token
     timeout: 60
     expect:
       equals: ok
