@@ -1,6 +1,6 @@
 #!/bin/bash
-# WRONG: oauth2-proxy never asks the identity provider again, so a session
-# lasts as long as its cookie (a week by default).
+# WRONG: a second server on zt, on plain HTTP, passes the apps on and asks
+# oauth2-proxy nothing. The HTTPS site is right; port 80 walks round it.
 # The reference build. A learner writes these files in nano; this writes
 # them with "on MACHINE tee FILE <<'EOF'", which puts everything up to the
 # line EOF into FILE on that machine as typed (the quotes round 'EOF' keep
@@ -28,6 +28,7 @@ email_domains = ["*"]
 oidc_groups_claim = "groups"
 cookie_secret_file = "/etc/oauth2-proxy/cookie-secret"
 cookie_secure = true
+cookie_refresh = "5s"
 skip_provider_button = true
 set_xauthrequest = true
 upstreams = ["static://202"]
@@ -101,6 +102,20 @@ server {
         auth_request_set $new_cookie $upstream_http_set_cookie;
         add_header Set-Cookie $new_cookie always;
         proxy_set_header X-User $user;
+        proxy_pass http://10.20.0.11:8081/;
+    }
+}
+EOF
+on zt tee -a /etc/nginx/sites-enabled/default > /dev/null <<'EOF'
+
+server {
+    listen 80;
+    server_name apps.shop.test;
+    location /wiki/ {
+        proxy_set_header X-User $http_x_user;
+        proxy_pass http://10.20.0.10:8080/;
+    }
+    location /payroll/ {
         proxy_pass http://10.20.0.11:8081/;
     }
 }

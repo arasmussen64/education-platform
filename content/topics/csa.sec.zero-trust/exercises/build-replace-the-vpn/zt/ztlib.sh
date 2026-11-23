@@ -123,6 +123,9 @@ new_machine() {
   NEW=10.20.0.$((100 + $(od -An -N1 -tu1 /dev/urandom | tr -d ' ') % 100))
   ip netns del chk-new 2> /dev/null
   ip link del chkzt0 2> /dev/null
+  # The last check's machine is removed in the background: its cable's far
+  # end can still be on the switch for a moment.
+  ip -n switches link del chkzt1 2> /dev/null
   ip netns add chk-new
   ip -n chk-new link set lo up
   ip link add chkzt0 type veth peer name chkzt1
@@ -133,12 +136,101 @@ new_machine() {
   ip -n chk-new addr add "$NEW/24" dev eth0
   ip -n chk-new link set eth0 up
   ip -n chk-new route add default via 10.20.0.1 2> /dev/null
+  # An IPv6 address of its own on the link, usable at once (nodad): a
+  # firewall written for IPv4 alone leaves a machine open over IPv6.
+  ip -n chk-new addr add "fe80::$(rnd | cut -c1-4)/64" dev eth0 nodad 2> /dev/null
   # A machine that used this address a moment ago had another MAC.
   for m in $(ip netns list | awk '{print $1}'); do
     ip -n "$m" neigh flush to "$NEW" 2> /dev/null
   done
   return 0
 }
+
+# link_local MACHINE: MACHINE's IPv6 address on its link, as chk-new
+# reaches it ("fe80::...%eth0").
+link_local() {
+  local a
+  a=$(ip -n "$1" -6 addr show dev eth0 scope link 2> /dev/null | awk '/inet6/ {print $2; exit}')
+  echo "${a%/*}%eth0"
+}
+
+# raw_probes: reads lines "FROM TO PORT" (machines with their eth0 on the
+# apps network), tries them all at once, and prints "FROM TO PORT
+# open|closed" for each, in order. Each try is one TCP SYN from FROM's
+# address, put straight on the wire, with the answer read off the wire
+# too, below the firewall: FROM's own outbound rules play no part. So it
+# asks whether TO would let FROM in, which a rule that trusts a neighbour's
+# address answers yes to however well the neighbour behaves. open is a
+# SYN-ACK within a second and a half.
+raw_probes() {
+  local from to port n=0 i tries=
+  while read -r from to port; do
+    n=$((n + 1))
+    raw_probe "$from" "$to" "$port" > "$ZT/raw.$n" &
+    tries="$tries $!"
+  done
+  # shellcheck disable=SC2086
+  wait $tries
+  for ((i = 1; i <= n; i++)); do cat "$ZT/raw.$i"; done
+  rm -f "$ZT"/raw.*
+}
+
+# raw_probe FROM TO PORT: one of them.
+raw_probe() {
+  ip netns exec "$1" python3 - "$(ip_of "$1")" "$(ip_of "$2")" "$3" \
+    "$(mac_of "$1")" "$(mac_of "$2")" "$1 $2 $3" << 'EOF'
+import random
+import select
+import socket
+import struct
+import sys
+import time
+
+src, dst, port, smac, dmac, label = sys.argv[1:7]
+port = int(port)
+
+
+def checksum(data):
+    if len(data) % 2:
+        data += b"\0"
+    total = sum(struct.unpack(f"!{len(data) // 2}H", data))
+    while total >> 16:
+        total = (total & 0xFFFF) + (total >> 16)
+    return ~total & 0xFFFF
+
+
+s_ip, d_ip = socket.inet_aton(src), socket.inet_aton(dst)
+sport = random.randint(40000, 60000)
+tcp = struct.pack("!HHIIBBHHH", sport, port, random.getrandbits(32), 0, 5 << 4, 0x02, 64240, 0, 0)
+pseudo = s_ip + d_ip + struct.pack("!BBH", 0, 6, len(tcp))
+tcp = tcp[:16] + struct.pack("!H", checksum(pseudo + tcp)) + tcp[18:]
+ip = struct.pack("!BBHHHBBH4s4s", 0x45, 0, 20 + len(tcp), random.getrandbits(16), 0x4000, 64, 6, 0, s_ip, d_ip)
+ip = ip[:10] + struct.pack("!H", checksum(ip)) + ip[12:]
+frame = bytes.fromhex(dmac.replace(":", "")) + bytes.fromhex(smac.replace(":", "")) + b"\x08\x00" + ip + tcp
+sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x0800))
+sock.bind(("eth0", 0))
+sock.send(frame)
+state = "closed"
+end = time.monotonic() + 1.5
+while time.monotonic() < end:
+    ready, _, _ = select.select([sock], [], [], max(0.0, end - time.monotonic()))
+    if not ready:
+        break
+    got = sock.recv(2048)
+    if len(got) < 54 or got[23] != 6 or got[26:30] != d_ip or got[30:34] != s_ip:
+        continue
+    at = 14 + (got[14] & 0x0F) * 4
+    a, b = struct.unpack("!HH", got[at : at + 4])
+    if a == port and b == sport:
+        state = "open" if got[at + 13] & 0x12 == 0x12 else "closed"
+        break
+print(label, state)
+EOF
+}
+
+# ip_of MACHINE, mac_of MACHINE: its address and its MAC on eth0.
+ip_of() { ip -n "$1" -4 -o addr show dev eth0 | awk '{print $4; exit}' | cut -d/ -f1; }
+mac_of() { ip -n "$1" -o link show dev eth0 | sed -n 's|.*link/ether \([0-9a-f:]*\).*|\1|p'; }
 
 # listen MACHINE PORT: a listener of the check's own on MACHINE.
 listen() {

@@ -26,6 +26,15 @@ checks:
         got=$(get byod nobody "$path" -H "X-User: boss")
         case $got in "200 wiki:"* | "200 payroll:"*) echo "someone who hasn't signed in got an app's page at $APPS$path"; exit 0 ;; esac
       done
+      # Nor at any other port of zt: a second server that asks nobody.
+      for port in $(ip netns exec zt ss -ltnH | awk '{print $4}' | grep -v -e '^127\.' -e '^\[::1\]' | sed 's/.*://' | sort -u); do
+        for url in "http://203.0.113.80:$port" "https://203.0.113.80:$port"; do
+          for path in /wiki/ /payroll/; do
+            got=$(on byod curl -sk -m 4 -H "X-User: boss" "$url$path" 2> /dev/null | head -n 1)
+            case $got in wiki:* | payroll:*) echo "someone who hasn't signed in got an app's page from zt on port $port"; exit 0 ;; esac
+          done
+        done
+      done
       u=$(mkuser staff) && w=$(mkuser warehouse) || { echo "the check couldn't make its people at the identity provider"; exit 0; }
       for from in byod laptop; do
         login "$from" "$u" || { echo "a member of staff couldn't sign in from $from: $(tail -n 1 "$ZT/$u.out" | cut -c1-100)"; exit 0; }
@@ -71,7 +80,7 @@ checks:
     expect:
       equals: hr on shop devices
   - id: only-the-proxy-reaches-an-app
-    description: "The wiki answers the access proxy and nothing else, payroll the same, and the database answers payroll alone. A machine newly added to the apps network reaches none of them, and nothing reaches the proxy's sign-in service except the proxy's own web server."
+    description: "The wiki answers the access proxy and nothing else, payroll the same, and the database answers payroll alone, each by its own rules and not because its neighbours' rules hold them back. A machine newly added to the apps network, over IPv4 or IPv6, reaches none of them, and nothing reaches the proxy's sign-in service except the proxy's own web server."
     command: |
       . /usr/local/lib/zt/ztlib.sh
       zt_begin
@@ -100,6 +109,7 @@ checks:
       zt 10.20.0.12 $pd
       payroll 10.20.0.12 $pd
       chk-new 10.20.0.10 $pw
+      chk-new $(link_local db) 5432
       EOF
       )
       n=0
@@ -113,7 +123,30 @@ checks:
           *) echo "$who reaches $host port $port, which no job needs"; exit 0 ;;
         esac
       done <<< "$got"
-      [ "$n" = 20 ] && echo "only the proxy"
+      [ "$n" = 21 ] || exit 0
+      # And each machine's own door, whatever its neighbours' outbound
+      # rules say: a rule that trusts a neighbour's address lets in whoever
+      # takes that neighbour over.
+      got=$(raw_probes << EOF
+      payroll db 5432
+      wiki db 5432
+      wiki payroll 8081
+      db payroll 8081
+      payroll wiki 8080
+      db wiki 8080
+      EOF
+      )
+      n=0
+      while read -r from host port state; do
+        n=$((n + 1))
+        if [ "$n" -le 1 ]; then want=open; else want=closed; fi
+        [ "$state" = "$want" ] && continue
+        case $want in
+          open) echo "the check couldn't reach the database as payroll, below the firewalls"; exit 0 ;;
+          *) echo "$host would let $from in on port $port if $from's own rules didn't stop it: $host's own rule trusts $from"; exit 0 ;;
+        esac
+      done <<< "$got"
+      [ "$n" = 6 ] && echo "only the proxy"
     expect:
       equals: only the proxy
   - id: apps-start-nothing
@@ -124,12 +157,14 @@ checks:
       new_machine
       p=$(rnd_port)
       listen chk-new "$p"
+      listen chk-new 5432
       listen zt "$p"
       sleep 0.5
       [ "$(echo "zt $NEW $p" | probes | awk '{print $4}')" = open ] || { echo "the check couldn't set up its own listener"; exit 0; }
       got=$(probes << EOF
       wiki $NEW $p
       payroll $NEW $p
+      payroll $NEW 5432
       db $NEW $p
       wiki 10.20.0.2 $p
       payroll 10.20.0.2 $p
@@ -169,12 +204,13 @@ checks:
     expect:
       equals: nothing
   - id: access-ends-when-trust-does
-    description: "Someone switched off at the identity provider is turned away within 10 seconds, while a colleague who signed in at the same time carries on working."
+    description: "Someone switched off at the identity provider is turned away within 10 seconds, while a colleague who signed in at the same time carries on working. However soon after a check someone is switched off, the next check comes in time: oauth2-proxy never lets a session that is in use go more than 9 seconds without asking about it again."
     timeout: 120
     command: |
       . /usr/local/lib/zt/ztlib.sh
       zt_begin
       proxy_ready || { echo "the access proxy doesn't answer at $APPS/oauth2/"; exit 0; }
+      cursor=$(journal_cursor)
       a=$(mkuser staff) && b=$(mkuser staff) || { echo "the check couldn't make its people at the identity provider"; exit 0; }
       login byod "$a" && login byod "$b" || { echo "the check's people couldn't sign in"; exit 0; }
       case $(get byod "$a" /wiki/) in 200*) ;; *) echo "the check's person didn't get the wiki after signing in"; exit 0 ;; esac
@@ -193,6 +229,23 @@ checks:
         got=$(get byod "$b" /wiki/)
         [ "$got" = "200 wiki: hello $b" ] || { echo "a colleague who is still staff lost the wiki $(($(date +%s) - start)) seconds after signing in: $got"; exit 0; }
         sleep 1
+      done
+      # The switch-off above may have come late in a refresh interval, which
+      # flatters a slow one. How old the colleague's session was each time
+      # oauth2-proxy asked about it again says how slow it can be: 9 seconds
+      # is the 10 the shop allows, less the second between pages.
+      ages=$(refresh_ages "$b" "$cursor")
+      [ -n "$ages" ] || { echo "oauth2-proxy never asked the identity provider about a colleague's session again, in 13 seconds of use"; exit 0; }
+      for age in $ages; do
+        # Go writes a duration as 5.07s, 750ms, or 1m5.2s once it is a
+        # minute or more.
+        case $age in
+          *[hm]*[0-9]s) ;;
+          *ms) continue ;;
+          [0-9]*s) [ "$(echo "${age%s}" | awk '{print ($1 <= 9)}')" = 1 ] && continue ;;
+        esac
+        echo "oauth2-proxy let a session in use go $age before asking the identity provider about it again"
+        exit 0
       done
       echo "ends"
     expect:
