@@ -1,0 +1,167 @@
+<Intro>
+
+<Puzzle question="A payment file is encrypted with AES, and an attacker who can't read a byte of it changes PAY 100 into PAY 900. How?">
+
+Encryption hides data. By itself it doesn't stop the data being changed. Many ways of using AES work by mixing the message with a stream of random-looking bytes, one bit of the stream for each bit of the message. Flip a bit in the encrypted file and exactly that bit flips in the message when it is decrypted. An attacker who can guess where the amount sits (payment files have a fixed layout) flips the one bit that turns a `1` into a `9`, without the key and without reading anything. Decryption then works, prints no error, and pays 900. Stopping that takes a second thing beside the encryption: a tag that only the key's holders can make, checked before anything is decrypted. Encryption that includes one is called authenticated encryption, and it's the only kind to use.
+
+</Puzzle>
+
+HTTP and TLS said that TLS uses symmetric encryption for the conversation, public-key cryptography to agree a key and to prove who the server is, and a cipher suite to name the algorithms. Certificates opened up the proving. This topic is about using the same tools yourself, outside TLS: on files, in a database, in a cloud's key service. By the end you can choose the right tool for a job, tell a hash from a MAC from a signature by what each one proves, say why encryption needs authentication and what a nonce is, design envelope encryption with a key service (who may open what, rotation and what an auditor sees), and say how strong a key is and what quantum computers change.
+
+The labs are one server, the shop's, running **OpenBao**: an open-source key and secrets service with the same commands and API as HashiCorp Vault, which many companies run. Here it stands in for a cloud's key service. Its command is `bao`. Everything in it lives at a path, like a file (`transit/keys/orders`); `bao read PATH` asks and `bao write PATH name=value` sends. A token proves to it who is asking, and a policy (Authentication and authorization's idea, in OpenBao's spelling) says which paths a token may use. Its **transit engine**, under `transit/`, keeps keys and encrypts and decrypts what it is sent, and never hands a key out. Its audit log records every request. The first lab introduces all of it.
+
+Two words first. **Plaintext** is data before it is encrypted (text or not: a photo is plaintext too), and **ciphertext** is what encryption makes of it.
+
+**Choosing the tool.** Four tools do nearly everything, and most real systems use more than one at once:
+
+| The job | Use | Why |
+| --- | --- | --- |
+| Encrypt a file, a disk, a database column | a symmetric key (AES-256-GCM) | fast: about 6.8 GB a second on one PC (`openssl speed`, in the labs' image, 2026-11-22) |
+| Let several named people decrypt one file | a random symmetric key for the file, wrapped once with each person's public key | one copy of the data, one small wrapped key per reader |
+| Prove to anyone who made something | a signature (Ed25519, ECDSA, RSA) | only the private key can make it, anyone with the public key can check it |
+| Agree a key with someone over an open network | key exchange (ECDHE, from HTTP and TLS) | nobody watching can work the key out |
+
+To **wrap** a key is to encrypt it with another key; to unwrap is to decrypt it again. The second row is **hybrid encryption**: symmetric for the data, public-key for the key. The tool `age` does it for files: a 3,000-byte file encrypted for two people came out at 3,298 bytes in the lab, because the data is there once and only the file's key is there twice, once for each reader.
+
+Why not encrypt the file itself with a public key? Because public-key encryption is for tiny things. RSA with a 2,048-bit key (in its safe form, OAEP with SHA-256) takes at most 190 bytes at a time (AWS's key service documents that limit), and the same PC did 1,985 private-key operations a second, where AES did gigabytes. A public key wraps a 32-byte key. The symmetric key does the work.
+
+And one thing that is none of these: **encoding is not encryption.** base64 and hex turn bytes into letters so that they fit in text, and anyone turns them back (`base64 -d`). There is no key. A Kubernetes Secret (Kubernetes is the system that runs containers across many machines) looks scrambled in its YAML file and is only base64: by default it is stored unencrypted.
+
+<Check item="mcq-backup-two-people" />
+
+**Three fingerprints, by what each proves.** DNS gave "hash" and "signature" a sentence each. Here is their full meaning, with a third between them.
+
+A **hash** is a short, fixed-length fingerprint of data. SHA-256 turns any file into 64 hex digits (`sha256sum FILE`). Change one character and every digit changes; nobody can work back from the hash to the data, or find two files with the same hash (for SHA-256 and SHA-3; MD5 and SHA-1 are broken in that last way and must not be used where it matters). But a hash has no key. Anyone can take one, including the person who has just changed the file. So a hash beside a download catches a damaged download, and it catches a swapped one only if the hash reached you by a way the attacker couldn't touch.
+
+A **message authentication code**, or MAC, is a fingerprint worked out from the data and a secret key together. **HMAC** is the standard way to build one from a hash: HMAC-SHA256 (`openssl dgst -sha256 -hmac KEY FILE`). You met the letters in IPsec's proposals. Only someone with the key can make a MAC or check one, so a good MAC proves that a holder of the key sent exactly this. It can't say which holder: the receiver has the key too and could have made it.
+
+A **signature** is made with a private key that one party holds, and checked with the public key, which anyone may have. It proves what a MAC can't: that this one party made it, to anyone at all. That is why certificates, software releases and DNSSEC are signed.
+
+| | Who can make it | Who can check it | It proves |
+| --- | --- | --- | --- |
+| hash | anyone | anyone | the data is the data the hash was made from, if the hash came safely |
+| MAC | holders of the shared key | holders of the shared key | a key holder sent this, unchanged |
+| signature | the holder of the private key | anyone with the public key | that one party made this, unchanged |
+
+Two real uses of a MAC. GitHub proves each webhook (a request it sends your server when something happens in a repository) with an HMAC-SHA256 of the request's body under a secret you gave both sides, in the header `X-Hub-Signature-256`; your server works out the same value and compares, with a comparison that takes the same time whatever the result, so that timing gives nothing away. And OpenBao's audit log records every request but writes an HMAC of each value, under a key only OpenBao holds, where the value would be. The log can still be searched for a value you know (OpenBao will work out its HMAC for you), and it gives nothing away.
+
+Why not a plain hash in that log? Because a hash can't be run backwards, but it can be run forwards on every candidate. A 10-digit phone number has 10^10 possible values; a machine that does a billion SHA-256s a second tries them all in ten seconds, and then every "hidden" number in the log is a lookup. **A plain hash of guessable data is as good as the data.** A MAC needs the key.
+
+<Check item="mcq-hash-beside-download" />
+
+**Passwords are different again.** A stored password will be attacked by guessing, because people choose guessable ones and reuse them. So it is stored as a hash that is slow and hungry for memory on purpose, which turns billions of guesses a second into a few. OWASP's list (read 2026-11-22): **Argon2id** with at least 19 MiB of memory, 2 passes and 1 thread; scrypt where Argon2id isn't available; bcrypt, with a work factor of 10 or more, on older systems (it reads only the first 72 bytes of a password); PBKDF2-HMAC-SHA256 with 600,000 passes where US government rules (FIPS) require it. Each password gets a **salt**: a random value, different for every password, stored beside the hash and not secret. Without one, equal passwords have equal hashes and one guess tests every account at once.
+
+Encrypting passwords is wrong too, and not only because encryption is fast: whoever gets the key gets every password back, and a service never needs a password back, only to check a guess against it.
+
+<Story title="Adobe's encrypted passwords, 2013" source="https://www.csoonline.com/article/540070/network-security-adobe-confirms-stolen-passwords-were-encrypted-not-hashed.html" sourceTitle="Adobe confirms stolen passwords were encrypted, not hashed" license="linked, not copied">
+
+In October 2013 Adobe said that intruders had copied customer data, passwords among it. A month later it confirmed what researchers reading the leaked file had worked out: the passwords weren't hashed. They were encrypted, with the Triple DES cipher. The system that was broken into was an old backup due to be switched off; Adobe's newer sign-in system, it said, had hashed passwords with SHA-256 and a salt for over a year.
+
+A researcher who studied the file, which covered 130 million accounts, reported that every password had been encrypted under one key, in a mode with no per-record randomness. In this topic's terms: nothing like a salt, so equal passwords gave equal ciphertexts. And beside each one sat the user's password hint, readable. Many hints simply gave the password, so one honest hint unlocked every account with the same ciphertext, and the researcher could list the hundred most common passwords without ever finding the key. Nearly 1.9 million accounts used `123456`.
+
+Three lessons in one file: passwords are hashed, slowly, never encrypted; each gets its own salt; and what sits in the clear beside a secret matters as much as the cipher.
+
+</Story>
+
+<Check item="typed-argon2id" />
+
+**Encryption that can be edited.** AES is a block cipher: it encrypts exactly 16 bytes. A **mode** is the recipe for encrypting more than that. One common mode, **CTR**, uses AES to make a stream of random-looking bytes from the key and a starting value, and combines the stream with the data by XOR: for each bit, the result is 1 if the two bits differ and 0 if they're the same. XOR has the property the puzzle turned on. Flip a bit of the ciphertext, and the same bit of the plaintext flips when it's decrypted; the rest is untouched. The first lab does it: `PAY 100 TO ALEX`, encrypted with AES-256 in CTR mode, one bit of the fifth byte flipped, decrypts to `PAY 900 TO ALEX` with no error.
+
+The cure is a tag. One way is to add a MAC over the ciphertext and check it before decrypting. The better way is a mode that does both in one step: **authenticated encryption**, in full authenticated encryption with associated data, **AEAD**. Encrypting produces the ciphertext and a tag; decrypting checks the tag first and refuses if one bit of either has changed. The two AEADs you'll meet are the two that nearly every TLS 1.3 connection uses: **AES-GCM** and ChaCha20-Poly1305. OpenBao's keys are AES-256-GCM, and a ciphertext with one character changed gets `cipher: message authentication failed`. (The `openssl enc` command can't do GCM at all, so the labs have a small helper, `gcm seal` and `gcm open`, that calls a library as an app would.)
+
+The "associated data" is text the tag covers but that isn't encrypted: a record's ID, a customer number. It ties a ciphertext to the place it belongs. Copy an encrypted value from one customer's row into another's, and decrypting it there fails, because the customer number that goes into the tag no longer matches. AWS calls it the **encryption context** and recommends it on every call; `gcm` takes it as `--aad TEXT`.
+
+<Check item="ctr-flip-predict" />
+
+**The nonce: a number used once.** An AEAD needs one more input for every encryption: a **nonce** (also called an IV, an initialization vector), the starting value of its stream. It isn't secret, and it's stored with the ciphertext. The rule is absolute: **never the same nonce twice under the same key.** Two messages encrypted with the same key and nonce used the same stream, so XORing the two ciphertexts cancels the stream and leaves the XOR of the two messages; and with GCM the repeat also gives away what is needed to forge tags.
+
+GCM's nonce is 96 bits, and the usual way to make one is at random. Random values can collide, so NIST limits how many you may draw: at most 2^32 (4,294,967,296) encryptions under one key (SP 800-38D). That sounds like a lot. A service encrypting 1,000 messages a second gets there in 50 days. The answer isn't a cleverer nonce. It is more keys: give each file, each record or each session a key of its own, and no key comes near the limit. That is one of the things envelope encryption does.
+
+<Check item="est-gcm-api-days" />
+
+**Envelope encryption.** Now the question every encrypted system comes down to: where is the key? Encrypt a database and keep the key in a config file beside it, and you have moved the problem one file to the left.
+
+The same question measures the encryption of a whole disk, which every cloud offers as one setting. The disk's key is given to the running server, and the server decrypts every block for whoever asks it: anyone who can query the database or sign in to the app reads the data exactly as before. So disk encryption protects against one thing, the disk itself being stolen, thrown away or copied as a snapshot, and against nobody who comes in through the running system. **Encryption is worth what the control over its key is worth.**
+
+The answer has two parts. First, a **key management service**, a **KMS**: a service that keeps keys and uses them for you, and never hands them out. You send it something small, it encrypts or decrypts it and sends back the result. A policy says who may ask, and a log records every time anyone does. A cloud's KMS keeps its keys in **HSMs**, hardware security modules: tamper-resistant devices that hold keys and do the cryptography inside themselves (AWS says its KMS keys never leave them unencrypted). OpenBao's transit engine is the labs' KMS.
+
+Second, since a KMS takes only small things, you don't send it your data. You send it keys. That is **envelope encryption**:
+
+1. For each file (or object, or record), get a new random 256-bit key: the **data key**, also called a data encryption key or DEK.
+2. Encrypt the file with it, where the file is, with AES-256-GCM.
+3. Have the KMS wrap the data key with a key that never leaves the KMS: the **key encryption key**, or KEK. OpenBao's `orders` key is one.
+4. Store the wrapped data key beside the encrypted file, and forget the data key itself.
+5. To read: send the wrapped key to the KMS, which checks that you may, unwraps it and logs that it did. Decrypt the file. Forget the key again.
+
+Think of a hotel. Every room has its own key (the data key). The room keys aren't left loose: each is sealed in an envelope that only the safe at reception can open (the key encryption key, which never leaves the safe). The sealed envelope can hang on the room's door, because it's useless without the safe. To get in you hand the envelope to reception, who check you're allowed and write it in the book.
+
+OpenBao makes the first and third steps one request: `bao write -f transit/datakey/plaintext/orders` returns a new data key twice, as `plaintext` (the key itself, in base64) and as `ciphertext` (the same key wrapped by `orders`, which looks like `vault:v1:...`). `transit/decrypt/orders` unwraps one. The labs pipe the key itself straight from `bao` into `gcm`, so it is never in a file.
+
+Why not just send the file to the KMS? AWS KMS's `Encrypt` takes at most 4,096 bytes and Google Cloud's 64 KiB; every byte would cross the network; every read would be a request to pay for. With an envelope, 32 bytes travel.
+
+And here is the part people miss: **the control is the policy, not the cipher.** Everyone's files are encrypted with the same algorithm. What decides who can read is who may ask the KMS to unwrap. So the web front end, which only seals new orders, gets "make data keys" and nothing else, and the nightly report gets "unwrap" and nothing else: least privilege and separation of duties, from Authentication and authorization, applied to a key. A front end that is broken into then gives away the orders passing through it that hour, not the archive. And the KMS's log answers "who has opened this?" for every file, because nobody can open one without asking.
+
+<Check item="mcq-who-unwraps" />
+
+**Rotate, rewrap, retire.** Keys shouldn't live forever: the longer one is used, the more there is to lose if it leaks. A KMS **rotates** a key by adding a **key version**. New wrapping uses the newest version; old wrapped keys still open, because the KMS kept the old version and each ciphertext says which one made it (OpenBao's `vault:v1:`, `vault:v2:`). So rotation changes no data and no data keys, and breaks nothing. AWS says it in one line: rotation "has no effect on the data that the KMS key protects".
+
+That also means rotation alone protects nothing that was already wrapped. To finish the job:
+
+1. **Rotate**: `bao write -f transit/keys/orders/rotate`. A key can also rotate itself on a schedule: `bao write transit/keys/orders/config auto_rotate_period=720h` is every 30 days.
+2. **Rewrap** every stored wrapped key: `transit/rewrap/orders` takes a wrapped key and returns the same data key wrapped by the newest version. The KMS unwraps and wraps again inside itself, so the data key never comes out, and a job that may only rewrap can't read anything. The encrypted files aren't touched.
+3. **Retire** the old versions, once nothing needs them: `bao write transit/keys/orders/config min_decryption_version=N`. A ciphertext from an older version is then refused: `ciphertext or signature version is disallowed by policy (too old)`.
+
+The order matters. Retire a version while anything is still wrapped by it, and that thing can't be opened. (OpenBao archives a retired version and doesn't delete it, so lowering the setting brings it back. Deleting a key is the step with no way back: every file whose data key it wrapped is gone for good, which is also how you destroy data on purpose.)
+
+A wrapped key can also be moved from one KMS key to another: unwrap it with the old key, wrap it with the new. AWS's `ReEncrypt` does both in one call. In OpenBao it is two: `transit/decrypt/OLD` returns the data key in base64, which is the form `transit/encrypt/NEW` takes as its `plaintext`; writing `plaintext=-` has `bao` read the value from a pipe, so it needn't be typed or stored.
+
+<Check item="mcq-which-still-open" />
+
+**Where the three clouds differ.** The envelope is the same everywhere; the calls and the rotation rules aren't (each provider's pages, read 2026-11-22):
+
+| | AWS KMS | Azure Key Vault | Google Cloud KMS |
+| --- | --- | --- | --- |
+| Getting a data key | `GenerateDataKey` returns a new one both ways, as itself and wrapped | you make the data key; `wrapKey` and `unwrapKey` wrap and unwrap it (Azure Storage does this with its own account key when you give it a key of yours) | you make the data key and send it to `Encrypt`, which takes up to 64 KiB |
+| Rotation | off until you enable it; then every 365 days unless you choose another period, or on demand. The key's ID stays the same and old key material is kept | a rotation policy makes a new key version, no more often than every 7 days; Microsoft says rotate at least every two years; services should name the key without a version, so they pick up the newest | a rotation period (for example every 90 days) makes new key versions; old versions stay active, and cost money, until you destroy them |
+| Old wrapped keys | still open; `ReEncrypt` moves them forward | Azure's services rewrap their own data keys; both versions must stay enabled until they have, and Azure Storage looks for a new version only once a day, so wait 24 hours before disabling the old one | still open; "isn't automatically re-encrypted", so rewrapping is yours to do |
+
+AWS's prices, as an example of how a KMS bills (read 2026-11-22): $1 a month for a key, $1 a month more for each of its first two rotations, and $0.03 for every 10,000 requests after the first 20,000 a month. You pay by the request, and with an envelope every read is one unwrap.
+
+**How strong is strong enough.** A key's **security strength** is counted in bits: n bits means about 2^n tries to break it. For a symmetric cipher that is simply the key's length: AES-128 is 128 bits. Public-key algorithms can be attacked through their mathematics, far faster than by trying keys, so they need longer keys for the same strength (NIST SP 800-57, Table 2):
+
+| Strength | Symmetric | RSA | Elliptic curve |
+| --- | --- | --- | --- |
+| 112 bits | (Triple DES) | 2,048 bits | 224 to 255 bits |
+| 128 bits | AES-128 | 3,072 bits | 256 to 383 bits (P-256, X25519) |
+| 256 bits | AES-256 | 15,360 bits | 512 bits and more |
+
+112 bits is the least that is acceptable today. Every bit doubles the work, so 128 bits is 2^16 times harder than 112, and nobody breaks either by trying keys: a rig that tried 10^18 AES-128 keys a second would need about 5 × 10^12 years to get half way. Encryption fails at the key's storage, at who may use it, and at how it's used, which is why most of this lesson is about those.
+
+**What quantum computers change.** A large quantum computer, which doesn't exist yet, would break RSA and elliptic curves outright, at any key size. NIST's plan (IR 8547, final in October 2026) is to deprecate those algorithms after 2030 and disallow them after 2035. Their replacements, **post-quantum cryptography**, are already standards: ML-KEM for agreeing keys and ML-DSA for signatures (AWS KMS offers both). Symmetric cryptography stays: NIST says its symmetric algorithms with at least 128 bits of strength are believed to hold, so AES-256 and SHA-256 aren't going anywhere.
+
+Key exchange is moving first, because of **harvest now, decrypt later**: someone can record encrypted traffic today and decrypt it when the computer exists. A signature only has to hold at the moment it's checked. The usual first step is a hybrid key exchange, X25519 and ML-KEM together in one handshake, which holds if either does. For this topic's envelope, the lesson is short: the data keys and AES-256-GCM are fine; what will change is the public-key part around them.
+
+<Check item="mcq-rsa-2048-strength" />
+
+**Going further (all optional).** Everything the questions and labs ask is in the lesson above; the pages below are for when you want more. Google Cloud's "Envelope encryption" is the shortest good account of the pattern from a provider. Svetlin Nakov's free book "Practical Cryptography for Developers" goes deeper on hashes, MACs and cipher modes, with code. OWASP's Password Storage Cheat Sheet is the reference for the password parameters. OpenBao's transit page lists every path used in the labs. AWS's and Azure's rotation pages are behind the table, and NIST IR 8547 is the transition plan itself.
+
+The quick questions read real output from the labs and work out nonce budgets, KMS bills and brute-force times. The labs take three fingerprints of an order and edit an encrypted one, fill in the two scripts that seal and open an order, write the script that rewraps an archive, build the shop's sealed orders from a blank server, and repair a server whose nightly report can no longer open its archive.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Choosing:** symmetric (AES-256-GCM) for data; public-key to wrap a symmetric key, to sign and to agree keys; **hybrid** almost always (one file key, wrapped once per reader, as `age` does). RSA-2048 takes 190 bytes at a time: never for files. base64 and hex are **encodings**, with no key.
+- **Hash** (`sha256sum`): anyone can make it; proves nothing against someone who can replace it. **MAC** (HMAC-SHA256, `openssl dgst -sha256 -hmac KEY`): a key holder sent this, unchanged, but not which holder. **Signature**: one private key made it, anyone can check.
+- **A plain hash of guessable data is the data** (card numbers, phone numbers): use a MAC under a key in a KMS. **Passwords:** Argon2id (19 MiB, 2 passes) with a random **salt** each; never a fast hash, never encryption.
+- **Encryption without authentication can be edited blind** (CTR: flip a ciphertext bit, the plaintext bit flips). Use an **AEAD** (AES-GCM, ChaCha20-Poly1305): a tag, checked before decrypting. **Associated data** (AWS's encryption context) ties a ciphertext to its place.
+- **Nonce:** never twice under one key. With random 96-bit nonces, at most 2^32 encryptions a key.
+- **Where is the key?** Encryption is worth what the control over its key is worth. Disk encryption protects a stolen disk or snapshot, and nobody who can query the running database. A key in a config file beside the data is no control.
+- **Envelope encryption:** a fresh **data key** per object, used where the data is; wrapped by a **key encryption key** that never leaves the **KMS**; the wrapped key stored beside the data. OpenBao: `transit/datakey/plaintext/KEY`, `transit/decrypt/KEY`. **The control is the policy:** the sealer may make data keys, the reader may unwrap, and the log shows every unwrap.
+- **Rotate, rewrap, retire, in that order:** `transit/keys/KEY/rotate` adds a **key version** and changes no data; `transit/rewrap/KEY` moves a wrapped key to the newest version inside the KMS; `min_decryption_version` retires old versions. Deleting a key destroys what it wrapped.
+- **Clouds:** AWS `GenerateDataKey`, `ReEncrypt`, 365-day rotation when enabled; Azure Key Vault `wrapKey` and `unwrapKey`, rotation policies, wait 24 hours before disabling an old version used by Storage; Google: make the data key yourself, `Encrypt` up to 64 KiB, old versions stay until destroyed. KMS bills by the request.
+- **Strength:** n bits is about 2^n tries. RSA-2048 is 112 bits, the floor; AES-128, RSA-3072 and P-256 are 128. **Post-quantum:** RSA and elliptic curves deprecated after 2030, disallowed after 2035 (NIST IR 8547); ML-KEM and ML-DSA replace them; AES-256 stays; key exchange moves first (harvest now, decrypt later).
+
+</Recap>

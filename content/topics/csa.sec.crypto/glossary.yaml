@@ -1,0 +1,53 @@
+# The terms this topic teaches (ADR-0026). Where another topic's lesson
+# first uses one, the app shows its definition and links back here.
+# Module 4's plan (section 3.5) gives this topic the module's entries for
+# hash, MAC, HMAC and signature. The MAC's entry is under its full name:
+# "MAC" alone already means a network card's address in the networking
+# lessons, where the app would mark it with this definition.
+- term: plaintext
+  definition: "Data before it is encrypted, or after it is decrypted again: what encryption is there to hide. It needn't be text."
+- term: ciphertext
+  definition: Data after encryption. Without the key it reads as random bytes.
+- term: hash
+  definition: "A short, fixed-length fingerprint of data, such as SHA-256's 64 hex digits. Any change alters it and it can't be run backwards, but anyone can compute one: there is no key."
+- term: message authentication code
+  definition: "A fingerprint worked out from data and a secret key together (a MAC). Only holders of the key can make or check one, so it proves a key holder sent the data unchanged, but not which holder."
+- term: HMAC
+  definition: "The standard way to build a message authentication code from a hash and a secret key, as in HMAC-SHA256."
+- term: signature
+  definition: "A code made from data with a private key, which anyone holding the matching public key can check. It proves that the one holder of that private key made it, and that nothing changed since."
+- term: salt
+  definition: "A random value, different for each password and stored beside its hash, mixed in before hashing so that one guess can't be tested against every account at once. It isn't secret."
+- term: AEAD
+  aliases: [authenticated encryption]
+  definition: "Encryption that also makes a tag only the key can make, so that a ciphertext changed by one bit is refused, not decrypted. AES-GCM and ChaCha20-Poly1305 are the usual two."
+- term: nonce
+  definition: "A number used once: the starting value an AEAD needs for each encryption, which must never repeat under the same key. Also called an IV. It isn't secret."
+- term: hybrid encryption
+  definition: "Encrypting data with a fast symmetric key, and that key with a public key, once for each reader: one copy of the data, one small wrapped key per reader."
+- term: KMS
+  aliases: [key management service]
+  definition: "A service that keeps keys and encrypts and decrypts small things with them on request, without ever handing a key out. A policy decides who may ask, and a log records each use."
+- term: HSM
+  aliases: [hardware security module]
+  definition: "Tamper-resistant hardware that holds keys and does the cryptography inside itself, so the keys never exist outside it. Cloud key services keep their keys in them."
+- term: envelope encryption
+  definition: "Encrypting each object with a data key of its own, and storing that data key beside it, wrapped by a key that never leaves a key service."
+- term: data key
+  aliases: [DEK, data encryption key]
+  definition: "The symmetric key that encrypts one file or object in envelope encryption: made fresh for it, used where the data is, and stored only in wrapped form."
+- term: key encryption key
+  aliases: [KEK]
+  definition: "A key that encrypts other keys, not data. In envelope encryption it stays inside the key service and wraps the data keys."
+- term: key version
+  definition: "One generation of a key in a key service. Rotating adds a new version for new encryptions; older versions still decrypt what they encrypted, until they are retired."
+- term: rewrap
+  definition: "Having a key service decrypt a wrapped key with an old key version and encrypt it with the newest, inside the service, so the key itself never comes out."
+- term: OpenBao
+  definition: "An open-source key and secrets service with the same commands and API as HashiCorp Vault. In the labs it stands in for a cloud's key service."
+- term: transit engine
+  definition: "OpenBao's key service: it keeps named keys and encrypts, decrypts and rewraps what it is sent with them, and never releases a key."
+- term: security strength
+  definition: "How much work breaking a key takes, in bits: n bits means about 2 to the power n tries. RSA-2048 has 112 bits, AES-128 has 128."
+- term: post-quantum cryptography
+  definition: "Public-key algorithms, such as ML-KEM and ML-DSA, built to resist a large quantum computer, which would break RSA and elliptic curves."

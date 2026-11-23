@@ -1,0 +1,13 @@
+# The nightly report: opens every archived order and says how many it
+# could. report-orders.timer starts it at 02:00; "systemctl start
+# report-orders" runs it now.
+[Unit]
+Description=The nightly report over the archived orders
+After=openbao.service lab-bao-init.service
+
+[Service]
+Type=oneshot
+User=report
+Environment=BAO_ADDR=http://127.0.0.1:8200
+ExecStart=/usr/local/bin/report-orders
+SyslogIdentifier=report-orders

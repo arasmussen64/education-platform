@@ -1,0 +1,27 @@
+id: mcq-age-header
+type: mcq
+rev: 1
+prompt: |
+  `age` encrypted a 3,000-byte file for two recipients (`age -r KEY1 -r KEY2`), and the result is 3,298 bytes. This is the text at the top of it, captured in this topic's lab on 2026-11-22:
+
+  ```
+  age-encryption.org/v1
+  -> X25519 0VT1VYEdk1J1ZZL8nZ4Nv/+tiMljVV2x7KppykqeOhw
+  qW3E/Oin4Cbqld3Ek//ZwmS0PXP+QMPyCLAjn8wXbaU
+  -> X25519 4/1Hojim1FB86RKEvMaC636lryCGtwGid5F0LgpL0m0
+  C+DTeNLwvRyVNx5W7MU8Rc3B88xXvZ6MQ/9s58kZ9xg
+  --- 5FZICYQU7kkKsbtiK9oS9JrHbynG87LwAWR3fRFAKvs
+  ```
+
+  What do the two parts that start `-> X25519` hold?
+choices:
+  - "The same file key, wrapped once for each of the two recipients"
+  - "One half of the file each, encrypted for one of the recipients"
+  - "Two different file keys, one for each encrypted copy of the data"
+  - "The two recipients' public keys, so that either of them can sign"
+answer: 0
+explanation: |
+  `age` makes one random file key, encrypts the file once under it, and puts a copy of that key in the header for each recipient, wrapped so that only that recipient's private key can unwrap it. Two recipients, two wrapped copies, and the file grew by 298 bytes, not by 3,000: there is one copy of the data. That is hybrid encryption, and it's the same shape as envelope encryption with a key service.
+
+  The file isn't split, and it isn't encrypted twice: either would show in the size. The header holds no public keys to sign with: `age` encrypts and doesn't sign. (The line that starts `---` is a MAC over the header, so nobody can swap a recipient's part without it showing.)
+skills: [choose-the-primitive]

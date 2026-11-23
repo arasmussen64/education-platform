@@ -1,0 +1,22 @@
+id: ctr-flip-predict
+type: predict_shell
+rev: 1
+prompt: |
+  The command encrypts `order.txt` with AES-256 in CTR mode, which has no authentication. (The key and IV are all zeros: test values, so that the result is the same every time.) Then, without using the key, it reads the fifth byte of the encrypted file as a number, flips one bit of it (`^ 8` is XOR with 8; the digits `1` and `9` differ in exactly that bit) and writes it back in place. Last, it decrypts the file with the right key. What is printed?
+files:
+  order.txt: |
+    PAY 100 TO ALEX
+command: |
+  K=0000000000000000000000000000000000000000000000000000000000000000
+  IV=00000000000000000000000000000000
+  openssl enc -aes-256-ctr -K $K -iv $IV -in order.txt -out pay.enc
+  b=$(od -An -tu1 -j4 -N1 pay.enc)
+  printf "$(printf '\\%03o' $((b ^ 8)))" | dd of=pay.enc bs=1 seek=4 conv=notrunc 2> /dev/null
+  openssl enc -d -aes-256-ctr -K $K -iv $IV -in pay.enc
+expected_output: |
+  PAY 900 TO ALEX
+explanation: |
+  CTR mode makes a stream of random-looking bytes from the key and XORs it with the data, byte by byte. So each bit of the ciphertext lines up with one bit of the plaintext: flip a bit in the encrypted file and the same bit flips in what it decrypts to. `1` is 0x31 and `9` is 0x39, which differ in one bit (8), so flipping that bit of the fifth byte turns the `1` of `100` into a `9`.
+
+  The attacker never had the key, only a guess at where the amount sits. And decryption printed no error, because the cipher has nothing to compare against. Encryption alone hides data; it doesn't protect it from being changed. That takes a tag: an HMAC over the ciphertext, or an AEAD mode such as AES-GCM, which refuses the changed file.
+skills: [authenticated-encryption]
