@@ -1,0 +1,14 @@
+# The platform's identity service (scenery): signs a fresh token for each
+# workload in /etc/lab-platform/workloads into /run/platform/WORKLOAD/token.
+# It runs at boot, before OpenBao and whatever signs in to it, and again
+# every three minutes (platform-token.timer).
+[Unit]
+Description=The platform's identity tokens for this machine's workloads
+Before=openbao.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/platform-token
+
+[Install]
+WantedBy=multi-user.target

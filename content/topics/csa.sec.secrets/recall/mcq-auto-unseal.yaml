@@ -1,0 +1,16 @@
+id: mcq-auto-unseal
+type: mcq
+rev: 1
+prompt: |
+  A secrets manager such as OpenBao keeps its store encrypted and must be given a key each time it starts (unsealed). On a cloud VM it is set to "auto-unseal" with the cloud's key service. Where is its unseal key now?
+choices:
+  - "Wrapped by a key in the cloud's KMS, which this VM's identity may use"
+  - "In a file beside its data, readable by the service's own user"
+  - "Nowhere: auto-unseal means the store is no longer encrypted"
+  - "Split into shares that three administrators must type in after every restart"
+answer: 0
+explanation: |
+  With auto-unseal the manager's own key is stored wrapped, and at each start it asks the cloud's key management service to unwrap it. The KMS agrees because the request comes with the VM's platform identity, and a policy says that identity may use that one key. No person types anything, nothing readable is on the disk, and the KMS's log shows every unseal. It is envelope encryption from Applied cryptography, applied to the secrets manager itself, and it is secret zero answered by the platform again.
+
+  A key in a file beside the data is what the labs do (OpenBao's `static` seal), which is fine for a lab and exactly what its documentation says to evaluate carefully: whoever can read that file can open the store. Shares typed by administrators is the other real answer (Shamir shares), safe and slow: nothing comes back after a restart until enough people are awake.
+skills: [secret-zero]

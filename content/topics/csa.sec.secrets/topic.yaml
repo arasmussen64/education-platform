@@ -1,17 +1,358 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.secrets
 kind: topic
-status: planned
+status: ready
 title: Secrets
-summary: Keep secrets out of code, images and logs.
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "Passwords, API keys and tokens, and where they go wrong: every place a secret leaks (git history, image layers, command lines, the environment, logs) and who can read each; scanners, and the one place a scan can't be skipped; what to do in the first hour after a leak, and rotating without downtime; the secret-zero problem and how a workload gets its first credential; and dynamic secrets, which expire before a thief can use them."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections
+# 2, 3, 4.2 and 5) and its designer's brief (csa.sec.secrets.md), with the
+# vault base as it was built (content/lab-bases/vault/README.md) and the
+# plan's build notes.
+# The plan's prerequisites: csa.sec.crypto, which owns OpenBao's first
+# words (bao, path, token, policy, the transit engine, the audit log), the
+# KMS, HMAC and envelope encryption, and whose first lab carries the
+# "Before your first key-service lab" note this topic points back to; and
+# csa.sec.federation, which owns what a signed token is and how one is
+# validated (issuer, subject, audience, expiry, the signature against the
+# issuer's key), on which this topic's answer to secret zero rests.
+# Through them it builds on csa.sec.authn-authz (least privilege, policy,
+# workload identity in a sentence), csa.linux.boot (the metadata service's
+# temporary role credentials), csa.linux.containers (images, layers,
+# whiteouts), csa.linux.services (units, Environment=, journalctl),
+# csa.linux.permissions (file modes, groups, sudo) and csa.linux.processes
+# (ps, /proc).
+# This topic defines, for the module (the plan's 3.5): secret, secret
+# sprawl, secrets manager, the minimum of git (repository, commit, hook),
+# build secret, secret scanner, rotation, secret zero, AppRole, response
+# wrapping, the unseal key and auto-unseal, dynamic secret and its lease,
+# OpenBao Agent. Three words the plan's table gives it are defined as
+# longer phrases, because the short ones already mean something else in
+# earlier lessons, where the app would mark them with this topic's
+# definition: "git commit" (not "commit"), "secret rotation" (log
+# rotation is Module 1's) and no entry for "lease" alone (DHCP's leases
+# are Module 3's) or "seal" alone (Applied cryptography's labs seal
+# orders).
+prerequisites: [csa.sec.crypto, csa.sec.federation]
+# Worked out: the lesson about 42 minutes (5,500 words with its tables,
+# code and recap, at 130 a minute; it is long because it also teaches
+# the minimum of git, which no earlier topic used), 16 practice quick
+# questions at 1.5 each 24, then the worked example 45 (it gained a part
+# on dynamic credentials, so that the build isn't the first time the
+# learner sets the database engine up), the fill-in 25, the write 35, the
+# build 55, the debug 45 and the explain 20: about 291, and the puzzle
+# and the story about 5 more. The plan's 310 counted 50 minutes of
+# assigned reading, which is optional now (ADR-0031, step 3) and so left
+# out.
+estimated_minutes: 295
 rev: 1
 objectives:
-- Keep secrets out of code, images and logs.
-- Rotate them.
-- Catch leaks with scanners.
-- Explain the secret-zero problem and dynamic secrets (as in Vault).
+  - "Find where a secret has leaked on a server and in its software (a repository's history, an image's layers and history, a process's command line and environment, a unit file, the journal), say who can read each, and put the secret where it belongs: a file only the service's user can read, a build's secret mount, a secrets manager."
+  - "Catch leaks with a scanner: over a repository's whole history, and in a hook on the git server that nobody pushing can skip and no pushed settings can silence; add a rule for a format of your own, and say what scanners miss."
+  - "Answer a leak in the right order (revoke, replace, read the record, clean up, find the cause), rotate a secret without downtime with two keys in turn, and work out how long a leaked secret could be used."
+  - "Explain the secret-zero problem, and how a workload should get its first credential: the platform vouches for it with a signed token bound to that workload and audience, or a trusted deployer hands over a single-use wrapped credential; and how a secrets manager's own key is protected."
+  - "Replace a static database password with dynamic secrets: a role that makes short-lived accounts on request, the admin password rotated so that only the secrets manager knows it, an agent that keeps the credentials fresh in a file; and say how the three clouds' secrets managers rotate."
+# Facts the lesson and the items rely on, each read on 2026-11-23 unless a
+# line says otherwise (the lab work ran over midnight UTC from 2026-11-22):
+# - The story: US Federal Trade Commission, "Uber Agrees to Expanded
+#   Settlement with FTC Related to Privacy, Security Claims" (12 April
+#   2018): intruders got in "by using an access key an Uber engineer had
+#   posted on a code-sharing website"; unencrypted files with more than 25
+#   million names and email addresses, 22 million names and mobile phone
+#   numbers and 600,000 names and driver's license numbers; $100,000 paid
+#   through the bug bounty program; learned November 2016, disclosed
+#   November 2017. The release doesn't name the site, so the story doesn't:
+#   ftc.gov/news-events/news/press-releases/2018/04/uber-agrees-expanded-settlement-ftc-related-privacy-security-claims
+# - Codecov: the attacker got in through "an error in Codecov's Docker
+#   image creation process that allowed the actor to extract the
+#   credential"; alterations of the Bash Uploader "beginning January 31,
+#   2021"; learned on 1 April 2021; the altered script sent the output of
+#   `git remote -v` and `env` to a third-party server:
+#   about.codecov.io/security-update/
+# - GitGuardian, "The State of Secrets Sprawl 2026" (17 March 2026):
+#   "28.65 million new hardcoded secrets" in public GitHub commits in
+#   2025, up 34%; of credentials confirmed valid in 2022, still above 64%
+#   valid in January 2026:
+#   blog.gitguardian.com/the-state-of-secrets-sprawl-2026/
+# - OWASP Secrets Management Cheat Sheet: secrets "should never be
+#   hardcoded using docker ENV or docker ARG commands"; environment
+#   variables "not recommended unless the other methods are not possible";
+#   "Dynamic secrets should be used where possible"; avoid static bootstrap
+#   credentials, prefer short-lived OIDC tokens and workload identity
+#   (3.2.2); secrets should "Never be logged" (8.3); after a leak,
+#   revocation first: "Keys that were exposed should undergo immediate
+#   revocation" (9.2):
+#   cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html
+# - Docker: "Build arguments and environment variables are inappropriate
+#   for passing secrets to your build"; a secret mount is at
+#   /run/secrets/<id>; `docker build --secret id=aws,src=...`:
+#   docs.docker.com/build/building/secrets/
+# - gitleaks 8.16.0 (Ubuntu 24.04's, in universe; MIT): `detect` and
+#   `protect`, --no-git, --redact, --log-opts, --config (then
+#   GITLEAKS_CONFIG, then .gitleaks.toml), --staged; exit 0 no leaks, 1
+#   leaks; [extend] useDefault; allowlists:
+#   github.com/gitleaks/gitleaks/tree/v8.16.0. The current README: "v8.19.0
+#   introduced a change that deprecated `detect` and `protect`"; the modes
+#   are `git`, `dir` and `stdin`: github.com/gitleaks/gitleaks
+# - trufflehog: "Since v3.0, TruffleHog is released under a AGPL 3
+#   license"; "A verified result means TruffleHog confirmed the credential
+#   is valid by testing it against the service's API"; --no-verification:
+#   github.com/trufflesecurity/trufflehog
+# - GitHub push protection: for users "Is enabled by default", "Stops you
+#   from pushing secrets to public repositories on GitHub"; for
+#   repositories "Is disabled by default"; "by default, anyone with write
+#   access to the repository can bypass push protection by specifying a
+#   bypass reason":
+#   docs.github.com/en/code-security/secret-scanning/introduction/about-push-protection
+# - AWS Secrets Manager: single user is "the simplest rotation strategy",
+#   with "a low risk of the database denying calls"; alternating users:
+#   "the application still gets a valid set of credentials":
+#   docs.aws.amazon.com/secretsmanager/latest/userguide/rotation-strategy.html.
+#   "You can rotate a secret as often as every four hours. The maximum
+#   rotation period is 999 days":
+#   docs.aws.amazon.com/secretsmanager/latest/userguide/rotate-secrets_schedule.html.
+#   The pricing page's own table didn't load its figures; its worked
+#   examples use $0.40 a secret a month and $0.05 per 10,000 calls, and the
+#   lesson gives no price for that reason: aws.amazon.com/secrets-manager/pricing/
+# - Azure Key Vault: "Thirty days before the expiration date of a secret,
+#   Key Vault publishes the 'near expiry' event to Event Grid", which calls
+#   a function that makes the new password; "The best way to authenticate
+#   to Azure services is with a managed identity" (ms.date 2026-07-07):
+#   learn.microsoft.com/en-us/azure/key-vault/secrets/tutorial-rotation
+# - Google Secret Manager: "You must configure a Pub/Sub subscriber to
+#   receive and act on the SECRET_ROTATE messages"; "The rotation_period
+#   can't be less than one hour long":
+#   docs.cloud.google.com/secret-manager/docs/secret-rotation
+# - OpenBao: the database engine "generates a unique username and password
+#   pair for each unique credential request"; after configuring the root
+#   user "it is highly recommended you rotate that user's password":
+#   openbao.org/docs/secrets/databases/. Response wrapping puts the
+#   response in the "cubbyhole of a single-use token"; a failed unwrap
+#   should "trigger an alert for immediate investigation":
+#   openbao.org/docs/concepts/response-wrapping/. AppRole: a RoleID and a
+#   SecretID "intended to always be secret", with usage limits and TTLs; a
+#   "trusted orchestrator" hands the app "a short-lived response-wrapping
+#   token": openbao.org/docs/auth/approle/. The static seal: "Carefully
+#   evaluate use of Static Key Auto Unseal to see if its use meets the
+#   desired security properties": openbao.org/docs/configuration/seal/static/
+# - systemd credentials: "Unlike environment variables the credential data
+#   is not propagated down the process tree"; "Access to credentials is
+#   restricted to the service's user"; SetCredential= "should only be used
+#   for credentials that aren't sensitive": systemd.io/CREDENTIALS/
+# Tried in this topic's labs (OpenBao 2.7.2, PostgreSQL 16, gitleaks
+# 8.16.0, git 2.43, podman 4.9.3 on Ubuntu 24.04, the vault base),
+# 2026-11-22 and 23: /proc/PID/cmdline is -r--r--r-- and /proc/PID/environ
+# -r--------; `systemctl show -p Environment` prints a unit's Environment=
+# for a user with no rights; a build argument in `podman history` as
+# `|1 NAME=value`; a file deleted by a later step still in the earlier
+# layer, with a `.wh.` file in the later one; a secret mount leaving
+# nothing in the image (searched as text, base64 and hex); gitleaks as a
+# pre-receive hook in a bare repository with --log-opts, a custom rule
+# beside the built-in ones, a path allowlist, a pushed .gitleaks.toml
+# obeyed in a clone and ignored in the bare repository; the general rule
+# missing `db_password = "Summer2026!"` and finding 40 random hex digits;
+# the database engine with the PostgreSQL plugin, rotate-root, leases and
+# `lease revoke -prefix`; JWT sign-in with jwt_validation_pubkeys,
+# bound_issuer, bound_subject and bound_audiences, and what a role
+# without a bound subject, or with a glob, lets in; AppRole with
+# secret_id_num_uses=1 and a wrapped secret_id (second unwrap: "wrapping
+# token is not valid or does not exist"; second sign-in: "invalid role or
+# secret ID"); OpenBao Agent with auto_auth method jwt and a template; a
+# token of OpenBao 2.7.2 is `s.` and 24 letters and digits. Two findings
+# the lessons use: systemd's LoadCredential= does not work in the lab's
+# container (the credentials folder is never made), so the labs use a
+# file only the service's user can read, and the lesson teaches
+# credentials from systemd's documentation; and a command that changes
+# user (runuser, sudo) is noted in the journal with its whole command
+# line, so a secret in an argument reaches the journal that way too.
+# Every output in the lesson, the labs and the recall items marked
+# "captured" is real output of those labs; keys, tokens and commit names
+# differ in a new run.
+#
+# Linked, never copied. The plan asks for the assigned sections of OWASP's
+# cheat sheet to be copied into the lesson (CC BY-SA 4.0 allows it), but
+# the reading importer (tools/import_reading.py) has no entry for that
+# site and this topic's writer may not change tools, so it is an optional
+# "go deeper" link like the rest, and the lesson's own text carries the
+# topic (ADR-0031, step 3).
+# Licences, each read on 2026-11-23: OWASP's cheat sheets are CC BY-SA 4.0
+# (the page's footer); Docker's page states none, and its repository,
+# docker/docs, is Apache-2.0; OpenBao's site says "Copyright (c) 2026
+# OpenBao a Series of LF Projects, LLC" and names no licence (its pages
+# are in the openbao/openbao repository, MPL-2.0); gitleaks is MIT (its
+# repository); GitHub's documentation repository, github/docs, is CC BY
+# 4.0; AWS's documentation is (c) Amazon Web Services; Microsoft's page
+# comes from a private repository, recorded as Module 3 recorded
+# Microsoft's documentation; Google's documentation is CC BY 4.0 "except
+# as otherwise noted" (Google's site policies; the footer wasn't in the
+# text fetched); systemd's page says only "(c) systemd, 2026"; Codecov's
+# and GitGuardian's pages are their own.
+resources:
+  - title: "Secrets Management Cheat Sheet (OWASP): the whole field in one page, from CI pipelines to incident response"
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY-SA 4.0 (the page); linked, not copied"
+  - title: "Build secrets (Docker): secret mounts and why build arguments won't do"
+    url: https://docs.docker.com/build/building/secrets/
+    type: reading
+    use: link
+    optional: true
+    license: "Apache-2.0 (the docker/docs repository; the page states none); linked, not copied"
+  - title: "gitleaks 8.16.0's README: every command and setting the labs use"
+    url: https://github.com/gitleaks/gitleaks/tree/v8.16.0
+    type: reading
+    use: link
+    optional: true
+    license: "MIT (the repository); linked, not copied"
+  - title: "Push protection (GitHub): who has it by default, and who can bypass it"
+    url: https://docs.github.com/en/code-security/secret-scanning/introduction/about-push-protection
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0 (the github/docs repository); linked, not copied"
+  - title: "Database secrets engine (OpenBao): dynamic credentials, static roles and rotating the root credential"
+    url: https://openbao.org/docs/secrets/databases/
+    type: reading
+    use: link
+    optional: true
+    license: "MPL-2.0 (the openbao/openbao repository, which holds the site); linked, not copied"
+  - title: "Response wrapping (OpenBao): single-use wrapping tokens, and what a failed unwrap means"
+    url: https://openbao.org/docs/concepts/response-wrapping/
+    type: reading
+    use: link
+    optional: true
+    license: "MPL-2.0 (the openbao/openbao repository, which holds the site); linked, not copied"
+  - title: "AppRole auth method (OpenBao): RoleID, SecretID and their limits"
+    url: https://openbao.org/docs/auth/approle/
+    type: reading
+    use: link
+    optional: true
+    license: "MPL-2.0 (the openbao/openbao repository, which holds the site); linked, not copied"
+  - title: "Lambda function rotation strategies (AWS): single user against alternating users"
+    url: https://docs.aws.amazon.com/secretsmanager/latest/userguide/rotation-strategy.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Rotation tutorial for resources with one set of authentication credentials stored in Azure Key Vault (Microsoft Learn)"
+    url: https://learn.microsoft.com/en-us/azure/key-vault/secrets/tutorial-rotation
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0 (as Module 3 recorded Microsoft's documentation; this page's repository is private); linked, not copied"
+  - title: "Secret rotation in Secret Manager (Google Cloud): rotation schedules and the messages they send"
+    url: https://docs.cloud.google.com/secret-manager/docs/secret-rotation
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "Credentials (systemd): LoadCredential= and how a service is handed a secret"
+    url: https://systemd.io/CREDENTIALS/
+    type: reading
+    use: link
+    optional: true
+    license: "© systemd (the page names no licence); linked, not copied"
+  - title: "Codecov's security update (April 2021): a credential taken from an image, and what it led to"
+    url: https://about.codecov.io/security-update/
+    type: reading
+    use: link
+    optional: true
+    license: "© Codecov; linked, not copied"
+  - title: "The State of Secrets Sprawl 2026 (GitGuardian): how many secrets reach public repositories, and how long they stay valid"
+    url: https://blog.gitguardian.com/the-state-of-secrets-sprawl-2026/
+    type: reading
+    use: link
+    optional: true
+    license: "© GitGuardian; linked, not copied"
+# The recall items read output captured from this topic's labs and work
+# out how long a leaked secret could be used. All five labs are systemd
+# labs on the vault base: one server, the shop's.
+practice:
+  - example-follow-the-leaks
+  - mcq-who-reads-args
+  - whiteout-layers
+  - typed-kv-get
+  - fill-build-without-secrets
+  - gitleaks-findings
+  - mcq-where-to-enforce
+  - mcq-pushed-allowlist
+  - typed-gitleaks-detect
+  - write-push-guard
+  - mcq-leak-first
+  - est-exposure-scan
+  - est-exposure-static
+  - mcq-what-is-secret-zero
+  - mcq-wrapped-twice
+  - mcq-any-workload
+  - mcq-valid-until
+  - mcq-rotate-root
+  - est-max-ttl
+prove:
+  build: build-shop-without-static-secrets
+  debug: debug-the-export-leaks
+  explain:
+    prompt: |
+      A teammate says: "Secrets are fine as long as they're not in the code. We pass them as environment variables, keep the real values in a vault, and rotate them once a year." Explain, in your own words: where secrets leak besides code, and who can read each place; what you'd do in the first hour after a key turns up in a public repository; how a scanner fits in, and where it can't be skipped; what the secret-zero problem is and how a workload should get its first credential; and what dynamic secrets change, with what is still static and how it's protected.
+    rubric:
+      - id: leak-paths
+        required: true
+        description: "Besides code: git history (every commit, in every clone, after the file is deleted); image layers and history (a build argument, an ENV line, a file a later step removed); command-line arguments (every user of the machine, through ps); environment variables (the process's user and root, every child process, crash reports and debug output); unit files (Environment= is readable by all, and systemctl show prints it); logs. A secret belongs in a file only the service's user can read, a build's secret mount, or a secrets manager."
+      - id: first-hour
+        required: true
+        description: "Revoke first, because nothing else makes a leaked secret harmless: rewriting history or hiding the repository doesn't reach the copies already made. Then give the service a new secret, read the provider's record for what the old one was used for, clean up, and find how it got there. A secret that has been anywhere it shouldn't be is replaced, not trusted."
+      - id: scanning
+        required: true
+        description: "A scanner finds known formats by their shape and general secrets by a keyword beside a random-looking string, so it misses weak passwords (false negatives). It must read the whole history, not the newest files. A hook on a developer's machine can be skipped; a pre-receive hook on the git server can't, and it scans with settings kept on the server, not ones that arrive in the push. Hosted push protection does the same and can be bypassed with a reason."
+      - id: secret-zero
+        required: true
+        description: "Every secrets manager needs a first credential from its caller, and a token in a file beside the app is one static secret that opens all the rest. The answer is identity, not hiding: the platform that runs the workload vouches for it (a metadata service, a signed workload token), and the manager checks the signature, issuer, audience and which workload the token names, bound exactly. Where there is no platform identity, a trusted deployer delivers a single-use wrapped credential, and a failed unwrap is an alarm. The manager's own key is protected by people's shares or a cloud KMS."
+      - id: dynamic
+        required: true
+        description: "A dynamic secret is made on request, for one workload, with a lease: it expires within minutes or hours, can be revoked at once (all of a role's at a time), and names the workload in the database's logs. A leaked one is usually dead before anyone reads it. What stays static is the manager's own admin credential at the database, rotated so that only the manager knows it, the manager's unseal key, and the platform's signing key: few, and guarded hardest."
+      - id: clouds
+        required: false
+        description: "AWS Secrets Manager runs rotation itself (managed, or a Lambda function, as often as every four hours; single user or alternating users). Azure Key Vault sends a near-expiry event 30 days ahead and your function rotates. Google Secret Manager sends a SECRET_ROTATE message on a schedule and rotates nothing itself. All three prefer a platform identity to a stored secret."
+    model_answer: |
+      "Not in the code" is where it starts, not where it ends. A secret that was ever committed is in the repository's history, in every clone, even after the file is deleted. One that was a build argument is in the image's history, and a file that a later build step removed is still in the earlier layer. A secret passed on a command line can be read by every user of the machine with `ps`. Environment variables are better than that but not good: the process's own user and root can read them, every program it starts inherits them, and debug output and crash reports print them; put in a unit file with `Environment=`, they are readable by everyone. And programs log things: one debug line with a header in it and the secret is in the journal and wherever the journal is shipped. So environment variables aren't the answer. A secret should reach a program as a file only its own user can read, reach a build as a secret mount, and live in a secrets manager.
+
+      If a key turns up in a public repository, the first thing I'd do is revoke it at the service it belongs to. Nothing else helps: I can't call back the copies, and rewriting history or making the repository private doesn't reach them. Then I'd give the service a new key, read the provider's record of what the old key did while it was out, clean up the repository, and work out how it got there. Rotating once a year is no use here: a leaked key would work for half a year on average.
+
+      A scanner looks for secrets by their shape (known key formats) and by a keyword next to a random-looking string, so it finds API keys well and weak passwords badly. It has to read the whole history. A scan on each developer's machine helps and can be skipped; the place it can't be skipped is a hook on the git server that refuses any push with a secret in any of its commits, using settings kept on the server, since a clone's own settings file can be changed by the push itself.
+
+      Keeping the values in a vault moves the problem: the app needs a credential to ask the vault, and if that's a token in a file, it is one secret that opens all the others. That's secret zero. The real answer is to have nothing stored at that step: the platform that runs the workload signs a short-lived token saying which workload it is, and the vault checks the signature, the issuer, the audience and the exact workload named. Without that, a trusted deployer can hand over a credential that works once, wrapped, so that if anyone else opens it first the app notices. The vault's own key is held as shares by people or unsealed by a cloud key service.
+
+      Dynamic secrets change the whole picture: the vault makes a database account for each workload on request, good for an hour, and drops it afterwards. If one leaks it is usually dead before anyone reads it, all of them can be revoked with one command, and the database's logs name the workload. What is still static is small: the vault's admin account at the database, rotated so that nobody but the vault knows it, the vault's own key, and the platform's signing key.
+
+      On the clouds: AWS Secrets Manager can run rotation for you, down to every four hours; Azure Key Vault and Google Secret Manager send an event and your own code does the rotating. All three would rather you used the platform's identity than a stored secret.
+review_pool:
+  - whiteout-layers
+  - mcq-history-line
+  - mcq-secret-mount-left
+  - mcq-env-in-unit
+  - mcq-weak-password-missed
+  - mcq-verify-calls-out
+  - mcq-push-protection
+  - mcq-alternating
+  - mcq-clouds-who-rotates
+  - est-exposure-scan
+  - est-exposure-alternating
+  - mcq-auto-unseal
+  - mcq-imds-is-identity
+  - est-max-ttl
+  - est-creds-per-day
+  - est-dynamic-exposure
+# A lab short enough for a hands-on refresher in a review (ADR-0009,
+# amended 2026-11-16): the review asks it in place of a quick question.
+review_labs:
+  - fill-build-without-secrets
+skills:
+  - id: keep-secrets-out
+    description: "Where secrets leak: code and git history, image layers and history (a build argument, an ENV line, a file removed by a later step), command lines, environment variables, unit files and `systemctl show`, logs; who can read each; and where a secret belongs: a file only the service's user can read, a systemd credential, a build's secret mount, a secrets manager's key-value store"
+  - id: scan-for-leaks
+    description: "How a scanner decides (format rules, and a keyword beside a high-entropy string); `gitleaks detect` over a history, `--log-opts`, `--no-git`, `--redact`, a rule of your own and an allowlist; a pre-receive hook that scans every pushed commit with the server's settings, and why a clone's settings can't be trusted; push protection; verification; what scanners miss"
+  - id: rotate-and-revoke
+    description: "The order after a leak (revoke, replace, read the record, clean up, find the cause); rotating without downtime with two keys or two users in turn; how long a leaked secret could be used, as arithmetic; AWS Secrets Manager, Azure Key Vault and Google Secret Manager side by side"
+  - id: secret-zero
+    description: "The first credential and why hiding it doesn't solve it; platform identity (a metadata service, a signed workload token) validated by the secrets manager and bound to one subject and audience; AppRole with a single-use, wrapped SecretID from a trusted deployer; the manager's own unseal key: shares, auto-unseal with a cloud KMS, and the labs' key file"
+  - id: dynamic-secrets
+    description: "The database engine: a connection, a role with its creation SQL and lifetimes, rotating the root credential, leases, renewal up to the maximum, revoking by prefix; OpenBao Agent signing in and writing credentials to a file; least privilege in the database itself; the lifetime arithmetic"

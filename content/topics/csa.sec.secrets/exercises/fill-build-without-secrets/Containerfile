@@ -1,0 +1,11 @@
+# The export job's image. A Containerfile is podman's name for a
+# Dockerfile: the same instructions, read the same way.
+FROM busybox
+
+# Fetch the shop's library from the package server, which wants the header
+# "Authorization: Bearer TOKEN". The token is shown to this one step as a
+# file, and is part of nothing the step leaves behind.
+RUN --mount=type=___,id=pkg wget -q -O /opt/shop-lib.txt --header "Authorization: Bearer $(cat ___)" http://127.0.0.1:8081/shop-lib.txt
+
+COPY app.sh /opt/app.sh
+CMD ["/bin/sh", "/opt/app.sh"]

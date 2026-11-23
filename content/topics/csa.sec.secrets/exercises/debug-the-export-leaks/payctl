@@ -1,0 +1,50 @@
+#!/bin/bash
+# payctl: the shop's side of the payment gateway's admin API (the gateway
+# itself is the stand-in at 127.0.0.1:9440). Scenery: don't change it.
+#
+#   payctl keys          the shop's keys at the gateway: id, state, uses
+#   payctl new           make a new key; prints "ID KEY", once
+#   payctl revoke ID     revoke a key, for good
+#   payctl uses          the gateway's record of every use of every key
+#   payctl check         is the key on standard input still active?
+#                        (echo "$key" | payctl check)
+#
+# The first four need the gateway's admin key. payctl reads it from OpenBao
+# (secret/paygate/admin) with your token, each time, and hands it to curl on
+# curl's standard input ("-H @-" reads a header from there), so the admin
+# key is never in a file, in a variable of your shell, or on a command line
+# that `ps` would show.
+set -euo pipefail
+
+gateway=http://127.0.0.1:9440
+export BAO_ADDR=${BAO_ADDR:-http://127.0.0.1:8200}
+
+usage() {
+  sed -n '5,10s/^# \{0,3\}//p' "$0" >&2
+  exit 2
+}
+
+# admin METHOD PATH: one request to the gateway with the admin key.
+admin() {
+  local key
+  key=$(bao kv get -field=key secret/paygate/admin) || {
+    echo "payctl: OpenBao wouldn't give the admin key (secret/paygate/admin)" >&2
+    exit 1
+  }
+  printf 'Authorization: Bearer %s' "$key" | curl -sS -X "$1" -H @- "$gateway$2"
+}
+
+case "${1:-}" in
+  keys) admin GET /admin/keys ;;
+  new) admin POST /admin/keys ;;
+  revoke)
+    [ $# -eq 2 ] || usage
+    admin POST "/admin/keys/$2/revoke"
+    ;;
+  uses) admin GET /admin/uses ;;
+  check)
+    read -r key || true
+    printf 'Authorization: Bearer %s' "$key" | curl -sS -H @- "$gateway/whoami"
+    ;;
+  *) usage ;;
+esac

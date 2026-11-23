@@ -1,0 +1,16 @@
+id: mcq-clouds-who-rotates
+type: mcq
+rev: 1
+prompt: |
+  A secret is stored in a cloud's secrets manager with rotation set up. Who does the rotating: changes the password at the database and stores the new one? (Each provider's documentation, read 2026-11-23.)
+choices:
+  - "AWS can run it for you; Azure and Google send an event and your code rotates"
+  - "All three rotate any secret by themselves once a period is set"
+  - "Google rotates for you; AWS and Azure send an event and your code rotates"
+  - "None of them: all three only keep versions and never signal anything"
+answer: 0
+explanation: |
+  AWS Secrets Manager runs rotation: managed rotation for some services' secrets, and otherwise a Lambda function it calls on a schedule, as often as every four hours. Azure Key Vault publishes a "near expiry" event 30 days before a secret's expiry date, and a function of yours, called through Event Grid, makes the new password and stores it. Google Secret Manager sends a `SECRET_ROTATE` message to Pub/Sub on the schedule you set (no shorter than an hour), and says plainly that you must set up a subscriber to act on it.
+
+  So "rotation is enabled" means three different things. On Azure and Google it means a reminder arrives, and if nobody wrote the code that answers it, nothing rotates. All three providers also say the better answer, where it exists, is no stored secret at all: an identity the platform gives the workload.
+skills: [rotate-and-revoke]
