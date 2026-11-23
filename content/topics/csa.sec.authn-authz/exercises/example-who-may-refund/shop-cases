@@ -114,16 +114,34 @@ def cases_for(rule, names):
             allow = is_support(c["role"]) and c["same_store"] and c["amount"] <= LIMIT
             cases.append(Case(allow=allow, **made))
     elif rule == "forbid":
+        # The two forbids against everything else a refund can be: every
+        # role, both stores, both sides of the limit. With the limit and
+        # the store held fixed, a policy passed that let anyone refund an
+        # order over the limit that they had handled themselves.
         for c in combine(
-            role=["support", "supervisor"],
+            role=ROLES,
+            same_store=[True, False],
             own=[True, False],
             mfa=[True, False],
-            amount=[1, LIMIT],
+            amount=sides(LIMIT),
         ):
             made = request(
-                names, c["role"], True, c["amount"], c["own"], c["mfa"], "refund"
+                names,
+                c["role"],
+                c["same_store"],
+                c["amount"],
+                c["own"],
+                c["mfa"],
+                "refund",
             )
-            cases.append(Case(allow=not c["own"] and c["mfa"], **made))
+            allow = (
+                is_support(c["role"])
+                and c["same_store"]
+                and c["amount"] <= LIMIT
+                and not c["own"]
+                and c["mfa"]
+            )
+            cases.append(Case(allow=allow, **made))
     elif rule == "default-deny":
         for c in combine(
             role=ROLES, same_store=[True, False], mfa=[True, False], amount=sides(LIMIT)
