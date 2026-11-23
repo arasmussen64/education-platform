@@ -84,8 +84,9 @@ objectives:
 #   short-lived certificates "not required to contain a CRLDP or OCSP
 #   pointer and are not required to be revoked":
 #   cabforum.org/2023/07/14/ballot-sc063v4-make-ocsp-optional-require-crls-and-incentivize-automation/
-#   The ballot page gives no date from which OCSP became optional, so the
-#   lesson gives none.
+#   The ballot page gives no date from which OCSP became optional; the
+#   Baseline Requirements' own table of versions does (read 2026-11-23):
+#   version 2.0.1, ballot SC-063, effective 2024-03-15.
 # - Mozilla (August 2025): CRLite on for all desktop Firefox users from
 #   Firefox 137, about 300 kB of revocation data a day; OCSP disabled for
 #   domain-validated certificates in Firefox 142; Chrome's CRLSets about
@@ -137,7 +138,12 @@ objectives:
 # issuing CA and the root it accepts a certificate from a sibling CA under
 # the same root when the client sends that CA's certificate, unless
 # ssl_crl is set and holds no CRL from the sibling, or the site tests
-# $ssl_client_i_dn; ssl_crl without the root's CRL, (3:unable to get
+# $ssl_client_i_dn; it also accepts a certificate the root signed itself,
+# for any name, ssl_crl or not (the root's CRL covers it), unless the site
+# tests $ssl_client_i_dn (tried in the build, 2026-11-23); with
+# ssl_verify_client optional_no_ca and that test, a stranger's certificate
+# that names the shop's CA as its issuer and is shown alone gets 200;
+# ssl_crl without the root's CRL, (3:unable to get
 # certificate CRL); an expired CRL, (12:CRL has expired); a replaced CRL
 # file isn't used until a reload; ssl_ocsp leaf answers 400 for a revoked
 # client and 400 with "certificate status request failed" when the
@@ -289,6 +295,7 @@ review_pool:
   - index-revoked
   - mcq-openssl-ca-production
   - mcq-client-ca-eku
+  - mcq-pathlen-zero
   - mcq-hard-or-soft
   - typed-ssl-crl
   - est-crl-worst-case
