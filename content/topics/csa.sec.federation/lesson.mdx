@@ -1,0 +1,300 @@
+<Intro>
+
+<Puzzle question="You sign in to an app with your company account, and the app never sees your password. What does it get instead?">
+
+A signed note from the service that did see it. You type your password at your company's sign-in service, never at the app. That service then hands the app, by way of your browser and a private call between the two, a short statement: who you are, who the statement is for, when it was made and when it runs out, with a signature the app can check against a published key. The app trusts the signature, not you. One stolen app database then holds no passwords at all, and one switched-off account at the sign-in service closes every app at once. How that note travels, what is in it, and what an app must check before believing it, is this topic.
+
+</Puzzle>
+
+The last two topics gave you the two questions (who is this, and may they do that) and the tools for a signature. This one puts them on the wire. By the end you can follow a sign-in message by message and say which message failed; pick the right way of getting tokens for a web app, a job with no person behind it, and a device with no browser; check a token by hand, including on machines whose clocks disagree; read the older XML version of the same idea; and keep the accounts in every app in step with who works at the shop. The labs are a new kind, with a real identity provider in them. The first lab explains them.
+
+**Why hand sign-in to someone else.** An app that keeps its own passwords is one more place to steal them from, one more password for each person to reuse, and one more account that somebody forgets to remove when a person leaves. **Federation** is the alternative: the app keeps no passwords, and trusts one separate service to authenticate people and vouch for them. That service is the **identity provider** (IdP). The app that relies on it is called the relying party in OpenID Connect and the service provider in SAML, the two protocols below; this lesson mostly says "the app".
+
+Think of a passport office and a border post. The post never sees your birth certificate. It checks the passport: the seal is genuine (a **signature**), it was issued by an office the post recognises (the **issuer**), it is yours to use here (the **audience**), and it hasn't expired. Everything in this topic is a version of those four checks.
+
+**Single sign-on** (SSO) falls out for free. The identity provider remembers that you signed in, with a session cookie of its own in your browser. When a second app sends you there, the provider already knows you and vouches again without asking for a password. Note that there are now two kinds of session: the provider's, and each app's own, started when the app accepted the provider's word. Ending one doesn't end the others, which is why signing out everywhere is harder than signing in.
+
+MFA happens at the provider too, once, where it can be done properly. An app can read how the sign-in was done from two claims, `acr` and `amr`; the next topic uses them.
+
+**Two channels.** Three parties take part: the browser, the app, and the identity provider. Messages between the app and the provider travel one of two ways.
+
+- The **front channel** is anything the browser carries: redirects, and forms it posts. Like a letter handed to a traveller, it can be read by the traveller and by anything else in the browser, and it can be swapped for another letter.
+- The **back channel** is the app calling the provider directly, server to server, over TLS: a phone call between two offices. The browser never sees it.
+
+Every sign-in mixes the two, and the design rule is simple: only things that are harmless to expose, or useless alone, go through the front channel. The same split tells you where to look when a sign-in fails. If the browser was refused at the provider's own page, the fault is in the request it carried. If the browser came back to the app and the app then failed, the fault is on the back channel, and the evidence is in the app's log and the provider's, not in the browser.
+
+<Check item="mcq-back-channel" />
+
+**OAuth 2.0 and OpenID Connect.** Two standards, one built on the other.
+
+**OAuth 2.0** is about delegation: letting a program act for you at an API, within limits, without giving it your password. A valet key that starts the car and won't open the boot. Its four roles have names you'll meet in every document: the **resource owner** (you), the **client** (the program asking; a registered app is called an **OAuth client**), the **authorization server** (which signs you in and issues tokens: the identity provider, in its OAuth role) and the **resource server** (the API). What the client may do is a **scope**, a named permission such as `orders:read`, and the provider may ask you to agree to it on a consent page. A way of getting tokens is called a **grant**, or a flow.
+
+OAuth says what a program may do. It says nothing about who you are. **OpenID Connect** (OIDC) adds that: a client that asks for the scope `openid` also gets an **ID token**, a signed statement about the person who signed in, and the provider describes itself in a **discovery document** at a fixed address, its name followed by `/.well-known/openid-configuration`. The discovery document lists where to send a browser to sign in, where to swap a code for tokens, and where the provider publishes its keys.
+
+**The code flow, message by message.** The **authorization code** flow is the one for anything with a person and a browser. The worked example runs it by hand; these are its seven messages.
+
+1. The app redirects the browser to the provider's authorization endpoint, with its `client_id`, `response_type=code`, the scope, a `redirect_uri`, a `state`, a `nonce`, and a `code_challenge` with `code_challenge_method=S256`. (Front channel.)
+2. The provider shows its sign-in page, and the person signs in there. The app is not involved.
+3. The provider redirects the browser back to the `redirect_uri`, adding `state`, `iss` and a `code`. (Front channel.)
+4. The app compares the `state` with the one it sent.
+5. The app posts the `code`, the same `redirect_uri` and a `code_verifier` to the provider's token endpoint, proving who it is with its client secret if it has one. (Back channel.)
+6. The provider answers with JSON: an `access_token`, an `id_token`, usually a `refresh_token`, and `expires_in`.
+7. The app validates the ID token and starts a session of its own.
+
+Four of those words carry the security.
+
+The **redirect URI** is where the provider sends the browser back to, code and all. It is registered with the client in advance, and the provider compares the request's value with the registered one character for character. A provider that accepts "anything under this site" will one day send a code to a page an attacker controls. Current best practice (RFC 9700, January 2025) requires "exact string matching".
+
+The **authorization code** is a one-time ticket, good for about a minute. It crosses the front channel, so assume it can be seen.
+
+**PKCE** (said "pixy") makes a seen code worthless. Before message 1 the app invents a random string, the code verifier, and sends only its SHA-256 hash, the challenge. In message 5 it reveals the verifier, and the provider hashes it and compares. Whoever stole the code from the browser has the challenge and not the verifier, and a hash can't be run backwards. The method's name is `S256`; the other method, `plain`, sends the verifier itself and protects nothing. PKCE began as a fix for apps that can't keep a secret and is now recommended for every client.
+
+`state` ties the answer to the request this browser made, so that nobody can plant the end of their own sign-in in your browser. `nonce` does the same job for the ID token: the app sends a random value, the provider copies it into the token, and a token with another nonce is a replay.
+
+<Check item="mcq-pkce-protects" />
+
+**Three tokens.** Message 6 delivers up to three, each for a different reader.
+
+| Token | Who reads it | What it says | Lifetime |
+| --- | --- | --- | --- |
+| **ID token** | the app (the client) | who signed in, when and how | minutes |
+| **access token** | the API (the resource server) | what this client may do there, and for whom | minutes: 5 in the labs; 60 to 90 at Microsoft Entra, chosen at random |
+| **refresh token** | the provider only | "give this client new tokens without asking the person again" | hours or days |
+
+All three are **bearer tokens**: whoever holds one can use it, like cash. That is why the first two are short-lived, why they travel only over TLS, and why the refresh token never leaves the app's server. An app sends the access token to the API in a header, `Authorization: Bearer ...`, and doesn't read it: it is the API's. When it runs out, the app shows the provider its refresh token and gets a new one.
+
+<Check item="est-token-lifetime" />
+
+**A token by hand.** ID tokens, and in most products access tokens too, are **JWTs** (JSON Web Tokens, said "jots"): three pieces joined by dots.
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCIg...  .  eyJleHAiOjE3OTU0MTE2MjMsImlhdCI6...  .  kT3vX0a9...
+        header                              payload                         signature
+```
+
+Each piece is written in base64url: the base64 you met in HTTP, with `-` and `_` in place of `+` and `/`, and the `=` padding dropped, so that a token can sit in an address. To read a piece, undo that and decode. Shell essentials had you run `jq`; here it earns its keep, because every message in this topic is JSON.
+
+```
+d64() { tr '_-' '/+' | awk '{ while (length($0) % 4) $0 = $0 "="; print }' | base64 -d; }
+cut -d. -f2 id-token.jwt | d64 | jq .
+```
+
+The **header** says how the token was signed (`"alg":"RS256"`, an RSA signature over a SHA-256 hash) and by which key (`kid`, the key ID). The **payload** holds the claims:
+
+| Claim | Meaning |
+| --- | --- |
+| `iss` | the issuer: the identity provider's name, as in its discovery document |
+| `sub` | the subject: a permanent id for the person, or for the client when no person is involved |
+| `aud` | the audience: who the token is for. The client's id in an ID token; the API's name in an access token. It may be a list |
+| `exp`, `iat`, `nbf` | expires at, issued at, not valid before: seconds since the start of 1970 |
+| `nonce` | the value the app sent with its request (ID tokens) |
+| `azp` | the client the token was issued to |
+
+The payload is encoded, not encrypted. Anyone who holds a token can read it, so nothing secret belongs in one.
+
+The **signature** covers the first two pieces exactly as they were sent. The provider publishes the public halves of its signing keys as a **JWKS** (a JSON Web Key Set) at the `jwks_uri` its discovery document names. A verifier finds the key whose `kid` is the header's, and checks the signature with it:
+
+```
+jq -r --arg k "$kid" '.keys[] | select(.kid == $k) | .x5c[0]'     # that key's certificate
+openssl dgst -sha256 -verify key.pem -signature sig.bin signed.txt
+Verified OK
+```
+
+Change one character of the payload and the answer is `Verification failure`. The worked example does it.
+
+**Validating, in order.** A token is trusted only when every one of these passes. Each check stops a particular attack.
+
+| # | Check | What it stops |
+| --- | --- | --- |
+| 1 | `alg` is the one algorithm you expect, from your own settings | a token that says `"alg":"none"` (no signature), or `HS256` with the public key used as a shared secret |
+| 2 | the key: discovery, then the key set, then the key the `kid` names. An unknown `kid`: fetch the set once more, then refuse | tokens signed by anyone else; and outages when the provider changes key |
+| 3 | the signature, over the header and payload as sent | any change to a claim |
+| 4 | `iss` is your provider, exactly: no "starts with" | a token from another realm or tenant whose key you happen to trust |
+| 5 | `aud` is you, or includes you | a token meant for another app being used on you |
+| 6 | now is before `exp` and not before `nbf`, give or take a small **leeway** | old tokens; tokens post-dated |
+| 7 | `nonce` is the one you sent (ID tokens) | an old ID token replayed into a new sign-in |
+
+Three habits go with the table.
+
+Each token has one reader. The app validates the ID token, the API validates the access token, and neither validates the other's.
+
+Keys change. A provider signs with one key and publishes two or more, the current one and the one before or after it, so that a change of key doesn't break anything: the new key is published well before it signs, and the old one stays until its last token has expired. A verifier that fetches the key set by address, and picks by `kid`, never notices. A verifier that was handed a copy of "the key" works until the day the provider rotates, and then refuses everyone at once. Copies of keys are how single sign-on outages are scheduled a year in advance.
+
+Leeway is seconds. Sixty is usual. It is there for clocks that differ by a second or two, and it lengthens every token's life by the same amount.
+
+<Story title="Storm-0558: a key for one kind of account, accepted for another" source="https://www.microsoft.com/en-us/msrc/blog/2023/09/results-of-major-technical-investigations-for-storm-0558-key-acquisition" sourceTitle="Results of Major Technical Investigations for Storm-0558 Key Acquisition" license="linked, not copied">
+
+In 2023 Microsoft found that an intruder it calls Storm-0558 had been reading business customers' email at its own mail service, and had needed nobody's mailbox password to do it. The intruder had one of Microsoft's signing keys, and wrote their own tokens.
+
+The key was for consumer accounts: private Outlook.com mailboxes. Microsoft's investigation thinks it most likely left the signing system years earlier inside a crash dump, a memory snapshot that should never have held it, and was found by someone who had taken over an engineer's account. (It never found the dump.)
+
+A consumer key should have been useless against business mailboxes. But Microsoft had begun publishing consumer and business keys at one shared address, and the mail service's code checked a token's signature against that set without checking that the key belonged to the kind of issuer the token claimed. Its authors assumed the library did that. So a token signed with the consumer key was accepted for enterprise mail.
+
+Microsoft fixed the libraries to check which issuer a key is for. A good signature says a key you know signed this. Whether that key may speak for this issuer is a separate check.
+
+</Story>
+
+<Check item="mcq-which-check-fails" />
+
+**Whose clock?** `exp`, `iat` and `nbf` are times of day, and "expired" means "past `exp` by my clock". The provider stamps the token by its clock; every app and API reads it by its own. If a server's clock runs eight minutes fast, a five-minute token is three minutes dead on arrival, and every sign-in fails there and nowhere else. If it runs slow, tokens look as if they were issued in the future, which a careful verifier also refuses. Neither failure has anything to do with the token.
+
+A server doesn't keep good time by itself: the clock chip on a motherboard drifts by seconds a day, and a virtual machine can wake up minutes out. So every server runs a time sync service that asks a **time server** for the time, again and again, over **NTP**, the Network Time Protocol, and corrects its own clock. On Linux that service is usually chrony or systemd-timesyncd, and the file that names its time servers is `/etc/chrony/chrony.conf` (lines that begin `server` or `pool`). A cloud VM is given a time server by its platform. A clock goes wrong when that chain breaks: the service isn't running or was never enabled, the name of its time server no longer resolves, or a firewall drops NTP (UDP port 123).
+
+The signs are easy once you think of them. The app's log says a token just issued has expired, or was issued in the future. Two logs disagree about when the same thing happened. `date -u` on the server differs from `date -u` on your laptop. Then ask the time sync itself: is it running (`systemctl status`), is it enabled, and what did it last say about its server? The fix is at the cause, never in the tokens: not a longer lifetime, not a leeway of minutes, and not setting the clock by hand, which lasts until the next boot. In the labs a machine's time sync is a stand-in that reads the same `chrony.conf`, because every lab machine shares one real clock that a lab must never set; `on app clock` shows a machine's time beside the real one.
+
+<Check item="mcq-whose-clock" />
+
+**Choosing the flow.** Two questions decide it.
+
+**Is there a person?** If not, the program is its own principal, and the grant is **client credentials**: the program presents its own client's secret, or better, a signature made with its own private key, to the token endpoint, and gets an access token. No browser, no redirect, no refresh token. A nightly job, a provisioning connector and a monitoring probe are all this.
+
+**If there is a person, does their device have a browser?** If yes: the **authorization code flow with PKCE**, always. A web app on a server is a **confidential client**: it can keep a secret, and uses one in message 5. A phone app, a single-page app or a command-line tool is a **public client**: anything shipped to a user's device can be taken apart, so it has no secret, and PKCE is what protects its code. A command-line tool catches the redirect by listening for a moment on the laptop's own loopback address.
+
+If no (a scanner, a television, a server you reach only by SSH): the **device grant**. The device asks the provider for a code and shows it with a short address. The person opens that address on their phone or laptop, signs in there, types the code and approves. Meanwhile the device asks the token endpoint every few seconds, the `interval` the provider gave it, and is told `authorization_pending` until the person is done; if it is told `slow_down` it must add 5 seconds to its interval. The grant has one built-in danger: an attacker can start a sign-in on their own device and send you the code with a friendly message. So the approval page says what is being approved, and you approve only a code you started yourself.
+
+Two older grants are never the answer. The **implicit grant** returned tokens directly in the redirect address, where browser history and other pages could see them: RFC 9700 says clients "SHOULD NOT" use it. The **password grant** has the app collect the person's password and send it to the provider, which defeats the point of federation and leaves no room for a second factor: RFC 9700 says it "MUST NOT be used". A provider usually still lists both in its discovery document. What matters is what each client's own registration allows, and a client is registered with the one grant it needs and no other.
+
+<Check item="mcq-flow-scanner" />
+
+**SAML: the same promise, in XML.** SAML 2.0 dates from 2005, and a great many business applications still speak it and nothing else. It does one job: sign a person in to a web app through a browser. What it hands over is a **SAML assertion** (an assertion, for short): the same four promises as an ID token, written in XML and signed.
+
+| | OpenID Connect | SAML |
+| --- | --- | --- |
+| The promise | an ID token (a JWT) | an assertion (XML) |
+| The request | parameters in a redirect | an `AuthnRequest`, compressed into a redirect |
+| How the answer travels | a code through the browser, tokens on the back channel | the whole signed response, posted through the browser in a form |
+| Who it is for | `aud` | `Audience`: the app's name, its **entity ID** |
+| Where it may be delivered | the redirect URI | `Recipient` |
+| Tied to the request by | `state`, `nonce` | `InResponseTo` |
+| Valid when | `iat`, `exp` | `NotBefore`, `NotOnOrAfter` (a minute, in the labs) |
+| The person | `sub` | `NameID` |
+| Where the keys come from | the key set, by address | a certificate in the provider's **SAML metadata**, a file each side gives the other |
+| APIs, devices without browsers | yes | no |
+
+An app checks an assertion as it would a token: the signature (against the certificate in the provider's metadata, never one found inside the message), the issuer, the audience, the recipient, that it answers a request this app sent, and the time window, against its own clock. Two SAML traps deserve a sentence each. An app can accept responses it never asked for ("IdP-initiated" sign-on): then there is no request to match, and someone else's response can be planted in your browser. And XML lets a message carry a correctly signed assertion beside a forged one; a careless parser checks the first and reads the second (signature wrapping), which is a reason to use a maintained library and never parse SAML yourself.
+
+Single sign-on works across the two protocols, because the session is the provider's: in the worked example, signing in to the OpenID Connect pages gets you into the SAML pages with no password.
+
+<Check item="mcq-idp-initiated" />
+
+**Accounts: joiners, movers and leavers.** A sign-in protocol decides who can sign in right now. Most apps also need an account of their own for each person: to hold their settings, to show their name, to be put in groups. Creating, changing and removing those accounts is **account provisioning**, and its three events are plain words: a joiner arrives, a mover changes team, a leaver goes. One system is the **source of truth** for them, usually HR's or the identity provider itself, and everything else follows it.
+
+The lazy way is just-in-time provisioning: the app creates an account the first time someone signs in. It never removes one. The proper way is **SCIM** (said "skim"), a small standard web API that every app offers and the source of truth calls:
+
+| Step | Request | A good answer |
+| --- | --- | --- |
+| find | `GET /Users?filter=userName eq "carla"` | `200`, a list (possibly empty) |
+| create | `POST /Users` | `201`; `409` with `uniqueness` if the name is taken |
+| change | `PATCH /Users/ID`, with a list of operations (`add`, `remove`, `replace`) | `200` |
+| switch off | `PATCH`, replacing `active` with `false` | `200` |
+| remove for good | `DELETE /Users/ID` | `204` |
+| group membership | `PATCH /Groups/ID`, adding or removing a member | `200` |
+
+Lists come a page at a time (`startIndex`, counted from 1, and `count`). Three rules make a sync safe. **Deactivate leavers; don't delete them**: the account can no longer sign in, its history keeps a name, and a mistake is one request to undo. Deletion comes later, by policy. **Read, then write only the differences**, so that the sync is idempotent (HTTP semantics' word): a second run changes nothing. And **say what you mean and read back what was stored**: the standard leaves the meaning of `active` to each server, and the lab's server stores a new account switched off unless told otherwise.
+
+The connector that calls SCIM is itself a client, with client credentials and a token good only for the SCIM API. And an app's own settings can go the way accounts do: a change made in a console to something a file is supposed to define is configuration drift (Packages and patching's word), which is why the labs keep the identity provider's settings in a file and compare.
+
+<Check item="mcq-leaver" />
+
+**Three clouds, side by side.** As each provider's documentation stood on 22 November 2026:
+
+| | Microsoft Entra ID | AWS IAM Identity Center | Google Cloud Workforce Identity Federation |
+| --- | --- | --- | --- |
+| What it is | an identity provider: apps sign people in with it, by OpenID Connect or SAML | the front door to AWS accounts; its people can come from another identity provider | a way to let another identity provider's people use Google Cloud directly |
+| Federating with another provider | it is usually the other provider | SAML 2.0 in. People must be provisioned first, because "the SAML protocol does not provide a way to query the IdP" | OpenID Connect or SAML 2.0 in; attributes mapped by rules |
+| Provisioning | a SCIM client: it creates, updates and deactivates accounts in apps, and deletes one 30 days after the person is removed | a SCIM server: the other provider pushes people in, with a token that lasts one year; when it expires, the sync stops | none: "you don't need to use tools to synchronize user identities" |
+| A detail that bites | access tokens last 60 to 90 minutes; check for new signing keys about every 24 hours | the SAML `NameID` must equal the provisioned user name, or "sign-in fails" | no accounts to clean up, and none to hang settings on either |
+
+In a company with all three, one identity provider (often Entra ID) federates into each cloud, and each cloud wants the people delivered differently. Module 10 builds that. What you take there from here is the list of questions: which protocol, whose keys, which name for the person, and how the accounts get there and get switched off.
+
+**In the labs: a reference.** A client in the realm file is a block like this one. The switches are the grants (`standardFlowEnabled` is the code flow, `directAccessGrantsEnabled` the password grant, `serviceAccountsEnabled` client credentials), and the last two blocks are **mappers**, which add claims to the client's tokens: the person's groups, and an audience.
+
+```
+{
+  "clientId": "orders-web",
+  "publicClient": false,
+  "secret": "${ORDERS_WEB_SECRET}",
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "fullScopeAllowed": false,
+  "redirectUris": ["https://orders.shop.test/oidc/callback"],
+  "attributes": {
+    "pkce.code.challenge.method": "S256",
+    "oauth2.device.authorization.grant.enabled": "false"
+  },
+  "protocolMappers": [
+    {
+      "name": "groups",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-group-membership-mapper",
+      "config": { "claim.name": "groups", "multivalued": "true", "full.path": "false",
+                  "id.token.claim": "true", "access.token.claim": "true", "userinfo.token.claim": "true" }
+    },
+    {
+      "name": "stock-api-audience",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-audience-mapper",
+      "config": { "included.custom.audience": "https://api.shop.test",
+                  "access.token.claim": "true", "id.token.claim": "false" }
+    }
+  ]
+}
+```
+
+A site that signs people in (Apache with mod_auth_openidc) needs the provider's discovery address, its client's name and secret, its callback, and a rule about who gets in:
+
+```
+OIDCProviderMetadataURL https://login.shop.test/realms/shop/.well-known/openid-configuration
+OIDCClientID orders-web
+Include /etc/apache2/oidc-secret.conf          # OIDCClientSecret and OIDCCryptoPassphrase, root-only
+OIDCRedirectURI https://orders.shop.test/oidc/callback
+OIDCScope "openid"
+OIDCPKCEMethod S256
+OIDCRemoteUserClaim preferred_username
+<Location /oidc/callback>
+  AuthType openid-connect
+  Require valid-user
+</Location>
+<Location /orders/>
+  AuthType openid-connect
+  Require claim groups:staff
+</Location>
+```
+
+An API that checks access tokens (Apache with mod_oauth2) needs the address of the key set and its rules about issuer and audience. Two `Require` lines must sit inside `<RequireAll>`, or Apache takes either one as enough:
+
+```
+<Location /stock/>
+  AuthType oauth2
+  OAuth2TokenVerify jwks_uri https://login.shop.test/realms/shop/protocol/openid-connect/certs
+  <RequireAll>
+    Require oauth2_claim iss:https://login.shop.test/realms/shop
+    Require oauth2_claim aud:https://api.shop.test
+  </RequireAll>
+</Location>
+```
+
+One thing this module does that a careful verifier wouldn't: it remembers a token it has accepted and goes on serving it for a short while after it expires. A token it has never seen is checked in full, and that is the kind the labs' checks show it. The identity provider logs every sign-in and every refusal (`journalctl -u keycloak@idp`, with lines such as `type="LOGIN_ERROR"` and `error="..."`), and each site logs its own (`on app tail /var/log/apache2/error.log`).
+
+**Going further (all optional).** Everything the questions and labs ask is in the lesson above. RFC 9700 is the current rulebook for OAuth, short and readable in its section 2. OpenID Connect Core, section 3.1.3.7, is the list of ID-token checks in the standard's own words. RFC 8628 is the device grant and RFC 7636 is PKCE. OWASP's SAML Security Cheat Sheet lists every check a SAML app must make, and how each is attacked. Microsoft's "Access tokens" page and AWS's and Google's pages are where the table's cloud facts come from. Microsoft's own account of Storm-0558 is worth reading whole.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Federation**: the app keeps no passwords and trusts an **identity provider** to authenticate people. Because the provider remembers you, the next app gets you in without a password: **single sign-on**.
+- The browser carries the **front channel** (redirects, forms); the app talks to the provider directly on the **back channel**. A failure after the browser came back is on the back channel: read the app's log and the provider's.
+- The **code flow**: redirect out with client, redirect URI, state, nonce and a PKCE challenge; sign in at the provider; a one-time code back; the app swaps code and verifier for tokens. **PKCE** makes a stolen code useless. Redirect URIs are matched exactly.
+- **ID token** for the app, **access token** for the API, **refresh token** for the provider. All are bearer tokens, so they are short-lived.
+- A **JWT** is header, payload and signature in base64url; anyone can read it. Validate in order: expected `alg`, the key by `kid` from the provider's published **JWKS**, the signature, `iss` exactly, `aud`, the times with a small **leeway**, the nonce. Fetch keys by address; a copy of a key breaks at the next rotation.
+- Token times are read against the reader's clock. A token "expired" the moment it was issued means a clock is wrong: check the server's time sync and its **time server**, and fix it there.
+- Choose the flow by two questions: is there a person, and has their device a browser? Code with PKCE; the **device grant**; **client credentials** for no person. Never the implicit or password grant.
+- **SAML** is the same promise in XML: check the signature, issuer, audience, recipient, `InResponseTo` and the time window.
+- **Account provisioning** with **SCIM**: find, create, patch; deactivate leavers (`active` false) and delete later; write only the differences.
+- Entra ID is an identity provider and a SCIM client; IAM Identity Center takes SAML in and needs people provisioned first; Workforce Identity Federation needs no copies at all.
+
+</Recap>
