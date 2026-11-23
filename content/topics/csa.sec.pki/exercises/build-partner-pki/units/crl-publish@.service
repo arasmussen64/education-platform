@@ -1,0 +1,12 @@
+# What crl-publish@MACHINE.timer starts: one run of /usr/local/bin/publish-crl
+# on that machine, which makes the CA's next CRL and puts it where it is
+# served. "systemctl status crl-publish@ca" shows the last run.
+[Unit]
+Description=Publish the CA's next CRL on %i
+After=netlab.service
+Requires=netlab.service
+
+[Service]
+Type=oneshot
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/publish-crl

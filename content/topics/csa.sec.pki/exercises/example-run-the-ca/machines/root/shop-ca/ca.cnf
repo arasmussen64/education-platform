@@ -1,0 +1,57 @@
+# The shop's root CA, on the machine "root": what "openssl ca" reads.
+# The root signs issuing CAs and its own CRL, and nothing else.
+
+[ ca ]
+default_ca = shop_root
+
+[ shop_root ]
+dir              = /etc/shop-ca
+certificate      = $dir/root.pem          # the CA's own certificate
+private_key      = $dir/root.key          # and its key, which never leaves this machine
+database         = $dir/index.txt         # one line for every certificate it has signed
+new_certs_dir    = $dir/newcerts          # a copy of each, named by serial number
+crlnumber        = $dir/crlnumber         # the number of the next CRL
+rand_serial      = yes                    # serial numbers are random, never counted up
+default_md       = sha256
+default_days     = 1826                   # an issuing CA lasts five years
+default_crl_days = 180                    # the root's CRL is reissued twice a year
+policy           = policy_ca
+unique_subject   = no
+copy_extensions  = none                   # nothing a request asks for is copied in
+
+# What a request's subject must hold.
+[ policy_ca ]
+commonName = supplied
+
+# The root's own certificate (openssl req -x509 -config ... -extensions v3_root).
+[ req ]
+distinguished_name = root_name
+prompt             = no
+
+[ root_name ]
+CN = Shop Root CA
+
+[ v3_root ]
+basicConstraints     = critical, CA:TRUE
+keyUsage             = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
+
+# The partners' issuing CA: it may sign no CA below it (pathlen:0), its
+# certificates are good only for names under partners.shop.test, and only
+# for proving a client.
+[ v3_partners_ca ]
+basicConstraints       = critical, CA:TRUE, pathlen:0
+keyUsage               = critical, keyCertSign, cRLSign
+nameConstraints        = critical, permitted;DNS:.partners.shop.test
+extendedKeyUsage       = clientAuth
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid
+
+# The staff's issuing CA, for the shop's own laptops.
+[ v3_staff_ca ]
+basicConstraints       = critical, CA:TRUE, pathlen:0
+keyUsage               = critical, keyCertSign, cRLSign
+nameConstraints        = critical, permitted;DNS:.staff.shop.test
+extendedKeyUsage       = clientAuth
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid

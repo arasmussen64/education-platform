@@ -1,0 +1,27 @@
+# The partners' API on web: api.shop.test, for the shop's partners only.
+server {
+    listen 443 ssl;
+    server_name api.shop.test;
+
+    # The API's own certificate, which its clients check. It comes from the
+    # shop's server CA, as in Module 3.
+    ssl_certificate     /etc/nginx/tls/api.pem;
+    ssl_certificate_key /etc/nginx/tls/api.key;
+
+    # A partner proves who it is with a client certificate. nginx accepts
+    # one whose chain it can build from the CA certificates in this file up
+    # to a root in it, and checks every certificate in the chain against
+    # the CRLs in the second file.
+    ssl_client_certificate /etc/nginx/tls/partners-bundle.pem;
+    ssl_verify_client on;
+    ssl_crl /etc/nginx/tls/crls.pem;
+
+    # nginx has to trust the root to finish a chain, and a root it trusts
+    # makes everything that root signed acceptable. So the site itself
+    # refuses a certificate that neither of the partners' issuing CAs
+    # issued: "!~" is "doesn't match the pattern", and the pattern is the
+    # issuer's name, ending in 2025 or 2026.
+    if ($ssl_client_i_dn !~ "^CN=Shop Partners CA 202[56]$") { return 403; }
+
+    root /srv/www/api;
+}

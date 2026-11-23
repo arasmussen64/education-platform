@@ -1,0 +1,16 @@
+id: mcq-replace-or-add
+type: mcq
+rev: 1
+prompt: |
+  Today the shop brought a new partners' issuing CA into service, signed by the same root. The old issuing CA has stopped issuing, and the certificates it issued last up to 200 more days. Which CA certificates belong in the API's file of CAs it trusts for clients?
+choices:
+  - "Both issuing CAs and the root, until the old CA's last certificate has expired"
+  - "The new issuing CA and the root, so that the old certificates are renewed sooner"
+  - "The root alone: both issuing CAs chain to it, so nginx will find them by itself"
+  - "The old issuing CA and the root, until every partner holds a new certificate"
+answer: 0
+explanation: |
+  A CA is rotated by overlap. From today the new CA issues and the old one doesn't, but every certificate the old one issued is still good until it expires or is revoked, and the partners holding them have done nothing wrong. So relying parties trust both for the overlap, here 200 days, and drop the old one when its last certificate has run out. The old CA also goes on publishing its CRL for that long.
+
+  Dropping the old CA today locks out every partner who hasn't renewed, which is all of them. Keeping only the old one locks out everyone the new CA has issued to. And the root alone doesn't work with clients that send only their own certificate, as most do: nginx can't build a chain through an issuing CA nobody gave it.
+skills: [ca-rotation]

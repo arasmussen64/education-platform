@@ -1,0 +1,155 @@
+#!/bin/bash
+# make-case KIND DIR TAG: builds one small PKI with one thing wrong (or
+# nothing), and leaves in DIR what chain-doctor is given: leaf.pem,
+# chain.pem (what the server sent with it), root.pem (what the client
+# trusts) and, for the kinds that check revocation, crls.pem. It prints the
+# one line chain-doctor should print for it. TAG goes into every name, so
+# the checks can make names up as they run.
+#
+# Used when the image is built, for the examples in ~/examples, and by the
+# checks, for cases the learner's script has never seen.
+set -euo pipefail
+. /usr/local/lib/lab/pki-cases
+kind=$1 d=$2 t=$3
+w=$d/work
+mkdir -p "$w"
+new_root "$w/root" "Root CA $t"
+cp "$w/root/ca.pem" "$d/root.pem"
+name="srv$t.shop.test"
+
+# issuing [EXTRA-EXTENSION-LINES [OPENSSL-CA-OPTIONS...]]: the usual
+# issuing CA under the root, and its certificate as the chain.
+issuing() {
+  new_ca "$w/iss" "Issuing CA $t" "$w/root" "$@"
+  cp "$w/iss/ca.pem" "$d/chain.pem"
+}
+# crls FILE...: the CRLs given, in one file.
+crls() { cat "$@" > "$d/crls.pem"; }
+
+case $kind in
+  ok)
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    echo ok
+    ;;
+  ok-crls)
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    new_crl "$w/iss" "$w/iss.crl"
+    new_crl "$w/root" "$w/root.crl"
+    crls "$w/root.crl" "$w/iss.crl"
+    echo ok
+    ;;
+  wrong-intermediate)
+    # The issuing CA was given a new key under the same name. The leaf
+    # comes from the new one; the server still sends the old one.
+    issuing
+    new_ca "$w/iss2" "Issuing CA $t" "$w/root"
+    new_leaf "$d/leaf" "$name" "$w/iss2"
+    echo wrong-intermediate
+    ;;
+  missing-intermediate)
+    # The server sends another CA's certificate, not its issuer's.
+    new_ca "$w/iss" "Issuing CA $t" "$w/root"
+    new_ca "$w/other" "Other CA $t" "$w/root"
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    cp "$w/other/ca.pem" "$d/chain.pem"
+    echo missing-intermediate
+    ;;
+  expired-leaf)
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss" -startdate "$(past_from)" -enddate "$(past_to)"
+    echo "expired 0"
+    ;;
+  expired-intermediate)
+    issuing "" -startdate "$(past_from)" -enddate "$(past_to)"
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    echo "expired 1"
+    ;;
+  not-a-ca)
+    # The certificate that signed the leaf says it is not a CA.
+    issuing "basicConstraints=critical,CA:FALSE"
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    echo "not-a-ca 1"
+    ;;
+  path-too-long)
+    # A CA below an issuing CA whose certificate says pathlen:0.
+    new_ca "$w/iss" "Issuing CA $t" "$w/root"
+    new_ca "$w/sub" "Team CA $t" "$w/iss" "basicConstraints=critical,CA:TRUE"
+    new_leaf "$d/leaf" "$name" "$w/sub"
+    cat "$w/sub/ca.pem" "$w/iss/ca.pem" > "$d/chain.pem"
+    echo "path-too-long 2"
+    ;;
+  name-not-permitted)
+    issuing "nameConstraints=critical,permitted;DNS:.shop.test"
+    new_leaf "$d/leaf" "srv$t.other$t.test" "$w/iss"
+    echo name-not-permitted
+    ;;
+  revoked-leaf | revoked-no-crls)
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    revoke "$w/iss" "$d/leaf.pem"
+    new_crl "$w/iss" "$w/iss.crl"
+    new_crl "$w/root" "$w/root.crl"
+    if [ "$kind" = revoked-leaf ]; then
+      crls "$w/iss.crl" "$w/root.crl"
+      echo "revoked 0"
+    else
+      echo ok
+    fi
+    ;;
+  revoked-intermediate)
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    revoke "$w/root" "$w/iss/ca.pem"
+    new_crl "$w/iss" "$w/iss.crl"
+    new_crl "$w/root" "$w/root.crl"
+    crls "$w/iss.crl" "$w/root.crl"
+    echo "revoked 1"
+    ;;
+  crl-expired-leaf)
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    new_crl "$w/iss" "$w/iss.crl" -crl_lastupdate "$(past_from)" -crl_nextupdate "$(past_to)"
+    new_crl "$w/root" "$w/root.crl"
+    crls "$w/root.crl" "$w/iss.crl"
+    echo "crl-expired 0"
+    ;;
+  crl-expired-root)
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    new_crl "$w/iss" "$w/iss.crl"
+    new_crl "$w/root" "$w/root.crl" -crl_lastupdate "$(past_from)" -crl_nextupdate "$(past_to)"
+    crls "$w/iss.crl" "$w/root.crl"
+    echo "crl-expired 1"
+    ;;
+  crl-missing-root)
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    new_crl "$w/iss" "$w/iss.crl"
+    crls "$w/iss.crl"
+    echo "crl-missing 1"
+    ;;
+  crl-missing-issuing)
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    new_crl "$w/root" "$w/root.crl"
+    crls "$w/root.crl"
+    echo "crl-missing 0"
+    ;;
+  untrusted-root | untrusted-root-sent)
+    # The chain is whole, and ends at a root the client doesn't have.
+    issuing
+    new_leaf "$d/leaf" "$name" "$w/iss"
+    new_root "$w/trusted" "Root CA $t"
+    cp "$w/trusted/ca.pem" "$d/root.pem"
+    [ "$kind" = untrusted-root-sent ] && cat "$w/iss/ca.pem" "$w/root/ca.pem" > "$d/chain.pem"
+    echo untrusted-root
+    ;;
+  *)
+    echo "make-case: no kind called $kind" >&2
+    exit 2
+    ;;
+esac
+rm -rf "$w" "$d/leaf.key"
+chmod -R a+rX "$d"

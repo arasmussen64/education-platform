@@ -1,0 +1,24 @@
+id: mcq-client-ca-eku
+type: mcq
+rev: 1
+prompt: |
+  The shop's partners' CA was signed by the root with `extendedKeyUsage = clientAuth` in its own certificate. Someone has it sign a web server's certificate, with `serverAuth` in the leaf. Captured in this topic's lab on 2026-11-22:
+
+  ```
+  $ openssl verify -purpose sslserver -CAfile root.pem -untrusted partners.pem s.pem
+  CN = Shop Partners CA
+  error 26 at 1 depth lookup: unsuitable certificate purpose
+  ```
+
+  What is the error saying?
+choices:
+  - "The issuing CA's own certificate allows client use only, so it can't vouch for a server"
+  - "The leaf's certificate lacks `serverAuth` in its extended key usage, the purpose asked for"
+  - "The issuing CA's certificate is missing from the trust store, so its purpose can't be read"
+  - "The leaf's subjectAltName doesn't match the server's name, which openssl calls its purpose"
+answer: 0
+explanation: |
+  `at 1` is the certificate that signed the leaf, and the line above the error names it: the Shop Partners CA. An extended key usage on a CA's certificate limits what the certificates below it may be used for. This one says client authentication only, so when a client checks the chain as a server's (`-purpose sslserver`, which every TLS client does), the CA is unsuitable, however correct the leaf.
+
+  The leaf does have `serverAuth`; a leaf without it fails at depth 0. A CA missing from the chain is error 20, and a name mismatch error 62. This is how a PKI keeps one issuing CA for partners' client certificates and another for servers, and makes the split hold even against its own mistakes.
+skills: [ca-hierarchy]

@@ -1,0 +1,16 @@
+id: mcq-where-the-csr-is-made
+type: mcq
+rev: 1
+prompt: |
+  The courier needs a client certificate from the shop's partners' CA. Where should the courier's private key and its certificate signing request (CSR) be made?
+choices:
+  - "On the courier's own server, which keeps the key and sends only the request to the CA"
+  - "On the CA's machine, which then sends the key and the certificate to the courier together"
+  - "On the offline root, so that the courier's key has never been on a machine with a network"
+  - "On any machine at all, as long as the key travels to the courier inside an encrypted file"
+answer: 0
+explanation: |
+  A private key is made where it will live, and never travels. The CSR holds the public key and the names wanted, signed with the private key to prove the requester holds it; nothing in it is secret, so it can go to the CA by any route, and the certificate that comes back is public too.
+
+  A key made on the CA's machine has existed in two places, and the CA (or anyone who reads its disk or its outbox) can pose as the courier. The root is the last place for a partner's key: the root signs issuing CAs and nothing else. And an encrypted file only moves the problem to whoever has the password. In the labs, `on courier openssl req -new -key /etc/partner/courier.key ...` writes the request into `~/transfer`, the only thing that moves.
+skills: [run-a-ca]

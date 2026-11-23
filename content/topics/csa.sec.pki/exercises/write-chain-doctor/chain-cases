@@ -1,0 +1,62 @@
+#!/bin/bash
+# chain-cases: the "unseen-cases" check of "Chain doctor". It builds, as it
+# runs, one small PKI for every kind of case make-case knows, with names
+# made up now, runs the learner's script on each as the learner, and
+# compares the one line it prints with what the case was built to be. It
+# prints "same", or the first difference.
+set -u
+script=/home/learner/bin/chain-doctor
+dir=$(mktemp -d)
+chmod 755 "$dir"
+trap 'rm -rf "$dir"' EXIT
+
+kinds="ok ok-crls wrong-intermediate missing-intermediate expired-leaf expired-intermediate not-a-ca
+  path-too-long name-not-permitted revoked-leaf revoked-no-crls revoked-intermediate crl-expired-leaf
+  crl-expired-root crl-missing-root crl-missing-issuing untrusted-root untrusted-root-sent"
+
+# What a case is, in words, for the message: never the answer's own word.
+words() {
+  case $1 in
+    ok) echo "a good chain, with no CRLs given" ;;
+    ok-crls) echo "a good chain, with both CAs' CRLs" ;;
+    wrong-intermediate) echo "a leaf sent with a certificate that has its issuer's name and another key" ;;
+    missing-intermediate) echo "a leaf sent with a certificate that isn't its issuer's" ;;
+    expired-leaf) echo "a leaf that has run out" ;;
+    expired-intermediate) echo "an issuing CA's certificate that has run out" ;;
+    not-a-ca) echo "a leaf signed by a certificate that says it is not a CA" ;;
+    path-too-long) echo "a leaf from a CA below an issuing CA that may have none below it" ;;
+    name-not-permitted) echo "a leaf for a name outside its issuing CA's name constraint" ;;
+    revoked-leaf) echo "a revoked leaf, with both CAs' CRLs" ;;
+    revoked-no-crls) echo "a revoked leaf, with no CRLs given" ;;
+    revoked-intermediate) echo "an issuing CA the root has revoked, with both CAs' CRLs" ;;
+    crl-expired-leaf) echo "an issuing CA's CRL that has run out" ;;
+    crl-expired-root) echo "a root's CRL that has run out" ;;
+    crl-missing-root) echo "CRLs without the root's" ;;
+    crl-missing-issuing) echo "CRLs without the issuing CA's" ;;
+    untrusted-root) echo "a chain to a root the client doesn't trust" ;;
+    untrusted-root-sent) echo "a chain to a root the client doesn't trust, sent along" ;;
+  esac
+}
+
+# The cases come in a different order at every run, each in a folder named
+# by numbers made up now: neither the folder the script is run in nor its
+# turn says which kind of case it is.
+for kind in $(printf '%s\n' $kinds | shuf); do
+  tag=$((RANDOM % 9000 + 1000))
+  d=$dir/$tag$RANDOM
+  mkdir -p "$d"
+  want=$(/usr/local/lib/lab/make-case "$kind" "$d" "$tag" 2> "$dir/err") ||
+    { echo "the check couldn't build its own case: $(head -n 2 "$dir/err" | tr '\n' ' ')"; exit 0; }
+  if [ -e "$d/crls.pem" ]; then
+    got=$(cd "$d" && sudo -u learner timeout 10 "$script" leaf.pem chain.pem root.pem crls.pem 2>&1 | head -n 3)
+    how="LEAF CHAIN ROOT CRLS"
+  else
+    got=$(cd "$d" && sudo -u learner timeout 10 "$script" leaf.pem chain.pem root.pem 2>&1 | head -n 3)
+    how="LEAF CHAIN ROOT"
+  fi
+  if [ "$got" != "$want" ]; then
+    echo "on a case made for this check ($(words "$kind")), chain-doctor $how printed \"$(printf '%s' "$got" | tr '\n' ';')\", not \"$want\""
+    exit 0
+  fi
+done
+echo same

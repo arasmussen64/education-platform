@@ -1,0 +1,16 @@
+id: mcq-timer-after-reboot
+type: mcq
+rev: 1
+prompt: |
+  A timer unit runs the service that publishes a CA's CRL. Its `[Timer]` section has one line, `OnUnitActiveSec=1h`, and the first run was started by hand. It ran every hour for weeks. Since last night's reboot it hasn't run once, though `systemctl is-enabled` still says `enabled`. Why?
+choices:
+  - "`OnUnitActiveSec` counts from the service's last run, and since the boot it has had none"
+  - "A timer that was first started by hand has to be started by hand after every reboot"
+  - "`enabled` is the service's state, and the timer unit must be enabled separately from it"
+  - "A reboot resets a timer's schedule to the default, once a day, until it is reloaded"
+answer: 0
+explanation: |
+  `OnUnitActiveSec=1h` means "an hour after the service was last started". After a boot the service hasn't been started, so there is nothing to count from, and the timer waits for ever: `systemctl list-timers` shows it with no next run. A timer that must survive a reboot needs a setting that fires after one as well: `OnBootSec=30s` (so long after every boot) beside the repeating one, or an `OnCalendar=` schedule.
+
+  The timer is enabled, and that is what starts it at boot; it has no schedule to run. Nothing about how a first run was started is remembered, and a timer has no default schedule. For a CRL this fault is quiet and then total: nothing fails until the last CRL published passes its `nextUpdate`, and then every client is refused.
+skills: [revocation]

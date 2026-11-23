@@ -1,0 +1,24 @@
+id: est-crl-size
+type: estimate
+rev: 1
+prompt: |
+  A public CA's CRL takes about 500 bytes for its header and signature, plus about 38 bytes for each revoked certificate on it. After a mass revocation it lists 300,000 certificates. About how big is the CRL, in megabytes (1 MB is 1,000,000 bytes)? Within 10%.
+unit: MB
+answer: 11.4
+tolerance: { percent: 10 }
+given: { fixed: 500, each: 38, revoked: 300000 }
+working: (fixed + each * revoked) / 1000000
+mistakes:
+  - id: kilobytes
+    value: 11400.5
+    working: (fixed + each * revoked) / 1000
+    why: That is the size in kilobytes. A megabyte here is 1,000,000 bytes.
+  - id: fixed-per-entry
+    value: 150
+    working: fixed * revoked / 1000000
+    why: That charges the 500 bytes of header and signature for every entry. They are paid once; each entry adds 38 bytes.
+explanation: |
+  300,000 entries at 38 bytes is 11,400,000 bytes; the 500 bytes of header and signature don't show at this size: about 11.4 MB. Every client that relies on the list downloads all of it, each time it refreshes, to learn about the handful of certificates it will ever meet.
+
+  That is why big CAs split their CRLs into shards, each named in the certificates it covers, and why shorter certificates help: a revoked certificate leaves the list once it has expired, so a CA whose certificates last days carries a short list, or none.
+skills: [revocation]

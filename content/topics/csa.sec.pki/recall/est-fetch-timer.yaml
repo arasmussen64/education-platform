@@ -1,0 +1,26 @@
+id: est-fetch-timer
+type: estimate
+rev: 1
+prompt: |
+  The CA an API relies on publishes often, and whenever the API fetches the CRL, the copy it gets is good for 36 more hours. The API's fetch timer must be set so that two fetches in a row can fail and the next one still arrives before the copy runs out. What is the longest the timer's interval can be, in hours? Exactly.
+unit: hours
+answer: 12
+tolerance: { absolute: 0 }
+given: { valid: 36 }
+# Two failed fetches and the one that works: three intervals must fit in
+# the copy's life. The 3 is the learner's to find, so it is a plain number.
+working: valid / 3
+mistakes:
+  - id: one-failure
+    value: 18
+    working: valid / 2
+    why: That leaves room for one failed fetch. With two in a row, the third fetch comes at 54 hours, after the copy has run out.
+  - id: no-failures
+    value: 36
+    working: valid
+    why: That fetches exactly as the copy runs out, with no room for a single failure. One bad night at the CA and every client is refused.
+explanation: |
+  After a good fetch the copy lasts 36 hours. If the next two fetches fail, the third comes three intervals after the good one, and it must come before the 36 hours are up: 36 / 3 = 12 hours.
+
+  A fetch timer is sized against the CRL's lifetime, not against how fast you want revocations (that only pushes it shorter): the question is how many failures you can absorb before an expired list locks everyone out. The labs' figures are the same shape on a fast clock: a CRL of 2 hours, published every hour, fetched every 30 minutes.
+skills: [revocation]

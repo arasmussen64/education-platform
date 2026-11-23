@@ -1,0 +1,24 @@
+id: est-root-lead
+type: estimate
+rev: 1
+prompt: |
+  A company's devices pick up changes to their trust stores slowly: it can take up to 2 years for a new root to reach all of them. Its issuing CAs last 5 years each, and none may outlast the root that signed it. How many years before the old root expires must the new root start being sent out to devices, so that every issuing CA is always signed by a root that every device already trusts? Exactly.
+unit: years
+answer: 7
+tolerance: { absolute: 0 }
+given: { store_years: 2, ca_years: 5 }
+working: store_years + ca_years
+mistakes:
+  - id: store-only
+    value: 2
+    working: store_years
+    why: That gets the new root onto every device just as the old root expires. But the old root stopped being able to sign a full 5-year issuing CA long before that.
+  - id: ca-only
+    value: 5
+    working: ca_years
+    why: That is when the old root signs its last full-length issuing CA. The new root must already be on every device by then, which takes up to 2 more years.
+explanation: |
+  Work back from the old root's last day. The last issuing CA it can sign for a full 5 years is signed 5 years before that. From then on, new issuing CAs must come from the new root, which is only useful if every device already trusts it, and that takes up to 2 years: 5 + 2 = 7 years ahead.
+
+  Roots are replaced on a scale of decades for this reason, and the gap is bridged with a **cross-signed** certificate: the new root's key, certified by the old root, so that devices which haven't yet learned the new root can still reach the old one through it.
+skills: [ca-rotation]

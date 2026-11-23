@@ -1,0 +1,23 @@
+id: depth-which-cert
+type: mcq
+rev: 1
+prompt: |
+  A server sends its certificate and its issuing CA's. Captured in this topic's lab on 2026-11-22, a client that trusts the root reports:
+
+  ```
+  CN = Issuing CA 3
+  error 10 at 1 depth lookup: certificate has expired
+  ```
+
+  Which certificate has the problem, and what is it?
+choices:
+  - "The issuing CA's certificate has run out; the server's own may be in date"
+  - "The server's certificate ran out one day ago, which is what `at 1` counts"
+  - "The root's certificate has run out; depth 1 is the top of the trust store"
+  - "The issuing CA's CRL has run out; depth 1 is the first list a client reads"
+answer: 0
+explanation: |
+  The depth says which certificate, the number says what. Depth 0 is the leaf, 1 the certificate that signed it, 2 the one above that; openssl prints the subject of the certificate it is complaining about on the line before. Here that is the issuing CA, and error 10 is an expired certificate.
+
+  Renewing the server's certificate won't help: every leaf under this CA fails the same way at the same moment. The fix is a new issuing CA certificate, which should have been in service long before. An expired leaf is `error 10 at 0`; an expired CRL is error 12, not 10; and the root here would be depth 2.
+skills: [fix-chains]

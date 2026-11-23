@@ -1,0 +1,23 @@
+id: mcq-stale-crl-ok
+type: mcq
+rev: 1
+prompt: |
+  A minute ago the CA revoked the courier's certificate: its line in the CA's database starts `R`. Captured in this topic's lab on 2026-11-22, a client then checked the certificate against the CRL it holds, whose `nextUpdate` is two hours away:
+
+  ```
+  $ openssl verify -crl_check -CAfile root.pem -untrusted partners.pem -CRLfile partners.crl courier.pem
+  courier.pem: OK
+  ```
+
+  Why `OK`?
+choices:
+  - "The client's copy of the CRL was made before the revocation, and is still in date"
+  - "`-crl_check` reads only the root's CRL, which doesn't list partners' certificates"
+  - "A revocation for `keyCompromise` takes effect only once the certificate has expired"
+  - "The CA must be restarted before a revocation in its database can reach any CRL"
+answer: 0
+explanation: |
+  A CRL is a snapshot: the serial numbers that were revoked when it was signed. This one was signed before the courier's revocation, so the courier isn't on it, and it is still inside its dates, so the client has no reason to doubt it. For this client the revocation hasn't happened yet. It happens when the CA publishes its next CRL **and** the client fetches it: against that one, the same command says `error 23 at 0 depth lookup: certificate revoked`.
+
+  That gap is the cost of CRLs, and it is as long as the client's copy lasts unless the client fetches sooner. `-crl_check` checks the leaf against its own issuer's CRL (`-crl_check_all` checks every certificate in the chain). No reason code delays a revocation, and `openssl ca` is a command, not a service to restart.
+skills: [revocation]

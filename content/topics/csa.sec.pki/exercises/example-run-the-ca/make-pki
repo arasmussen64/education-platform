@@ -1,0 +1,119 @@
+#!/bin/bash
+# make-pki: the shop's certificate authorities as this lab begins, made
+# once, when the lab's image is built. Every key is made here, so none is
+# in the repository.
+#
+#   - The shop's server CA, which signs api.shop.test's own certificate and
+#     which every machine trusts (Module 3's subject, scenery here).
+#   - The root CA, on the machine root (its /etc/shop-ca): a key, a
+#     certificate, a database, and the CRL it signed for the issuing CAs.
+#   - The partners' issuing CA, on ca (its /etc/shop-ca), signed by the
+#     root, with one certificate issued: the warehouse's. What it publishes
+#     is in its public/ folder.
+#   - The staff's issuing CA, signed by the same root, and one staff
+#     member's certificate, in the learner's ~/staff.
+#   - The courier's key, with no certificate yet.
+#
+# Each CA's ca.cnf names its files by their path inside its machine,
+# /etc/shop-ca. At build time there are no machines yet, so openssl is
+# given a copy of the file whose "dir" is the folder as the lab machine
+# sees it.
+set -euo pipefail
+ns=/etc/netns
+key() { openssl ecparam -name prime256v1 -genkey -noout -out "$1"; }
+# run COMMAND...: quiet when it works, loud when it doesn't.
+run() {
+  local said
+  said=$("$@" 2>&1) || { printf 'make-pki: %s\n%s\n' "$*" "$said" >&2; exit 1; }
+}
+# ca_dir FOLDER: an empty CA database in FOLDER.
+ca_dir() {
+  mkdir -p "$1/newcerts"
+  : > "$1/index.txt"
+  echo 1000 > "$1/crlnumber"
+}
+# cnf_for FOLDER: prints the path of a copy of FOLDER/ca.cnf whose dir is FOLDER.
+cnf_for() {
+  local out
+  out=$(mktemp)
+  sed "s#^dir .*#dir = $1#" "$1/ca.cnf" > "$out"
+  echo "$out"
+}
+
+# The server CA and the API's own certificate.
+srv=/var/lib/lab/server-ca
+tls=$ns/web/nginx/tls
+mkdir -p "$srv" "$tls" /etc/ssl/certs
+key "$srv/ca.key"
+run openssl req -x509 -new -key "$srv/ca.key" -subj "/CN=Shop Lab Server CA" -days 7300 -out "$srv/ca.pem" \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+key "$tls/api.key"
+run openssl req -new -key "$tls/api.key" -subj "/CN=api.shop.test" -out "$srv/api.csr"
+printf '%s\n' 'subjectAltName=DNS:api.shop.test' 'extendedKeyUsage=serverAuth' 'keyUsage=critical,digitalSignature' > "$srv/api.ext"
+run openssl x509 -req -in "$srv/api.csr" -CA "$srv/ca.pem" -CAkey "$srv/ca.key" -CAcreateserial -days 3650 -extfile "$srv/api.ext" -out "$tls/api.pem"
+cp "$srv/ca.pem" /etc/ssl/certs/ca-certificates.crt
+
+# The root CA, on root.
+root=$ns/root/shop-ca
+ca_dir "$root"
+rootcnf=$(cnf_for "$root")
+key "$root/root.key"
+run openssl req -x509 -new -config "$rootcnf" -extensions v3_root -key "$root/root.key" -days 7300 -out "$root/root.pem"
+
+# The partners' issuing CA, on ca: its request, signed on root.
+ca=$ns/ca/shop-ca
+ca_dir "$ca"
+mkdir -p "$ca/public"
+cacnf=$(cnf_for "$ca")
+key "$ca/partners.key"
+run openssl req -new -key "$ca/partners.key" -subj "/CN=Shop Partners CA" -out "$ca/partners.csr"
+run openssl ca -batch -config "$rootcnf" -extensions v3_partners_ca -in "$ca/partners.csr" -out "$ca/partners.pem"
+rm "$ca/partners.csr"
+
+# The staff's issuing CA, signed by the same root, and one staff member.
+staff=/var/lib/lab/staff-ca
+mkdir -p "$staff" /home/learner/staff
+key "$staff/staff.key"
+run openssl req -new -key "$staff/staff.key" -subj "/CN=Shop Staff CA" -out "$staff/staff.csr"
+run openssl ca -batch -config "$rootcnf" -extensions v3_staff_ca -in "$staff/staff.csr" -out "$staff/staff.pem"
+key /home/learner/staff/ana.key
+run openssl req -new -key /home/learner/staff/ana.key -subj "/CN=ana.staff.shop.test" -out "$staff/ana.csr"
+printf '%s\n' 'basicConstraints=critical,CA:FALSE' 'subjectAltName=DNS:ana.staff.shop.test' 'extendedKeyUsage=clientAuth' \
+  'keyUsage=critical,digitalSignature' 'authorityKeyIdentifier=keyid' > "$staff/ana.ext"
+run openssl x509 -req -in "$staff/ana.csr" -CA "$staff/staff.pem" -CAkey "$staff/staff.key" -CAcreateserial -days 3650 -extfile "$staff/ana.ext" -out /home/learner/staff/ana.pem
+# What a staff laptop sends: its own certificate, then its issuing CA's.
+openssl x509 -in /home/learner/staff/ana.pem > /home/learner/staff/ana-chain.pem
+openssl x509 -in "$staff/staff.pem" >> /home/learner/staff/ana-chain.pem
+
+# The root's CRL, which lists issuing CAs it has taken back (none). A real
+# root's lasts months; this one lasts ten years, so that the lab still
+# works from an image built long ago.
+run openssl ca -config "$rootcnf" -gencrl -crldays 3650 -out "$ca/public/root.crl"
+
+# The warehouse: a key and a request made on its own machine, a certificate
+# from the partners' CA. The courier: a key only.
+mkdir -p "$ns/depot/partner" "$ns/courier/partner"
+key "$ns/depot/partner/warehouse.key"
+run openssl req -new -key "$ns/depot/partner/warehouse.key" -subj "/CN=warehouse.partners.shop.test" \
+  -addext "subjectAltName=DNS:warehouse.partners.shop.test" -out /tmp/warehouse.csr
+run openssl ca -batch -config "$cacnf" -extensions partner -in /tmp/warehouse.csr -out /tmp/warehouse.pem
+openssl x509 -in /tmp/warehouse.pem > "$ns/depot/partner/warehouse.pem"
+key "$ns/courier/partner/courier.key"
+rm -f /tmp/warehouse.csr /tmp/warehouse.pem "$rootcnf" "$cacnf"
+
+# What is public: the two CA certificates, served beside the CRLs and
+# copied to the learner's ~/shop-pki, and the bundle nginx on web trusts
+# for clients (the partners' CA, then the root).
+openssl x509 -in "$root/root.pem" > "$ca/public/root.pem"
+openssl x509 -in "$ca/partners.pem" > "$ca/public/partners.pem"
+mkdir -p /home/learner/shop-pki /home/learner/transfer /home/learner/example
+cp "$ca/public/root.pem" "$ca/public/partners.pem" "$ca/public/root.crl" /home/learner/shop-pki/
+cat "$ca/public/partners.pem" "$ca/public/root.pem" > "$tls/partners-bundle.pem"
+: > "$tls/crls.pem"
+
+chmod 600 "$root/root.key" "$ca/partners.key" "$staff/staff.key" "$srv/ca.key" "$tls/api.key" \
+  "$ns/depot/partner/warehouse.key" "$ns/courier/partner/courier.key"
+chmod 755 "$root" "$ca" "$ca/public" "$tls"
+chmod 644 "$ca/public"/* "$tls/api.pem" "$tls/partners-bundle.pem" "$tls/crls.pem" /etc/ssl/certs/ca-certificates.crt \
+  "$ns/depot/partner/warehouse.pem" /home/learner/staff/*
+chown -R learner:learner /home/learner/shop-pki /home/learner/transfer /home/learner/example /home/learner/staff

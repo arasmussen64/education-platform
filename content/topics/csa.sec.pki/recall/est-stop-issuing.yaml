@@ -1,0 +1,24 @@
+id: est-stop-issuing
+type: estimate
+rev: 1
+prompt: |
+  An issuing CA's own certificate lasts 1,826 days. The certificates it issues last 90 days each, and none of them may outlast the CA's own certificate. For how many days, counted from the CA's first day, can it go on issuing full 90-day certificates? Exactly.
+unit: days
+answer: 1736
+tolerance: { absolute: 0 }
+given: { ca_days: 1826, leaf_days: 90 }
+working: ca_days - leaf_days
+mistakes:
+  - id: whole-life
+    value: 1826
+    working: ca_days
+    why: A certificate issued on the CA's last day would outlive the CA by 90 days. Clients refuse a chain with an expired CA in it, so its last 90 days would be useless.
+  - id: half
+    value: 913
+    working: ca_days / 2
+    why: Half the CA's life is a common rule of thumb for when to have the next CA ready, but the arithmetic here is the CA's life less one leaf's.
+explanation: |
+  A leaf issued on day 1,736 expires on day 1,826, the CA's last: 1,826 - 90 = 1,736. From then on anything the CA issued would be cut short by the CA's own expiry, when clients report `error 10 at 1 depth lookup: certificate has expired` for every leaf under it at once.
+
+  So the new issuing CA has to be in service, and in every relying party's file of trusted CAs, before day 1,736, and in practice long before: the overlap then costs nothing. An issuing CA that nobody replaced in time is an outage with a date on it, visible years ahead in the CA certificate's own `notAfter`.
+skills: [ca-rotation]

@@ -1,0 +1,22 @@
+id: typed-ssl-crl
+type: typed
+rev: 1
+prompt: |
+  nginx on web requires client certificates with `ssl_verify_client on`. Which nginx directive names the file of CRLs, in PEM, that it checks those certificates against? Type the directive's name.
+kind: text
+case: sensitive
+answers:
+  - ssl_crl
+mistakes:
+  - id: client-certificate
+    answers: [ssl_client_certificate, ssl_trusted_certificate]
+    why: "That names the CA certificates nginx trusts for clients. Revocation lists go in a file of their own."
+  - id: ocsp
+    answers: [ssl_ocsp, ssl_ocsp_responder]
+    why: "That has nginx ask an OCSP responder about each client, live. The file of CRLs is named by another directive."
+  - id: stapling
+    answers: [ssl_stapling]
+    why: "Stapling is about the server's own certificate, sent to its clients. This is about checking the clients' certificates."
+explanation: |
+  `ssl_crl /etc/nginx/tls/crls.pem;`. The file holds one CRL from every CA in a client's chain, the root's and each issuing CA's, one after another. nginx reads it when it loads its settings and not again, so every fetch of a new CRL ends with a reload. A CRL missing for one CA gives every client `(3:unable to get certificate CRL)`, and one past its `nextUpdate` gives `(12:CRL has expired)`.
+skills: [revocation]
