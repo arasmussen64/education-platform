@@ -1,0 +1,31 @@
+id: reach-matrix-read
+type: predict_shell
+rev: 1
+prompt: |
+  `matrix.txt` is what a reachability test printed for an apps network: one line for each connection tried, as `FROM TO:PORT RESULT`. The design says the proxy `zt` reaches the wiki (8080) and payroll (8081), payroll reaches the database `db` (5432), and nothing else is allowed. The command prints every connection that got through. What is printed?
+files:
+  matrix.txt: |
+    zt wiki:8080 open
+    zt payroll:8081 open
+    zt db:5432 dropped
+    wiki payroll:8081 dropped
+    wiki db:5432 open
+    payroll db:5432 open
+    payroll wiki:8080 dropped
+    db wiki:8080 dropped
+    db payroll:8081 refused
+    new wiki:8080 dropped
+    new payroll:8081 dropped
+    new db:5432 open
+command: awk '$3 == "open" {print $1, $2}' matrix.txt | sort
+expected_output: |
+  new db:5432
+  payroll db:5432
+  wiki db:5432
+  zt payroll:8081
+  zt wiki:8080
+explanation: |
+  Five connections got through, and the design allows three. The two extra ones both end at the database: the wiki reaches it, and so does `new`, a machine added to the network for the test. The database is accepting its port from more than payroll.
+
+  Read a matrix against the design, line by line: every `open` that the design doesn't name is a hole, and every allowed pair that isn't `open` is an outage. `dropped` and `refused` both mean "didn't get through" (a firewall that drops, and one that answers no). The `new` rows are the ones people forget: existing machines may be held back by their own outbound rules, and a machine that arrives tomorrow has none.
+skills: [micro-segmentation]

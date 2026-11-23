@@ -1,0 +1,16 @@
+id: mcq-azure-vnet-default
+type: mcq
+rev: 1
+prompt: |
+  In Azure, a network security group (NSG) protects a database subnet. Someone adds one rule: allow port 1433 from the app tier. They add no other rule. Can a VM in the web tier, in the same virtual network, reach the database on 1433?
+choices:
+  - "No: an NSG denies whatever no written rule allows"
+  - "Yes: a default rule allows everything inside the virtual network"
+  - "Only if the web tier shares a subnet with the database"
+  - "Only from a VM that has been given a public IP address of its own"
+answer: 1
+explanation: |
+  Every NSG comes with default rules, and one of them, `AllowVNetInBound`, allows all traffic between resources in the same virtual network. The written rule for the app tier adds nothing that wasn't already allowed, and the web tier gets in the same way. Microsoft's own example for application security groups adds an explicit deny rule for the database, at a higher priority than the default, for this reason (read 2026-11-23).
+
+  So on Azure, segmenting inside a virtual network takes a deny you write yourself. AWS security groups start from the other end: nothing comes in until a rule allows it.
+skills: [micro-segmentation]

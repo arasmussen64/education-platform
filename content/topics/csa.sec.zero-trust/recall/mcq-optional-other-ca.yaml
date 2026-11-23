@@ -1,0 +1,16 @@
+id: mcq-optional-other-ca
+type: mcq
+rev: 1
+prompt: |
+  The lab's access proxy has `ssl_verify_client optional;` with the shop's device CA in `ssl_client_certificate`. A personal laptop asks for the wiki, which needs no device certificate, and shows a certificate its owner made. What does nginx answer?
+choices:
+  - "400, before any location runs: a certificate that is shown must verify"
+  - "The wiki's page, since the wiki's location never looks at certificates"
+  - "403, from the wiki's location, as for someone who isn't in staff"
+  - "A redirect to the identity provider, to sign in a second time"
+answer: 0
+explanation: |
+  Under `optional`, showing no certificate is fine, and showing a bad one is not: nginx answers `400 Bad Request` ("The SSL certificate error") by itself, whatever the location (seen in this topic's labs on 2026-11-23). The request never reaches the wiki's `auth_request`.
+
+  So `optional` gives three outcomes: no certificate (`NONE`, carry on), a certificate from the device CA (`SUCCESS`, carry on), anything else (stopped at the door). A location that needs a managed device only has to tell the first two apart.
+skills: [device-trust]

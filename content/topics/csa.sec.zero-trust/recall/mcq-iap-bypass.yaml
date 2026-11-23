@@ -1,0 +1,16 @@
+id: mcq-iap-bypass
+type: mcq
+rev: 1
+prompt: |
+  An app on a Google Compute Engine VM is published through Identity-Aware Proxy (IAP), so that only signed-in staff with the right role get to it. Google's own documentation warns of one way people can still get to the app without IAP deciding anything. Which?
+choices:
+  - "By signing in with a personal Google account that has two-step verification"
+  - "By asking for the app's address over HTTP in place of HTTPS"
+  - "By opening the app from a browser that has cookies switched off"
+  - "By connecting straight to the port on the VM that serves the app"
+answer: 3
+explanation: |
+  IAP decides only for requests that pass through it. Google's overview says that users who can reach the VM's application-serving port can bypass IAP's authentication, and that firewall rules protect against that only if properly configured (read 2026-11-23).
+
+  It is the same rule as the lab's: an app must answer the proxy and nobody else, or the proxy is one door in a wall with a gap beside it. On Google Cloud the firewall rule that closes the port to everything but the proxy is yours to write, and IAP also signs the headers it passes on so the app can check a request really came through it.
+skills: [access-proxy]

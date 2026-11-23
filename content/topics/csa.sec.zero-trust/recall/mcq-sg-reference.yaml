@@ -1,0 +1,16 @@
+id: mcq-sg-reference
+type: mcq
+rev: 1
+prompt: |
+  On AWS, the database servers' security group has one inbound rule: TCP 5432, with the web servers' security group as its source. Next month the web tier grows from 3 instances to 9, at new addresses. What has to change in the database's rule?
+choices:
+  - "Nothing: the rule names the group, whichever instances are in it"
+  - "The six new private addresses are added to it, one line each"
+  - "It is replaced by a rule for the web tier's whole subnet"
+  - "A deny rule for every other security group is added beside it"
+answer: 0
+explanation: |
+  A security group rule can name another security group as its source. It then allows traffic from whatever instances are associated with that group at the time, by their private addresses, so the rule follows the tier as it grows, shrinks and moves. That is segmentation by role and not by address, which is what a hand-written address rule can only imitate.
+
+  Two more things about security groups, from AWS's documentation (read 2026-11-23): they hold allow rules only, so there is no deny to write, and a new group has no inbound rules at all but does allow all outbound traffic until you remove that rule.
+skills: [micro-segmentation]

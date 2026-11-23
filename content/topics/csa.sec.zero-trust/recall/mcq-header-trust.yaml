@@ -1,0 +1,16 @@
+id: mcq-header-trust
+type: mcq
+rev: 1
+prompt: |
+  The access proxy tells each app who is asking in a request header, `X-User`, and the app greets that person without asking anything more. When is the app right to believe the header?
+choices:
+  - "Whenever the request that carries the header arrives over HTTPS"
+  - "When the name in it matches a person in the app's own database"
+  - "Only when nothing except the proxy can reach the app at all"
+  - "When the proxy has first signed in to the app with a password"
+answer: 2
+explanation: |
+  A header is just text in a request, and anyone who can send the app a request can write `X-User: the boss` in it. So the header is worth exactly as much as the guarantee that every request came through the proxy, which replaces whatever the browser sent with the name it verified. That guarantee is the app's own firewall: one accept rule, for the proxy's address, on the app's port.
+
+  HTTPS protects a request on its way; it says nothing about who wrote it. A name that exists in the database is the easiest thing in the world to guess. (Where a firewall guarantee isn't possible, the proxy signs what it passes on, and the app checks the signature: Google's Identity-Aware Proxy does that.)
+skills: [access-proxy]

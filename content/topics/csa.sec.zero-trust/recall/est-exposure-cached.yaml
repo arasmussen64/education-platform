@@ -1,0 +1,26 @@
+id: est-exposure-cached
+type: estimate
+rev: 1
+prompt: |
+  An access proxy asks the identity provider about each session again every 240 seconds. The app behind it keeps its own copy of "this person is allowed" for 90 seconds after each request the proxy passes on, and serves its phone app from that copy without going through the proxy again.
+
+  In the worst case, how many seconds after an account is switched off can the phone app still get an answer? Exactly.
+unit: seconds
+answer: 330
+tolerance: { absolute: 0 }
+given: { refresh: 240, cache: 90 }
+working: refresh + cache
+mistakes:
+  - id: refresh-only
+    value: 240
+    working: refresh
+    why: "That is when the proxy stops passing requests on. The app's own copy, made at the last request that got through, lives 90 seconds longer."
+  - id: cache-only
+    value: 90
+    working: cache
+    why: "The cache is renewed by every request the proxy lets through, and the proxy lets them through for up to 240 seconds after the switch-off."
+explanation: |
+  The proxy passes requests on for up to 240 seconds after the switch-off. The last of them renews the app's copy, which then lives 90 seconds more: 240 + 90 = 330 seconds.
+
+  Exposure windows add up along the path. Every cache after the enforcement point (an app's session, a token an API accepts until it expires, a resumed connection) extends the time that access outlives trust, and the honest figure for a design is the sum.
+skills: [continuous-verification]

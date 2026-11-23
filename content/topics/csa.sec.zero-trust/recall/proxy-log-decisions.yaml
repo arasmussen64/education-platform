@@ -1,0 +1,29 @@
+id: proxy-log-decisions
+type: predict_shell
+rev: 1
+prompt: |
+  `auth.log` is eight lines of oauth2-proxy's journal from the walkthrough's lab (2026-11-23), one for each question nginx asked it. On each line the fifth field is the signed-in person's email, or `-` when there is none, and the third field from the end is oauth2-proxy's answer. The command prints the person and the answer for every request that was not let through. What is printed?
+files:
+  auth.log: |
+    203.0.113.11 - a5ea2180 - - [2026/11/23 10:17:42] apps.shop.test GET - "/oauth2/auth?allowed_groups=staff" HTTP/1.0 "curl/8.5.0" 401 13 0.000
+    203.0.113.11 - 7f33db10 - ana@shop.test [2026/11/23 10:17:43] apps.shop.test GET - "/oauth2/auth?allowed_groups=staff" HTTP/1.0 "curl/8.5.0" 202 0 0.000
+    203.0.113.11 - 7d12161b - - [2026/11/23 10:17:43] apps.shop.test GET - "/oauth2/auth?allowed_groups=staff" HTTP/1.0 "curl/8.5.0" 401 13 0.000
+    203.0.113.11 - fdd5a324 - ben@shop.test [2026/11/23 10:17:43] apps.shop.test GET - "/oauth2/auth?allowed_groups=staff" HTTP/1.0 "curl/8.5.0" 403 10 0.000
+    203.0.113.10 - 0c41e2aa - hana@shop.test [2026/11/23 10:18:02] apps.shop.test GET - "/oauth2/auth?allowed_groups=hr" HTTP/1.0 "curl/8.5.0" 202 0 0.000
+    203.0.113.10 - 9be07d55 - ana@shop.test [2026/11/23 10:18:05] apps.shop.test GET - "/oauth2/auth?allowed_groups=hr" HTTP/1.0 "curl/8.5.0" 403 10 0.000
+    203.0.113.10 - 51d3c9f0 - ana@shop.test [2026/11/23 10:18:09] apps.shop.test GET - "/oauth2/auth?allowed_groups=staff" HTTP/1.0 "curl/8.5.0" 202 0 0.000
+    203.0.113.11 - e2a6b4c8 - - [2026/11/23 10:18:20] apps.shop.test GET - "/oauth2/auth?allowed_groups=hr" HTTP/1.0 "curl/8.5.0" 401 13 0.000
+command: awk '$(NF-2) != 202 {print $5, $(NF-2)}' auth.log
+expected_output: |
+  - 401
+  - 401
+  ben@shop.test 403
+  ana@shop.test 403
+  - 401
+explanation: |
+  awk keeps the lines whose answer isn't `202` and prints two fields of each. Three of them are `401` with no person at all: a browser with no session, which nginx sends off to sign in. Two are `403` with a person named: Ben asked for a page that wants `staff` and Ana for one that wants `hr`.
+
+  That is the difference to read for in an access proxy's log. `401` means "I don't know who you are". `403` means "I know exactly who you are, and the answer is no". Ana appears three times with three outcomes in a minute (`202` for the wiki's group, `403` for payroll's): the decision is made per request, for the page asked, not once at sign-in.
+
+  The request ids are shortened here; the lab's scripted browser names itself where these lines say `curl/8.5.0`.
+skills: [access-proxy]
