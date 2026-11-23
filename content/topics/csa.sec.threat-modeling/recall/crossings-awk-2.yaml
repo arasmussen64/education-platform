@@ -1,0 +1,25 @@
+id: crossings-awk-2
+type: predict_shell
+rev: 1
+prompt: |
+  `draft.tm` is a threat model someone began in the labs' line format, with one line out of place: the `db` element is written below a flow that uses it. The command reads the file once, remembering each element's zone and printing each flow whose two ends are in different zones. What does it print?
+files:
+  draft.tm: |
+    zone internet anyone on the internet
+    zone shop the shop's own network
+    element customer external internet a browser
+    element api process shop the order API
+    flow f1 customer api place an order
+    flow f2 api db save the order
+    element db store shop the orders
+    flow f3 api db read an order
+command: |
+  awk '$1 == "element" {z[$2] = $4} $1 == "flow" && z[$3] != z[$4] {print $2}' draft.tm
+expected_output: |
+  f1
+  f2
+explanation: |
+  `f1` really crosses: the customer is on the internet and the API in the shop. `f2` is printed by mistake. When awk reads its line, it hasn't met `db` yet, so `z["db"]` is empty, and an empty zone differs from `shop`. By `f3` the `db` line has been read, both ends are in `shop`, and nothing is printed.
+
+  A one-pass script is only right when every name is defined above the line that uses it. That is why the labs' format insists on it, and why `tm-check reads` refuses this file: it says that `db` is only defined on line 7, below the flow, and to move that line up.
+skills: [draw-the-system]

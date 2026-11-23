@@ -1,0 +1,25 @@
+id: est-tree-countermeasure
+type: estimate
+rev: 1
+prompt: |
+  An attack tree for "open the archive room" has three ways under its goal, any one of which is enough. Bribe the clerk who holds the code: $20,000. Or threaten the clerk: $60,000. Or do both of two steps: learn the room's layout, $30,000, and cut through the wall, $75,000. The owner starts paying the clerk a bonus for reporting bribes, which raises the cost of a bribe to $80,000. What does the cheapest attack cost now, in dollars? Exactly.
+unit: "US dollars"
+answer: 60000
+tolerance: { absolute: 0 }
+amounts: made-up
+given: { bribe_before: 20000, threaten: 60000, layout: 30000, cut: 75000, bribe_after: 80000 }
+working: min(bribe_after, threaten, layout + cut)
+mistakes:
+  - id: the-raised-leaf
+    value: 80000
+    working: bribe_after
+    why: "That is the new cost of the bribe. It is no longer the cheapest way in: threatening the clerk costs less."
+  - id: before
+    value: 20000
+    working: bribe_before
+    why: "That was the cheapest attack before the bonus. A bribe now costs $80,000."
+explanation: |
+  After the change the three ways cost $80,000 (the bribe), $60,000 (the threat) and $30,000 + $75,000 = $105,000 (the two steps, added because both are needed). The goal takes the cheapest: $60,000.
+
+  The countermeasure raised one leaf by $60,000 and the attacker's cost by $40,000, because the cheapest path moved to another branch. These are the figures of Bruce Schneier's 1999 article "Attack Trees", which introduced the method with a safe: a $20,000 bribe raised to $80,000 leaves a $60,000 threat as the cheapest attack.
+skills: [attack-trees]

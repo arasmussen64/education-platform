@@ -1,0 +1,23 @@
+id: est-tree-cheapest
+type: estimate
+rev: 1
+prompt: |
+  An attack tree for "read the clinic's export file" has three ways under its goal, any one of which is enough. Guess the file's link: $50. Or do both of two steps: phish an accountant, $200, and then search their mailbox for the link, $100. Or bribe an employee: $500. What does the cheapest attack cost, in dollars? Exactly.
+unit: "US dollars"
+answer: 50
+tolerance: { absolute: 0 }
+amounts: made-up
+given: { guess: 50, phish: 200, search: 100, bribe: 500 }
+working: min(guess, phish + search, bribe)
+mistakes:
+  - id: the-and-path
+    value: 300
+    working: phish + search
+    why: "That is the cost of the two-step way, which is right for that branch. The goal takes the cheapest of its three ways, and guessing the link costs less."
+  - id: everything-added
+    value: 850
+    working: guess + phish + search + bribe
+    why: "That adds every leaf. Only steps that are all needed are added; alternatives are compared, and the attacker takes the cheapest."
+explanation: |
+  The two steps under the **and** node are both needed, so they add: $200 + $100 = $300. The goal's three ways are alternatives, an **or**, so the attacker takes the cheapest: the least of $50, $300 and $500 is $50. A defender reads the tree the same way: the $50 leaf is the one to fix first, because until it is gone nothing else in the tree matters.
+skills: [attack-trees]
