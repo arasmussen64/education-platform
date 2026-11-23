@@ -103,10 +103,13 @@ awk '{print $1, $2 ":" $3, $4}' "$work/shuffled" > "$work/want"
 chmod 644 "$work/matrix.txt"
 
 start=$(date +%s%N)
-timeout 25 sudo -u learner -H "$script" "$work/matrix.txt" > "$work/got" 2> /dev/null
+# 16 seconds: a script that tries the connections one at a time takes about
+# 13, and still gets a straight answer from the checks that don't time it;
+# one that waits on a dropped connection with no limit is stopped sooner.
+timeout 16 sudo -u learner -H "$script" "$work/matrix.txt" > "$work/got" 2> /dev/null
 status=$?
 ms=$((($(date +%s%N) - start) / 1000000))
-[ "$status" = 124 ] && { echo "the script was still running after 25 seconds"; exit 0; }
+[ "$status" = 124 ] && { echo "the script was still running after 16 seconds"; exit 0; }
 
 n=0
 while read -r want <&3; do
