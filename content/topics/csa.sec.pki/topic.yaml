@@ -1,16 +1,315 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.pki
 kind: topic
-status: planned
+status: ready
 title: Certificates and PKI
-summary: Run a private certificate authority.
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "Running a certificate authority, not just using one: a CA as a key, a certificate, a database and a policy; an offline root and issuing CAs under it, and the limits a root writes into an issuing CA's certificate, which the clients enforce; revoking a certificate and making the revocation arrive, with CRLs, OCSP, the servers that check and the timers that keep the lists fresh; replacing a CA without locking anyone out; and reading a chain error down to the certificate at fault."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections
+# 2, 3 and 5) and its designer's brief (csa.sec.pki.md), on the network
+# base as it is (content/lab-bases/net/README.md), with no topic layer.
+# The plan's prerequisite is csa.sec.crypto, which gives signature, hash,
+# key strength, and a key that never leaves its store (KMS, HSM). Through
+# it and Checkpoint 3 the topic builds on csa.net.certificates (what a
+# certificate holds, the chain, root and intermediate, basic constraints
+# and pathlen, key usage and extended key usage, CSR, the verify codes 10,
+# 18, 19, 20 and 21, and 62, a CA made once with openssl req -x509 and
+# openssl x509 -req, ACME, mutual TLS and nginx's ssl_verify_client and
+# ssl_client_certificate), csa.net.http-tls (OCSP, a responder's good,
+# revoked and unknown, stapling), the network labs' machines, on and
+# name@machine services, and Module 1 (units, systemctl enable --now,
+# journalctl, nano, awk, sed, grep, curl, scripts and ShellCheck).
+# This topic defines, for the module (the plan's 3.5): PKI, CA database,
+# offline root, issuing CA, name constraint, relying party, CRL, CRL
+# distribution point, authority information access, hard and soft fail,
+# short-lived certificate, systemd timer, authority key identifier and
+# cross-signing. No Module 1 to 3 lesson teaches a timer unit (searched),
+# and both Module 3 lessons name a CRL in one sentence without teaching
+# it, so the lesson teaches both from the start.
+prerequisites: [csa.sec.crypto]
+# Worked out: the lesson about 32 minutes (4,200 words with its tables, at
+# 130 a minute), 18 practice quick questions at 1.5 each 27, then the
+# worked example 35, the fill-in 30, the write 35, the build 60, the debug
+# 40 and the explain 20: about 280, and the puzzle and the story about 5
+# more. The plan's 300 counted 34 minutes of assigned reading, which is
+# optional now (ADR-0031, step 3) and so left out; the lesson is longer
+# for it, and the build, which now includes two scripts and two timers, is
+# counted at 60, not 55.
+estimated_minutes: 285
 rev: 1
 objectives:
-- Run a private certificate authority.
-- Issue, revoke and rotate certificates.
-- Fix chain errors.
+  - "Run a private certificate authority the way one is run in production, in miniature: an offline root that signs only issuing CAs and its own CRL, and an issuing CA with settings, a database of what it issued and revoked, and a policy; issue from a request made where the key lives, and read the CA's database."
+  - "Limit what an issuing CA can do, with a path length, a name constraint and an extended key usage in the CA's own certificate, and say who enforces each: the clients that verify, never the CA's software."
+  - "Revoke a certificate and make the revocation reach the servers that matter: publish a CRL at the address in the certificate, keep it fresh with a timer, run an OCSP responder, and have nginx check client certificates against the CRLs; say what goes wrong when a list is stale, expired or missing, and why browsers check differently."
+  - "Replace an issuing CA by overlap, with both CAs trusted until the old one's last certificate has expired; work out when a CA must stop issuing and how long ahead a root must be replaced; and tell two CA certificates of one name apart by their key identifiers."
+  - "Read `error N at D depth` from `openssl verify` and nginx's log for a wrong or expired intermediate, a path that is too long, a certificate that isn't a CA, a name outside the constraints, a revoked certificate and a CRL that is missing or expired, and fix each at its cause."
+# Facts the lesson and the items rely on, each read on 2026-11-22:
+# - openssl ca's manual: "This command was originally meant as an example
+#   of how to do things in a CA. Its code does not have production
+#   quality"; -gencrl "generates a CRL based on information in the index
+#   file"; -crldays, -crlhours, -crlsec; -revoke; -crl_reason ("Setting
+#   any revocation reason will make the CRL v2"); the index file "is a
+#   critical part of the process and if corrupted it can be difficult to
+#   fix"; unique_subject; copy_extensions "should be used with caution";
+#   rand_serial: docs.openssl.org/3.0/man1/openssl-ca/
+# - RFC 5280: pathLenConstraint "gives the maximum number of
+#   non-self-issued intermediate certificates that may follow this
+#   certificate" (4.2.1.9); name constraints "MUST be used only in a CA
+#   certificate", "Conforming CAs MUST mark this extension as critical",
+#   and "Any DNS name that can be constructed by simply adding zero or
+#   more labels to the left-hand side of the name satisfies the name
+#   constraint" (4.2.1.10); "Conforming CRL issuers MUST include the
+#   nextUpdate field in all CRLs", which "indicates the date by which the
+#   next CRL will be issued" (5.1.2.5): rfc-editor.org/rfc/rfc5280.txt
+# - nginx's ngx_http_ssl_module: ssl_crl "Specifies a file with revoked
+#   certificates (CRL) in the PEM format used to verify client
+#   certificates. When using intermediate certificates, their CRLs should
+#   be specified in the same file"; ssl_ocsp on | off | leaf (1.19.0),
+#   leaf "enables validation of the client certificate only";
+#   ssl_ocsp_responder, "Only http:// OCSP responders are supported";
+#   ssl_ocsp_cache; ssl_verify_depth 1 by default; $ssl_client_i_dn, the
+#   issuer DN of the client certificate "according to RFC 2253":
+#   nginx.org/en/docs/http/ngx_http_ssl_module.html
+# - The CA/Browser Forum's Baseline Requirements, version 2.3.1 (4 October
+#   2026): the maximum validity of a subscriber certificate is 398 days if
+#   issued before 2026-03-15, 200 days from then, 100 days from
+#   2027-03-15 and 47 days from 2029-03-15 (6.3.2); a "Short-lived
+#   Subscriber Certificate" has a validity period of at most 10 days if
+#   issued from 2024-03-15, and at most 7 days from 2026-03-15 (1.6.1);
+#   CRLs for subscriber certificates are published at least every seven
+#   days if every certificate has an OCSP pointer, otherwise every four,
+#   and "within twenty-four (24) hours after recording a Certificate as
+#   revoked" (4.9.7):
+#   raw.githubusercontent.com/cabforum/servercert/main/docs/BR.md. Ballot
+#   SC-063v4, "Make OCSP Optional, Require CRLs, and Incentivize
+#   Automation" (voting ended 2023-07-13): OCSP optional, CRLs required,
+#   short-lived certificates "not required to contain a CRLDP or OCSP
+#   pointer and are not required to be revoked":
+#   cabforum.org/2023/07/14/ballot-sc063v4-make-ocsp-optional-require-crls-and-incentivize-automation/
+#   The ballot page gives no date from which OCSP became optional, so the
+#   lesson gives none.
+# - Mozilla (August 2025): CRLite on for all desktop Firefox users from
+#   Firefox 137, about 300 kB of revocation data a day; OCSP disabled for
+#   domain-validated certificates in Firefox 142; Chrome's CRLSets about
+#   600 kB, about 1% of revocations:
+#   hacks.mozilla.org/2025/08/crlite-fast-private-and-comprehensive-certificate-revocation-checking-in-firefox/
+# - Let's Encrypt, "DST Root CA X3 Expiration (September 2021)" (updated
+#   2024-02-05), the story's source: the root expired on 30 September
+#   2021; devices that don't trust ISRG Root X1 (iPhone 4, HTC Dream)
+#   show warnings; older Android devices keep working through a
+#   cross-sign that extends past the expiry; OpenSSL 1.0.x fails on the
+#   Android-compatible chain even when it trusts ISRG Root X1; clients
+#   should trust ISRG Root X1 and use OpenSSL 1.1.0 or later:
+#   letsencrypt.org/docs/dst-root-ca-x3-expiration-september-2021/
+# - AWS Private CA: "$400 per private CA per month for general-purpose
+#   mode", "$50 per private CA per month for short-lived certificate
+#   mode", which "can only issue certificates valid for up to 7 days";
+#   $0.75 a certificate (1 to 1,000 a month), $0.35 (1,001 to 10,000),
+#   $0.001 (above); short-lived $0.058; OCSP $0.06 per certificate per
+#   month and $0.20 per 100,000 queries: aws.amazon.com/private-ca/pricing/
+# - Google Certificate Authority Service: the DevOps tier doesn't support
+#   listing, describing or revoking certificates and is for "high volume,
+#   short-lived certificate issuance"; the Enterprise tier supports all
+#   three: docs.cloud.google.com/certificate-authority-service/docs/tiers.
+#   Its prices were not read (the pricing page wasn't opened), so the
+#   lesson gives none.
+# - Microsoft Cloud PKI (ms.date 2026-09-08): certificates "for
+#   Intune-managed devices"; a "two-tier PKI hierarchy with root and
+#   issuing CA in the cloud"; "The CRL validity period is seven days.
+#   Publishing and refresh happen every 3.5 days. The CRL is updated with
+#   every certificate revocation"; "up to three CAs in an Intune tenant":
+#   learn.microsoft.com/en-us/intune/intune-service/protect/microsoft-cloud-pki-overview
+# - Azure Key Vault certificates (ms.date 2026-07-10): partner issuers
+#   DigiCert and GlobalSign, with automatic renewal; "Non-partnered
+#   providers and authorities are also allowed but don't support automatic
+#   renewal":
+#   learn.microsoft.com/en-us/azure/key-vault/certificates/about-certificates
+# Tried in this topic's labs (OpenSSL 3.0.13, nginx 1.24.0, curl 8.5.0 on
+# Ubuntu 24.04, the network base), 2026-11-22: openssl ca signs a name
+# outside its own certificate's name constraint, and openssl verify then
+# gives error 47 at 0; a CA under pathlen:0 gives 25 at 2; a CA:FALSE
+# certificate used as a CA, 79 at 1; an expired issuing CA, 10 at 1; a
+# server certificate under a clientAuth-only CA, 26 at 1 with -purpose
+# sslserver; a same-name issuing CA with a new key, the old one sent, 20
+# at 0; an untrusted root, 20 at 1, or 19 at 2 when it is sent; a revoked
+# leaf, 23 at 0, and a revoked issuing CA, 23 at 1, with -crl_check_all;
+# a missing CRL, 3 at the depth of the certificate it would cover; an
+# expired CRL, 12. nginx with only an issuing CA in ssl_client_certificate
+# refuses every client, (2:unable to get issuer certificate); with the
+# issuing CA and the root it accepts a certificate from a sibling CA under
+# the same root when the client sends that CA's certificate, unless
+# ssl_crl is set and holds no CRL from the sibling, or the site tests
+# $ssl_client_i_dn; ssl_crl without the root's CRL, (3:unable to get
+# certificate CRL); an expired CRL, (12:CRL has expired); a replaced CRL
+# file isn't used until a reload; ssl_ocsp leaf answers 400 for a revoked
+# client and 400 with "certificate status request failed" when the
+# responder is stopped; "ssl_ocsp on" was not usable with openssl's own
+# responder signing with the CA's key (not in the lesson). openssl ocsp
+# -index re-reads the database when it changes, after answering: its first
+# answer following a change is the old one. A DER CRL with no entries is
+# 181 bytes and one with 1,000 is 35,670 (ECDSA P-256, 20-byte serials,
+# no reason codes). A timer with only OnUnitActiveSec has no next run
+# after a boot. Every command output in the lesson, the labs and the
+# recall items marked "captured" is real output of those labs; dates,
+# serials and keys differ in a new run.
+#
+# Linked, never copied; every page is optional (ADR-0031, step 3), and the
+# lesson's own text carries the topic, as the plan says. Licences, each
+# read on 2026-11-22: the OpenSSL PKI Tutorial is "© Copyright 2012-2022,
+# Stefan H. Holek" and states no licence; Smallstep's article is
+# "Copyright © 2026 Smallstep Labs, Inc. All rights reserved"; nginx's
+# documentation is "© F5, Inc. All rights reserved"; openssl's manual
+# pages are "Licensed under the Apache License 2.0"; RFCs are under the
+# IETF Trust's licence; Mozilla Hacks' content is "licensed under the
+# Creative Commons Attribution Share-Alike License v3.0 or any later
+# version" except where noted; AWS's pages are © Amazon Web Services;
+# Google's documentation pages are CC BY 4.0 "except as otherwise noted"
+# (Google's site policies; the footer itself wasn't in the text fetched);
+# Microsoft Learn's Intune and Azure security pages come from
+# MicrosoftDocs repositories whose licence file wasn't opened today, so
+# they are recorded as Microsoft's. Jamie Nguyen's CRL chapter, in the
+# designer's list, wasn't opened today and is left out.
+resources:
+  - title: "OpenSSL PKI Tutorial, \"Simple PKI\" (Stefan H. Holek): a root CA and a signing CA built with openssl ca, with complete settings files, a revocation and a CRL"
+    url: https://pki-tutorial.readthedocs.io/en/latest/simple/index.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Stefan H. Holek (the page's footer; no licence stated); linked, not copied"
+  - title: "Everything you should know about certificates and PKI but are too afraid to ask (Mike Malone, Smallstep): read \"Intermediates, Chains, and Bundling\" and \"Revocation\""
+    url: https://smallstep.com/blog/everything-pki/
+    type: reading
+    use: link
+    optional: true
+    license: "© Smallstep Labs, Inc., all rights reserved (the page's footer); linked, not copied"
+  - title: "nginx's ngx_http_ssl_module: look up ssl_crl, ssl_ocsp, ssl_ocsp_responder, ssl_verify_depth and $ssl_client_i_dn"
+    url: https://nginx.org/en/docs/http/ngx_http_ssl_module.html
+    type: reading
+    use: link
+    optional: true
+    license: "© F5, Inc. (the page's footer); linked, not copied"
+  - title: "openssl-ca (OpenSSL 3.0's manual): every option and setting of the command the labs' CAs run on, and its own warning"
+    url: https://docs.openssl.org/3.0/man1/openssl-ca/
+    type: reading
+    use: link
+    optional: true
+    license: "Apache 2.0 (the page's licence line); linked, not copied"
+  - title: "CRLite: fast, private, and comprehensive certificate revocation checking in Firefox (Mozilla Hacks, August 2025)"
+    url: https://hacks.mozilla.org/2025/08/crlite-fast-private-and-comprehensive-certificate-revocation-checking-in-firefox/
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY-SA 3.0 or later (the page's footer); linked, not copied"
+  - title: "RFC 5280, the standard for certificates and CRLs: sections 4.2.1.9 (basic constraints), 4.2.1.10 (name constraints) and 5.1.2.5 (a CRL's next update)"
+    url: https://www.rfc-editor.org/rfc/rfc5280.txt
+    type: reading
+    use: link
+    optional: true
+    license: "IETF Trust (the RFC's own notice); linked, not copied"
+  - title: "AWS Private CA pricing (AWS): what a managed private CA costs a month, in general-purpose and short-lived modes"
+    url: https://aws.amazon.com/private-ca/pricing/
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Certificate Authority Service tiers (Google Cloud): what the DevOps tier gives up and the Enterprise tier keeps"
+    url: https://docs.cloud.google.com/certificate-authority-service/docs/tiers
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "Microsoft Cloud PKI for Microsoft Intune (Microsoft Learn): a root and issuing CA run for you, for Intune-managed devices"
+    url: https://learn.microsoft.com/en-us/intune/intune-service/protect/microsoft-cloud-pki-overview
+    type: reading
+    use: link
+    optional: true
+    license: "© Microsoft (Microsoft Learn); linked, not copied"
+# The recall items read a CA's database, openssl verify's output and
+# nginx's log, captured from this topic's labs, with the text tools of
+# Module 1, and work out how long a revocation takes to arrive and when a
+# CA must be replaced. The worked example, the fill-in, the build and the
+# debug are network labs on the base: root (the offline root, with no
+# cable), ca (the issuing CA, what it publishes and its OCSP responder),
+# web (nginx, the partners' API), depot and courier (partners, each with
+# its own key), office and resolver. The write is a plain lab that makes
+# small PKIs with openssl as it runs (ADR-0018).
+practice:
+  - example-run-the-ca
+  - index-revoked
+  - mcq-where-the-csr-is-made
+  - typed-gencrl
+  - fill-issuing-ca
+  - mcq-who-enforces-constraints
+  - mcq-pathlen-zero
+  - mcq-why-offline-root
+  - mcq-stale-crl-ok
+  - mcq-everyone-refused
+  - mcq-reload-after-crl
+  - typed-crl-check-all
+  - mcq-timer-after-reboot
+  - est-crl-worst-case
+  - est-crl-size
+  - write-chain-doctor
+  - depth-which-cert
+  - mcq-same-name-20
+  - mcq-replace-or-add
+  - est-stop-issuing
+  - est-root-lead
+prove:
+  build: build-partner-pki
+  debug: debug-partners-locked-out
+  explain:
+    prompt: |
+      A colleague proposes, for the company's internal services: one root CA that signs every server's certificate directly, certificates valid for five years, and no revocation, "because we can just replace a certificate if we need to". Explain, in your own words, what you'd build instead and why: the hierarchy, the limits you'd put on each CA, and who enforces them; how a revocation reaches the services that rely on a certificate, what goes wrong when the list or the responder fails, and why browsers behave differently; how you'd replace an issuing CA and, one day, the root; and what the three clouds offer for a private CA.
+    rubric:
+      - id: hierarchy
+        required: true
+        description: "An offline root that signs only issuing CAs and its own CRL; issuing CAs online, signing the leaves. A stolen issuing CA is revoked by the root and replaced; a stolen root means changing every trust store, which is why its key is kept off the network and a root never signs leaves."
+      - id: limits
+        required: true
+        description: "Limits written into each issuing CA's own certificate: no CA below it (pathlen:0), a name constraint permitting only its own names, an extended key usage for its purpose (a separate issuing CA for each purpose). They are enforced by the relying parties that verify a chain, not by the CA's software, so they hold even when the CA signs something it shouldn't."
+      - id: revocation
+        required: true
+        description: "The CA records the revocation and publishes a CRL at the address in the certificate, with a nextUpdate; it republishes on a timer well inside the CRL's life, and relying parties fetch on a timer and load the list (nginx only on reload). A stale copy still accepts the revoked certificate; an expired or missing one locks everyone out. OCSP answers live but makes the responder part of availability. A service API should hard-fail; browsers soft-failed and now use lists shipped ahead (CRLSets, CRLite). Short lifetimes shrink the problem, and five-year certificates make it as large as it can be."
+      - id: rotation
+        required: true
+        description: "A new issuing CA starts issuing and the old one stops, while its own certificate still has more than a leaf's lifetime left; relying parties trust both until the old one's last certificate has expired. A new root is sent out years ahead, since it has to reach every trust store before anything chains to it, with a cross-signed certificate to bridge the overlap."
+      - id: clouds
+        required: false
+        description: "AWS Private CA in two modes at a monthly price for each CA (general-purpose about $400, short-lived about $50 and without revocation); Google's Certificate Authority Service, whose DevOps tier can't revoke and whose Enterprise tier can; no general-purpose managed private CA on Azure (Key Vault's partner public CAs; Cloud PKI for Intune-managed devices only)."
+    model_answer: |
+      One root signing everything means the most valuable key in the company is online and in daily use, and nobody is above it: if it is stolen, every machine's trust store has to change. I'd keep the root offline, on a machine with no network, and have it sign only issuing CAs and its own revocation list. The issuing CAs are online and sign the servers' certificates. If one of them is stolen, the root revokes it and signs a new one, and nothing else changes.
+
+      I'd limit each issuing CA in its own certificate: no CA below it (pathlen:0), a name constraint that permits only our own names, and an extended key usage for its purpose, with a separate issuing CA for client certificates. Those limits aren't checked by the CA's software, which will sign anything; they are checked by every client that verifies a chain, so they hold even against our own mistakes or a thief with the key.
+
+      "No revocation" means a stolen key works until the certificate expires, which with five years is as bad as it gets. A revocation has to travel: the CA marks the certificate in its database and publishes a CRL at the address written in the certificate; each service that relies on certificates fetches that list on a timer and loads it. If a service holds an old list, it still accepts the revoked certificate; if its list passes its nextUpdate, it refuses everyone, so the CA republishes well inside each list's life and the services fetch more often than that. OCSP gives a live answer, but then the responder's outages are ours. For our own services I'd refuse when the check can't be made. Browsers can't do that for the whole web, so they stopped asking CAs and use lists they download ahead of time. And I'd make certificates last weeks, renewed automatically, so that revocation matters less.
+
+      An issuing CA is replaced by overlap: the new one starts issuing, the old one stops while its certificate still has more than a leaf's lifetime to run, and everything that checks certificates trusts both until the old one's last certificate has expired. A root takes years: the new one has to be in every trust store before anything depends on it, with a cross-signed certificate to cover the devices that are slow.
+
+      In the clouds, AWS sells a private CA for about $400 a month, or $50 for one that only issues certificates of a week or less and doesn't revoke. Google has two tiers, and only the dearer one can revoke. Azure has nothing general: Key Vault works with public CAs, and Cloud PKI is for Intune's devices.
+review_pool:
+  - index-revoked
+  - mcq-openssl-ca-production
+  - mcq-client-ca-eku
+  - mcq-hard-or-soft
+  - typed-ssl-crl
+  - est-crl-worst-case
+  - est-crl-traffic
+  - est-fetch-timer
+  - aki-ski-match
+  - est-bundle-overlap
+  - depth-which-cert
+  - mcq-key-values-mismatch
+# A lab short enough for a hands-on refresher in a review (ADR-0009,
+# amended 2026-11-16): the review asks it in place of a quick question.
+review_labs:
+  - write-chain-doctor
+skills:
+  - id: run-a-ca
+    description: "A CA as a key, a certificate, a database and a policy: `openssl ca`, its settings file, `index.txt` (V, R and E, the revocation time and reason), random serials and `copy_extensions`; issuing from a CSR made on the machine that keeps the key; an offline root and an online issuing CA; why `openssl ca` is a teaching tool, and what runs real CAs"
+  - id: ca-hierarchy
+    description: "Two tiers and why; the limits in an issuing CA's own certificate (`pathlen:0`, a critical name constraint, an extended key usage) and a separate issuing CA for each purpose; that relying parties enforce them, not the CA's software; what nginx accepts when it trusts a root"
+  - id: revocation
+    description: "Revoking; CRLs (`lastUpdate`, `nextUpdate`, the distribution point, size), publishing and fetching on timers, and the timer unit itself; OCSP responders; relying parties that check (nginx's `ssl_crl` and `ssl_ocsp`, `openssl verify -crl_check_all`); stale, expired and missing lists; hard and soft fail, browsers' CRLSets and CRLite, the public web's rules and short-lived certificates; the arithmetic of how long a revocation takes and how large a list grows"
+  - id: ca-rotation
+    description: "Replacing an issuing CA by overlap: when the old one stops issuing, both in relying parties' files until its last certificate expires; a same-name CA with a new key, told apart by authority and subject key identifiers; replacing a root years ahead, and cross-signing; the arithmetic of both"
+  - id: fix-chains
+    description: "Reading `error N at D depth` from `openssl verify` and nginx's `client SSL certificate verify error: (N:...)` for 2, 3, 10 at depth 1, 12, 19, 20 at depth 0 and above, 23, 25, 26, 47 and 79; `-show_chain`; nginx's `key values mismatch`"

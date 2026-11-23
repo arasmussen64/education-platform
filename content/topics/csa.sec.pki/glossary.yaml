@@ -1,0 +1,43 @@
+# The terms this topic teaches (ADR-0026). Where another topic's lesson
+# first uses one, the app shows its definition and links back here.
+# Module 4's plan (section 3.5) gives this topic the module's entries for
+# the CA database, offline root, issuing CA, name constraints, CRL, CRL
+# distribution point, AIA, soft and hard fail, cross-signing, the systemd
+# timer and relying party. OCSP and stapling are csa.net.http-tls's.
+- term: PKI
+  aliases: [public key infrastructure]
+  definition: "Certificate authorities, their rules, and everything that publishes and checks what they say: how an organisation issues certificates, limits them, takes them back and replaces them."
+- term: CA database
+  definition: "A certificate authority's record of every certificate it has issued, with each one's status (valid, revoked or expired). A certificate that isn't in it can't be revoked. With `openssl ca`, the file `index.txt`."
+- term: offline root
+  definition: "A root CA whose private key is kept on a machine with no network and used a few times a year, to sign issuing CAs and its own revocation list."
+- term: issuing CA
+  aliases: [subordinate CA]
+  definition: "A CA whose certificate a root signed and which signs leaf certificates day to day. If its key is stolen, the root revokes it and signs a new one."
+- term: name constraint
+  definition: "A limit in a CA's own certificate on the names its certificates are good for, such as only names under `partners.shop.test`. Clients enforce it; the CA's software may not."
+- term: relying party
+  definition: "Anyone who relies on someone else's statement about identity to decide something: a server that checks a client's certificate, a browser that checks a site's, an app that accepts a sign-in token."
+- term: CRL
+  aliases: [certificate revocation list]
+  definition: "A file a CA signs and publishes that lists the serial numbers of certificates it has revoked, with a `nextUpdate` date after which the list must not be relied on."
+- term: CRL distribution point
+  definition: "The address written into a certificate where its CA's CRL can be downloaded, usually a plain HTTP URL, since the list is signed."
+- term: authority information access
+  aliases: [AIA]
+  definition: "The extension in a certificate that says where to ask about it: the address of its CA's OCSP responder, and often where to download the CA's own certificate."
+- term: hard fail
+  definition: "Refusing a certificate when its revocation can't be checked, because the list is missing or expired or the responder doesn't answer. Safer, but the check becomes part of your availability."
+- term: soft fail
+  definition: "Accepting a certificate when its revocation can't be checked. It keeps things working, and lets through anyone who can block the check."
+- term: short-lived certificate
+  definition: "A certificate that expires so soon (7 days at most, by the public web's rules) that it carries no revocation address: it is gone before a revocation could spread."
+- term: systemd timer
+  aliases: [timer unit]
+  definition: "A unit named `NAME.timer` that starts `NAME.service` on a schedule, such as so long after every boot and every hour after that. `systemctl list-timers` shows the next runs."
+- term: authority key identifier
+  aliases: [AKI]
+  definition: "A fingerprint, in a certificate, of the public key of whoever signed it. It matches the signer's subject key identifier, which tells two CA certificates with one name apart."
+- term: cross-signing
+  aliases: [cross-signed]
+  definition: "Giving a CA's key a second certificate signed by another root, so that clients which trust only that other root can still build a chain. Used while a new root spreads."
