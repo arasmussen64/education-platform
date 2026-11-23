@@ -1,0 +1,16 @@
+id: mcq-typo-silent
+type: mcq
+rev: 1
+prompt: |
+  A Cedar permit reads `when { principal.stor == resource.store }`: the attribute's name is misspelt. The policies are loaded without ever being checked against the schema. What does the order system do?
+choices:
+  - "The rule never applies and nothing warns: the people it was for are denied"
+  - "The engine refuses to load the policy file, and every request fails until it's fixed"
+  - "The misspelt attribute counts as empty, so the rule applies to nobody's own store"
+  - "The condition can't be worked out, so the engine skips it and the permit applies to everyone"
+answer: 0
+explanation: |
+  Without a schema, Cedar finds the mistake only while deciding a request: the attribute doesn't exist, the policy's evaluation ends in an error, and a policy that errors is skipped. A skipped permit allows nothing, so the people it was written for are denied, by default, with no rule named. It fails safe, and it fails silently.
+
+  `cedar validate` with the schema turns the same typo into an error before anything is loaded, with the line and "did you mean `store`?". That is what a schema is for. Note the other direction: a skipped **forbid** stops forbidding, which is why policies are validated before they're trusted.
+skills: [access-models]

@@ -1,0 +1,23 @@
+id: mcq-which-step
+type: mcq
+rev: 1
+prompt: |
+  Four things happen on the shop's servers in one morning:
+
+  1. The SSH server checks Ben's key against his `authorized_keys` file.
+  2. `sudo` reads `/etc/sudoers` to see whether Ben may run `systemctl restart nginx`.
+  3. nginx checks the warehouse server's client certificate against the partners' CA (mutual TLS).
+  4. The order system reads Ben's role from his session before showing an order.
+
+  Which two are authentication?
+choices:
+  - "1 and 3: the SSH key check and the client certificate check"
+  - "1 and 2: the SSH key check and the look in `/etc/sudoers`"
+  - "2 and 4: the look in `/etc/sudoers` and the role read from the session"
+  - "3 and 4: the client certificate check and the role read from the session"
+answer: 0
+explanation: |
+  Authentication answers "who is this?". The SSH key check proves it's Ben, and the client certificate check proves it's the warehouse's server (a machine is authenticated too). Authorization answers "may they do this?". `sudoers` decides what Ben, already known, may run, and the order system uses his role to decide what he may see. Neither of those two checks who Ben is: they start from a name that authentication already proved.
+
+  The names don't help here: `authorized_keys` is used for authentication.
+skills: [authn-or-authz]

@@ -1,0 +1,31 @@
+id: used-counts
+type: predict_shell
+rev: 1
+prompt: |
+  `log.txt` is three months of requests by the shop's services, one a line: the date, the service, the action and what it was done to. The command counts how often the `reports` service used each action and prints the three it used most, each as a count and the action. What is printed?
+files:
+  log.txt: |
+    2026-08-03 reports read orders
+    2026-08-03 reports list orders
+    2026-08-04 backup read orders
+    2026-08-10 reports read orders
+    2026-08-17 reports write report
+    2026-09-01 reports read orders
+    2026-09-01 deployer write release
+    2026-09-14 reports list orders
+    2026-09-21 reports write report
+    2026-09-30 reports export summary
+    2026-10-12 reports read orders
+    2026-10-12 backup copy orders
+    2026-10-30 reports write report
+command: |
+  awk '$2=="reports" {print $3}' log.txt | sort | uniq -c | sort -rn | head -3 | awk '{print $1, $2}'
+expected_output: |
+  4 read
+  3 write
+  2 list
+explanation: |
+  The first `awk` keeps `reports`'s lines and prints the action; `sort | uniq -c` counts each action (Module 1's counting idiom: `uniq` only joins lines that are next to each other, so sort first); `sort -rn` puts the biggest count first; `head -3` keeps three; the last `awk` tidies the spaces `uniq -c` puts before each count.
+
+  `backup`'s `read` and `deployer`'s `write` aren't counted: the filter is on the service. `export`, used once, is cut off by `head -3`. It is still used, and a once-a-quarter export is exactly the kind of use that a "top actions" list hides and a short look-back misses.
+skills: [least-privilege]

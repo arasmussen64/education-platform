@@ -1,0 +1,16 @@
+id: mcq-token-is-input
+type: mcq
+rev: 1
+prompt: |
+  Dina signed in to the order system an hour ago, with MFA, and her session is still valid. She now sends her 40th request of the morning. Should the system put this request to its access rules?
+choices:
+  - "Yes: each request is decided by itself, and the session only says who she is"
+  - "No: the sign-in checked what she may do, and a valid session carries that decision"
+  - "Only if the request changes data: requests that only read are covered by the session"
+  - "Only once an hour: the decision is kept and reused until the session is renewed"
+answer: 0
+explanation: |
+  A session is the result of authentication: proof of who is asking, and how they signed in. Authorization is a separate decision about one action on one resource, and it's made on every request, because the 40th request may be for a different order, a different action, or a refund of her own sale.
+
+  Signing in checks nothing about what Dina may do. Reads need deciding as much as writes (most data leaks are reads). And a decision kept for an hour would still be allowing things after her role or the order had changed.
+skills: [authn-or-authz]

@@ -1,0 +1,24 @@
+id: est-analyzer-cost
+type: estimate
+rev: 1
+prompt: |
+  An AWS account has 340 IAM roles, of which 40 are service-linked roles, and 25 IAM users. You create one unused access analyzer for it, at $0.20 for each IAM role or user analyzed each month. What does it cost a month, in dollars? Exactly.
+unit: USD
+answer: 65
+tolerance: { absolute: 0 }
+prices_as_of: "2026-11-22"
+prices_source: https://aws.amazon.com/iam/access-analyzer/pricing/
+given: { roles: 340, service_linked: 40, users: 25, price: 0.20 }
+working: (roles - service_linked + users) * price
+mistakes:
+  - id: service-linked-counted
+    value: 73
+    working: (roles + users) * price
+    why: That charges for all 340 roles. Service-linked roles belong to AWS's own services, aren't analyzed for unused access and aren't counted.
+  - id: users-forgotten
+    value: 60
+    working: (roles - service_linked) * price
+    why: That's the roles alone. The analyzer also looks at IAM users (their unused passwords and access keys), at the same price each.
+explanation: |
+  300 roles that can be analyzed, plus 25 users, is 325 identities; at $0.20 each that's $65 a month, $780 a year. Service-linked roles are left out: their permissions are set by the AWS service they belong to, so there's nothing for you to cut. A second analyzer in another Region would charge the same again for the same findings, so one is enough.
+skills: [least-privilege]
