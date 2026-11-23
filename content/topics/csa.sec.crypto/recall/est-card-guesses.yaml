@@ -1,0 +1,26 @@
+id: est-card-guesses
+type: estimate
+rev: 1
+prompt: |
+  A card number has 16 digits. For one bank's cards the first 6 are known (they name the card network and the bank), and the last digit is a check digit worked out from the others. A leaked table holds the plain SHA-256 hash of each customer's card number.
+
+  A machine computes 1,000,000,000 SHA-256 hashes a second. How many seconds does it take to hash every possible card number of that bank? Exactly.
+unit: seconds
+answer: 1
+tolerance: { absolute: 0 }
+given: { digits: 16, known: 6, rate: 1000000000 }
+# One digit is fixed by the others (the check digit), which the prompt says
+# in words, so the working takes 1 off as a plain number.
+working: 10 ** (digits - known - 1) / rate
+mistakes:
+  - id: no-check-digit
+    value: 10
+    working: 10 ** (digits - known) / rate
+    why: That counts the last digit as free. It is worked out from the other 15, so it adds no possibilities.
+  - id: all-digits
+    value: 10000000
+    working: 10 ** digits / rate
+    why: That tries all 16 digits. Six are known and one follows from the rest, so only 9 are free.
+explanation: |
+  16 digits, less the 6 that are known and the 1 that follows from the rest, leaves 9 free digits: 10^9, a billion, possible numbers. At a billion hashes a second that is 1 second, and every hash in the table can then be looked up. That is why a plain hash is no way to hide a card number, a phone number or anything else with few possible values. Use a MAC with a key kept in a key service, so that the hashes can't be made without the key.
+skills: [hash-mac-signature]

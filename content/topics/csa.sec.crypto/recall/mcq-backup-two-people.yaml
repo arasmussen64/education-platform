@@ -1,0 +1,16 @@
+id: mcq-backup-two-people
+type: mcq
+rev: 1
+prompt: |
+  A 40 GB nightly database dump goes to a storage bucket. Only Asha and Ben, who each have a key pair, may ever read it. How should it be encrypted?
+choices:
+  - "Encrypt it once with a random key, then wrap that key with each of their public keys"
+  - "Encrypt the dump twice, once with each of their public keys, and upload both copies"
+  - "Encrypt it once with a long password that both of them know and keep in their heads"
+  - "Sign it with each of their private keys before uploading, so that only they can open it"
+answer: 0
+explanation: |
+  This is hybrid encryption: a fast symmetric cipher (AES-256-GCM) encrypts the 40 GB once under a random key, and that small key is wrapped once for each person with their public key. There is one copy of the data and one short wrapped key per reader, and adding a third reader means wrapping the key once more, not encrypting 40 GB again. `age` does exactly this: its header holds the file key wrapped once per recipient.
+
+  Public-key encryption can't take the dump itself: RSA-2048 with OAEP and SHA-256 encrypts at most 190 bytes at a time, and slowly. A shared password is one secret in two heads, with nothing to say who used it and no way to take it from one of them. A signature hides nothing: it proves who made a file, and anyone can still read it.
+skills: [choose-the-primitive]

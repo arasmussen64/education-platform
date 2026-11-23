@@ -1,0 +1,22 @@
+id: est-strength-gap
+type: estimate
+rev: 1
+prompt: |
+  RSA-2048 has a security strength of 112 bits, and AES-128 one of 128 bits. How many times more work is breaking the 128-bit key than the 112-bit one? Exactly.
+unit: times
+answer: 65536
+tolerance: { absolute: 0 }
+given: { strong: 128, weak: 112 }
+working: 2 ** (strong - weak)
+mistakes:
+  - id: subtracted
+    value: 16
+    working: strong - weak
+    why: That is the difference in bits. Each bit doubles the work, so 16 more bits is 2^16 times.
+  - id: divided
+    value: 1.14
+    working: strong / weak
+    why: "That divides the bit counts. Strength is an exponent: n bits means about 2^n tries."
+explanation: |
+  n bits of strength means about 2^n tries, so the ratio is 2^128 ÷ 2^112 = 2^16 = 65,536. Sixteen bits doesn't sound like much and is a factor of sixty-five thousand: every bit doubles the work. It's also why key sizes move in what look like small steps.
+skills: [key-strength]
