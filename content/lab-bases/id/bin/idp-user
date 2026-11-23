@@ -1,0 +1,29 @@
+#!/bin/bash
+# idp-user: a person a check makes at the identity provider, switches off,
+# or removes again. Each takes effect at once (a disabled person's next
+# token refresh is refused).
+#
+#   idp-user add REALM NAME PASSWORD [--otp] [--key] [GROUP...]
+#       --otp: the person also has an authenticator app; its secret is in
+#              /etc/idlab/otp/NAME (signin --otp-secret "$(cat /etc/idlab/otp/NAME)")
+#       --key: the person also has a security key, /etc/idlab/keys/NAME.key
+#              (signin --key /etc/idlab/keys/NAME.key)
+#   idp-user disable REALM NAME
+#   idp-user del REALM NAME        (removes the two files as well)
+#
+# A check that makes a person removes them in an EXIT trap, gives them a
+# name starting chk-, and never runs kc_saved or realm-apply while they
+# exist (README.md, "Rules").
+#   idp-user add shop chk-u1234 "$password" staff
+#   trap 'idp-user del shop chk-u1234' EXIT
+. /etc/idlab/idp
+verb=${1:-}
+case $verb in
+  add | disable | del) ;;
+  *)
+    sed -n '2,15p' "$0" >&2
+    exit 2
+    ;;
+esac
+shift
+exec on "$IDP_MACHINE" python3 /usr/local/lib/idlab/kcapi.py "user-$verb" "$@"

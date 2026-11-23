@@ -1,0 +1,19 @@
+# chrony as the lab's time server on one of its machines: "systemctl status
+# chrony@ntp". Its configuration is the machine's /etc/chrony/chrony.conf.
+# It always runs with -x, written here and never left to that file: -x
+# makes chronyd serve the time and never set a clock, and the clock it
+# would set is the real one of Docker's whole machine.
+[Unit]
+Description=chrony (time server) on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+Type=simple
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/chronyd -x -d -f /etc/chrony/chrony.conf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

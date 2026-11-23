@@ -1,0 +1,17 @@
+# At every boot each machine with a clock of its own takes its time from
+# its hardware clock (/etc/clock/hwclock, how far off it is), as a server
+# does before its time sync has corrected it. Nothing here touches the real
+# clock: a machine's clock is an offset libfaketime adds for that machine.
+[Unit]
+Description=Each machine's clock, from its hardware clock
+DefaultDependencies=no
+After=local-fs.target
+Before=netlab.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/idlab/machine-clock boot
+
+[Install]
+WantedBy=multi-user.target

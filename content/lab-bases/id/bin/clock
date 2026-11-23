@@ -1,0 +1,30 @@
+#!/bin/bash
+# clock: this machine's clock against the real time, and its time sync.
+# Run it on a machine: "on app clock".
+#
+#   app's clock reads 2026-11-22 22:48:27 UTC: 20 min 0 s behind the real time
+#   timesync@app: active (enabled), servers in /etc/chrony/chrony.conf: time.shop.test
+#   last: time server time.shop.test: the name doesn't resolve; the clock is not synchronized
+m=$(hostname)
+mine=$(/usr/bin/date +%s)
+# The real time: the same question without the machine's clock (libfaketime).
+real=$(env -u LD_PRELOAD /usr/bin/date +%s)
+off=$((mine - real))
+if ((off == 0)); then
+  how="right (0 s from the real time)"
+elif ((off > 0)); then
+  how="$((off / 60)) min $((off % 60)) s ahead of the real time"
+else
+  how="$((-off / 60)) min $((-off % 60)) s behind the real time"
+fi
+echo "$m's clock reads $(/usr/bin/date -u '+%Y-%m-%d %H:%M:%S UTC'): $how"
+if [[ ! -e /etc/netns/$m/faketimerc ]]; then
+  echo "$m has no clock of its own: it reads the real time, and runs no time sync"
+  exit 0
+fi
+enabled=$(systemctl is-enabled "timesync@$m" 2> /dev/null || true)
+active=$(systemctl is-active "timesync@$m" 2> /dev/null || true)
+servers=$(awk '$1 == "server" || $1 == "pool" { printf "%s%s", sep, $2; sep = ", " }' /etc/chrony/chrony.conf 2> /dev/null)
+echo "timesync@$m: ${active:-unknown} (${enabled:-not installed}), servers in /etc/chrony/chrony.conf: ${servers:-none}"
+last=$(journalctl -b -t "timesync@$m" -o cat -n 1 2> /dev/null)
+if [[ -n $last ]]; then echo "last: $last"; fi

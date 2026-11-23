@@ -1,0 +1,8 @@
+#!/bin/bash
+# Waits until Keycloak answers on this machine, then applies every realm
+# file that changed since it was last applied (none, at an ordinary boot).
+for i in $(seq 1 560); do
+  python3 /usr/local/lib/idlab/kcapi.py ready 2> /dev/null && break
+  sleep 0.5
+done
+exec python3 /usr/local/lib/idlab/kcapi.py apply-if-changed
