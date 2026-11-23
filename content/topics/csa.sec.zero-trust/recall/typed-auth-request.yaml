@@ -1,0 +1,24 @@
+id: typed-auth-request
+type: typed
+rev: 1
+prompt: |
+  In nginx, one directive inside a `location` makes nginx send a subrequest to another address first, and pass the real request on only if that answers with a 2xx status. Type the directive's name (one word, with an underscore).
+kind: text
+case: sensitive
+answers:
+  - auth_request
+mistakes:
+  - id: proxy-pass
+    answers: [proxy_pass]
+    why: "That passes the request itself on to another server. The directive asked for sends a question first, and decides by the answer."
+  - id: set
+    answers: [auth_request_set]
+    why: "That one copies something out of the subrequest's answer into a variable, such as the user's name. The directive that sends the subrequest is shorter."
+  - id: basic
+    answers: [auth_basic]
+    why: "That asks the browser for a user name and password that nginx checks against a file. The directive asked for hands the question to another service."
+explanation: |
+  `auth_request`, as in `auth_request /decide/staff;`. For every request to that location, nginx first asks the address named. A 2xx answer (oauth2-proxy says `202`) lets the request through; `401` and `403` are returned to the browser, and an `error_page 401` line can turn the `401` into a redirect to the sign-in.
+
+  A `location` without the line asks nobody. nginx picks one location for each request, the longest prefix that matches, so every location that reaches an app needs a policy of its own.
+skills: [access-proxy]

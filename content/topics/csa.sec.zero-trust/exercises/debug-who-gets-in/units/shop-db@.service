@@ -1,0 +1,16 @@
+# The shop's database on a machine (a stand-in that accepts connections on
+# 5432 and holds them): "systemctl status shop-db@db".
+[Unit]
+Description=The shop's database on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/holdserver 5432
+Restart=on-failure
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

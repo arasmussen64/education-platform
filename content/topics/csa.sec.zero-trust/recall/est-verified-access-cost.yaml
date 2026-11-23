@@ -1,0 +1,28 @@
+id: est-verified-access-cost
+type: estimate
+rev: 1
+prompt: |
+  AWS Verified Access, AWS's access proxy service, charges for each application it stands in front of, by the hour, and for the data it handles. In US East (Ohio) the first tier is $0.27 for each application-hour and data is $0.02 for each GB.
+
+  A company puts 12 internal web apps behind it for a month of 730 hours, and staff move 40 GB through it in that month. What is the month's bill for Verified Access, in dollars? Within 5%.
+unit: USD
+answer: 2366
+tolerance: { percent: 5 }
+prices_as_of: "2026-11-23"
+prices_source: https://aws.amazon.com/verified-access/pricing/
+given: { apps: 12, hours: 730, per_hour: 0.27, gb: 40, per_gb: 0.02 }
+working: apps * hours * per_hour + gb * per_gb
+mistakes:
+  - id: one-app
+    value: 197.9
+    working: hours * per_hour + gb * per_gb
+    why: That is one application for the month. The hourly charge is for each application, and there are 12.
+  - id: per-user-thinking
+    value: 4.04
+    working: apps * per_hour + gb * per_gb
+    why: That charges each application for one hour. They are behind the proxy all month, 730 hours each.
+explanation: |
+  12 apps × 730 hours × $0.27 = $2,365.20, and 40 GB × $0.02 = $0.80: about $2,366 a month. The data is a rounding error; the bill is the count of applications times the hours.
+
+  That shapes how such a service is used: it is priced per app, whoever uses it and however many people do, so it suits a modest number of important apps. Some other products are sold as a licence for each user instead. An open-source proxy on your own server, like the lab's, costs the server and your time.
+skills: [access-proxy]

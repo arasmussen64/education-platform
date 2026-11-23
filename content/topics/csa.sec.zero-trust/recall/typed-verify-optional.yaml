@@ -1,0 +1,24 @@
+id: typed-verify-optional
+type: typed
+rev: 1
+prompt: |
+  nginx's `ssl_verify_client` takes one of four values. Which value asks each client for a certificate, lets a client without one connect anyway, and verifies a certificate that is shown against the CA in `ssl_client_certificate`? One word.
+kind: text
+case: sensitive
+answers:
+  - optional
+mistakes:
+  - id: "on"
+    answers: ["on"]
+    why: "That demands a certificate from every client: one without is refused before any page, so an app meant for any device stops working."
+  - id: no-ca
+    answers: [optional_no_ca]
+    why: "That asks for a certificate and doesn't require it to be signed by a CA nginx trusts. It is meant for setups where another service does the verifying."
+  - id: "off"
+    answers: ["off"]
+    why: "That never asks, so no client can show a certificate at all."
+explanation: |
+  `optional`. The server asks; a client with no certificate still connects, and `$ssl_client_verify` is `NONE` for it; a client with a certificate from the trusted CA gets `SUCCESS`. Each `location` can then decide what it needs: the wiki nothing, payroll `SUCCESS`.
+
+  The proxy tests for the one value that means "verified", `SUCCESS`, and refuses everything else. A test for "not `NONE`" would only ask whether something was shown.
+skills: [device-trust]

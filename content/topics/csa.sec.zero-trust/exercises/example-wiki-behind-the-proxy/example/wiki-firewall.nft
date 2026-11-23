@@ -1,0 +1,21 @@
+#!/usr/sbin/nft -f
+# wiki's own firewall: default drop, in and out.
+flush ruleset
+
+table inet filter {
+  chain input {
+    type filter hook input priority filter; policy drop;
+    # Packets of connections already let in or out.
+    ct state established,related accept
+    iifname "lo" accept
+    # The access proxy's address on the apps network, to the wiki's port.
+    # One machine, one port: not the network, and not every port.
+    ip saddr 10.20.0.2 tcp dport 8080 accept
+  }
+  chain output {
+    type filter hook output priority filter; policy drop;
+    # The answers to what was let in. The wiki starts nothing itself.
+    ct state established,related accept
+    oifname "lo" accept
+  }
+}

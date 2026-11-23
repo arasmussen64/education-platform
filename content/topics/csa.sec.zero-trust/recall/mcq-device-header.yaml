@@ -1,0 +1,16 @@
+id: mcq-device-header
+type: mcq
+rev: 1
+prompt: |
+  A company installs an agent on every laptop it manages. The agent adds a header, `X-Device-Compliant: yes`, to the browser's requests, and the access proxy lets payroll through when it sees that header. What is wrong with the design?
+choices:
+  - "Any program can send that header; it proves nothing about the device"
+  - "TLS removes custom headers on the way, so the proxy never sees this one"
+  - "A header about compliance belongs in the response, not in the request"
+  - "Compliance has to be checked by the app itself, never by the proxy"
+answer: 0
+explanation: |
+  The proxy is believing what the client says about itself. A header is text; a personal laptop, a script or an attacker can send `X-Device-Compliant: yes` as easily as the agent can. NIST puts it as a requirement: managed devices are told apart by credentials the enterprise issued, not by information that can't be authenticated.
+
+  What can be authenticated is a secret the company put on the device and the device can prove it holds, such as the private key of a device certificate, shown in the TLS handshake. What the agent knows about the device's health then travels by another road: from the agent to the device-management service, and from there to whoever issues or renews that certificate.
+skills: [device-trust]

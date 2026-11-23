@@ -1,0 +1,26 @@
+id: est-exposure-cert
+type: estimate
+rev: 1
+prompt: |
+  A company's device certificates last 12 hours. Each laptop asks for a new one every 6 hours, and gets it only while device management reports the laptop healthy. A laptop is reported lost 1 hour after a renewal, and the proxy has no other way to learn that.
+
+  For how many more hours does the proxy accept that laptop's certificate? Exactly.
+unit: hours
+answer: 11
+tolerance: { absolute: 0 }
+given: { lifetime: 12, since_renewal: 1 }
+working: lifetime - since_renewal
+mistakes:
+  - id: whole-life
+    value: 12
+    working: lifetime
+    why: "The certificate was already an hour old when the laptop was reported lost."
+  - id: next-renewal
+    value: 5
+    working: 6 - since_renewal
+    why: "In 5 hours the next renewal is refused. But the certificate the laptop already holds was issued for 12 hours, and stays valid until those run out."
+explanation: |
+  12 − 1 = 11 hours. The refused renewal at the 6-hour mark changes nothing by itself: the laptop keeps the certificate it has, which is good until its own expiry. Renewing early is for the healthy laptop's benefit, so that it never runs out.
+
+  So the device's exposure window is the certificate's lifetime, not the renewal interval. A design that wants a lost laptop out within an hour needs hour-long certificates, or a revocation check at the proxy, or a second signal (a person can also be switched off, which ends the session at the next refresh).
+skills: [continuous-verification]

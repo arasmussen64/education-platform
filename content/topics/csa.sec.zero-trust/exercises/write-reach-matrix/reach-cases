@@ -1,0 +1,127 @@
+#!/bin/bash
+# reach-cases [--timed]: the checks' test of the learner's ~/bin/reach-matrix
+# (root only).
+#
+# It plugs three throwaway machines of its own into the apps switch (chk-a,
+# chk-b, chk-c), each at an address made up now, each with a listener on
+# three ports made up now and a firewall that lets the first in, refuses
+# the second and drops the third; a fourth port has no listener at all.
+# Then it writes a file of fifteen connections between them in a random
+# order, runs the script on it as the learner, and compares every line.
+# So a script can pass only by trying each connection, never by knowing
+# the lab's own machines.
+#
+# It prints "right", or the first line the script got wrong. With --timed
+# it also wants the answer within 7 seconds: the six dropped connections
+# take 2 seconds each, so a script that tries them one at a time needs 12.
+set -u
+script=/home/learner/bin/reach-matrix
+work=/srv/chk-reach.$$
+names=(chk-a chk-b chk-c)
+timed=${1:-}
+
+cleanup() {
+  local t
+  for t in "${names[@]}"; do
+    ip netns pids "$t" 2> /dev/null | xargs -r kill 2> /dev/null
+    ip netns del "$t" 2> /dev/null
+  done
+  rm -rf "$work"
+}
+trap cleanup EXIT
+[ -x "$script" ] || { echo "there is no ~/bin/reach-matrix to run"; exit 0; }
+mkdir -p "$work"
+chmod 755 "$work"
+
+# pick LOW HIGH: sets PICKED to a number from LOW to HIGH that this run
+# hasn't used yet (so no two machines share an address, and no two ports
+# are the same).
+used=" "
+pick() {
+  local n
+  while :; do
+    n=$(($1 + RANDOM % ($2 - $1 + 1)))
+    case $used in *" $n "*) continue ;; esac
+    used+="$n "
+    PICKED=$n
+    return
+  done
+}
+
+addr=() open=() refused=() dropped=() nobody=()
+for i in 0 1 2; do
+  t=${names[i]}
+  pick 100 149; addr[i]=10.20.0.$PICKED
+  # Below 32768: Linux hands out ports from there up by itself.
+  pick 20000 29999; open[i]=$PICKED
+  pick 20000 29999; refused[i]=$PICKED
+  pick 20000 29999; dropped[i]=$PICKED
+  pick 20000 29999; nobody[i]=$PICKED
+  ip netns pids "$t" 2> /dev/null | xargs -r kill 2> /dev/null
+  ip netns del "$t" 2> /dev/null
+  ip link del "chkr${i}a" 2> /dev/null
+  ip netns add "$t"
+  ip -n "$t" link set lo up
+  ip link add "chkr${i}a" type veth peer name "chkr${i}b"
+  ip link set "chkr${i}a" netns "$t"
+  ip -n "$t" link set "chkr${i}a" name eth0
+  ip link set "chkr${i}b" netns switches
+  ip -n switches link set "chkr${i}b" master apps up
+  ip -n "$t" addr add "${addr[i]}/24" dev eth0
+  ip -n "$t" link set eth0 up
+  ip netns exec "$t" nft -f - << EOF
+table inet chk {
+  chain input {
+    type filter hook input priority filter; policy accept;
+    tcp dport ${refused[i]} reject with tcp reset
+    tcp dport ${dropped[i]} drop
+  }
+}
+EOF
+  ip netns exec "$t" /usr/local/bin/holdserver "${open[i]}" "${refused[i]}" "${dropped[i]}" > /dev/null 2>&1 &
+done
+sleep 0.5
+
+# Fifteen connections: to each machine, one to each kind of port from one of
+# the other two machines, and its dropped port from the other one as well.
+: > "$work/all"
+for i in 0 1 2; do
+  a=${names[(i + 1) % 3]}
+  b=${names[(i + 2) % 3]}
+  if ((RANDOM % 2)); then c=$a; a=$b; b=$c; fi
+  {
+    echo "$a ${addr[i]} ${open[i]} open"
+    echo "$b ${addr[i]} ${refused[i]} refused"
+    echo "$a ${addr[i]} ${dropped[i]} dropped"
+    echo "$b ${addr[i]} ${dropped[i]} dropped"
+    echo "$b ${addr[i]} ${nobody[i]} refused"
+  } >> "$work/all"
+done
+shuf "$work/all" > "$work/shuffled"
+awk '{print $1, $2, $3}' "$work/shuffled" > "$work/matrix.txt"
+awk '{print $1, $2 ":" $3, $4}' "$work/shuffled" > "$work/want"
+chmod 644 "$work/matrix.txt"
+
+start=$(date +%s%N)
+# 16 seconds: a script that tries the connections one at a time takes about
+# 13, and still gets a straight answer from the checks that don't time it;
+# one that waits on a dropped connection with no limit is stopped sooner.
+timeout 16 sudo -u learner -H "$script" "$work/matrix.txt" > "$work/got" 2> /dev/null
+status=$?
+ms=$((($(date +%s%N) - start) / 1000000))
+[ "$status" = 124 ] && { echo "the script was still running after 16 seconds"; exit 0; }
+
+n=0
+while read -r want <&3; do
+  n=$((n + 1))
+  IFS= read -r got <&4 || got="(nothing)"
+  [ "$got" = "$want" ] && continue
+  echo "line $n of its answer is '${got:0:60}'; that connection is ${want##* }, so the line is '$want'"
+  exit 0
+done 3< "$work/want" 4< "$work/got"
+[ "$(wc -l < "$work/got")" = 15 ] || { echo "it printed $(wc -l < "$work/got") lines for a file of 15"; exit 0; }
+if [ "$timed" = --timed ] && [ "$ms" -gt 7000 ]; then
+  echo "every line was right, but it took $((ms / 1000)) seconds for 15 connections"
+  exit 0
+fi
+echo right

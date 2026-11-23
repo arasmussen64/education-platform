@@ -1,0 +1,17 @@
+# The network of "Write reach-matrix": the shop's apps network on its own,
+# with the access proxy's machine and the three it stands in front of.
+#
+#   zt .2     wiki .10    payroll .11    db .12
+#   ===+=========+===========+============+=== apps 10.20.0.0/24
+#
+# wiki drops what it doesn't accept, payroll refuses it, and db has no
+# firewall at all: one of each, for trying the script out.
+machine zt
+machine wiki
+machine payroll
+machine db
+
+lan apps zt:eth0=10.20.0.2/24 wiki:eth0=10.20.0.10/24 payroll:eth0=10.20.0.11/24 db:eth0=10.20.0.12/24
+
+run wiki nginx nftables
+run payroll nginx nftables
