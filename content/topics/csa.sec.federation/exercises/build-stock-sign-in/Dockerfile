@@ -5,7 +5,7 @@ COPY topology /etc/netlab/topology
 COPY machines/ /etc/netns/
 COPY shop/ /usr/local/lib/shop/
 COPY bin/ /usr/local/bin/
-COPY base-fix make-jwk /usr/local/lib/shop/
+COPY base-fix make-jwk resign-token /usr/local/lib/shop/
 # Everything secret or signed is made here, at build, so none of it is in
 # the repository: the lab's CA and the two servers' certificates, a secret
 # for each of the two clients the learner will register, the supplier
@@ -15,7 +15,10 @@ COPY base-fix make-jwk /usr/local/lib/shop/
 #
 # The Apache modules are switched on and each site is its unfinished file.
 # /etc/reorder exists on the jobs server, empty, for the job's own file.
+# resign-token is the checks' own tool (root only): it signs a token with
+# the realm's own key, to show the API tokens no real client could ask for.
 RUN chmod 755 /usr/local/lib/shop/site/* /usr/local/lib/shop/api/* /usr/local/bin/reorder \
+ && chmod 700 /usr/local/lib/shop/resign-token \
  && python3 /usr/local/lib/shop/base-fix \
  && netlab enable \
  && idlab idp idp https://login.shop.test \

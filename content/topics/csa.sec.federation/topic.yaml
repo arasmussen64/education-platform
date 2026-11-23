@@ -123,6 +123,14 @@ objectives:
 # SCIM address, the roles manage-users and view-realm), the device grant,
 # a POST without "active" stored as inactive, and mod_oauth2 serving a
 # token it had accepted after its expiry.
+# The build's and the debug's checks sign changed copies of a real token
+# with the realm's own key (each lab's resign-token, root only): an
+# audience made up as the check runs, a name that only starts with the
+# right one, an expiry in the past, last year's key. Tried with them on
+# 2026-11-23: mod_oauth2 with the plain "jwks_uri" line refuses each of
+# those, serves a token signed with either published key, and also serves
+# a token whose "nbf" is in the future and a token with no "exp" at all.
+# No check shows it those two, and no lab says the API checks "nbf".
 #
 # Licences, each read on 2026-11-22. RFCs are under the IETF Trust's
 # licence ("Copyright (c) 2025 IETF Trust and the persons identified as the
