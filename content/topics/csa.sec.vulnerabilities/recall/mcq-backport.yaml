@@ -1,0 +1,16 @@
+id: mcq-backport
+type: mcq
+rev: 1
+prompt: |
+  A scanner that compares version numbers with the upstream project's release notes flags `sudo 1.9.15p5-3ubuntu5.24.04.4` on an Ubuntu 24.04 server for CVE-2025-32463, which upstream describes as "Sudo before 1.9.17p1". Ubuntu's own advisory for that CVE gives `1.9.15p5-3ubuntu5.24.04.1` as the fixed version. What is the finding?
+choices:
+  - "A true finding: Ubuntu's advisory covers only packages from its security pocket, and not this one"
+  - "A true finding: the server stays vulnerable until sudo itself is at upstream's 1.9.17p1 or later"
+  - "A false positive: Ubuntu backported the fix into 1.9.15p5, and this package is past the fixed one"
+  - "A false positive: sudo's flaw needs a local user, and a scanner should flag only remote flaws"
+answer: 2
+explanation: |
+  Ubuntu doesn't move a released version of Ubuntu to each new upstream release. It takes the fix out of the new release and applies it to the version it already ships: a **backport**. The package keeps upstream's old number, `1.9.15p5`, and only the part after it changes, so `1.9.15p5-3ubuntu5.24.04.1` holds the fix although upstream says "before 1.9.17p1". The installed `...24.04.4` is later still. The finding is a **false positive**: the scanner says vulnerable and the server isn't.
+
+  That is why a scanner must read the distribution's own advisories for the distribution's packages. One that compares upstream numbers would flag this server for ever, since Ubuntu 24.04's sudo will never be called 1.9.17. Ubuntu's advisories cover every pocket. And a flaw that needs a local user is still a flaw: this one turns any local account into root.
+skills: [scan-and-read]

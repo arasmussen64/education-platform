@@ -1,0 +1,20 @@
+id: vector-parts
+type: predict_shell
+rev: 1
+prompt: |
+  `vector.txt` holds the CVSS vector that goes with sudo's CVE-2025-32463 and its score of 9.3, as Ubuntu's advisory record gives it. The command puts each part on a line of its own and keeps four of them. What does it print?
+files:
+  vector.txt: |
+    CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H
+command: |
+  tr '/' '\n' < vector.txt | grep -E '^(AV|PR|UI|S):'
+expected_output: |
+  AV:L
+  PR:N
+  UI:N
+  S:C
+explanation: |
+  `tr '/' '\n'` turns every `/` into a line break, and the `grep` keeps the lines that start `AV:`, `PR:`, `UI:` or `S:`. The first line, `CVSS:3.1`, doesn't start with `S:`, so it isn't kept.
+
+  Read the four as a description of the attack. `AV:L`, attack vector local: the attacker must already be on the machine. `PR:N`, privileges required none: any account will do, even one with no rights. `UI:N`, user interaction none: nobody has to be tricked into doing anything. `S:C`, scope changed: the damage reaches beyond the program that has the flaw. With high damage to confidentiality, integrity and availability (`C:H/I:H/A:H`), that is "any local user becomes root": 9.3. The number alone says "critical"; the vector says what kind of critical, and that an attacker with no way on to the machine can't use it.
+skills: [cvss-epss-kev]
