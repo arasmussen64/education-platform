@@ -1,0 +1,26 @@
+id: fill-proxy-policy
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Fill in the proxy's policy"
+prompt: |
+  The shop's access proxy, `zt` (`https://apps.shop.test`), has lost six values from its settings, each marked `___`: five in nginx's site file and one in oauth2-proxy's file. Until they are back, nginx refuses to load its file (`on zt nginx -t` says why) and oauth2-proxy stops as soon as it starts, so the proxy is down and nobody reaches an app.
+
+  **The system** is the walkthrough's, with the VPN gone and payroll added. On the internet: `laptop` (a staff laptop the shop manages, with a device certificate in `/etc/device/`), `byod` (someone's own laptop, with none), `idp` (the identity provider, `https://login.shop.test`) and `zt`. On the apps network: `zt`, `wiki` (10.20.0.10, port 8080), `payroll` (10.20.0.11, port 8081) and `db`. The firewalls on the three apps are done and are not part of this lab. The people: `ana` (staff), `hana` (staff and hr), `ben` (warehouse); passwords are in `/etc/idlab/accounts`. The realm ends a refresh token the moment it is used and hands out a new one with each refresh.
+
+  **Fill in each `___`** so that:
+
+  1. **Gap 1** (`ssl_verify_client`): a device may show a certificate and need not; one that is shown must be from the shop's device CA, or nginx refuses the request.
+  2. **Gap 2**: payroll is for people in the group `hr` only.
+  3. **Gap 3**: each app is told the signed-in person's user name, the one oauth2-proxy gave nginx, whatever the browser sent.
+  4. **Gap 4**: when oauth2-proxy refreshes a session, the new cookie in its answer reaches the browser.
+  5. **Gap 5**: payroll answers only a device whose certificate nginx verified.
+  6. **Gap 6** (in `/etc/oauth2-proxy/oauth2-proxy.cfg`): someone switched off at the identity provider is turned away within 10 seconds, so oauth2-proxy asks about each session again at least every 5 seconds (the lab's fast clock: a real shop would say a few minutes).
+
+  The comment above each gap says what the line is for. Edit with `on zt nano /etc/nginx/sites-enabled/default` and `on zt nano /etc/oauth2-proxy/oauth2-proxy.cfg`, and replace each `___` and nothing else. Then test and start: `on zt nginx -t`, `sudo systemctl restart nginx@zt oauth2-proxy@zt` (if systemd says nginx has tried to start too often, `sudo systemctl reset-failed nginx@zt` first).
+
+  **Trying it.** `on laptop signin https://apps.shop.test/payroll/ hana -v` is Hana's browser on the managed laptop, which shows the laptop's certificate; `on byod signin https://apps.shop.test/wiki/ ana` is a browser with none. `journalctl -u oauth2-proxy@zt -f` shows each decision and each refresh.
+skills: [access-proxy, device-trust, continuous-verification]

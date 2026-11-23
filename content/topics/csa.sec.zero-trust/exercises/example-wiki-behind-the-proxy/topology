@@ -1,0 +1,45 @@
+# The network of "Replace the VPN": two laptops out on the internet, the
+# shop's old VPN gateway, the new access proxy, the identity provider, and
+# the apps network behind them.
+#
+#   laptop   byod      idp (login.shop.test)
+#     |        |        |
+#   ==+========+========+==== internet 203.0.113.0/24 ====
+#        |                    |
+#      vpngw .2             zt .80 (apps.shop.test)
+#        | .1                 | .2
+#   =====+====================+==== apps 10.20.0.0/24 ====
+#        |          |          |
+#      wiki .10   payroll .11  db .12
+#
+# laptop is a managed staff laptop with the VPN client; byod is someone's
+# own laptop with no VPN. vpngw forwards what arrives through its tunnel
+# into the apps network. zt has a foot on each network and forwards
+# nothing: it is a host, not a router.
+machine laptop
+machine byod
+machine idp
+machine vpngw router
+machine zt
+machine wiki
+machine payroll
+machine db
+
+lan internet laptop:eth0=203.0.113.10/24 byod:eth0=203.0.113.11/24 idp:eth0=203.0.113.90/24 vpngw:wan=203.0.113.2/24 zt:wan=203.0.113.80/24
+lan apps vpngw:lan=10.20.0.1/24 zt:lan=10.20.0.2/24 wiki:eth0=10.20.0.10/24 payroll:eth0=10.20.0.11/24 db:eth0=10.20.0.12/24
+
+# The laptops send anything for the apps network to the VPN gateway, as a
+# VPN client's route does. Only what arrives inside the tunnel gets through.
+route laptop 10.20.0.0/24 via 203.0.113.2
+route byod 10.20.0.0/24 via 203.0.113.2
+# The apps answer whoever asked through the gateway.
+route wiki default via 10.20.0.1
+route payroll default via 10.20.0.1
+route db default via 10.20.0.1
+
+run idp keycloak
+run vpngw strongswan nftables
+run laptop strongswan
+run zt nginx
+run wiki nginx
+run payroll nginx

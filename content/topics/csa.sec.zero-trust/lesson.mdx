@@ -1,0 +1,182 @@
+<Intro>
+
+<Puzzle question="A stolen laptop joins the company VPN with a password saved on it. What can it reach?">
+
+Everything the VPN's network can reach: every machine, every port, with no further question asked. A VPN checks once, at the gateway. After that the laptop is "inside", and inside is trusted: the wiki, payroll, the database and every server's SSH port are a packet away, for the thief and for any program running on the laptop. The alternative is to stop trusting the network at all. Then each request to each app is decided separately, by who is asking and from which device, and each app answers nothing that hasn't been through that decision. That design is called zero trust, and this topic builds one.
+
+</Puzzle>
+
+Federation gave the shop one place that knows who everyone is, and strong authentication made its word worth more. This topic spends that: it takes the VPN from Module 3, shows what the VPN really grants, and replaces it with a proxy that asks the identity provider about every request. Along the way come the standard's vocabulary, the device as part of who is asking, firewalls drawn round single apps, and one number you will be asked for in every design review: how long does someone keep access after they should have lost it?
+
+**Why "inside" stopped meaning "safe".** The site-to-site VPN in VPNs and IPsec joined two networks. A **remote-access VPN** is the same tunnel with a laptop at one end: the laptop proves itself to a gateway once, and from then on its packets come out on the company's network as if it sat in the office. The firewall rules behind the gateway were written for "the office", so the laptop gets what the office gets.
+
+That worked while the office was a building, the servers were in its basement and the laptops stayed on desks. None of that is true now. People work from home on machines that also browse the web. Apps live in three clouds. And attackers learned the pattern: get one foothold inside (a phished password, a laptop with malware, a web server with an old plugin) and then move sideways from machine to machine, because nothing inside asks who you are. That sideways movement is **lateral movement**, and NIST calls it one of the biggest challenges of the old design.
+
+<Story title="Colonial Pipeline, 2021: one password for an old VPN" source="https://www.hsgac.senate.gov/media/reps/portman-presses-president-and-ceo-of-colonial-pipeline-on-gaps-in-cybersecurity-practices/" sourceTitle="Portman Presses President and CEO of Colonial Pipeline on Gaps in Cybersecurity Practices" license="linked, not copied">
+
+In May 2021 a ransomware gang got into Colonial Pipeline, a company that runs a fuel pipeline in the United States. A month later its chief executive told a Senate committee how. The way in was a VPN account whose password had been compromised. The company's normal remote access asked for a token as a second factor. This account belonged to what he called a legacy VPN, and that one took a password alone. He stressed that it was a complicated password, not a guessable one, and that investigators were still working out how it leaked. It didn't matter. One factor, checked once, and the holder was on the network. The company decided that evening to negotiate and paid the ransom the next day.
+
+Two lessons sit in that testimony. The senator drew the first: multi-factor authentication on every way in. The second is this topic's: the stolen password was worth so much because of what a VPN gives in exchange for it.
+
+</Story>
+
+**Zero trust, as the standard says it.** The reference is NIST Special Publication 800-207, *Zero Trust Architecture* (August 2020). Its definition is one long sentence: zero trust is a set of ideas for making "accurate, least privilege per-request access decisions ... in the face of a network viewed as compromised". Take the three phrases one at a time.
+
+- **A network viewed as compromised.** Assume an attacker is already on your network. Then where a request comes from proves nothing.
+- **Per-request.** Decide each request, not each connection or each morning. Signing in to one app doesn't open the next.
+- **Least privilege.** Each decision grants only what that request needs: one app, not a network.
+
+So **zero trust** doesn't mean trusting nobody. It means no trust that comes free with a location. Trust is worked out each time, from evidence: who is asking (the identity provider's word), on what device, for which resource, under which policy.
+
+NIST's picture for the old way is an airport. Everyone passes the security checkpoint, and beyond it everyone mills about the boarding area together, equally trusted. The area behind the last checkpoint is the **implicit trust zone**. A VPN makes the whole internal network one boarding area. Zero trust shrinks the zone by moving the checkpoint as close to each resource as it will go, until passing it gets you one app.
+
+<Check item="mcq-implicit-trust" />
+
+The standard lists seven tenets. In plain words:
+
+1. Everything that holds data or does work is a resource to protect, personal devices included if they touch company data.
+2. All communication is secured wherever it happens. A request from the office network meets the same requirements as one from a café.
+3. Access is granted to one resource for one session; getting into one app grants nothing in another.
+4. The decision follows policy that looks at the person, the device, the app asked for, and circumstances such as the time or the place.
+5. The company watches the health of every device it owns or lets in. No device is trusted for being the company's.
+6. Authentication and authorization are enforced before access, and re-checked while it lasts.
+7. The company collects what it can (logs of requests, the state of devices) and uses it to make better decisions.
+
+None of the seven names a product. Zero trust is a way of designing, and a vendor's "zero trust solution" is at best one part of one.
+
+**The parts that decide and the part that enforces.** Authentication and authorization gave you two names: the policy decision point, which answers "may they?", and the policy enforcement point (PEP), which stands in the request's path and acts on the answer. NIST splits the deciding side in two.
+
+- The **policy engine** makes the decision, grant or refuse, and logs it. Its inputs are the policy and everything known about the request: the identity provider's record of the person, the device inventory, logs of past behaviour, threat reports.
+- The **policy administrator** carries the decision out: it tells the enforcement point to open a path or shut it, and hands out whatever session credential goes with it.
+
+Many products run the two as one service, and NIST says so. The split is still worth keeping in your head, because it sorts faults: a request that got through wrongly was either decided wrongly, or never put to a decision at all.
+
+The logic inside the policy engine is the trust algorithm. It can judge each request by fixed conditions (in this group, on a company device), or weigh a score. And it can look at each request alone, or in context. NIST's example of context: an HR clerk who normally opens 20 to 30 records a day and suddenly opens 100. Every one of those requests passes the fixed conditions. Only the history shows something is wrong.
+
+<Check item="mcq-which-component" />
+
+NIST also describes shapes a deployment can take. Two matter here. In the **resource portal** shape, one gateway stands in front of the apps and people reach it with an ordinary browser; nothing is installed on their devices. It is the easiest to adopt, and its limit follows from that: the portal knows a device only by what the device shows when it connects. In the **agent** shapes, software on every device talks to the gateway. The agent can report on the device's health all the time and can carry traffic that isn't web traffic, at the price of installing and running it everywhere. The labs build a resource portal, with firewalls behind it.
+
+**The access proxy.** The enforcement point for web apps is an **access proxy**, also called an identity-aware proxy: a reverse proxy (HTTP and TLS) that asks "who is this, and may they?" before it passes anything on. Replacing a VPN with access decided per app this way is sold as **zero trust network access** (ZTNA).
+
+Compare what each check buys. The VPN's check buys a place on the network: every port the gateway forwards to, for every program on the laptop. The proxy's check buys one request to one app, and the next request is checked again.
+
+<Check item="mcq-vpn-or-ztna" />
+
+In the labs the proxy is two programs on one machine, `zt`, and it is worth knowing which half does what.
+
+**oauth2-proxy decides.** It is an open-source program that is an OpenID Connect client of the identity provider, exactly like the orders site in the last topic. It sends a browser with no session off to sign in (the code flow, with PKCE), keeps the resulting session in an encrypted cookie, and answers one question at the address `/oauth2/auth`: is this request's cookie a valid session, and is the person in the group named in the question? It has three answers. `202` means yes. `401` means nobody is signed in. `403` means someone is signed in and the answer is no.
+
+**nginx enforces.** It terminates TLS and sits in the path of every request. One directive does the work:
+
+```nginx
+location /wiki/ {
+    auth_request /decide/staff;
+    error_page 401 = @sign_in;
+    auth_request_set $user $upstream_http_x_auth_request_preferred_username;
+    proxy_set_header X-User $user;
+    proxy_pass http://10.20.0.10:8080/;
+}
+```
+
+`auth_request` makes nginx send a small subrequest first, here to an internal location that passes it to oauth2-proxy as `/oauth2/auth?allowed_groups=staff`. A 2xx answer lets the real request through to `proxy_pass`. A `401` is turned into a redirect to the sign-in by the `error_page` line. A `403` goes back to the browser as it is. The next two lines take the person's user name out of oauth2-proxy's answer and give it to the app in a header, `X-User`, replacing anything the browser sent under that name.
+
+<Check item="mcq-proxy-401-or-403" />
+
+Three things about this arrangement decide whether it is a control or a decoration.
+
+- **Each location carries its own policy.** nginx picks one `location` for a request: the longest prefix that matches. Nothing is inherited from a shorter one. A location with no `auth_request` asks nobody, and one that asks the wrong question gets a confident wrong answer.
+- **The app believes the header, so nothing else may reach the app.** `X-User` is text. Anyone who can send the app a request directly can write any name in it. The header is worth exactly as much as the guarantee that every request came through the proxy. That guarantee is a firewall, below.
+- **The deciding half answers only the enforcing half.** oauth2-proxy listens on the machine's own loopback address, `127.0.0.1`. If it listened on every address, anyone could talk to it directly and feed it headers nginx would never send.
+
+**The device is part of who is asking.** Ana on a patched company laptop and Ana on a borrowed machine in a hotel lobby are the same person and not the same risk. NIST's tenets ask for the device's state in every decision. The facts about a device (is it ours, is its disk encrypted, how old are its patches) are its **device posture**. A **managed device** is one the company enrols in a device-management service that collects those facts. Strong authentication met the same idea from the identity provider's side, as device compliance and sign-in risk in a conditional access policy.
+
+How does a proxy learn any of this? Not by asking the device. A header such as `X-Device-Compliant: yes` is the device describing itself, and any program can send it. A MAC address is the same kind of claim. NIST's requirement is that company devices are recognised by "enterprise-issued credentials", and not by information that cannot be authenticated.
+
+<Check item="mcq-device-header" />
+
+The usual credential is a **device certificate**: a client certificate (Certificates and mutual TLS) from a CA the company runs for devices alone, with its private key kept on the device. Google's BeyondCorp, the design that made all this famous, issues one only to a device that is "present and correct" in its device inventory, and makes devices renew them regularly under the same check. That is how posture reaches a proxy that can't inspect anything: a laptop that is lost or falls behind on patches is refused its next renewal, and its certificate runs out.
+
+At the proxy, two nginx settings do it. `ssl_verify_client` says what to ask of a client: `on` demands a certificate from everyone; `optional` asks, lets a client without one in, and verifies one that is shown against the CA in `ssl_client_certificate`; `optional_no_ca` asks without requiring a trusted signature. Then the variable `$ssl_client_verify` holds the outcome for each request: `SUCCESS`, `NONE` when nothing was shown, or `FAILED` with a reason. With `optional`, a wiki for any device and a payroll for company devices can share one address: payroll's location passes only `SUCCESS`. (Under `optional`, a certificate that is shown and doesn't verify gets no further than nginx itself: `400`, whatever the location.) Having a certificate proves nothing, since anyone can make one. Having one that verifies against the device CA proves the company issued it.
+
+**Micro-segmentation: every app behind its own door.** The proxy decides who gets to an app through the front. **Micro-segmentation** closes every other way in: each machine gets its own firewall, with one rule for each job it has and a default drop for everything else, in both directions. The wiki accepts its port from the proxy's address. Payroll does the same, and may open one connection out, to its database. The database accepts payroll. Nothing else comes in, and nothing else goes out.
+
+Traffic between machines inside a data centre is called **east-west traffic** (north-south is traffic in and out of it). A perimeter firewall never sees it, which is why lateral movement was so easy. With a firewall on each machine, a break-in at the wiki stays a break-in at the wiki: payroll's firewall turns the wiki away, and the wiki's own won't even let it start a connection.
+
+Two habits, both from Hardening, matter more here than anywhere. Name the job, not the network: a rule that accepts a port from the whole subnet is protected only by every neighbour's good behaviour. And prove it by traffic, from every side: try each connection from each machine, and from one more.
+
+That "one more" is the part people skip. Suppose an app accepts its port from the whole apps network, and every other machine there has outbound rules that stop it calling. Test from every existing machine and the app looks closed. Then somebody plugs in a test server with no firewall, or an attacker brings up a machine of their own. A segmentation test always includes a new machine.
+
+<Check item="mcq-new-machine" />
+
+The clouds give you the same tool in three dialects (each read 2026-11-23).
+
+| | The unit | What to know |
+| --- | --- | --- |
+| AWS | Security groups | Allow rules only; nothing comes in until a rule says so. A rule's source can be another security group, so "the web tier may reach the database on 5432" follows the tier as it grows. A new group allows all outbound traffic until you remove that rule. |
+| Azure | Network security groups (NSGs), with application security groups to name tiers | Rules have priorities and can deny. A default rule, `AllowVNetInBound`, lets everything in a virtual network talk to everything else, so segmenting inside one takes a deny you write yourself. |
+| Google Cloud | VPC firewall rules | Incoming traffic is denied and outgoing allowed unless a rule says otherwise. A rule can pick its VMs by network tag or by service account; Google recommends service accounts for strict control, because anyone who can edit a VM can change its tags. |
+
+Address-based rules, like the lab's, are the weak form: an address is also a claim. The stronger form gives each service an identity of its own and has services prove it to each other with mutual TLS. That is workload identity, which later modules build on.
+
+**Continuous verification and the exposure window.** A decision is right at the moment it is made. Then things change: the person is switched off on their last day, their laptop is reported stolen, their account shows signs of takeover. **Continuous verification** means the system asks again during a session, so that access ends when trust does.
+
+Without it, a signed-in session lasts as long as its cookie. oauth2-proxy's default is 168 hours, a week. With `cookie_refresh` set, oauth2-proxy goes back to the identity provider once a session is that old, presents the session's refresh token, and gets fresh tokens, or a refusal. A person who has been switched off is refused (the lab's journal shows `"invalid_grant" "User disabled"`), the session is cleared, and their next request meets `401`.
+
+The time between trust ending and access ending is the **exposure window**, and you can work it out. Say the proxy re-checks a session every 2 minutes and a browser sends a request every 20 seconds. The worst case: the account is switched off just after a re-check; requests are served from the cookie for the 2 minutes that follow; one lands just inside; the next, 20 seconds later, triggers the re-check that fails. The window is the interval plus one gap between requests, 140 seconds here. Halving the interval halves the window and doubles the identity provider's load. That is the trade, and it should be a number someone chose.
+
+<Check item="est-exposure-refresh" />
+
+Four things stretch a window, and a design review should ask about each.
+
+- **Tokens that nobody re-checks.** An API that accepts a bearer token until it expires asks no one in the meantime, so the token's lifetime is the window. Microsoft Entra's access tokens last an hour by default.
+- **Certificates that haven't run out.** A device certificate is accepted until it expires, whatever has happened to the device since. A refused renewal changes nothing until then, so the certificate's lifetime is the device's window.
+- **Caches after the enforcement point.** An app that remembers "this person is allowed" for a while, or a proxy told to remember its last answer, adds its own time to the proxy's. Windows along a path add up.
+- **Changes that travel slowly.** Microsoft's continuous access evaluation (CAE) lets Exchange, SharePoint and Teams hear about critical events, such as a disabled account or revoked sessions, in near real time, with a delay Microsoft puts at up to 15 minutes. Sessions that use it get tokens of up to 28 hours, because the events, not the clock, now end access. But a change to group membership or to a policy can take up to a day to reach those services. The fast lever is to revoke the person's sessions, which is one of the critical events. (Microsoft Learn, read 2026-11-23.)
+
+One more detail from the lab. The realm ends a refresh token the moment it has been used and issues a new one with each refresh, so a stolen refresh token dies at its first use by either side. The proxy must then hand the browser a new cookie after every refresh, which is what two short lines in the nginx file do. Leave them out and everyone is signed out at their second refresh.
+
+**From the VPN to the proxy, on the clouds and off them.** The three clouds each sell the access proxy as a service (pages read 2026-11-23).
+
+| | Service | How it works | What it costs |
+| --- | --- | --- | --- |
+| AWS | Verified Access | Evaluates each request against policies written in Cedar (the language from Authentication and authorization), using an identity provider and, optionally, a device-management service as "trust providers". Every request is refused until a policy allows it. | For each application by the hour ($0.27 an hour in US East (Ohio)) and for each GB ($0.02). |
+| Microsoft | Entra Private Access, part of Global Secure Access | A client on the device carries traffic for the private names and addresses you list to connectors beside the apps; Conditional Access decides. It carries whatever goes to those names and addresses, not only web pages. | Sold as licences, not by the hour. Its licensing page was not opened today, so no figure is given here. |
+| Google | Identity-Aware Proxy (IAP) | Checks the sign-in and an IAM role, `IAP-secured Web App User`, on each request; context-aware access can add further conditions. Google warns that anyone who can reach a VM's serving port directly goes round it. | Its pricing page couldn't be read today. |
+
+The agent, the connectors and the price differ. The rule underneath is the lab's: decide each request at a proxy, and make sure the app answers nothing else.
+
+Moving off a VPN is done one app at a time, and the VPN goes last.
+
+1. List the apps and who uses them. An app nobody can name an owner for is your first finding.
+2. Put one app behind the proxy while the VPN still runs. Its users change one bookmark.
+3. Close that app's own door: a firewall that accepts only the proxy. Until this step the proxy is optional for an attacker.
+4. Repeat for each app. Each has its own policy: its group, its device rule.
+5. When nothing needs the VPN's path, remove it. Keep one emergency way in for administrators, protected like the break-glass account from strong authentication.
+
+What gets worse? The proxy and the identity provider become the things everything depends on: when either is down, every app is down, and both are now worth attacking. NIST notes that the same was true of the VPN gateway. Apps that aren't web apps (SSH, databases, file shares) don't fit behind an HTTP proxy and need an agent-style product or a tunnel of their own. And the work never finishes with the network: zero trust done only at the network is a better VPN. The US government's maturity model (CISA's, version 2.0, April 2023) counts five pillars, Identity, Devices, Networks, Applications and Workloads, and Data, and four stages from Traditional to Optimal, to make that point: you can be advanced in one and traditional in the rest.
+
+**What the labs show, and what they stand in for.** The identity provider, the proxy, the tunnel and the firewalls are real programs doing their real jobs. Four things are simplified, and you should know which.
+
+- The device certificate is a file on the laptop. A real fleet keeps the key in hardware that won't give it up, and a device-management service decides who gets a renewal. The lab has no such service: its certificate proves "the shop issued this", not "this laptop is healthy today".
+- `signin`, the lab's scripted browser, shows the laptop's certificate when a site asks. It stands in for a person's browser and nothing more.
+- The proxy re-checks every 5 seconds so that a lab doesn't take all afternoon. A real proxy would say a few minutes.
+- The firewalls name addresses, and the VPN uses one shared secret for everyone. Both are the simple forms.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Zero trust** (NIST SP 800-207): least-privilege decisions for each request, on a network assumed compromised. Location proves nothing; the **implicit trust zone** shrinks to one app.
+- **The parts:** the **policy engine** decides and logs, the **policy administrator** carries the decision out, the policy enforcement point stands in the path. In the lab: oauth2-proxy with the identity provider decides, nginx enforces.
+- **A remote-access VPN** checks once and grants the network. An **access proxy** checks every request and grants one app (**ZTNA**).
+- **The proxy's answers:** `202` through, `401` not signed in (go and sign in), `403` signed in and refused. Each nginx `location` needs its own `auth_request`.
+- **The app trusts the proxy's header only if nothing else can reach the app.**
+- **The device** is recognised by a credential the company issued (a **device certificate**, verified against the device CA), never by what it says about itself. Short lifetimes carry **device posture**.
+- **Micro-segmentation:** a firewall on each machine, one rule per job, default drop both ways. Prove it by traffic from every machine and from a new one.
+- **Continuous verification:** re-check sessions against the identity provider. The **exposure window** is the re-check interval plus one request gap, plus every cache and unchecked token after it.
+- **Moving off the VPN:** one app at a time, close each app's own door, remove the VPN last, keep a guarded emergency way in.
+
+</Recap>

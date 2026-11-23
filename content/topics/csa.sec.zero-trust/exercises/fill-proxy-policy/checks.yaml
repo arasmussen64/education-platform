@@ -1,0 +1,108 @@
+# Every check acts as people would: sign-ins from the two laptops by people
+# made up as the check runs, device certificates the check issues itself,
+# and one person switched off at the identity provider. What a check makes
+# it removes (ztlib.sh's zt_end).
+# A description never holds a word a gap asks for.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: staff-reach-the-wiki
+    description: "Staff reach the wiki after signing in, from either laptop, and the wiki is told who they really are, whatever their browser sends. Nobody else gets a page."
+    timeout: 90
+    command: |
+      . /usr/local/lib/zt/ztlib.sh
+      zt_begin
+      proxy_ready || { echo "the access proxy doesn't answer at $APPS/oauth2/"; exit 0; }
+      r=$(rnd)
+      for path in /wiki/ "/wiki/page-$r" "/wiki/api/$r"; do
+        got=$(get byod nobody "$path" -H "X-User: boss" -H "X-Forwarded-User: boss" -H "X-Auth-Request-User: boss" -H "Authorization: Bearer $r")
+        case $got in 200*) echo "someone who hasn't signed in got a page of the wiki"; exit 0 ;; esac
+      done
+      u=$(mkuser staff) && w=$(mkuser warehouse) || { echo "the check couldn't make its people at the identity provider"; exit 0; }
+      for from in byod laptop; do
+        login "$from" "$u" || { echo "a member of staff couldn't sign in from $from: $(tail -n 1 "$ZT/$u.out" | cut -c1-100)"; exit 0; }
+        got=$(get "$from" "$u" "/wiki/page-$r")
+        [ "$got" = "200 wiki: hello $u" ] || { echo "a member of staff, signed in from $from, got: $got"; exit 0; }
+      done
+      got=$(get byod "$u" /wiki/ -H "X-User: boss")
+      [ "$got" = "200 wiki: hello $u" ] || { echo "the wiki was told what the browser claimed, not who signed in: $got"; exit 0; }
+      login byod "$w" || { echo "the check's second person couldn't sign in: $(tail -n 1 "$ZT/$w.out" | cut -c1-100)"; exit 0; }
+      got=$(get byod "$w" /wiki/)
+      case $got in 403*) ;; *) echo "someone signed in who isn't in staff got: $got"; exit 0 ;; esac
+      echo "staff only"
+    expect:
+      equals: staff only
+  - id: payroll-policy
+    description: "Payroll answers the group the prompt names, and only from a device that shows a certificate from the shop's device CA."
+    timeout: 90
+    command: |
+      . /usr/local/lib/zt/ztlib.sh
+      zt_begin
+      proxy_ready || { echo "the access proxy doesn't answer at $APPS/oauth2/"; exit 0; }
+      r=$(rnd)
+      h=$(mkuser staff hr) && s=$(mkuser staff) || { echo "the check couldn't make its people at the identity provider"; exit 0; }
+      ours=$(mkdevice ours)
+      theirs=$(mkdevice theirs other)
+      login laptop "$h" && login laptop "$s" || { echo "the check's people couldn't sign in"; exit 0; }
+      # shellcheck disable=SC2086
+      {
+        for path in /payroll/ "/payroll/slips/$r" "/payroll/api/$r"; do
+          got=$(get laptop "$h" "$path" $ours)
+          [ "$got" = "200 payroll: hello $h" ] || { echo "someone payroll is for, on a shop device, asked for $path and got: $got"; exit 0; }
+          got=$(get laptop "$s" "$path" $ours)
+          case $got in 403*) ;; *) echo "someone payroll isn't for, on a shop device, got: $got"; exit 0 ;; esac
+          got=$(get byod "$h" "$path" -H "X-Device: managed" -H "X-Device-Compliant: yes" -H "X-Managed-Device: true" -H "X-SSL-Client-Verify: SUCCESS" -H "X-Client-Verify: SUCCESS")
+          case $got in 200*) echo "payroll answered a device that showed no certificate"; exit 0 ;; esac
+          got=$(get byod "$h" "$path" $theirs)
+          case $got in 200*) echo "payroll answered a device whose certificate isn't from the shop's device CA"; exit 0 ;; esac
+          got=$(get laptop nobody "$path" $ours -H "X-User: boss")
+          case $got in 200*) echo "a shop device got payroll with nobody signed in"; exit 0 ;; esac
+        done
+      }
+      echo "as the prompt says"
+    expect:
+      equals: as the prompt says
+  - id: access-ends-when-trust-does
+    description: "Someone switched off at the identity provider is turned away within 10 seconds, while a colleague who signed in at the same time carries on working."
+    timeout: 120
+    command: |
+      . /usr/local/lib/zt/ztlib.sh
+      zt_begin
+      proxy_ready || { echo "the access proxy doesn't answer at $APPS/oauth2/"; exit 0; }
+      a=$(mkuser staff) && b=$(mkuser staff) || { echo "the check couldn't make its people at the identity provider"; exit 0; }
+      login byod "$a" && login byod "$b" || { echo "the check's people couldn't sign in"; exit 0; }
+      case $(get byod "$a" /wiki/) in 200*) ;; *) echo "the check's person didn't get the wiki after signing in"; exit 0 ;; esac
+      idp-user disable shop "$a" > /dev/null 2>&1 || { echo "the check couldn't switch its person off"; exit 0; }
+      start=$(date +%s)
+      gone=
+      # 12 seconds: the 10 the shop asks for, and room for a slow machine.
+      while [ $(($(date +%s) - start)) -le 12 ]; do
+        case $(get byod "$a" /wiki/) in 200*) ;; *) gone=yes; break ;; esac
+        case $(get byod "$b" /wiki/) in 200*) ;; *) echo "a colleague who is still staff lost the wiki $(($(date +%s) - start)) seconds on"; exit 0 ;; esac
+        sleep 1
+      done
+      [ -n "$gone" ] || { echo "someone switched off at the identity provider still had the wiki 12 seconds later"; exit 0; }
+      # The colleague, for long enough to be asked about again, twice over.
+      while [ $(($(date +%s) - start)) -le 13 ]; do
+        got=$(get byod "$b" /wiki/)
+        [ "$got" = "200 wiki: hello $b" ] || { echo "a colleague who is still staff lost the wiki $(($(date +%s) - start)) seconds after signing in: $got"; exit 0; }
+        sleep 1
+      done
+      echo "ends"
+    expect:
+      equals: ends
+  - id: nothing-else-changed
+    description: "The proxy's two services start at boot, and everything that had no gap is as it was: the firewalls, the identity provider's realm, the laptops and the apps' own pages."
+    timeout: 90
+    command: |
+      . /usr/local/lib/zt/ztlib.sh
+      for u in nginx@zt oauth2-proxy@zt nftables@wiki nftables@payroll nftables@db; do
+        [ "$(systemctl is-enabled "$u" 2> /dev/null)" = enabled ] || { echo "$u doesn't start at boot"; exit 0; }
+      done
+      for m in wiki payroll db; do
+        nft_saved "$m" > /dev/null 2>&1 || { echo "$m's running firewall isn't the one its /etc/nftables.conf loads"; exit 0; }
+      done
+      [ "$(intact)" = intact ] || { intact; exit 0; }
+      kc_saved shop
+    expect:
+      equals: saved

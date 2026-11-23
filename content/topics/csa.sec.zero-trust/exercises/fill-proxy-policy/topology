@@ -1,0 +1,32 @@
+# The network of "Fill in the proxy's policy": two laptops out on the internet, the
+# identity provider, the access proxy, and the apps network behind it. The
+# VPN is gone: the proxy is the only way in.
+#
+#   laptop   byod      idp (login.shop.test)
+#     |        |        |
+#   ==+========+========+==== internet 203.0.113.0/24 ====
+#                             |
+#                           zt .80 (apps.shop.test)
+#                             | .2
+#   ==========================+==== apps 10.20.0.0/24 ====
+#        |          |          |
+#      wiki .10   payroll .11  db .12
+#
+# zt has a foot on each network and forwards nothing: it is a host, not a
+# router.
+machine laptop
+machine byod
+machine idp
+machine zt
+machine wiki
+machine payroll
+machine db
+
+lan internet laptop:eth0=203.0.113.10/24 byod:eth0=203.0.113.11/24 idp:eth0=203.0.113.90/24 zt:wan=203.0.113.80/24
+lan apps zt:lan=10.20.0.2/24 wiki:eth0=10.20.0.10/24 payroll:eth0=10.20.0.11/24 db:eth0=10.20.0.12/24
+
+run idp keycloak
+run zt nginx
+run wiki nginx nftables
+run payroll nginx nftables
+run db nftables

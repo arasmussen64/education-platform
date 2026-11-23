@@ -1,15 +1,309 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.zero-trust
 kind: topic
-status: planned
+status: ready
 title: Zero trust
-summary: 'Apply zero-trust principles (NIST SP 800-207): identity as the perimeter, device posture, micro-segmentation, continuous verification.'
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "What a VPN really grants, and what replaces it. NIST's zero trust: decisions for each request, on a network assumed compromised. An access proxy that asks the identity provider about every request; the device as part of who is asking; a firewall round every app, proved by traffic; sessions re-checked so that access ends when trust does, and how to work out how long that takes; and the clouds' own access proxies."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections 2,
+# 3, 4.1 and 5) and its designer's brief (csa.sec.zero-trust.md), with what
+# building the identity lab base found (BUILD-NOTES.md and
+# content/lab-bases/id/README.md). It builds on csa.sec.federation (the
+# identity provider, OpenID Connect's code flow, tokens and refresh tokens,
+# the realm file, the lab's scripted browser) and csa.sec.strong-auth
+# (device compliance, sign-in risk and conditional access, the break-glass
+# account), and through them on csa.sec.authn-authz (the policy decision
+# and enforcement points, 401 against 403, least privilege), Module 3
+# (nginx, TLS, client certificates, the site-to-site VPN, the network labs)
+# and Module 1 (nftables, "a firewall is proved by what gets through",
+# background jobs, ShellCheck).
+#
+# This topic defines, for the module (the plan's 3.5): zero trust, policy
+# engine, policy administrator, access proxy, ZTNA, device posture,
+# micro-segmentation, lateral movement and exposure window; and with them
+# implicit trust zone, remote-access VPN, managed device, device
+# certificate, east-west traffic and continuous verification.
+prerequisites: [csa.sec.federation, csa.sec.strong-auth]
+# Worked out: the lesson 4,100 words with its tables, about 32 minutes, the
+# puzzle and the story 3, 22 practice recall items at 1.5 each 33, then the
+# worked example 30, the write lab 30, the fill-in 25, the build 60, the
+# debug 40 and the explain 20: about 273. No reading is assigned: every
+# resource is an optional link. The plan's 300 assumed a copied reading.
+estimated_minutes: 275
 rev: 1
 objectives:
-- 'Apply zero-trust principles (NIST SP 800-207): identity as the perimeter, device posture, micro-segmentation, continuous verification.'
-- Explain how zero trust network access replaces a VPN.
+  - "State zero trust as NIST SP 800-207 does (least-privilege decisions for each request, no trust from network location, a network assumed compromised), say what the implicit trust zone is and why it should shrink, and point at the policy engine, the policy administrator and the policy enforcement point in a real system."
+  - "Put an access proxy in front of internal apps so that each request is decided by who is asking and which group the app asks for, read its three answers (`202`, `401`, `403`), and make each app reachable only through it; and say what a remote-access VPN grants that the proxy doesn't."
+  - "Make the device part of the decision with a certificate from the company's own device CA, verified at the proxy, and say why a header or a MAC address proves nothing and how short-lived certificates carry device posture."
+  - "Micro-segment a network: a firewall on each machine, one rule for each job, default drop in both directions, proved by traffic from every machine and from a new one; and say how security groups, network security groups and Google Cloud's firewall rules do the same."
+  - "Design continuous verification: re-check sessions against the identity provider, and work out the exposure window (how long a switched-off person or a lost device keeps access) from re-check intervals, token lifetimes and caches."
+  - "Plan the move from a VPN to zero trust network access, app by app, name what gets worse, and say how AWS Verified Access, Entra Private Access and Google's Identity-Aware Proxy differ."
+# Facts the lesson and the items rely on, each read on 2026-11-23 unless a
+# line says otherwise.
+# - NIST SP 800-207, "Zero Trust Architecture" (Rose, Borchert, Mitchell,
+#   Connelly), final, August 2020, no revision listed:
+#   csrc.nist.gov/pubs/sp/800/207/final; the PDF at
+#   nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-207.pdf, read
+#   as text. Section 2: the operative definition ("accurate, least
+#   privilege per-request access decisions ... in the face of a network
+#   viewed as compromised"); the airport checkpoint and "the implicit trust
+#   zone is the boarding area"; lateral movement. 2.1: the seven tenets,
+#   "Network location alone does not imply trust". 3: the policy engine
+#   "makes and logs the decision", the policy administrator "executes the
+#   decision", "Some implementations may treat the PE and PA as a single
+#   service". 3.2: the device agent/gateway and resource portal models.
+#   3.3.1: "20 to 30 employee records", "exceed 100 records in a day".
+#   3.4.1: "enterprise-issued credentials and not using information that
+#   cannot be authenticated ... (e.g., network MAC addresses that can be
+#   spoofed)"; "Enterprise resources should not be reachable without
+#   accessing a PEP". 5.2: denial of service on the PEP or PA "is also
+#   possible in legacy remote-access VPNs and is not unique to ZTA".
+# - The story: the US Senate Homeland Security and Governmental Affairs
+#   Committee's page of 8 June 2021, with the exchange between Senator
+#   Portman and Colonial Pipeline's chief executive, Joseph Blount: "a
+#   compromised password of a virtual private network, or VPN, account";
+#   "in the case of this particular legacy VPN, it did only have
+#   single-factor authentication"; "It was a complicated password"; "we use
+#   an RSA token allowance ... for remote access"; the decision "that
+#   evening" (7 May) to negotiate, and "The payment was made the following
+#   day". The page gives no ransom amount and no length of shutdown, so the
+#   story gives neither. The plan's wording "a VPN profile nobody meant to
+#   be in use" is not on that page and is not in the story.
+# - Ward and Beyer, "BeyondCorp: A New Approach to Enterprise Security",
+#   ;login: December 2014 (the PDF, read as text): "To receive a
+#   certificate, a device must be both present and correct in the Device
+#   Inventory Database"; "These checks are also enforced as certificates
+#   are renewed periodically"; the certificate "does not single-handedly
+#   grant access privileges".
+# - CISA, Zero Trust Maturity Model, version 2.0, April 2023 (the PDF, read
+#   as text): the pillars "Identity, Devices, Networks, Applications and
+#   Workloads, and Data"; the stages Traditional, Initial, Advanced,
+#   Optimal. CISA's page for it is marked "Archived Content".
+# - nginx's ngx_http_ssl_module page: ssl_verify_client on | off | optional
+#   | optional_no_ca; optional "requests the client certificate and
+#   verifies it if the certificate is present"; optional_no_ca "does not
+#   require it to be signed by a trusted CA certificate"; $ssl_client_verify
+#   is SUCCESS, FAILED:reason or NONE.
+# - oauth2-proxy's nginx guide
+#   (oauth2-proxy.github.io/oauth2-proxy/configuration/integrations/nginx):
+#   "if you enabled --cookie-refresh, this is needed for it to work with
+#   auth_request", for the auth_request_set line that passes Set-Cookie on.
+# - Microsoft Learn, "Continuous access evaluation in Microsoft Entra"
+#   (ms.date 2026-04-08): access tokens "valid for one hour" by default;
+#   the critical events; "latency of up to 15 minutes might be observed";
+#   "up to 28 hours" in CAE sessions; changes to policies and group
+#   membership "could take up to one day to be effective". "Learn about
+#   Microsoft Entra Private Access" (ms.date 2026-03-12): "Remote workers
+#   don't need to use a VPN ... if they have the Global Secure Access
+#   Client installed"; Quick Access and per-app access, each with a private
+#   network connector, under Conditional Access. Its licensing page was not
+#   opened, so the lesson gives no Entra price.
+# - AWS: "What is AWS Verified Access?" ("without requiring the use of a
+#   virtual private network (VPN)"; "evaluates each application request";
+#   "charged hourly for each application ... and for the amount of data
+#   processed"); its pricing page's examples for US East (Ohio): $0.27 an
+#   application-hour for the first 148,800 hours, then $0.20, and $0.02 a
+#   GB. "Security group rules" (VPC user guide): "You can specify allow
+#   rules, but not deny rules"; a new group has no inbound rules and one
+#   outbound rule that allows everything; a rule's source may be a
+#   security group. "Verified Access policies" (auth-policies.html): "They are
+#   written in Cedar"; "all access requests will be blocked until you
+#   define a policy".
+# - Google Cloud: the IAP overview ("without requiring a VPN"; the role
+#   "IAP-secured Web App User"; users who can reach "the
+#   application-serving port of the Virtual Machine (VM) can bypass IAP
+#   authentication"; signed headers); the VPC firewall rules page ("A
+#   network tag is an arbitrary attribute"; service accounts recommended
+#   for strict control; the implied deny-ingress and allow-egress rules).
+#   IAP's pricing page did not render, so no price is given.
+# - Microsoft, "Application security groups" (the page's source in
+#   MicrosoftDocs/azure-docs, ms.date 2025-07-25): "the AllowVNetInBound
+#   default security rule allows all communication between resources in
+#   the same virtual network", and the example's Deny-Database-All rule.
+# Tried in this topic's labs on the identity base (Keycloak 26.8.2,
+# oauth2-proxy 7.15.6, nginx 1.24, strongSwan 5.9), 2026-11-23: every
+# message, log line and refusal the lesson, the items and the labs show.
+# The base's scripted browser carries a sign-in through oauth2-proxy
+# unchanged; the session cookie is one cookie of about 3.3 kB, so nothing
+# splits and no Redis is needed; a refresh against a switched-off person is
+# refused ("invalid_grant" "User disabled") and the session cleared; with
+# the realm rotating refresh tokens, a proxy that doesn't pass the new
+# cookie on signs people out at their second refresh.
+#
+# Licences, each read on 2026-11-23. NIST's and CISA's publications are
+# works of the US government (17 U.S.C. 105). The BeyondCorp article is
+# (c) USENIX and its authors, free to read, with no licence stated.
+# oauth2-proxy and its documentation are MIT (the repository's LICENSE).
+# nginx's documentation states no licence on the page. Microsoft Learn is
+# under its terms of use. AWS's documentation is (c) Amazon Web Services.
+# Google Cloud's documentation is CC BY 4.0 "except as otherwise noted"
+# (Google's site policies; the footer wasn't in the text fetched). The
+# Senate committee's page is a work of the US government; it is linked.
+#
+# The plan gives NIST SP 800-207 as a reading to copy in. It is a PDF, and
+# the reading importer takes web pages, so it is an optional link and the
+# lesson carries the topic by itself (ADR-0031, step 3).
+resources:
+  - title: "NIST SP 800-207, Zero Trust Architecture (a PDF): section 2 (the definition, the airport picture and the seven tenets) and section 3 (the policy engine, administrator and enforcement point, and the deployment models)"
+    url: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-207.pdf
+    type: reading
+    use: link
+    optional: true
+    license: "A work of the US government (public domain in the United States); linked, not copied"
+  - title: "BeyondCorp: A New Approach to Enterprise Security (Ward and Beyer, ;login: December 2014): how Google moved its staff off the privileged network, with device certificates and an access proxy"
+    url: https://www.usenix.org/publications/login/dec14/ward
+    type: reading
+    use: link
+    optional: true
+    license: "© USENIX and the authors; free to read, linked, not copied"
+  - title: "oauth2-proxy's guide to nginx: the auth_request configuration the labs use, with the lines that pass a refreshed cookie on"
+    url: https://oauth2-proxy.github.io/oauth2-proxy/configuration/integrations/nginx
+    type: reading
+    use: link
+    optional: true
+    license: "MIT (the project's licence); linked, not copied"
+  - title: "Continuous access evaluation in Microsoft Entra (Microsoft Learn): which events end access in near real time, token lifetimes, and the changes that take up to a day"
+    url: https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-continuous-access-evaluation
+    type: reading
+    use: link
+    optional: true
+    license: "Microsoft Learn's terms of use; linked, not copied"
+  - title: "What is AWS Verified Access? (AWS): an access proxy as a service, deciding each request to each application"
+    url: https://docs.aws.amazon.com/verified-access/latest/ug/what-is-verified-access.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Learn about Microsoft Entra Private Access (Microsoft Learn): replacing a VPN with a client on the device and connectors beside the apps"
+    url: https://learn.microsoft.com/en-us/entra/global-secure-access/concept-private-access
+    type: reading
+    use: link
+    optional: true
+    license: "Microsoft Learn's terms of use; linked, not copied"
+  - title: "Identity-Aware Proxy overview (Google Cloud): how IAP decides each request, and the warning about reaching an app round it"
+    url: https://docs.cloud.google.com/iap/docs/concepts-overview
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "Zero Trust Maturity Model, version 2.0 (CISA, a PDF): five pillars and four stages for judging how far an organisation has got"
+    url: https://www.cisa.gov/sites/default/files/2023-04/zero_trust_maturity_model_v2_508.pdf
+    type: reading
+    use: link
+    optional: true
+    license: "A work of the US government (public domain in the United States); linked, not copied"
+# The recall items place the standard's words on a real system, read the
+# proxy's own log and a reachability matrix, and do the sums of exposure
+# windows and of a cloud proxy's bill. Four labs run on the identity lab
+# base (content/lab-bases/id) with oauth2-proxy added: a real Keycloak, a
+# real IPsec tunnel, nginx, nftables on every machine. The write lab needs
+# only the network base.
+practice:
+  - example-wiki-behind-the-proxy
+  - mcq-implicit-trust
+  - mcq-tenet-location
+  - mcq-which-component
+  - typed-policy-engine
+  - mcq-vpn-or-ztna
+  - mcq-proxy-401-or-403
+  - typed-auth-request
+  - proxy-log-decisions
+  - mcq-header-trust
+  - est-verified-access-cost
+  - mcq-device-header
+  - mcq-any-certificate
+  - typed-verify-optional
+  - mcq-cert-renewal-posture
+  - mcq-new-machine
+  - reach-matrix-read
+  - mcq-azure-vnet-default
+  - mcq-gcp-tags
+  - write-reach-matrix
+  - est-exposure-refresh
+  - est-exposure-token
+  - est-exposure-cert
+  - mcq-group-change-delay
+  - fill-proxy-policy
+prove:
+  build: build-replace-the-vpn
+  debug: debug-who-gets-in
+  explain:
+    prompt: |
+      Your company's staff reach its internal apps over a VPN, and the head of security wants "zero trust" by next year. A colleague asks you what that will actually mean. Explain, in your own words: what zero trust is, and why being on the company network should prove nothing; the parts that decide and enforce each request, pointing at what would play each part in a design you'd build; how the device becomes part of the decision, and why a header the device sends doesn't count; how you'd make sure nothing reaches an app except through the enforcement point, and how you'd prove it; how access ends when someone leaves, and how long they might keep it in your design; and how you'd move from the VPN, including one thing that gets worse. Say one way the three clouds' services for this differ.
+    rubric:
+      - id: definition
+        required: true
+        description: "Zero trust means least-privilege decisions made for each request, with no trust granted for network location, on a network assumed to hold an attacker already. A VPN checks once and then trusts everything inside (the implicit trust zone), so one stolen password or one infected laptop reaches everything."
+      - id: components
+        required: true
+        description: "A deciding side (the policy engine decides and logs, the policy administrator carries it out, often one service) and a policy enforcement point in the request's path. Mapped to something real: an access proxy in front of the apps enforces; the identity provider, with the proxy's sign-in service, decides who is signed in and in which group."
+      - id: device
+        required: true
+        description: "The device is recognised by a credential the company issued, such as a device certificate from the company's own device CA, verified at the proxy; short lifetimes or renewal checks carry the device's state (posture). A header or a MAC address is the device describing itself, which anyone can copy."
+      - id: segmentation
+        required: true
+        description: "Each app's own firewall accepts only the proxy (and each database only its app), with default drop in both directions, so an app can't be reached round the proxy or used to reach its neighbours. Proved by trying connections from every machine, and from a new machine with no firewall of its own."
+      - id: continuous
+        required: true
+        description: "Sessions are re-checked against the identity provider at an interval, so switching someone off ends their access at the next re-check. A stated exposure window: the interval plus a request gap, longer where a token or a cache is accepted without asking again."
+      - id: migration-and-risks
+        required: true
+        description: "App by app while the VPN still runs: put the app behind the proxy, close its own door, repeat, remove the VPN last, keep a guarded emergency way in. Something that gets worse: the proxy and the identity provider become a single point of failure and a target; or apps that aren't web apps need an agent or their own tunnel."
+      - id: clouds-differ
+        required: false
+        description: "Any correct difference: AWS Verified Access decides each request by policy and charges for each application by the hour; Entra Private Access uses a client on the device and connectors beside the apps, under Conditional Access; Google's Identity-Aware Proxy checks an IAM role on each request and can be bypassed by reaching the app's port directly."
+    model_answer: |
+      A VPN asks who you are once, at the gateway, and then puts your laptop on the company network. From then on nothing asks again: every server and every port is reachable, by you and by anything running on your laptop. So one stolen password, or one laptop with malware, is the whole network. Zero trust drops the idea that being on the network means anything. It assumes an attacker is already inside, and decides every request separately: who is asking, on what device, for which app, and it grants only that.
+
+      There are two sides to it. One side decides: it knows the policy and the facts, and says yes or no to each request. The standard splits that into a policy engine, which decides and logs, and a policy administrator, which carries the decision out. The other side enforces: something in the path of every request that lets it through or stops it. In a design I'd build, the enforcement point is an access proxy in front of the apps. The deciding side is our identity provider together with the proxy's sign-in service: the provider knows who is signed in and which groups they are in, and the proxy asks about every request.
+
+      The device counts too, because the same person on a company laptop and on a stranger's machine isn't the same risk. The company gives each laptop it manages a certificate from its own device CA, and the proxy verifies it. Renewing those often means a lost or unpatched laptop stops getting one. A header saying "I'm compliant" is worthless, because the device is describing itself and anyone can send the same header.
+
+      The proxy only matters if you can't go round it. So each app's own firewall accepts connections from the proxy and nothing else, the database accepts only its app, and each machine may start only the connections its job needs. I'd prove it by trying every connection from every machine, and from a new machine with no firewall, since a rule that trusts the whole subnet looks fine until something new arrives.
+
+      When someone leaves, their account is switched off at the identity provider. The proxy re-checks each session there every few minutes, so their access ends at the next re-check: with a five-minute interval, within about five minutes. Anything that accepts a token without asking again adds its lifetime to that.
+
+      Moving is done app by app with the VPN still running: put an app behind the proxy, close its direct door, move to the next, and switch the VPN off last, keeping one guarded emergency way in. What gets worse is that the proxy and the identity provider are now what everything depends on, so they have to be highly available and well defended.
+
+      The clouds sell this differently: AWS's Verified Access is priced for each application by the hour, while Microsoft's Private Access puts a client on every device and connectors beside the apps.
+review_pool:
+  - mcq-which-component
+  - mcq-tenet-location
+  - mcq-deployment-model
+  - mcq-trust-algorithm
+  - typed-policy-engine
+  - proxy-log-decisions
+  - mcq-proxy-401-or-403
+  - mcq-header-trust
+  - mcq-longest-location
+  - mcq-iap-bypass
+  - typed-auth-request
+  - mcq-device-header
+  - mcq-any-certificate
+  - mcq-optional-other-ca
+  - mcq-mac-address
+  - typed-verify-optional
+  - reach-matrix-read
+  - mcq-new-machine
+  - mcq-azure-vnet-default
+  - mcq-sg-reference
+  - est-exposure-refresh
+  - est-exposure-token
+  - est-exposure-cert
+  - est-exposure-cached
+  - est-exposure-api-token
+  - mcq-group-change-delay
+# Labs short enough for a hands-on refresher in a review (ADR-0009,
+# amended 2026-11-16): the review asks one in place of a quick question.
+review_labs:
+  - write-reach-matrix
+  - fill-proxy-policy
+skills:
+  - id: zt-model
+    description: "NIST SP 800-207's definition (least-privilege decisions for each request, no trust from network location, a network assumed compromised) and its seven tenets in plain words; the implicit trust zone and why the checkpoint moves close to the resource; the policy engine, the policy administrator and the policy enforcement point, and which part of a real system plays each; the trust algorithm, alone or in context; the resource portal and agent deployment models; that zero trust is a design and not a product"
+  - id: access-proxy
+    description: "An access proxy as the enforcement point for web apps: nginx's auth_request with oauth2-proxy's /oauth2/auth and its three answers (202, 401, 403), a group for each app, the redirect to sign in; a policy on every location; the user's name passed to the app in a header, trusted only because nothing else reaches the app; the deciding service reachable only by the enforcing one; what a remote-access VPN grants against what the proxy grants; the clouds' services and what they cost; the move from a VPN in steps"
+  - id: device-trust
+    description: "The device as part of who is asking: a device certificate from the company's own device CA, verified at the proxy (ssl_verify_client optional, $ssl_client_verify SUCCESS), issued and renewed only while the device is in good standing; managed and unmanaged devices getting different access; why a certificate from anywhere, a header or a MAC address proves nothing; what a local lab's certificate does and doesn't show"
+  - id: micro-segmentation
+    description: "A firewall on every machine with one rule for each job, default drop in and out; east-west traffic and lateral movement; naming one source and one port, never the subnet; proving segmentation by traffic from every machine and from a new one, and reading a reachability matrix against the design; security groups that name groups, Azure's AllowVNetInBound default, Google Cloud's service accounts against network tags"
+  - id: continuous-verification
+    description: "Trust re-checked during a session: a refresh against the identity provider, a switched-off person refused at the next one, refresh tokens that rotate and the cookie that must follow; the exposure window as a sum (the re-check interval and a request gap, token lifetimes, certificate lifetimes, caches after the enforcement point); Entra's continuous access evaluation, its 15 minutes and its day for group changes"

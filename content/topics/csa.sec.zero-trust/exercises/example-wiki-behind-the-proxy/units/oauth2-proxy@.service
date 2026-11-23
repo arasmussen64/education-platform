@@ -1,0 +1,19 @@
+# oauth2-proxy on a machine: "systemctl status oauth2-proxy@zt". Its
+# settings are the machine's /etc/oauth2-proxy/oauth2-proxy.cfg. It asks the
+# identity provider for its discovery document when it starts, so it starts
+# after the provider and tries again every two seconds until that works.
+[Unit]
+Description=oauth2-proxy on %i
+After=netlab.service keycloak@idp.service
+Requires=netlab.service
+PartOf=netlab.service
+StartLimitIntervalSec=0
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/oauth2-proxy --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

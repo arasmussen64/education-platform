@@ -1,0 +1,36 @@
+id: write-reach-matrix
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Write reach-matrix"
+prompt: |
+  A firewall rule is a claim. The proof is traffic, tried from every machine that might send it. With four machines and a handful of ports that is already dozens of connections, far too many to try by hand after every change, so write the tool that tries them.
+
+  **The network.** The shop's apps network, 10.20.0.0/24, with no identity provider in this lab: `zt` (.2, the access proxy's machine), `wiki` (.10, port 8080), `payroll` (.11, port 8081) and `db` (.12, port 5432). `wiki`'s firewall drops what it doesn't accept, `payroll`'s refuses it, and `db` has no firewall at all, so the three ways a connection can end are all here to try.
+
+  **Write `~/bin/reach-matrix`**, a bash script. `reach-matrix FILE` reads FILE, which has one connection a line as `FROM HOST PORT` (a machine to try from, an address, a TCP port), and prints one line for each, in the file's order:
+
+  ```
+  FROM HOST:PORT open
+  ```
+
+  with, in place of `open`, what that connection did:
+
+  - `open`: it connected.
+  - `refused`: the other end said no at once (a closed port, or a firewall that rejects).
+  - `dropped`: no answer at all within 2 seconds.
+
+  `~/apps.txt` has ten connections on this network to try it on. Its first line, `zt 10.20.0.10 8080`, should come out as `zt 10.20.0.10:8080 open`; `payroll 10.20.0.10 8080` as `payroll 10.20.0.10:8080 dropped`; and `db 10.20.0.11 8081` as `db 10.20.0.11:8081 refused`.
+
+  **Rules.**
+
+  - Try each connection from the machine the line names: `on FROM nc -zv -w 2 HOST PORT`. `-z` connects and sends nothing, `-w 2` gives up after 2 seconds, and `-v` makes `nc` say what happened, on standard error: a line with `succeeded`, with `Connection refused`, or with `timed out`. (Timing the attempt, as Hardening did, works as well: a refusal comes back in milliseconds, a drop takes the whole 2 seconds.)
+  - Try them all at the same time. Six dropped connections one after another are 12 seconds of waiting; started together with `&` and collected with `wait` (Processes and signals), they are 2. The check allows 7 seconds for fifteen connections, six of them dropped.
+  - Keep the file's order in the answer, whichever attempt finishes first.
+  - Start with a shebang line, and keep ShellCheck quiet (`shellcheck ~/bin/reach-matrix`) without switching any warning off.
+
+  Create the file with `nano ~/bin/reach-matrix` and make it executable with `chmod +x ~/bin/reach-matrix`. The checks don't use `~/apps.txt`: they add three machines of their own to the network, with listeners and firewalls at addresses and ports made up on the spot, and compare every line.
+skills: [micro-segmentation]

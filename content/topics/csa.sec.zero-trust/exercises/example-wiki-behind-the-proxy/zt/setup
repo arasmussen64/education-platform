@@ -1,0 +1,41 @@
+#!/bin/bash
+# setup: what every zero-trust lab's image build does once, after
+# "idlab secret ACCESS_PROXY_SECRET". Everything secret is made here, at
+# build, so none of it is in the repository.
+set -e
+
+# The scripted browser learns to show a device certificate (zt/signin says
+# why); the base's own stays beside it, unchanged.
+mv /usr/local/bin/signin /usr/local/lib/zt/signin-browser
+install -m 755 /usr/local/lib/zt/signin /usr/local/bin/signin
+chmod 644 /usr/local/lib/zt/ztlib.sh
+
+# Folders a machine has a copy of must exist on the lab machine too.
+mkdir -p /etc/oauth2-proxy /etc/device /etc/zt \
+  /etc/netns/zt/oauth2-proxy /etc/netns/zt/nginx/tls /etc/netns/laptop/device /etc/netns/byod/device
+
+# The access proxy's client secret, as oauth2-proxy reads it: the bare
+# value, with no newline after it.
+(
+  umask 077
+  printf '%s' "$(idlab secret-of ACCESS_PROXY_SECRET)" > /etc/netns/zt/oauth2-proxy/client-secret
+)
+
+# The shop's device CA. Its key stays on the lab machine, for root (the
+# checks issue certificates of their own with it); its certificate is on zt.
+(
+  umask 077
+  openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/O=The shop/CN=Shop device CA" \
+    -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+    -keyout /etc/zt/device-ca.key -out /etc/zt/device-ca.crt 2> /dev/null
+)
+install -m 644 /etc/zt/device-ca.crt /etc/netns/zt/nginx/tls/device-ca.crt
+
+# The managed laptop's own certificate, from that CA.
+cd /etc/netns/laptop/device
+openssl req -newkey rsa:2048 -nodes -subj "/O=The shop/CN=laptop-0142" -keyout device.key -out /tmp/device.csr 2> /dev/null
+printf 'extendedKeyUsage=clientAuth\n' > /tmp/device.ext
+openssl x509 -req -in /tmp/device.csr -CA /etc/zt/device-ca.crt -CAkey /etc/zt/device-ca.key \
+  -set_serial 0x0142 -days 365 -extfile /tmp/device.ext -out device.crt 2> /dev/null
+rm /tmp/device.csr /tmp/device.ext
+chmod 644 device.crt device.key

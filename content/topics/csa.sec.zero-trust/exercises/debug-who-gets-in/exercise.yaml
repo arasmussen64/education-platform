@@ -1,0 +1,32 @@
+id: debug-who-gets-in
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Who gets in"
+prompt: |
+  The shop retired its VPN last month. Staff now reach the internal apps through an access proxy, and the security team's first review of it has come back with three findings.
+
+  **The system.** Seven machines on two networks.
+
+  - On the internet (203.0.113.0/24): `laptop` (.10), a staff laptop the shop manages, with a device certificate in `/etc/device/`; `byod` (.11), someone's own laptop, with none; `idp` (.90), the identity provider at `https://login.shop.test`; and `zt` (.80), the access proxy, `https://apps.shop.test`.
+  - On the apps network (10.20.0.0/24): `zt` (.2), `wiki` (.10, the wiki on port 8080), `payroll` (.11, payroll on port 8081, with an API for the payroll phone app under `/api/`) and `db` (.12, payroll's database on port 5432).
+  - **The proxy** is two programs on `zt`. nginx (`/etc/nginx/sites-enabled/default`, `nginx@zt`) takes every request and, before passing it on, asks oauth2-proxy (`/etc/oauth2-proxy/oauth2-proxy.cfg`, `oauth2-proxy@zt`) who is signed in and whether they are in the group the page needs. oauth2-proxy signs people in at the identity provider and asks it again every few seconds whether each session still stands.
+  - **The policy.** The wiki, `https://apps.shop.test/wiki/`, is for everyone in the group `staff`, on any device. Payroll, everything under `https://apps.shop.test/payroll/`, is for the group `hr` only, and only on a device with a certificate from the shop's device CA (`/etc/nginx/tls/device-ca.crt` on `zt`). Each app is told the signed-in person's user name in the `X-User` header.
+  - **The firewalls.** `wiki`, `payroll` and `db` each have their own, `/etc/nftables.conf`, loaded by `nftables@wiki` and so on. The intent: an app answers the proxy and nothing else, the database answers payroll and nothing else, and none of them starts connections except payroll's to its database.
+  - **The people:** `ana` (staff), `hana` (staff and hr), `ben` (warehouse) and `cole`, a contractor (staff and contractors). Passwords are in `/etc/idlab/accounts`.
+
+  **The findings.**
+
+  1. A contractor's account, which is not in hr, read salary data.
+  2. A laptop the shop doesn't manage, with a certificate its owner made, got payroll pages for someone in hr.
+  3. A test machine that a supplier's engineer plugged into the apps network for an afternoon connected to payroll's database.
+
+  There are **three faults**. Find and mend each one where it lives.
+
+  **What the repair must not break.** Staff keep the wiki, from either laptop. People in hr keep all of payroll, API included, on shop devices. Payroll keeps its database. Someone switched off at the identity provider is still turned away within 10 seconds. Everything still comes back after a reboot. And the rules of the house stand: nothing opened wider than a job needs, and nothing believed because a browser says so. The identity provider, the laptops and the apps' own pages are not yours to change.
+
+  **Looking.** `on laptop signin https://apps.shop.test/payroll/ hana -v` opens a page as Hana's browser on the managed laptop, which shows the laptop's certificate when a site asks; `on byod signin ...` is a browser with no certificate, and `--device DIR` shows the certificate and key in a folder of your choosing (`device.crt`, `device.key`). `journalctl -u oauth2-proxy@zt` has a line for every decision. `on wiki nc -zv -w 2 10.20.0.12 5432` tries a connection from one machine to another. After editing nginx's file: `on zt nginx -t`, then `sudo systemctl reload nginx@zt`. After editing a firewall's file: `sudo systemctl restart nftables@db`.
+skills: [access-proxy, device-trust, micro-segmentation]

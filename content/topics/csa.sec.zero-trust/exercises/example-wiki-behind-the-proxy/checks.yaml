@@ -1,0 +1,128 @@
+# The worked example's checks: what the walkthrough built, tried as people
+# and machines would try it. Sign-ins from the laptops by people made up as
+# the check runs, connections from every side and from a throwaway machine
+# the check adds to the apps network, and one person switched off at the
+# identity provider. What a check makes it removes (ztlib.sh's zt_end).
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: wiki-through-the-proxy
+    description: "Anyone in the group staff reaches the wiki at `https://apps.shop.test/wiki/` after signing in, from either laptop, and the wiki is told who they really are. Nobody else gets a page."
+    timeout: 90
+    command: |
+      . /usr/local/lib/zt/ztlib.sh
+      zt_begin
+      proxy_ready || { echo "the access proxy doesn't answer at $APPS/oauth2/"; exit 0; }
+      r=$(rnd)
+      for path in /wiki/ "/wiki/page-$r" "/wiki/api/$r"; do
+        got=$(get byod nobody "$path" -H "X-User: boss" -H "X-Forwarded-User: boss" -H "X-Auth-Request-User: boss" -H "Authorization: Bearer $r")
+        case $got in 200*) echo "someone who hasn't signed in got a page of the wiki"; exit 0 ;; esac
+      done
+      u=$(mkuser staff) && w=$(mkuser warehouse) || { echo "the check couldn't make its people at the identity provider"; exit 0; }
+      for from in byod laptop; do
+        login "$from" "$u" || { echo "a member of staff couldn't sign in from $from: $(tail -n 1 "$ZT/$u.out" | cut -c1-100)"; exit 0; }
+        got=$(get "$from" "$u" "/wiki/page-$r")
+        [ "$got" = "200 wiki: hello $u" ] || { echo "a member of staff, signed in from $from, got: $got"; exit 0; }
+      done
+      got=$(get byod "$u" /wiki/ -H "X-User: boss")
+      [ "$got" = "200 wiki: hello $u" ] || { echo "the wiki was told what the browser claimed, not who signed in: $got"; exit 0; }
+      login byod "$w" || { echo "the check's second person couldn't sign in: $(tail -n 1 "$ZT/$w.out" | cut -c1-100)"; exit 0; }
+      got=$(get byod "$w" /wiki/)
+      case $got in 403*) ;; *) echo "someone signed in who isn't in staff got: $got"; exit 0 ;; esac
+      echo "staff only"
+    expect:
+      equals: staff only
+  - id: access-ends-when-trust-does
+    description: "Someone switched off at the identity provider is turned away within 10 seconds, while a colleague who signed in at the same time carries on working."
+    timeout: 120
+    command: |
+      . /usr/local/lib/zt/ztlib.sh
+      zt_begin
+      proxy_ready || { echo "the access proxy doesn't answer at $APPS/oauth2/"; exit 0; }
+      a=$(mkuser staff) && b=$(mkuser staff) || { echo "the check couldn't make its people at the identity provider"; exit 0; }
+      login byod "$a" && login byod "$b" || { echo "the check's people couldn't sign in"; exit 0; }
+      case $(get byod "$a" /wiki/) in 200*) ;; *) echo "the check's person didn't get the wiki after signing in"; exit 0 ;; esac
+      idp-user disable shop "$a" > /dev/null 2>&1 || { echo "the check couldn't switch its person off"; exit 0; }
+      start=$(date +%s)
+      gone=
+      # 12 seconds: the 10 the shop asks for, and room for a slow machine.
+      while [ $(($(date +%s) - start)) -le 12 ]; do
+        case $(get byod "$a" /wiki/) in 200*) ;; *) gone=yes; break ;; esac
+        case $(get byod "$b" /wiki/) in 200*) ;; *) echo "a colleague who is still staff lost the wiki $(($(date +%s) - start)) seconds on"; exit 0 ;; esac
+        sleep 1
+      done
+      [ -n "$gone" ] || { echo "someone switched off at the identity provider still had the wiki 12 seconds later"; exit 0; }
+      # The colleague, for long enough to be asked about again, twice over.
+      while [ $(($(date +%s) - start)) -le 13 ]; do
+        got=$(get byod "$b" /wiki/)
+        [ "$got" = "200 wiki: hello $b" ] || { echo "a colleague who is still staff lost the wiki $(($(date +%s) - start)) seconds after signing in: $got"; exit 0; }
+        sleep 1
+      done
+      echo "ends"
+    expect:
+      equals: ends
+  - id: wiki-answers-only-the-proxy
+    description: "The wiki answers the access proxy and nothing else: not the laptop on the VPN, not payroll, not a machine newly added to the apps network. It starts no connections of its own, and oauth2-proxy answers nothing but nginx on `zt`."
+    timeout: 60
+    command: |
+      . /usr/local/lib/zt/ztlib.sh
+      zt_begin
+      new_machine
+      p=$(rnd_port) q=$(rnd_port)
+      listen wiki "$p"; listen chk-new "$q"
+      sleep 0.5
+      up() { on laptop swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null; }
+      up || on laptop swanctl --initiate --child apps --timeout 8 > /dev/null 2>&1
+      got=$(probes << EOF
+      zt 10.20.0.10 8080
+      zt $NEW $q
+      laptop 10.20.0.10 8080
+      payroll 10.20.0.10 8080
+      chk-new 10.20.0.10 8080
+      zt 10.20.0.10 $p
+      chk-new 10.20.0.10 $p
+      wiki $NEW $q
+      wiki 10.20.0.11 8081
+      laptop 203.0.113.80 4180
+      chk-new 10.20.0.2 4180
+      EOF
+      )
+      n=0
+      while read -r from host port state; do
+        n=$((n + 1))
+        if [ "$n" -le 2 ]; then want=open; else want=closed; fi
+        [ "$state" = "$want" ] && continue
+        case $from in chk-new) who="a machine newly added to the apps network" ;; *) who=$from ;; esac
+        case $n in
+          1) echo "the access proxy can't reach the wiki's port" ;;
+          2) echo "the check couldn't set up its own listener" ;;
+          *) echo "$who reaches $host port $port, which no job needs" ;;
+        esac
+        exit 0
+      done <<< "$got"
+      [ "$n" = 11 ] && echo "only the proxy"
+    expect:
+      equals: only the proxy
+  - id: lee-is-switched-off
+    description: "Lee, who has left, is switched off at the identity provider and can't sign in."
+    timeout: 60
+    command: |
+      . /usr/local/lib/zt/ztlib.sh
+      state=$(kc get 'shop/users?username=lee&exact=true' 2> /dev/null | json "d[0]['enabled']" 2> /dev/null)
+      [ "$state" = False ] || { echo "lee's account is still switched on at the identity provider"; exit 0; }
+      got=$(on byod signin https://apps.shop.test/wiki/ lee --no-device 2>&1 | tail -n 1)
+      case $got in refused:*) echo "out" ;; *) echo "lee got: ${got:0:80}" ;; esac
+    expect:
+      equals: out
+  - id: lasts
+    description: "It comes back after a reboot: the wiki's firewall is the one its file loads and starts at boot, oauth2-proxy starts at boot, and the scenery (the VPN, the identity provider's realm, the apps' own pages) is as it was."
+    timeout: 90
+    command: |
+      . /usr/local/lib/zt/ztlib.sh
+      [ "$(systemctl is-enabled nftables@wiki 2> /dev/null)" = enabled ] || { echo "wiki's firewall doesn't start at boot"; exit 0; }
+      nft_saved wiki > /dev/null 2>&1 || { echo "wiki's running firewall isn't the one its /etc/nftables.conf loads"; exit 0; }
+      [ "$(systemctl is-enabled oauth2-proxy@zt 2> /dev/null)" = enabled ] || { echo "oauth2-proxy@zt doesn't start at boot"; exit 0; }
+      [ "$(intact)" = intact ] || { intact; exit 0; }
+      kc_saved shop
+    expect:
+      equals: saved
