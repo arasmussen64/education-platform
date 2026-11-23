@@ -14,7 +14,7 @@ That worked while the office was a building, the servers were in its basement an
 
 <Story title="Colonial Pipeline, 2021: one password for an old VPN" source="https://www.hsgac.senate.gov/media/reps/portman-presses-president-and-ceo-of-colonial-pipeline-on-gaps-in-cybersecurity-practices/" sourceTitle="Portman Presses President and CEO of Colonial Pipeline on Gaps in Cybersecurity Practices" license="linked, not copied">
 
-In May 2021 a ransomware gang got into Colonial Pipeline, a company that runs a fuel pipeline in the United States. A month later its chief executive answered a Senate committee's questions about how. The senator leading the questions put the way in as a compromised password for a VPN account. The chief executive explained that the company's normal remote access asked for a token as a second factor, but this account belonged to what he called a legacy VPN, and that one took a password alone. He stressed that it was a complicated password, not a guessable one, and that investigators were still working out how it leaked. It didn't matter. One factor, checked once, and the holder was on the network. The company decided that evening to negotiate and paid the ransom the next day.
+In May 2021 a ransomware gang got into Colonial Pipeline, a company that runs a fuel pipeline in the United States. A month later its chief executive answered a Senate committee's questions about how. Senator Rob Portman, questioning him, put the way in as a compromised password for a VPN account. The chief executive explained that the company's normal remote access asked for a token as a second factor, but this account belonged to what he called a legacy VPN, and that one took a password alone. He stressed that it was a complicated password, not a guessable one, and that investigators were still working out how it leaked. It didn't matter. One factor, checked once, and the holder was on the network. The company decided that evening to negotiate and paid the ransom the next day.
 
 Two lessons sit in that testimony. The senator drew the first: multi-factor authentication on every way in. The second is this topic's: the stolen password was worth so much because of what a VPN gives in exchange for it.
 
@@ -65,7 +65,7 @@ Compare what each check buys. The VPN's check buys a place on the network: every
 
 In the labs the proxy is two programs on one machine, `zt`, and it is worth knowing which half does what.
 
-**oauth2-proxy decides.** It is an open-source program that is an OpenID Connect client of the identity provider, exactly like the orders site in the last topic. It sends a browser with no session off to sign in (the code flow, with PKCE), keeps the resulting session in an encrypted cookie, and answers one question at the address `/oauth2/auth`: is this request's cookie a valid session, and is the person in the group named in the question? It has three answers. `202` means yes. `401` means nobody is signed in. `403` means someone is signed in and the answer is no.
+**oauth2-proxy decides.** It is an open-source program that is an OpenID Connect client of the identity provider, exactly like the orders site in the last topic's labs. It sends a browser with no session off to sign in (the code flow, with PKCE), keeps the resulting session in an encrypted cookie, and answers one question at the address `/oauth2/auth`: is this request's cookie a valid session, and is the person in the group named in the question? It has three answers. `202` means yes. `401` means nobody is signed in. `403` means someone is signed in and the answer is no.
 
 Its settings are one short file, `/etc/oauth2-proxy/oauth2-proxy.cfg`, and most of it is the client registration you met in the last topic:
 
@@ -99,11 +99,15 @@ location /wiki/ {
     error_page 401 = @sign_in;
     auth_request_set $user $upstream_http_x_auth_request_preferred_username;
     proxy_set_header X-User $user;
+    auth_request_set $new_cookie $upstream_http_set_cookie;
+    add_header Set-Cookie $new_cookie always;
     proxy_pass http://10.20.0.10:8080/;
 }
 ```
 
-`auth_request` makes nginx send a small subrequest first, here to an internal location that passes it to oauth2-proxy as `/oauth2/auth?allowed_groups=staff`. A 2xx answer lets the real request through to `proxy_pass`. A `401` is turned into a redirect to the sign-in by the `error_page` line. A `403` goes back to the browser as it is. The next two lines take the person's user name out of oauth2-proxy's answer and give it to the app in a header, `X-User`, replacing anything the browser sent under that name.
+`auth_request` makes nginx send a small subrequest first, here to an internal location that passes it to oauth2-proxy as `/oauth2/auth?allowed_groups=staff`. A 2xx answer lets the real request through to `proxy_pass`. A `401` is turned into a redirect to the sign-in by the `error_page` line. A `403` goes back to the browser as it is.
+
+The rest copies things out of oauth2-proxy's answer. `auth_request_set` puts one of the answer's headers into a variable of your own, and nginx names each header `$upstream_http_` followed by the header's name in lower case, with its dashes turned into underscores. So `X-Auth-Request-Preferred-Username`, the header in which oauth2-proxy names the person, is `$upstream_http_x_auth_request_preferred_username`, and `proxy_set_header` gives that name to the app in a header, `X-User`, replacing anything the browser sent under that name. The last pair does the same for `Set-Cookie`: when oauth2-proxy has renewed the session it sends a new cookie in its answer, and `add_header` hands it on to the browser (`always` means on every answer, a refusal included). Why that matters comes with continuous verification, below.
 
 The question itself lives in a location of its own, one for each group the apps ask about, plus a named location that sends the browser to sign in and back to the page it wanted:
 
@@ -162,7 +166,7 @@ location /payroll/ {
 
 Traffic between machines inside a data centre is called **east-west traffic** (north-south is traffic in and out of it). A perimeter firewall never sees it, which is why lateral movement was so easy. With a firewall on each machine, a break-in at the wiki stays a break-in at the wiki: payroll's firewall turns the wiki away, and the wiki's own won't even let it start a connection.
 
-Two habits from Module 1's firewalls matter more here than anywhere. Name the job, not the network: a rule that accepts a port from the whole subnet is protected only by every neighbour's good behaviour. And prove it by traffic, from every side: try each connection from each machine, and from one more.
+Two habits from Module 1's firewalls matter more here than anywhere. Name the job, not the network: a rule that accepts a port from the whole subnet is protected only by every neighbour's good behaviour, and the same goes out: payroll's one way out names the database's address as well as its port. And prove it by traffic, from every side: try each connection from each machine, and from one more. (Write each machine's rules as a table of the `inet` family, which covers IPv4 and IPv6 at once. A table of family `ip` leaves the machine's IPv6 address, which every machine has on its link, wide open.)
 
 That "one more" is the part people skip. Suppose an app accepts its port from the whole apps network, and every other machine there has outbound rules that stop it calling. Test from every existing machine and the app looks closed. Then somebody plugs in a test server with no firewall, or an attacker brings up a machine of their own. A segmentation test always includes a new machine.
 
@@ -193,15 +197,15 @@ Four things stretch a window, and a design review should ask about each.
 - **Caches after the enforcement point.** An app that remembers "this person is allowed" for a while, or a proxy told to remember its last answer, adds its own time to the proxy's. Windows along a path add up.
 - **Changes that travel slowly.** Microsoft's continuous access evaluation (CAE) lets Exchange, SharePoint and Teams hear about critical events, such as a disabled account or revoked sessions, in near real time, with a delay Microsoft puts at up to 15 minutes. Sessions that use it get tokens of up to 28 hours, because the events, not the clock, now end access. But a change to group membership or to a policy can take up to a day to reach those services. The fast lever is to revoke the person's sessions, which is one of the critical events. (Microsoft Learn, read 2026-11-23.)
 
-One more detail from the lab. The realm ends a refresh token the moment it has been used and issues a new one with each refresh, so a stolen refresh token dies at its first use by either side. The proxy must then hand the browser a new cookie after every refresh, which is what two short lines in the nginx file do. Leave them out and everyone is signed out at their second refresh.
+One more detail from the lab. The realm ends a refresh token the moment it has been used and issues a new one with each refresh, so a stolen refresh token dies at its first use by either side. The proxy must then hand the browser a new cookie after every refresh, which is what the `Set-Cookie` pair in the wiki's location does. Leave it out and the browser keeps presenting the old cookie, whose refresh token is already spent, so everyone is signed out at their second refresh.
 
 **From the VPN to the proxy, on the clouds and off them.** The three clouds each sell the access proxy as a service (pages read 2026-11-23).
 
 | | Service | How it works | What it costs |
 | --- | --- | --- | --- |
 | AWS | Verified Access | Evaluates each request against policies written in Cedar (the language from Authentication and authorization), using an identity provider and, optionally, a device-management service as "trust providers". Every request is refused until a policy allows it. | For each application by the hour ($0.27 an hour in US East (Ohio)) and for each GB ($0.02). |
-| Microsoft | Entra Private Access, part of Global Secure Access | A client on the device carries traffic for the private names and addresses you list to connectors beside the apps; Conditional Access decides. It carries whatever goes to those names and addresses, not only web pages. | Sold as licences, not by the hour. Its licensing page was not opened today, so no figure is given here. |
-| Google | Identity-Aware Proxy (IAP) | Checks the sign-in and an IAM role, `IAP-secured Web App User`, on each request; context-aware access can add further conditions. Google warns that anyone who can reach a VM's serving port directly goes round it. | Its pricing page couldn't be read today. |
+| Microsoft | Entra Private Access, part of Global Secure Access | A client on the device carries traffic for the private names and addresses you list to connectors beside the apps; Conditional Access decides. It carries whatever goes to those names and addresses, not only web pages. | A licence for each user, not by the hour. It comes in the Microsoft Entra Suite, listed at $12 a user a month paid yearly, and needs Entra ID P1 beside it. |
+| Google | Identity-Aware Proxy (IAP) | Checks the sign-in and an IAM role, `IAP-secured Web App User`, on each request; context-aware access can add further conditions. Google warns that anyone who can reach a VM's serving port directly goes round it. | No charge for apps hosted on Google Cloud; you pay for the load balancer it needs. Conditions on the device, and apps outside Google Cloud, are paid features of Chrome Enterprise Premium. |
 
 The agent, the connectors and the price differ. The rule underneath is the lab's: decide each request at a proxy, and make sure the app answers nothing else.
 
