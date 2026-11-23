@@ -1,0 +1,45 @@
+INCIDENT SHEET: the lab-results repository was public
+
+What happened
+  On 9 November 2026 a contractor pushed a copy of the lab-results
+  service's repository to a public mirror. It was public from 13:40 to
+  20:05 UTC, with its whole history. Treat everything in that history as
+  seen.
+
+The clinic's own addresses
+  198.51.100.128/25  the clinic's sites
+  192.0.2.64/28      the clinic's cloud (the results service calls out from 192.0.2.70)
+  Any other address is not the clinic's.
+
+What must be true when you are done
+  1. ~/incident/leaked.tsv lists what the clinic's scanner finds in the
+     repository's whole history, one finding a line: COMMIT PATH RULE
+     (the commit's id, the file's path, the scanner's rule id), separated by
+     spaces or tabs. The scanner's settings are /etc/gitleaks/server.toml.
+  2. A key that has leaked is no longer a secret: no key for the laboratory
+     that was ever in the history still works there. The results service
+     goes on fetching results, with a new key that only the service's own
+     user can read, that is in no environment and no unit, and that is in no
+     file of the repository. The repository's current files hold no secret.
+  3. The repository on the server refuses any push that brings a secret,
+     in any of its commits, by the clinic's scanner settings, and takes a
+     clean one.
+  4. The leaked certificate is revoked for key compromise, in a fresh CRL
+     published where the ward tablets read it (/srv/ca/public/issuing.crl).
+     The service serves a new certificate from the clinic's issuing CA,
+     with its chain, on a new private key that only the service's own user
+     can read.
+  5. ~/incident/exposure.txt says what the leaked key did, from the
+     laboratory's trail (/srv/incident/medilab-trail.log), once you know the
+     trail is the one the laboratory sent (its last hash is in
+     /srv/incident/medilab-trail.anchor). Three lines, exactly:
+       calls N        calls made with the leaked key from addresses that
+                      aren't the clinic's, whatever they asked and however
+                      they were answered
+       results R      how many patients' results those calls downloaded
+                      (fetches the laboratory refused don't count, and
+                      orders aren't downloads)
+       first TIME     the time of the first of those calls, as the trail
+                      writes it
+  Everything you change lasts a restart. The trail, the CA's root and the
+  tablets' program are evidence and scenery: leave them as they are.
