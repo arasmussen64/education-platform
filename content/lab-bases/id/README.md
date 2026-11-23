@@ -77,7 +77,7 @@ RUN netlab enable \
  && netlab seal /etc/netlab/topology /etc/netns/api/stock-api/api.conf /etc/netns/app/clock/hwclock /etc/netns/ntp/chrony/chrony.conf
 ```
 
-The draft topic `csa.sec.base-probes` has one whole lab in this shape, while it exists.
+`csa.sec.federation`'s labs are whole labs in this shape; its `example-trace-a-sign-in` carries the identity-lab onboarding.
 
 `idlab` is what makes "no secrets in the repository" true. Everything it makes is made at image build, so it differs in every build and is in no commit:
 
@@ -332,7 +332,7 @@ From the Module 4 brief, section 3.3, and from running the probe.
 
 ## Kernel and runner needs
 
-Everything the network base needs, and three things of this base's own. "Works" for Docker Desktop means seen on Docker Desktop 29.8.2 on 2026-11-22. **Nothing here has run on a GitHub runner yet:** the probe lab in `csa.sec.base-probes` is there so the Labs job shows each row.
+Everything the network base needs, and three things of this base's own. "Works" for Docker Desktop means seen on Docker Desktop 29.8.2 on 2026-11-22. Since 2026-11-23 identity labs run on GitHub's runners in every Labs job (first the base's probe lab, then `csa.sec.federation`'s six labs, 150 to 520 s each with four labs at once); the rows below that say only Docker Desktop are still untried there.
 
 | Need | Who | Docker Desktop | GitHub's runner |
 | --- | --- | --- | --- |

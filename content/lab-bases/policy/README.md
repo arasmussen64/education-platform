@@ -51,7 +51,7 @@ RUN chmod -R a+rX,go-w /home/learner/shop \
 USER learner
 ```
 
-The base ends as the learner, so a lab's own lines run between `USER root` and `USER learner`. `restart_trial: true` passes trivially (the policies are a file), and every lab still sets it. The probe lab `csa.sec.plain-probes/probe-refund-rules` is the pattern until the topic's own labs exist.
+The base ends as the learner, so a lab's own lines run between `USER root` and `USER learner`. `restart_trial: true` passes trivially (the policies are a file), and every lab still sets it. `csa.sec.authn-authz`'s labs are the pattern.
 
 One trap, met while building this: `COPY --chmod=644 file /new/folder/file` gives the **folder** it creates mode 644 as well, which nobody but root can enter. Copy into a folder and set modes in a `RUN`, as the base's own `Dockerfile` does.
 

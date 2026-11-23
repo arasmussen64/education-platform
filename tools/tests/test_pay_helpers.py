@@ -6,7 +6,8 @@ benchmark's crosswalk, the scanner's database, and the two tampering tools.
 The texts they are given here were captured from the real programs in the
 base's image on 2026-11-22 (systemd 255.4-1ubuntu8.19, OSV-Scanner 2.7.0,
 OpenSCAP 1.3.9); the programs themselves run in the probe lab's contract
-(csa.sec.pay-probes), not here.
+and in the labs built on the base (csa.sec.audit, csa.sec.vulnerabilities,
+csa.sec.compliance), not here.
 """
 
 # The captured outputs and the data stream's XML are kept as the programs
