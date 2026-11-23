@@ -1,0 +1,108 @@
+# The checks make throwaway people at the provider where they need them
+# (names starting chk-) and remove them in an EXIT trap, and run the
+# conditional-access case generator on the provider, which makes up its own
+# people and sign-ins. A check that finds something wrong prints what it found
+# and exits 0. Timeouts leave room for a CI runner, where Keycloak answers
+# several times slower than on a quiet laptop.
+checks:
+  - id: idp-ready
+    description: "The identity provider answers."
+    timeout: 30
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_ready && echo ready || echo "the identity provider isn't answering"
+    expect:
+      equals: ready
+  - id: admins-key-only
+    description: "An admin can only finish signing in with a security key: one with a password and an app code can't, one with a password alone can't and isn't offered a page to set up a key of their own, and one with a key gets in with a token that records the key."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-a$r
+      idp-user add shop "$u" "pw$r" --otp admins > /dev/null || { echo "couldn't make a test admin"; exit 0; }
+      trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$(cat /etc/idlab/otp/"$u")")
+      case $got in "{"*) echo "an admin finished signing in with a password and an app code"; exit 0 ;; esac
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r")
+      case $got in "{"*) echo "an admin finished signing in with a password alone"; exit 0 ;; esac
+      # Refused outright, not offered a page to set up a key of their own.
+      case $got in *required-action*) echo "an admin with no key was offered a page to set up a new credential after a password alone"; exit 0 ;; esac
+      open=$(kc get shop/authentication/required-actions | python3 -c "import json,sys; print(' '.join(a['alias'] for a in json.load(sys.stdin) if a['enabled'] and a['alias'] in ('webauthn-register', 'webauthn-register-passwordless', 'CONFIGURE_TOTP')))")
+      [ -z "$open" ] || { echo "the running realm lets a person set up a new key or code at sign-in: $open"; exit 0; }
+      toks=$(on office signin --code trace-cli "$red" "$iss" alice --key /etc/idlab/keys/alice.key)
+      case $toks in "{"*) ;; *) echo "alice couldn't sign in with her key: $(echo "$toks" | tail -n 1)"; exit 0 ;; esac
+      amr=$(printf '%s' "$toks" | python3 -c "import sys,json,base64; d=json.load(sys.stdin); p=d['id_token'].split('.')[1]; p+='='*(-len(p)%4); print(','.join(sorted(json.loads(base64.urlsafe_b64decode(p)).get('amr',[]))))")
+      case ",$amr," in *,hwk,*) echo keyed ;; *) echo "alice's token records amr=$amr: no key"; exit 0 ;; esac
+    expect:
+      equals: keyed
+  - id: staff-still-in
+    description: "A staff member still signs in with a password and an app code, and not with a password alone."
+    timeout: 75
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-s$r
+      idp-user add shop "$u" "pw$r" --otp staff > /dev/null || { echo "couldn't make a test staff member"; exit 0; }
+      trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$(cat /etc/idlab/otp/"$u")")
+      case $got in "{"*) ;; *) echo "a staff member with an app code was refused: $(echo "$got" | tail -n 1)"; exit 0 ;; esac
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r")
+      case $got in "{"*) echo "a staff member got in with a password alone"; exit 0 ;; esac
+      echo in
+    expect:
+      equals: in
+  - id: ca-rules
+    description: "The policies decide every made-up sign-in, by anyone but an emergency account, the way the shop's rules say: MFA for everyone, a phishing-resistant method for admins, a compliant device for payments, high risk and legacy clients blocked."
+    timeout: 45
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases rules
+    expect:
+      equals: ok
+  - id: emergency-gets-in
+    description: "Any member of emergency-access, today's two or one added tomorrow, who signs in with a key is allowed under every combination of signals, including ones that block everyone else."
+    timeout: 45
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases emergency
+    expect:
+      equals: ok
+  - id: exclusion-narrow
+    description: "A person in any group other than emergency-access, an admin's included, is still held to the blocking and restricting policies."
+    timeout: 45
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases exclusion-narrow
+    expect:
+      equals: ok
+  - id: policies-enforced
+    description: "Every policy is enforced except the one meant to be report-only, and none is deleted or disabled."
+    timeout: 20
+    command: |
+      on idp /usr/local/lib/lab-checks/policies-enforced
+    expect:
+      equals: enforced
+  - id: nothing-else-weaker
+    description: "What already held still holds: brute-force detection locks after five failed passwords or fewer, both emergency accounts are still watched, and neither gets in with a password alone."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      bf=$(kc get shop | python3 -c "import json,sys; d=json.load(sys.stdin); print('on' if d.get('bruteForceProtected') and 1 <= d.get('failureFactor', 0) <= 5 else 'off')")
+      [ "$bf" = on ] || { echo "brute-force detection no longer locks an account after five failed passwords or fewer"; exit 0; }
+      for u in bg-1 bg-2; do
+        tr -d ' \t\r' < /etc/shop/watched-accounts 2> /dev/null | grep -qx "$u" || { echo "$u is no longer on the watcher's list"; exit 0; }
+      done
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      for u in bg-1 bg-2; do
+        got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "$(password_of "$u")")
+        case $got in "{"*) echo "$u got in with a password alone"; exit 0 ;; esac
+      done
+      echo held
+    expect:
+      equals: held
+  - id: lasts
+    description: "The running realm is the one its file builds."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_saved shop
+    expect:
+      equals: saved

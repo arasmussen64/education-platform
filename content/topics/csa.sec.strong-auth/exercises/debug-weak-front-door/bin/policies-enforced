@@ -1,0 +1,26 @@
+#!/usr/bin/python3
+"""policies-enforced: prints 'enforced' when every conditional-access policy
+on the provider is enforced, except the one meant to be report-only (the
+admin-app compliant-device rule), and none is deleted or disabled. Otherwise
+prints what is wrong. Run on idp."""
+
+import glob
+import json
+
+bad = []
+seen = set()
+for path in sorted(glob.glob("/etc/shop/ca/*.json")):
+    d = json.load(open(path))
+    state = d.get("state")
+    apps = (
+        d.get("conditions", {}).get("applications", {}).get("includeApplications", [])
+    )
+    seen.add(tuple(apps))
+    if state == "disabled":
+        bad.append("a policy is disabled")
+    elif state == "enabledForReportingButNotEnforced" and apps != ["admin-app"]:
+        bad.append("a policy that should be enforced is report-only")
+for need in (["payments"], ["admin-app"]):
+    if tuple(need) not in seen:
+        bad.append("a policy is missing")
+print(bad[0] if bad else "enforced")

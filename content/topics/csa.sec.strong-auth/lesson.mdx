@@ -1,0 +1,161 @@
+<Intro>
+
+<Puzzle question="An admin types a password and a fresh six-digit code into a perfect copy of the sign-in page. Minutes later the attacker is signed in as the admin, though the code lasted only 30 seconds. How?">
+
+The copy was not just a copy. It was a relay: while the admin typed, it handed each answer straight to the real site, live. The password went through, then the code, well inside its 30 seconds. The real site, satisfied, set a session cookie, and the relay kept it. From that moment the attacker is the admin, with no further need of the code. Multifactor authentication happened; it changed nothing, because a password and a code are secrets the person types, and a site standing in the middle collects them like any other field on a form. This topic is about the one kind of sign-in that is built so a relay gets nothing it can use, and how to require it without locking your own people out.
+
+</Puzzle>
+
+The last topic put a sign-in on the wire: tokens, claims, the realm file, the scripted browser. This one asks a harder question than "who are you". It asks "how sure are we, and can that be faked". You will watch a password and a code be stolen by a site in the middle, see a security key shrug off the same attack, require a key for the people who need it, read from a token which methods a sign-in actually used, write the if-then rules that decide a sign-in's fate, keep an emergency way in that doesn't quietly become the weak spot, and turn it all on without locking anyone out.
+
+## A phishing site that beats MFA
+
+**Phishing** is tricking a person into handing a secret to an attacker's site dressed up as the real one, usually through a link in an email or a text. The classic defence is a second factor: even if the password leaks, the attacker lacks the code. That defence has a hole, and the hole has a name.
+
+An **adversary-in-the-middle relay** (AiTM) is a phishing site that does not just collect what you type and stop. It sits between you and the real site and passes everything through in real time. You see the real sign-in page, because the relay fetched it live. You type your password; the relay types it into the real site. The real site asks for your code; the relay shows you that page; you type the code; the relay types it in, well within the half-minute it is good for. The real site is convinced, and hands back a **session cookie**, the small value a site sets after a sign-in that stands in for the sign-in from then on. The relay keeps that cookie. Now the attacker holds a signed-in session: no password, no code, just the cookie, until it expires. Shown that cookie, the real site treats the attacker as the person and hands over fresh tokens without asking anything. (A good server takes each code only once, which stops nothing here: the relay is the one that uses it, within a second of its being typed.)
+
+Everything the person did was correct. They used a strong password and a real second factor. The weakness is not the person and not the code; it is that both are things you type, and anything you type into a page can be read by whoever controls that page. The padlock does not save you: a certificate proves you reached the name in the address bar privately, and an attacker can register a lookalike name (`login.shop-help.test`) and get a perfectly real certificate for it. The padlock is green and the page is a trap.
+
+One-time codes come in a few shapes, and a relay beats them all. A **one-time password** (OTP) is a short code good once or for a few seconds. The common kind is **TOTP** (time-based): your app and the server share a secret, and both turn it and the current clock into a six-digit code that changes every 30 seconds. A **push notification** sends a prompt to your phone that you approve with a tap; **number matching** makes you type a number shown on screen, which stops you approving a prompt you didn't start (push bombing) but does nothing against a relay that shows you the right number. A code sent by text message adds its own weaknesses: a **SIM swap**, where an attacker moves your number to their SIM, delivers your codes to them. CISA ranks these methods, strongest to weakest: FIDO/WebAuthn and smart cards at the top, then app codes and push with number matching ("vulnerable to phishing"), then push alone, then SMS and voice.
+
+<Story title="Cloudflare, July 2022: the keys that didn't care about the relay" source="https://blog.cloudflare.com/2022-07-sms-phishing-attacks/" sourceTitle="The mechanics of a sophisticated phishing scam and how we stopped it" license="linked, not copied">
+
+On the evening of 20 July 2022 (UTC), text messages went out to at least 76 Cloudflare employees, and some of their families, pointing at an official-looking address, `cloudflare-okta.com`, registered less than 40 minutes before. The page was a copy of the company's real sign-in. Three employees fell for it and typed their usernames and passwords, which the page passed on to the attackers at once, over the messaging service Telegram.
+
+And the attackers got nowhere. Cloudflare does not use one-time codes at all; every employee signs in with a FIDO2 security key. The stolen passwords were correct, and the sign-ins stopped at the key. Cloudflare's write-up credits the keys' origin binding: a key will not answer for a site that is not the one it was set up for, so even a real-time phishing operation like this one can't gather what it needs to sign in. No Cloudflare system was compromised.
+
+It is the puzzle's story with the ending changed. The same relay, the same stolen password; a different second factor, and a different outcome.
+
+</Story>
+
+<Check item="mcq-why-relay-works" />
+
+## Why a security key can't be relayed
+
+A **security key** is a small device (or a chip built into your laptop or phone) that holds a private key and signs a challenge to prove you are there. **FIDO2** is the standard behind it, and **WebAuthn** is the part your browser and the server speak. Here is the whole idea in one picture.
+
+When you register a key with a site, the key makes a new keypair just for that site's name and hands the site the public half. The site's name is the **relying party ID** (RP ID), a host name like `login.shop.test`. At each later sign-in the site sends a fresh random **challenge**; your browser wraps it together with the **origin** it is really on (the scheme, host and port in the address bar, `https://login.shop.test`), and the key signs the bundle with the private half it keeps. The site checks the signature with the public half it stored, and checks that the origin inside it is the site's own.
+
+Now put that key in front of the relay. The relay's page is served from `login.shop-help.test`. Three things stand in the attacker's way, each in a different place:
+
+- The **browser** will ask the key only for its own site's name. A page on `login.shop-help.test` cannot ask for a key registered to `login.shop.test`; the browser refuses before the key is even touched.
+- The **key** holds a credential only for the name it registered with. Even if the browser were tricked, the key has nothing for the lookalike.
+- And if both of those were somehow bypassed, the **server** checks the origin inside what was signed, and refuses a signature made for the wrong site.
+
+You will see all three in the topic's first lab. At the lookalike, the relay has rewritten the page to ask for a key for its own name, and the key answers `refused by the key: the security key has no credential for login.shop-help.test`. Told to lie about where it is, the lab's browser makes the key sign for the lookalike's origin at the real site, and the provider answers `Passkey origin mismatch.` and logs `webauthn-error-bad-origin`. The lab's key is a few lines of software playing a hardware key: it shows what the server checks (the challenge, the origin, the relying-party ID, the signature), and nothing about the PIN or fingerprint a real key asks for, which make of key someone holds, or passkeys synced between devices.
+
+There is nothing to type, so there is nothing for the relay to collect, and the one signature that is made is bound to the real site's name and useless anywhere else. That binding is why FIDO2 keys, passkeys and smart-card certificates are **phishing-resistant**: a method a relay cannot defeat, because the secret never leaves the device and the proof is tied to the real site. Passwords, one-time codes and push are not phishing-resistant, because they carry no such binding.
+
+A **passkey** is a WebAuthn credential that can stand in for the password entirely. A device-bound passkey, such as a hardware security key, keeps its private key on the one device and cannot be copied off it. A synced passkey is copied between your devices through a cloud account, which is convenient and recoverable but means the key is exportable by design.
+
+That distinction decides how strong a sign-in counts as. NIST's guidance (SP 800-63B-4, the 2025 revision of its digital identity guidelines) sets three **authenticator assurance levels**. AAL1 is the floor. At **AAL2**, verifiers "SHALL offer at least one phishing-resistant authentication option". **AAL3** is stricter: it requires a phishing-resistant authenticator whose private key cannot be exported, so a synced passkey, whose key is exportable, "SHALL NOT be used at AAL3", while a device-bound key qualifies. In plain terms: synced passkeys are phishing-resistant and fine for most things; a regulator who demands AAL3 wants a key that never leaves its hardware.
+
+NIST names the two ways a protocol can be phishing-resistant: **channel binding** (tying the proof to the encrypted connection, as client-authenticated TLS does) and **verifier name binding** (tying it to the verifier's name, as WebAuthn does). You do not need the cryptography; you need the consequence, which is that the proof is worthless to a site that is not the real one.
+
+One soft spot remains: **registration**. A key is only as trustworthy as the moment it was enrolled. If someone can add their first key after typing only a password, then a phisher who has the password can add *their own* key and pass every phishing-resistant check from then on. So the first key must be enrolled under a stronger proof: Microsoft Entra issues a short-lived **Temporary Access Pass** (TAP) for exactly this, so a new person can register a key without a weaker standing method. The key is strong; the door you let it in through must be too. An identity provider can open that door by itself: Keycloak, told a key is a must, offers a person who has none a page to register one, straight after the password, which is a phisher's invitation. So the labs' realm files switch that offer off (their `requiredActions`, with self-service set-up of keys and codes `"enabled": false`), and every key in them is handed out in advance, made when the lab is built: a person with no key is refused, never asked to enrol one.
+
+<Check item="mcq-aal3-synced" />
+
+## Offering a key isn't requiring it
+
+Giving people a key changes nothing on its own. If a sign-in can still be finished with a password and a code, the phisher simply steers the admin to the code, and the key sits unused. The rule is: **enforce the strength, don't just offer it.** While any phishable method still finishes an admin's sign-in, the phisher picks that one.
+
+An identity provider decides what a sign-in must pass with a **sign-in flow** (a flow, for short): a short tree of steps, written in the realm file like everything else in the federation topic's labs. Each step carries a requirement. `REQUIRED` means the sign-in cannot finish without passing it. `ALTERNATIVE` means it is one of several choices at its level, and passing any one of them is enough. `CONDITIONAL` marks a **sub-flow** (a group of steps) that runs only when its first step, a condition such as "the person has the role `admin`", is true. `DISABLED` means the step is skipped.
+
+The shop's flow asks for a password, and then, *if the person is an admin*, a security key as a must; everyone else gives an app code. In Keycloak, the labs' provider, that is two conditional sub-flows under the password step: one whose condition is "has the realm role `admin`" and whose step is the key, `REQUIRED`; and one whose condition is the same test turned around ("does not have the role `admin`") and whose step is the code, `REQUIRED`. A condition and the step after it are a pair: the condition picks *who*, the requirement says *how firmly*.
+
+Two ideas decide whether a flow like that really requires anything:
+
+- **Every way to finish counts.** A flow is as strong as its weakest path to "signed in". If any choice beside the key, or any path round it, still finishes an admin's sign-in with something typed, the phisher steers the admin onto that path and the key is decoration. When you read a flow, list every path that reaches the end, not just the one you meant.
+- **A condition that matches nobody fails open.** If a sub-flow's condition names a role no one actually holds (a group's name such as `admins` where the realm role is `admin`), it never fires, the whole sub-flow and its key are skipped, and admins sign in on whatever is left, often a password alone. Nothing crashes and nothing is blocked: the gate is there and opens for everyone. Only a test with a real admin shows it.
+
+Once the flow is right, how does an app, or an auditor, know a given sign-in used a key rather than a code? The token says so, in the **`amr`** claim ("authentication methods references"): a list such as `["pwd", "hwk"]` (a password and a hardware key) or `["pwd", "otp"]` (a password and an app code). The provider fills it in from the steps the sign-in passed, if each step is set up to record one: in Keycloak a step's settings give its reference value (`hwk`) and how long it counts for, in seconds. Leave the second out and the reference lapses at once, so `amr` loses steps depending on how many seconds the sign-in took, a puzzle the labs' realm files avoid by giving ten hours. An app can read `amr` to decide what to allow; a check can read it to prove the flow is really doing its job.
+
+Microsoft Entra says the same thing at a higher level. An **authentication strength** is a named list of the methods that count, and a policy can require one. Entra has three built in: *multifactor authentication* (any two factors: a password with a text code, a push or an app code counts), *passwordless MFA* (the password itself is gone: a phone sign-in or a key), and *phishing-resistant MFA* (only a FIDO2 key or passkey, Windows Hello for Business, or a certificate). A password and a push approval meets the first and neither of the others. The plain "require multifactor authentication" control and an authentication strength can't both go in one policy, because the built-in MFA strength *is* that control: you pick one. Asking for a stronger method only for the moment it matters (opening the admin console, approving a payment) is called **step-up**.
+
+<Check item="mcq-offer-or-require" />
+
+## Conditional access: if-then for sign-ins
+
+Requiring a key by role is one rule. Real organisations want many: this app needs a compliant device, that one is off-limits from risky sign-ins, legacy protocols are banned outright. Microsoft Entra's engine for this is **Conditional Access**, and its policies are, in Microsoft's own words, "if-then statements": *if* this user (or group, or role), for this app, under these conditions, *then* block, or grant only with these controls. They are evaluated after the first factor, at every sign-in.
+
+A policy has three parts. Its **assignments and conditions** say when it applies: which users, which apps, and which **signals** (the network location, the device's state, the sign-in's risk, the client type). Its **grant controls** say what it then demands: a **grant control** is `block`, or a requirement like multifactor authentication, an **authentication strength** (a named bar such as "phishing-resistant MFA"), or a **compliant device**.
+
+Several policies can apply to one sign-in, and they combine by a few fixed rules. Learn these; they are the whole game:
+
+- **Which policies apply.** Every condition a policy sets must match. An **exclusion beats an inclusion**: a person caught by both an include and an exclude is left out. This is how a dedicated group carries emergency accounts safely past a policy, and how a careless exclude group waves ordinary people through.
+- **What they demand.** If any applicable policy says **block**, the sign-in is blocked, and no grant can undo it: a block wins. Otherwise every applicable policy's controls must be met: within one policy you can require all of its controls (AND) or any one of them (OR); across policies it is always all of them.
+
+The signals are worth naming. **Device compliance** means a device is registered with the organisation and a management service (Microsoft's is Intune) reports it healthy: up to date, encrypted, locked; in a browser it proves which device it is with a client certificate, the same idea as the certificates in the PKI topic. **Sign-in risk** is the provider's live judgement that a particular sign-in may not be the real person (an odd location, a known-bad address); **user risk** is the same judgement about the account over time. **Report-only** is a third state a policy can be in, beside on and off, covered below.
+
+Two more conditions turn up in nearly every set of policies. **Legacy authentication** means old mail and sync protocols (in the words of Microsoft Graph, the API through which Entra's policies are read and written, the client types `exchangeActiveSync` and `other`) that send a password with each request and can't do a second factor at all, so a policy that demands MFA can never be met by them: they are simply blocked. A **named location** is a list of network addresses given a name, such as the warehouse's, and can be marked trusted. To say "contractors reach the portal only from the warehouse", a policy applies to every location (`"includeLocations": ["All"]`) except the warehouse (`"excludeLocations": ["warehouse"]`) and blocks: swap the two and you block the one place you meant to allow.
+
+In Graph's JSON, which the labs use, a policy reads almost like the sentence it encodes:
+
+```json
+{
+  "displayName": "Legacy authentication: block",
+  "state": "enabled",
+  "conditions": {
+    "users": { "includeUsers": ["All"], "excludeGroups": ["emergency-access"] },
+    "applications": { "includeApplications": ["All"] },
+    "clientAppTypes": ["exchangeActiveSync", "other"]
+  },
+  "grantControls": { "operator": "OR", "builtInControls": ["block"] }
+}
+```
+
+`state` is `enabled`, `disabled` or `enabledForReportingButNotEnforced` (report-only); `grantControls` holds `block`, or what a sign-in must have (`mfa`, `compliantDevice`, an `authenticationStrength`), with `operator` `AND` (all of them) or `OR` (any one).
+
+<Check item="mcq-block-wins" />
+
+**What it costs.** Conditional Access needs a Microsoft Entra ID **P1** licence ($7.00 per user per month, billed yearly, on Microsoft's pricing page on 2026-11-23). Acting on sign-in risk or user risk needs the risk signals from Entra ID Protection, a **P2** feature ($10.00). With no paid licence, the free floor is **security defaults**: an all-or-nothing baseline that makes everyone register for MFA, makes admins always use it, and blocks legacy authentication. It cannot be customised, but it is a real floor for a small shop.
+
+The course's proofs run against an open-source provider (Keycloak) and `ca-whatif`, a small model of these rules written from Microsoft's documentation, because Entra's engine needs a paid licence. The model is not Entra and not its What If tool; the ideas are the providers'. The three big clouds line up like this (each read on 2026-11-23):
+
+| | AWS | Microsoft Azure | Google Cloud |
+| --- | --- | --- | --- |
+| Phishing-resistant sign-in | IAM: passkeys and security keys recommended; MFA enforced for every root user | Entra: FIDO2 keys, Windows Hello, certificate-based auth; authentication strengths require them per app | 2-step verification with security keys among the methods |
+| Rules on device and context | no per-sign-in policy engine in IAM; condition keys like `aws:MultiFactorAuthPresent`; Verified Access for apps | Conditional Access (P1); risk signals (P2) | Access Context Manager access levels (IP, region, device), enforced by Identity-Aware Proxy (IAP) and IAM Conditions; device attributes need a paid tier |
+| Mandatory MFA for administration | the root user | Azure portal and admin centres (from October 2024); CLI, PowerShell, IaC and the REST control plane (from October 2025); emergency accounts included; no opt-out | the console, phased in: personal accounts from May 2025, non-SSO organisations from October 2026 |
+
+## Break glass: a way in that doesn't weaken anything
+
+Require a key for admins, block risky sign-ins, demand compliant devices, and one day the whole thing turns against you: the identity provider is down, the MFA service is out, the phone network is dead, the last admin has left, or a policy you just saved locks everyone out including yourself. A **break-glass account** (emergency access account) is the account you keep for that day. Microsoft's guidance is specific, and every part has a reason:
+
+- **Two or more, cloud-only.** Two, so one lost key is not a disaster. Cloud-only (on the provider's own domain, not federated from elsewhere), so they work when the thing that federates them is the thing that is down.
+- **A phishing-resistant key, different from the daily method.** A passkey or certificate, kept somewhere safe. Different from what the admins use every day, because if the daily method is what failed or got phished, an emergency account that shares it is no help. And mandatory MFA applies to these accounts too, so a long password alone is not allowed.
+- **Excluded only from the policies that block or restrict, through one dedicated group.** "Excluded" is not "unprotected": the account still has its strong key and is watched. You exclude it just from the policies that could stop it getting in, and you do it through a single group whose only members are the emergency accounts, so a later edit cannot slip an ordinary admin in. Report-only policies need no exclusion, because they never enforce.
+- **An alert on every sign-in, and a drill.** These accounts should almost never sign in, so every use is worth an alert someone reads: a real use means a real outage or an intrusion. And test them on a schedule (Microsoft says at least every 90 days, and after staff changes), because a credential kept for the worst day is worthless if it has quietly expired. (In the labs the alert comes from a small watcher that reads the identity provider's sign-in events, each a `type="LOGIN"` line that names the account, and writes an alert for the accounts on its list.)
+
+The hard part is proving the exclusion didn't quietly weaken everything else. The test is two-sided: the emergency account gets in during a simulated outage, *and* a made-up ordinary person in another group is still held to every policy. If both hold, the door is open for emergencies and no one else slipped through it.
+
+<Check item="mcq-bg-exclusion" />
+
+## Rolling out without locking yourself out
+
+A new sign-in rule can lock out a crowd you didn't expect. The tools for turning one on safely are all about seeing before enforcing.
+
+**Report-only** is a policy state in which the policy is worked out at every sign-in and written to the log, but never enforced: nobody is prompted or blocked. The log records "Report-only: Success" or "Report-only: Failure" (a sign-in it would have blocked) or "User action required" (one it would have prompted). You run a new block policy in report-only for a week, read how many "Failure" lines it drew, and only then decide. The **What If** tool does the same for one imagined sign-in: you describe a user, app and conditions, and it tells you which policies would apply and, for each that wouldn't, the first condition that didn't match. Microsoft's own lockout warning is to apply a sweeping policy to a small group first and keep at least one admin excluded until it is proven.
+
+A few numbers are worth carrying. A TOTP code changes every 30 seconds, and servers usually accept the step before and the step after as well, so a single code can be good for about 90 seconds, long enough for any relay. Guessing is not the threat: six digits is a million codes, and five tries at one code before a lockout is a one-in-200,000 chance (a server that also takes the codes either side gives each try three chances, about one in 67,000, still tiny), which is why the risk a code carries is relay, not guessing. That sum assumes a lockout exists. **Brute-force detection**, locking an account for a while after a set number of failed attempts, is a setting, and Keycloak ships with it off until a realm turns it on. And a report-only week turns a vague worry ("will this block people?") into a count you can act on.
+
+<Check item="est-totp-window" />
+
+To go deeper on the method ranking, CISA's fact sheet sits behind this whole topic:
+
+<Resource index={0} />
+
+</Intro>
+
+<Recap>
+
+- A **phishing relay** (adversary-in-the-middle) shows you the real sign-in page, passes your password and one-time code to the real site in real time, and keeps the **session cookie**. A password, an OTP, a push and an SMS code can all be relayed; the padlock proves only which name you reached.
+- A **security key** (FIDO2/WebAuthn) signs a challenge the browser binds to the real site's **origin**, and the key answers only for the **RP ID** it registered with; the server checks the origin too. Nothing is typed, so a relay gets nothing. These are **phishing-resistant**; passwords and codes are not.
+- NIST's **AAL2** requires that a phishing-resistant option at least be offered; **AAL3** requires one whose key can't be exported, so a **synced passkey** doesn't reach AAL3 but a device-bound key does. The weak moment is **registration**; enrol the first key under a stronger proof (a Temporary Access Pass).
+- **Offering a key is not requiring it.** Make a key the only way an admin finishes, with a flow (`REQUIRED`, inside a sub-flow whose condition really matches admins) or an **authentication strength**; any other path to "signed in", or a condition on a role nobody has (which fails open), undoes it. Entra's three built-in strengths are MFA, passwordless MFA and phishing-resistant MFA. The **`amr`** claim records which methods a sign-in used.
+- **Conditional access** is if-then: if this user, app and conditions, then block or require controls. Every applicable policy must be satisfied, a **block wins**, an **exclusion beats an inclusion**. It needs Entra ID **P1**, risk needs **P2**, and **security defaults** is the free floor.
+- A **break-glass account** is cloud-only, with a phishing-resistant key different from the daily method, excluded only through one dedicated group from blocking or restricting policies, watched by an alert and tested on a schedule. Prove it gets in while everyone else stays held.
+- Roll out with **report-only** and **What If** first, and an admin excluded. A code is good for about 90 seconds; guessing one before lockout is about 1 in 200,000; the risk is relay, not guessing.
+
+</Recap>

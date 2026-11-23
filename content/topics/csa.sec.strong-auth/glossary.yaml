@@ -1,0 +1,74 @@
+# The terms this topic teaches (ADR-0026, plan section 3.5). Federation owns
+# token, claim, realm, client, session and the identity-provider words;
+# Certificates and PKI owns "relying party"; Authentication and authorization
+# owns factor, MFA, policy and the policy decision/enforcement points. This
+# topic adds the strong-authentication and conditional-access words.
+- term: phishing
+  definition: Tricking a person into handing a secret (a password, a one-time code) to an attacker's site dressed up as the real one, usually through a link in an email or a text.
+- term: adversary in the middle
+  aliases: [AiTM, relay]
+  definition: An attack where a site sits between the person and the real sign-in page, passing each answer straight through in real time, so the person signs in to the real service and the attacker keeps the session.
+- term: session cookie
+  definition: The value a site sets after a sign-in, which stands in for the sign-in from then on, so whoever holds it is signed in without a password or a code.
+- term: one-time password
+  aliases: [OTP]
+  definition: A short code that is good once, or for a few seconds. The person reads it from an app or a text and types it as a second factor.
+- term: TOTP
+  definition: Time-based one-time password. A six-digit code worked out from a secret the app and the server share and the current time, changing every 30 seconds.
+- term: push notification
+  definition: A sign-in prompt sent to an app on the person's phone, which they approve with a tap. Number matching shows a number they must type back, to stop blind approvals.
+- term: SIM swap
+  definition: Persuading a phone network to move someone's number to the attacker's SIM, so that text-message codes arrive at the attacker's phone instead.
+- term: FIDO2
+  definition: The standard behind security keys and passkeys. The browser (through WebAuthn) and the key (through CTAP) sign a challenge bound to the real site, so a relay gets nothing it can use.
+- term: WebAuthn
+  definition: The part of FIDO2 the browser and the server speak. The server stores the key's public half at registration and checks a signature over a fresh challenge at each sign-in.
+- term: security key
+  aliases: [roaming authenticator]
+  definition: A small hardware device that holds a private key and signs sign-in challenges. Its key cannot be copied off it, so it is device-bound.
+- term: passkey
+  definition: A WebAuthn credential that can replace the password. A synced passkey is copied between a person's devices through a cloud account; a device-bound passkey (a security key) cannot be copied.
+- term: relying party ID
+  aliases: [RP ID]
+  definition: The site name a security key is registered against, a host name or a parent of it. The browser asks the key only for the page's own RP ID, which is why a lookalike site gets no answer.
+- term: origin
+  definition: The scheme, host and port a page is really served from, such as `https://login.shop.test`. WebAuthn puts the origin into what the key signs, and the server checks it.
+- term: phishing-resistant
+  definition: An authentication method a relay site cannot defeat, because the secret never leaves the device and the signature is bound to the real site's name. FIDO2 keys, passkeys and smart-card certificates are phishing-resistant; passwords, one-time codes and push are not.
+- term: AAL
+  aliases: [authenticator assurance level, AAL1, AAL2, AAL3]
+  definition: NIST's three levels of sign-in strength. AAL2 must offer a phishing-resistant option; AAL3 requires one with a key that cannot be exported, so a synced passkey does not reach AAL3.
+- term: authentication strength
+  definition: A named requirement for how strong a sign-in must be, such as "phishing-resistant MFA", that an identity provider checks before letting a person finish signing in.
+- term: sign-in flow
+  definition: An identity provider's tree of steps a sign-in must pass, each marked REQUIRED (a must), ALTERNATIVE (one choice among several), CONDITIONAL (a sub-flow that runs only when its condition is true) or DISABLED (skipped).
+- term: step-up
+  definition: Asking for a stronger sign-in method only at the moment it matters, such as opening an admin console or approving a payment, rather than at every sign-in.
+- term: brute-force detection
+  definition: Locking an account for a while after a set number of failed sign-in attempts, so a password or a code can't be guessed by trying again and again.
+- term: amr
+  definition: 'The "authentication methods references" claim in a token, a list of how the sign-in was done, such as ["pwd", "hwk"], that an app or a check can read.'
+- term: conditional access
+  definition: Rules of the form "if this person, for this app, under these conditions, then block or require these controls", worked out at each sign-in. Microsoft Entra's name for its policy engine.
+- term: signal
+  definition: Something known about a sign-in that a conditional-access rule can test, such as who, which app, the network location, the device's state, and the sign-in's risk.
+- term: grant control
+  definition: What a conditional-access rule demands before it lets a sign-in through, such as multifactor authentication, an authentication strength, a compliant device, or an outright block.
+- term: sign-in risk
+  definition: A provider's live judgement that a particular sign-in may not be the real person (an odd location, a known-bad address). User risk is the same judgement about the account over time.
+- term: device compliance
+  definition: A device registered with the organisation and reported healthy by a management service (Intune, say), meaning up to date, encrypted, with a screen lock. A rule can require it.
+- term: legacy authentication
+  definition: Old mail and sync protocols that send a password with each request and can't do a second factor, so conditional access blocks them rather than asking them for MFA they can never give.
+- term: named location
+  definition: A list of network addresses given a name (the warehouse, say) that a conditional-access rule can include or exclude, and that can be marked trusted.
+- term: report-only
+  definition: A conditional-access state in which a policy is worked out and logged at each sign-in but never enforced, so you can see what it would do before you turn it on.
+- term: break-glass account
+  aliases: [emergency access account]
+  definition: A cloud-only account kept for emergencies, with its own phishing-resistant key, excluded only from the policies that would block it, watched by an alert on every use, and tested on a schedule.
+- term: security defaults
+  definition: Microsoft's free, all-or-nothing baseline for a tenant with no paid licence, under which everyone registers for MFA, admins always use it, and legacy authentication is blocked.
+- term: Temporary Access Pass
+  aliases: [TAP]
+  definition: A short-lived pass an administrator issues so a person can register their first passkey without a weaker method, closing the gap at the moment a key is first added.

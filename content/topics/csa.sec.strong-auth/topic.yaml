@@ -1,16 +1,288 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.strong-auth
 kind: topic
-status: planned
+status: ready
 title: Strong authentication and conditional access
-summary: Require phishing-resistant MFA (FIDO2, passkeys).
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "Why a password and a one-time code can be phished and a security key cannot: an adversary-in-the-middle relay, seen for real, and the origin binding that defeats it. Requiring a strength by role in an identity provider and reading it from a token's amr claim; conditional-access policies in Microsoft Entra's shape and how they combine; a break-glass path that gets in without weakening anything; and rolling a policy out without locking anyone out."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections 2,
+# 3, 4.1 and 5) and its designer's brief (csa.sec.strong-auth.md), with what
+# building the identity lab base found (BUILD-NOTES.md and
+# content/lab-bases/id/README.md). Prerequisite: csa.sec.federation, which
+# teaches tokens, claims, the realm file, realm-apply/realm-saved, signin and
+# clocks, and owns the identity-lab onboarding; this topic points at its first
+# lab for the basics and does not repeat them. Through federation it reaches
+# csa.sec.authn-authz (factor, MFA, policy, the policy decision/enforcement
+# points, 401/403) and the network and PKI topics (TLS, certificates, origin).
+#
+# This topic defines, for the module (the plan's 3.5): phishing, adversary in
+# the middle, TOTP, FIDO2, WebAuthn, passkey, origin, AAL, authentication
+# strength, conditional access, report-only, break-glass account. "Relying
+# party" is Certificates and PKI's.
+prerequisites: [csa.sec.federation]
+# Worked out the README's way: lesson about 40 minutes (about 4,400 words with
+# its tables and one policy in JSON), the puzzle and story 3, 19 ladder recall items at 1.5 = 29, the
+# worked example 30, the fill-in 25, the write 35, the build 55, the debug 40,
+# and the explain 15; plus the clock-free conditional-access reading in the
+# lesson itself. About 300. No outside reading is assigned: every resource is
+# an optional "go deeper" link (ADR-0031: the lesson teaches the whole topic).
+estimated_minutes: 300
 rev: 1
 objectives:
-- Require phishing-resistant MFA (FIDO2, passkeys).
-- Write conditional-access policies on device compliance and sign-in risk.
-- Keep a break-glass path that doesn't weaken them.
+  - "Say which MFA methods a phishing relay can defeat and why: a password, a one-time code, a push and a text message can all be relayed to the real site in real time, while a security key or passkey signs a challenge the browser binds to the real site's name, so a relay gets nothing; and place each method on NIST's AAL levels."
+  - "Require a strength of authentication for a role, not just offer it: configure an identity provider so admins can only finish with a security key while others use an app code, read which methods a sign-in used from the token's amr claim, and explain why adding a key does nothing while a phishable method still lets an admin in."
+  - "Write conditional-access policies in Microsoft Entra's shape (assignments, conditions on risk, device, location and client, grant controls) and predict any sign-in's outcome: every applicable policy must be satisfied, a block wins, an exclusion beats an inclusion, a report-only policy is reported and never enforced; and know what each needs (P1, P2) and what the free security defaults give."
+  - "Keep a break-glass path that doesn't weaken anything: cloud-only emergency accounts with their own phishing-resistant keys, excluded only from the policies that block or restrict, through one dedicated group, with an alert on every use and a drill on a schedule; and prove with checks that they get in when the normal path fails and that nobody else gained a way round."
+  - "Roll a policy out without locking anyone out: report-only first, What If for the cases you can't wait for, an excluded admin, and the numbers: how long a code is good for, the odds of guessing one, and how many sign-ins a report-only week would block."
+# Facts, each read on 2026-11-23 unless noted.
+# Opened again by the topic's reviewer on 2026-11-23, each supported as
+# quoted below: NIST SP 800-63B-4 (sections 2.3.2 and 3.2.5), Entra pricing,
+# the Conditional Access overview, authentication strengths (ms.date
+# 2025-03-04: "You can't use the Require multifactor authentication and
+# Require authentication strength grant controls together"), security
+# defaults (ms.date 2025-07-21; it also blocks device code flow), emergency
+# access accounts (ms.date 2026-06-04: exclude from "any Conditional Access
+# policy that blocks or restricts sign-in", "Report-only policies don't
+# block access and don't require an exclusion", a dedicated group, alerts,
+# "at least every 90 days"), mandatory MFA (postponement allowed to 30
+# September 2025 for phase 1 and 1 July 2026 for phase 2, "There's no way to
+# opt out"), Google's 2SV dates, Cloudflare's post and CISA's table.
+# - NIST SP 800-63B-4 (the current revision superseding SP 800-63B of 2020;
+#   the page read carries the timestamp 26 Aug 2025): phishing resistance is
+#   "the ability of the authentication protocol to prevent the disclosure of
+#   authentication secrets ... to an impostor verifier"; its two methods are
+#   channel binding and verifier name binding (WebAuthn is the example of the
+#   latter); "Authenticators that involve the manual entry of an authenticator
+#   output (e.g., out-of-band and OTP authenticators) SHALL NOT be considered
+#   phishing-resistant"; passwords (3.1.1), out-of-band (3.1.3) and OTP (3.1.4)
+#   are "not phishing-resistant". "Verifiers SHALL offer at least one
+#   phishing-resistant authentication option at AAL2." AAL3: "The cryptographic
+#   authenticator used at AAL3 SHALL have a non-exportable private key and SHALL
+#   provide phishing resistance"; "syncable authenticators SHALL NOT be used at
+#   AAL3": pages.nist.gov/800-63-4/sp800-63b.html.
+# - CISA, "Implementing Phishing-Resistant MFA" (October 2022): strongest to
+#   weakest, FIDO/WebAuthn and PKI at the top, then app codes and push with
+#   number matching ("vulnerable to phishing"), then push without number
+#   matching, then SMS and voice ("vulnerable to phishing, SS7, and SIM swap");
+#   "The only widely available phishing-resistant authentication is
+#   FIDO/WebAuthn." US government work. Read again on 2026-11-23 by its
+#   second writer, from the text inside the 508 PDF: "October 2022"; "Table 1:
+#   MFA Forms, Strongest to Weakest"; OTP and push with number matching
+#   "Vulnerable to phishing attacks"; push without number matching "Vulnerable
+#   to push bombing attacks as well as user error"; SMS or voice "Vulnerable to
+#   phishing, SS7, and SIM swap attacks". The page is linked, not copied.
+# - Microsoft Entra Conditional Access overview (ms.date 2026-04-27): policies
+#   are "if-then statements", enforced "after first-factor authentication is
+#   completed"; "Block access is the most restrictive decision"; "Using this
+#   feature requires Microsoft Entra ID P1 licenses"; "Risk-based Conditional
+#   Access policies ... require Microsoft Entra ID Protection, which is a
+#   Microsoft Entra ID P2 feature"; security defaults are "available for all
+#   customers": learn.microsoft.com/en-us/entra/identity/conditional-access/overview.
+# - Microsoft, mandatory MFA for Azure (ms.date 2026-04-03): phase 1 from
+#   October 2024 (Azure portal, Entra and Intune admin centres; Microsoft 365
+#   admin centre from February 2025); phase 2 from 1 October 2025 (Azure CLI,
+#   PowerShell, mobile app, IaC tools, REST control plane; read operations
+#   excepted); break-glass accounts "are also required to sign in with MFA once
+#   enforcement begins"; workload identities aren't impacted:
+#   learn.microsoft.com/en-us/entra/identity/authentication/concept-mandatory-multifactor-authentication.
+# - Microsoft Entra pricing (read 2026-11-23, no date on the page): Entra ID P1
+#   $7.00, P2 $10.00 per user per month, billed yearly:
+#   microsoft.com/en-us/security/business/microsoft-entra-pricing.
+# - Google Cloud mandatory 2-step verification (read 2026-11-23): resellers
+#   from 28 April 2025, personal accounts from 12 May 2025, non-SSO Cloud
+#   Identity organisations created before 3 August 2026 from 20 October 2026
+#   (later ones 30 days after creation), federated accounts "to be announced";
+#   "Accounts with passkeys must still enable 2SV":
+#   docs.cloud.google.com/docs/authentication/mfa-requirement.
+# - The story: Cloudflare, "The mechanics of a sophisticated phishing scam and
+#   how we stopped it" (9 August 2022), read again 2026-11-23: messages from
+#   2022-07-20 22:50 UTC to "at least 76 employees" and some family members;
+#   cloudflare-okta.com registered "less than 40 minutes before"; three
+#   employees entered their credentials, "immediately relayed to the attacker
+#   via the messaging service Telegram"; the FIDO2 keys "implement origin
+#   binding"; "no Cloudflare systems were compromised"; "Cloudflare does not
+#   use TOTP codes": blog.cloudflare.com/2022-07-sms-phishing-attacks/.
+# - Tried on the identity base (Keycloak 26.8.2) on 2026-11-23, and the labs
+#   are built on what was seen: a sign-in flow written in the realm file that
+#   requires a security key for the admin role and an app code for everyone
+#   else (realm-saved round-trips it clean); the oidc-amr-mapper with a
+#   default.reference.value of pwd, otp or hwk on each step, giving amr
+#   ["pwd","hwk"] or ["pwd","otp"]; a security key baked into the realm file as
+#   a webauthn credential, which signs in after a restart; the relay on a second
+#   host (login.shop-help.test) over HTTPS from the lab CA, which carried a
+#   password-and-code sign-in through and caught the one-time code and the
+#   session cookie, while a security key was refused ("the security key has no
+#   credential for login.shop-help.test"); ca-whatif against the realm export;
+#   Keycloak's LOGIN events in the journal, which signin-watch reads; and
+#   brute-force detection set in the realm file. A lone ALTERNATIVE webauthn
+#   step behaves like REQUIRED on this base, so the fill-in rejects it by
+#   reading the file (the flow must say "a must"), and the build's and the
+#   debug's weakening fixes put an app code beside the key.
+# - Found and run again by the topic's second writer, 2026-11-23: the amr
+#   mapper drops a step whose reference config has no
+#   default.reference.maxAge (Keycloak 26.8.2's AmrUtils counts the age
+#   against 0), so amr came out ["hwk"] or ["pwd","hwk"] depending on whether
+#   the sign-in crossed a second; with "36000" it was ["pwd","hwk"] five times
+#   in five. The relay carries a password-and-code sign-in only with a code
+#   the provider hasn't taken yet (it takes each once), so the worked example
+#   waits for the next 30-second step; attacker-replay then got a token from
+#   the caught KEYCLOAK_IDENTITY cookie. With bruteForceProtected and
+#   failureFactor 5, five wrong passwords 1.2 s apart locked a person (the
+#   right password and code then refused); with failureFactor 6 they did not.
+#   A browser told to lie (signin --origin) is refused by the provider with
+#   "Passkey origin mismatch." and the event web_authn_authentication_error=
+#   "webauthn-error-bad-origin".
+# Licences, each read on 2026-11-23: CISA's and NIST's pages are US government
+# work (public domain); Microsoft Learn pages are under Microsoft Learn's terms
+# of use (linked); passkeys.dev is CC BY-NC-ND 4.0 (linked); the FIDO Alliance
+# and Microsoft pricing pages are each owner's (linked); Google Cloud's
+# documentation is CC BY 4.0 except as noted (linked). Nothing is copied in.
+resources:
+  - title: "Implementing Phishing-Resistant MFA (CISA, October 2022): the strongest-to-weakest table, and why FIDO/WebAuthn is the one widely available phishing-resistant method"
+    url: https://www.cisa.gov/sites/default/files/publications/fact-sheet-implementing-phishing-resistant-mfa-508c.pdf
+    type: reading
+    use: link
+    optional: true
+    license: "A work of the US government (public domain in the United States); linked, not copied"
+  - title: "NIST SP 800-63B-4, Digital Identity Guidelines: phishing resistance (channel binding and verifier name binding) and the AAL levels, including syncable authenticators at AAL3"
+    url: https://pages.nist.gov/800-63-4/sp800-63b.html
+    type: reading
+    use: link
+    optional: true
+    license: "A work of the US government (public domain in the United States); linked, not copied"
+  - title: "What are passkeys? (passkeys.dev): synced and device-bound passkeys, and how the browser and system keep a passkey to its own site"
+    url: https://passkeys.dev/docs/intro/what-are-passkeys/
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY-NC-ND 4.0; linked, not copied"
+  - title: "What is Conditional Access? (Microsoft Learn): the if-then model, the signals and decisions, the P1 and P2 split, and security defaults"
+    url: https://learn.microsoft.com/en-us/entra/identity/conditional-access/overview
+    type: reading
+    use: link
+    optional: true
+    license: "Microsoft Learn's terms of use; linked, not copied"
+  - title: "Manage emergency access admin accounts (Microsoft Learn): the break-glass design, the dedicated exclusion group, the alerts and the drill"
+    url: https://learn.microsoft.com/en-us/entra/identity/role-based-access-control/security-emergency-access
+    type: reading
+    use: link
+    optional: true
+    license: "Microsoft Learn's terms of use; linked, not copied"
+  - title: "Plan for mandatory Microsoft Entra multifactor authentication (Microsoft Learn): the phases, their dates, and that emergency accounts are covered too"
+    url: https://learn.microsoft.com/en-us/entra/identity/authentication/concept-mandatory-multifactor-authentication
+    type: reading
+    use: link
+    optional: true
+    license: "Microsoft Learn's terms of use; linked, not copied"
+  - title: "The mechanics of a sophisticated phishing scam and how we stopped it (Cloudflare, 2022): the real incident this topic's worked example runs"
+    url: https://blog.cloudflare.com/2022-07-sms-phishing-attacks/
+    type: reading
+    use: link
+    optional: true
+    license: "© Cloudflare; linked, not copied"
+practice:
+  - example-phish-two-ways
+  - relay-log-read
+  - mcq-why-relay-works
+  - mcq-why-key-resists
+  - mcq-aal3-synced
+  - mcq-padlock
+  - fill-require-a-key
+  - mcq-offer-or-require
+  - mcq-missing-role
+  - amr-read
+  - mcq-exclude-wins
+  - mcq-all-must-pass
+  - mcq-block-wins
+  - est-blocked-of-six
+  - mcq-report-only
+  - est-totp-window
+  - est-guess-odds
+  - est-report-only-impact
+  - write-ca-policies
+  - mcq-bg-exclusion
+  - mcq-bg-method
+  - mcq-bg-proof
+prove:
+  build: build-admin-sign-in
+  debug: debug-weak-front-door
+  explain:
+    prompt: |
+      Your company's admins sign in with passwords and an authenticator app, and an attacker has just phished one of them anyway. Explain, in your own words: how a phishing site gets past one-time codes, and what makes a security key or passkey different; how you would make admins use keys without leaving the old way open; the conditional-access policies you would write for admins, for everyone, and for a payments app, how they combine, and what they would cost on Entra; and how you would keep an emergency way in that does not become the weak spot, and prove it.
+    rubric:
+      - id: relay
+        required: true
+        description: "A phishing site relays the password and the one-time code to the real site within the code's short life, and keeps the session cookie the real site hands back, so MFA happens but doesn't help."
+      - id: origin-binding
+        required: true
+        description: "A security key signs a challenge the browser binds to the site's real origin, and the key answers only for the site it registered with; the server checks the origin too. Nothing is typed, so a relay has nothing to collect."
+      - id: require-not-offer
+        required: true
+        description: "Remove the phishable path for admins (an authentication strength, or a flow only a key can finish), so a key is the only way to finish; and enrol the first key under a stronger proof, because registration is the weak moment."
+      - id: ca-evaluation
+        required: true
+        description: "Every applicable policy must be satisfied, a block wins, an exclusion beats an inclusion, and report-only and What If come before enforcement; Conditional Access needs P1 and risk needs P2, with security defaults as the free floor."
+      - id: break-glass
+        required: true
+        description: "Two cloud-only accounts with phishing-resistant keys different from the daily method, excluded only through one dedicated group from the blocking or restricting policies, with an alert on every use and a drill on a schedule; and a test that others gained no way round."
+      - id: clouds-differ
+        required: false
+        description: "Any correct difference: AWS enforces MFA for root and recommends passkeys; Google is phasing in mandatory 2-step verification and models device context with access levels; Azure's mandatory MFA covers the portal and the command line, emergency accounts included."
+    model_answer: |
+      The phishing site is a relay. It shows the admin the real sign-in page, takes the password and the app code as they are typed, and passes them straight to the real site while the code is still good. The real site sets a session cookie, and the relay keeps it. From then on the attacker is the admin, with no need for the code again. The code did its job and still lost, because a code is a secret the person types, and a site in the middle collects it like any other field.
+
+      A security key is different because it signs a fresh challenge that the browser wraps with the real site's name, and the key only answers for the name it was registered with. At the lookalike site the browser asks for the wrong name and the key has nothing to give; even a browser told to lie is caught, because the server checks the name inside what was signed. There is nothing to type and nothing to relay.
+
+      To make admins actually use keys, I remove the phishable path: a flow (or an Entra authentication strength) where only a key finishes an admin sign-in, so adding a key is not enough on its own, the code has to stop working. I would enrol the first key under a stronger proof, such as a Temporary Access Pass, because whoever can register a key with just a password undoes the whole thing.
+
+      For conditional access I would require MFA for everyone, require a phishing-resistant strength for admins, require a compliant device for the payments app, block high sign-in risk, and block legacy authentication. Every policy that applies must be satisfied, a block always wins, and an exclusion beats an inclusion. I would try them in report-only and with the What If tool first. It needs Entra ID P1, and the risk policy needs P2; with no licence the free security defaults are the floor.
+
+      For the emergency way in I would keep two cloud-only accounts with their own passkeys, kept somewhere safe and different from the admins' daily method. I would exclude just those two, through one dedicated group, from the policies that block or restrict, and nothing wider. Every sign-in by them raises an alert someone reads, and a drill on a schedule proves they still get in. To show it didn't weaken anything, I test that an ordinary person in another group is still held to every policy while the emergency account gets in during a simulated outage.
+
+      The clouds differ: AWS enforces MFA for the root user and recommends passkeys, and Google is phasing in mandatory 2-step verification and models device context with access levels rather than a per-sign-in policy engine.
+review_pool:
+  - relay-log-read
+  - kc-event-read
+  - mcq-why-relay-works
+  - mcq-cisa-order
+  - mcq-aal3-synced
+  - mcq-registration-moment
+  - mcq-offer-or-require
+  - mcq-missing-role
+  - mcq-strength-table
+  - mcq-mfa-and-strength
+  - amr-read
+  - mcq-exclude-wins
+  - mcq-block-wins
+  - est-blocked-of-eight
+  - est-blocked-of-five
+  - est-licence-cost
+  - mcq-risk-licence
+  - mcq-device-compliance
+  - mcq-other-clouds
+  - mcq-bg-exclusion
+  - mcq-bg-method
+  - mcq-bg-mandatory-mfa
+  - mcq-bg-monitor
+  - mcq-bg-drill
+  - mcq-bg-proof
+  - est-totp-window
+  - est-guess-odds
+  - est-report-only-impact
+  - mcq-whatif-reason
+  - mcq-lockout-safety
+  - mcq-security-defaults
+# Labs short enough for a hands-on refresher in a review (ADR-0009, amended
+# 2026-11-16): the write lab is plain and quick; the fill-in runs an identity
+# provider and is kept out of reviews for time.
+review_labs:
+  - write-ca-policies
+skills:
+  - id: phishing-resistance
+    description: "Why a password, a one-time code, a push and a text message can be relayed by an adversary in the middle (the secret is typed, or the session cookie is taken) and why WebAuthn cannot (the browser and the key bind the signature to the real site's origin and relying-party id, and the server checks); CISA's strongest-to-weakest order; NIST's AALs, with a phishing-resistant option required at AAL2 and syncable authenticators barred from AAL3; registration as the weak moment; a phishing site with a valid certificate."
+  - id: authentication-strength
+    description: "Requiring a method by role or app rather than offering it: an identity provider's conditional sign-in flow (a role condition, then a security key as a must), Entra's three built-in authentication strengths and step-up; reading the amr claim; why a phishable alternative beside a strong method weakens it, and why a condition on a role nobody has fails open."
+  - id: conditional-access
+    description: "Policies as assignments, conditions and grant controls in Microsoft Entra's shape; how they evaluate (every applicable policy, assignments ANDed, an exclusion beats an inclusion, a block wins, grant controls ANDed or ORed); device compliance and sign-in risk; the P1 and P2 licences and the free security defaults; and the AWS and Google equivalents; the sums of blocked sign-ins and licence cost."
+  - id: break-glass
+    description: "Emergency access accounts: two or more cloud-only accounts with a phishing-resistant key different from the daily method, excluded only through one dedicated group from the policies that block or restrict, with an alert on every sign-in and a drill on a schedule; mandatory MFA applies to them too; and how checks prove they get in while nothing else got weaker."
+  - id: rollout-without-lockout
+    description: "Report-only and the What If tool (which names the first condition that didn't match), a staged rollout with an admin excluded, and reading report-only results; the numbers: how long a one-time code is accepted, the odds of guessing one before lockout, and how many sign-ins a report-only week would block."

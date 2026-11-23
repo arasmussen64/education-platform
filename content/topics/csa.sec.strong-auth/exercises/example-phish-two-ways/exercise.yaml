@@ -1,0 +1,40 @@
+id: example-phish-two-ways
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Phishing, two ways"
+prompt: |
+  This is the lesson's story, run for real. The shop signs people in at `https://login.shop.test` (the realm `shop`); admins finish with a security key, staff with a password and an app code. Four machines: `office` (10.0.5.2, the staff laptop), `idp` (10.0.5.10, the provider), `phish` (10.0.5.50, a lookalike at `https://login.shop-help.test` with its own valid certificate from the lab's CA, running a relay that passes a sign-in straight through to the real provider and writes what it catches to `/srv/relay.log`), and `attacker` (10.0.5.60, which runs `attacker-replay`). `ana` is staff (her app's secret is `/etc/idlab/otp/ana`); `alice` is an admin with a security key (`/etc/idlab/keys/alice.key`).
+
+  The basics of an identity lab (`signin`, `jwt show`, the realm file, `realm-apply`) are in `csa.sec.federation`'s first lab, `example-trace-a-sign-in`. Here `signin --code CLIENT REDIRECT ISSUER USER` plays both the app and the person's browser and prints the token response; `jq -r .id_token | jwt show` opens the ID token in it.
+
+  Type each line and read what it prints before the next. The shell remembers `iss`, `fake` and `red` only until you leave it: if you come back later, type lines 1 to 3 again first. You will see a password and a one-time code beaten by a relay, and a security key shrug it off.
+steps:
+  - label: "Ana signs in the ordinary way"
+    lines: "1-4"
+    note: "`signin --code` runs the whole sign-in, typing Ana's password and the code her app shows now, and prints the tokens. Line 4 opens the ID token and keeps its `amr` claim, which lists how she signed in: `pwd` (a password) and `otp` (a one-time code)."
+  - label: "Wait for a new code"
+    lines: "5"
+    note: "The provider takes each code once: a second sign-in with the code Ana just used would be refused (`Invalid authenticator code.`). A person would glance at the app again; line 5 waits for the next 30-second step, when her app shows a new code."
+  - label: "Ana clicks the link in the phishing email"
+    lines: "6-7"
+    note: "The same sign-in, pointed at `login.shop-help.test`. It works: tokens come back, and Ana saw nothing odd (a valid padlock, the shop's own page). The relay log shows what it kept as it passed each answer along: her user name, her password, her code, and the two session cookies the real site handed back once she was in. The code was good for long enough; the relay used it within a second."
+  - label: "The attacker uses the stolen session"
+    lines: "8"
+    note: "`attacker-replay` shows the real provider the `KEYCLOAK_IDENTITY` cookie the relay caught. The provider already treats that cookie as Ana's signed-in session, so it hands over a fresh token without asking anything: `signed in as ana without a password or a code`. MFA happened, and it didn't help."
+  - label: "Alice signs in with her key"
+    lines: "9"
+    note: "An admin. Her token's `amr` is `pwd` and `hwk`: a password and a hardware key."
+  - label: "Alice clicks the same link"
+    lines: "10-11"
+    note: "`refused by the key: the security key has no credential for login.shop-help.test`. The relay rewrote the page so it asks for a key for its own name, the name the browser is really on, and the key holds a credential only for `login.shop.test`, where it was registered. The last two lines of the relay log: it caught her user name and password and nothing else, and a password alone gets nobody past the key."
+  - label: "A browser that lies"
+    lines: "12-13"
+    note: "Suppose a broken browser asked the key for `login.shop.test` anyway while really on the lookalike. `--origin` makes `signin` report the lookalike's address inside what the key signs, as such a browser would, and the real provider refuses: `Passkey origin mismatch.` Its own log names the check (`webauthn-error-bad-origin`). That is the server's half of the binding: it reads the origin inside the signed data, so a relay gets nothing it can use even from a fooled browser."
+  - label: "What conditional access would say"
+    lines: "14-15"
+    note: "`ca-whatif` is a model of Microsoft Entra's Conditional Access, not Entra itself. The shop's one policy (`/etc/shop/ca/20-admins-phishing-resistant.json` on `idp`) asks the admins group for a phishing-resistant method at the admin app: it blocks Alice when she offers a password and a code, and allows her with a key. Requiring the strength, rather than just offering a key, is the lesson's next idea."
+skills: [phishing-resistance, authentication-strength, conditional-access]

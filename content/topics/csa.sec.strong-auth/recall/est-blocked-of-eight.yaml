@@ -1,0 +1,24 @@
+id: est-blocked-of-eight
+type: estimate
+rev: 1
+prompt: |
+  An app's policy grants access with "compliant device OR phishing-resistant MFA". Of 8 sign-ins, 5 satisfy at least one of the two, and 2 satisfy both.
+
+  How many are blocked? Exactly.
+unit: sign-ins
+answer: 3
+tolerance: { absolute: 0 }
+given: { total: 8, satisfy_either: 5, satisfy_both: 2 }
+working: total - satisfy_either
+mistakes:
+  - id: and-for-or
+    value: 6
+    working: total - satisfy_both
+    why: The grant is OR, so satisfying either control is enough. Reading it as AND would block everyone who lacks one.
+  - id: counted-allowed
+    value: 5
+    working: satisfy_either
+    why: That is how many got in, not how many were blocked.
+explanation: |
+  With an OR grant, a sign-in passes if it meets either control. 5 of 8 meet at least one, so 3 are blocked. The common slip is to read OR as AND and demand both: that would block the 6 who don't have both, far more than intended. Entra lets a policy say "require one of the selected controls" exactly so you can choose; the default is to require all.
+skills: [conditional-access]

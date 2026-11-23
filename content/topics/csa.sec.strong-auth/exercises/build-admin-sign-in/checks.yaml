@@ -1,0 +1,179 @@
+# The identity checks make their own throwaway people at the provider (names
+# starting chk-), sign them in for real, and remove them in an EXIT trap; no
+# check runs kc_saved while one exists. The conditional-access checks run the
+# case generator on the provider, which makes up its own people and sign-ins
+# and asks ca-whatif about the policies in /etc/shop/ca. A check that finds
+# something wrong prints it and exits 0. Timeouts leave room for a CI runner,
+# where Keycloak answers several times slower than on a quiet laptop.
+checks:
+  - id: idp-ready
+    description: "The identity provider answers."
+    timeout: 30
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_ready && echo ready || echo "the identity provider isn't answering"
+    expect:
+      equals: ready
+  - id: admins-key-only
+    description: "An admin can only finish signing in with a security key: one with a password and an app code can't, one with a password alone can't and isn't offered a page to set up a key of their own, and one with a key gets in with a token that records the key."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-a$r
+      idp-user add shop "$u" "pw$r" --otp admins > /dev/null || { echo "couldn't make a test admin"; exit 0; }
+      trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$(cat /etc/idlab/otp/"$u")")
+      case $got in "{"*) echo "an admin finished signing in with a password and an app code"; exit 0 ;; esac
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r")
+      case $got in "{"*) echo "an admin finished signing in with a password alone"; exit 0 ;; esac
+      # Refused outright, not offered a page to set up a key of their own.
+      case $got in *required-action*) echo "an admin with no key was offered a page to set up a new credential after a password alone"; exit 0 ;; esac
+      open=$(kc get shop/authentication/required-actions | python3 -c "import json,sys; print(' '.join(a['alias'] for a in json.load(sys.stdin) if a['enabled'] and a['alias'] in ('webauthn-register', 'webauthn-register-passwordless', 'CONFIGURE_TOTP')))")
+      [ -z "$open" ] || { echo "the running realm lets a person set up a new key or code at sign-in: $open"; exit 0; }
+      toks=$(on office signin --code trace-cli "$red" "$iss" alice --key /etc/idlab/keys/alice.key)
+      case $toks in "{"*) ;; *) echo "alice couldn't sign in with her key: $(echo "$toks" | tail -n 1)"; exit 0 ;; esac
+      amr=$(printf '%s' "$toks" | python3 -c "import sys,json,base64; d=json.load(sys.stdin); p=d['id_token'].split('.')[1]; p+='='*(-len(p)%4); print(','.join(sorted(json.loads(base64.urlsafe_b64decode(p)).get('amr',[]))))")
+      case ",$amr," in *,hwk,*) echo keyed ;; *) echo "alice's token records amr=$amr: no key"; exit 0 ;; esac
+    expect:
+      equals: keyed
+  - id: staff-two-factors
+    description: "Everyone who isn't an admin needs a password and an app code: a person with no second factor can't finish signing in, nor can one who has an app but gives only the password, and one who types the code gets in."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-s$r; n=chk-n$r
+      idp-user add shop "$u" "pw$r" --otp staff > /dev/null || { echo "couldn't make a test staff member"; exit 0; }
+      trap 'idp-user del shop '"$u"' > /dev/null 2>&1; idp-user del shop '"$n"' > /dev/null 2>&1' EXIT
+      idp-user add shop "$n" "pw$r" warehouse > /dev/null || { echo "couldn't make a second test person"; exit 0; }
+      got=$(on office signin --code trace-cli "$red" "$iss" "$n" --password "pw$r")
+      case $got in "{"*) echo "a person with no second factor got in with a password alone"; exit 0 ;; esac
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r")
+      case $got in "{"*) echo "a staff member got in with a password alone"; exit 0 ;; esac
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$(cat /etc/idlab/otp/"$u")")
+      case $got in "{"*) echo two ;; *) echo "a staff member with an app code was refused: $(echo "$got" | tail -n 1)"; exit 0 ;; esac
+    expect:
+      equals: two
+  - id: brute-force
+    description: "The realm file and the running realm both lock an account after at most five failed passwords, for at least a minute, counting failures over at least an hour; and an account really is locked after five."
+    timeout: 75
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      F=/etc/netns/idp/keycloak/realms/shop.json
+      setting() { python3 -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('bruteForceProtected', False)).lower(), d.get('failureFactor', 0))"; }
+      read -r fon fcount < <(setting < "$F" 2> /dev/null)
+      [ "$fon" = true ] && [ "${fcount:-0}" -ge 1 ] && [ "${fcount:-0}" -le 5 ] || { echo "the realm file doesn't turn brute-force detection on with a limit of five or less"; exit 0; }
+      read -r on count < <(kc get shop | setting)
+      [ "$on" = true ] && [ "${count:-0}" -ge 1 ] && [ "${count:-0}" -le 5 ] || { echo "the running realm doesn't lock after five failures or fewer"; exit 0; }
+      # A lock of a few seconds, or failures forgotten within seconds, lets a
+      # guesser go on for ever: Keycloak's own defaults are 60 s and 12 hours.
+      lasting=$(kc get shop | python3 -c "import json,sys; d=json.load(sys.stdin); lock=d.get('permanentLockout') or min(d.get('waitIncrementSeconds', 60), d.get('maxFailureWaitSeconds', 900)) >= 60; print('yes' if lock and d.get('maxDeltaTimeSeconds', 43200) >= 3600 else 'no')")
+      [ "$lasting" = yes ] || { echo "the running realm locks an account for less than a minute, or forgets failed passwords within the hour"; exit 0; }
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-b$r
+      idp-user add shop "$u" "pw$r" --otp staff > /dev/null || { echo "couldn't make a test person"; exit 0; }
+      trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
+      # Five wrong passwords, more than a second apart (Keycloak locks faster
+      # guessing anyway, whatever the limit), then the right password and code.
+      for i in 1 2 3 4 5; do on office signin --code trace-cli "$red" "$iss" "$u" --password "wrong$i$r" > /dev/null; sleep 1.2; done
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$(cat /etc/idlab/otp/"$u")")
+      case $got in "{"*) echo "after five wrong passwords the account still let the right one in"; exit 0 ;; esac
+      # Refused, and refused because the provider locked the account.
+      id=$(kc get "shop/users?username=$u&exact=true" | json "d[0]['id']")
+      held=$(kc get "shop/attack-detection/brute-force/users/$id" | json "str(d.get('disabled')).lower()")
+      [ "$held" = true ] && echo locked || echo "after five wrong passwords the right one was refused, but the provider doesn't hold the account as locked"
+    expect:
+      equals: locked
+  - id: emergency-key-only
+    description: "Each emergency account gets in with its own key, and neither gets in with a password alone."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      for u in bg-1 bg-2; do
+        toks=$(on office signin --code trace-cli "$red" "$iss" "$u" --key /etc/idlab/keys/"$u".key)
+        case $toks in "{"*) ;; *) echo "$u couldn't sign in with its key: $(echo "$toks" | tail -n 1)"; exit 0 ;; esac
+        got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "$(password_of "$u")")
+        case $got in "{"*) echo "$u got in with a password alone"; exit 0 ;; esac
+      done
+      echo keyed
+    expect:
+      equals: keyed
+  - id: emergency-alerts
+    description: "A sign-in by either emergency account adds a line naming it to the alerts log, and an ordinary staff sign-in adds none."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      log=/var/log/shop/alerts.log
+      start=$(cat "$log" 2> /dev/null | wc -l)
+      new() { tail -n +"$((start + 1))" "$log" 2> /dev/null; }
+      # The watcher reads the provider's events in order, so once bg-1's
+      # sign-in (the last) has an alert, ana's and bg-2's have been read too.
+      on office signin --code trace-cli "$red" "$iss" ana --otp-secret "$(cat /etc/idlab/otp/ana)" > /dev/null
+      on office signin --code trace-cli "$red" "$iss" bg-2 --key /etc/idlab/keys/bg-2.key > /dev/null
+      on office signin --code trace-cli "$red" "$iss" bg-1 --key /etc/idlab/keys/bg-1.key > /dev/null
+      seen_bg1() { new | grep -w 'bg-1' > /dev/null; }
+      wait_for 30 seen_bg1 || { echo "a sign-in by bg-1 raised no alert"; exit 0; }
+      new | grep -w 'bg-2' > /dev/null || { echo "a sign-in by bg-2 raised no alert"; exit 0; }
+      new | grep -w 'ana' > /dev/null && { echo "an ordinary staff sign-in raised an alert"; exit 0; }
+      echo alerted
+    expect:
+      equals: alerted
+  - id: emergency-group-exact
+    description: "The emergency-access group holds exactly the two emergency accounts, in the running realm and in the file."
+    timeout: 30
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      gid=$(kc get "shop/groups?search=emergency-access&exact=true" | json "d[0]['id']")
+      live=$(kc get "shop/groups/$gid/members" | json "' '.join(sorted(u['username'] for u in d))")
+      [ "$live" = "bg-1 bg-2" ] || { echo "the running realm's emergency-access group holds: $live"; exit 0; }
+      filed=$(python3 -c "import json; d=json.load(open('/etc/netns/idp/keycloak/realms/shop.json')); print(' '.join(sorted(u['username'] for u in d['users'] if '/emergency-access' in u.get('groups', []))))")
+      [ "$filed" = "bg-1 bg-2" ] || { echo "the file's emergency-access group holds: $filed"; exit 0; }
+      echo exact
+    expect:
+      equals: exact
+  - id: ca-lint
+    description: "Every conditional-access policy file is well formed."
+    timeout: 15
+    command: |
+      on idp ca-whatif --lint
+    expect:
+      equals: ok
+  - id: ca-rules
+    description: "The policies decide every made-up sign-in, by anyone but an emergency account, the way the shop's rules say: MFA for everyone, a phishing-resistant method for admins, a compliant device for payments, high risk and legacy clients blocked."
+    timeout: 40
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases rules
+    expect:
+      equals: ok
+  - id: ca-emergency-gets-in
+    description: "Any member of emergency-access who signs in with a key is allowed under every combination of signals, including ones that block everyone else."
+    timeout: 30
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases emergency
+    expect:
+      equals: ok
+  - id: ca-exclusion-narrow
+    description: "A person in any group other than emergency-access, an admin's included, is still held to the blocking and restricting policies."
+    timeout: 30
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases exclusion-narrow
+    expect:
+      equals: ok
+  - id: ca-new-policy-report-only
+    description: "The admin app's compliant-device policy is report-only: it blocks nobody, and shows a device that isn't compliant as a report-only failure and a compliant one as a success."
+    timeout: 15
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases report-only
+    expect:
+      equals: ok
+  - id: lasts
+    description: "The running realm is the one its file builds."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_saved shop
+    expect:
+      equals: saved

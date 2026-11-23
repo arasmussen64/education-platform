@@ -1,0 +1,24 @@
+id: est-blocked-of-five
+type: estimate
+rev: 1
+prompt: |
+  Only sign-ins from the trusted warehouse location may reach the portal; the rest are blocked. Of 5 sign-ins, 4 are from the warehouse and 1 from home.
+
+  How many are blocked? Exactly.
+unit: sign-ins
+answer: 1
+tolerance: { absolute: 0 }
+given: { total: 5, from_warehouse: 4 }
+working: total - from_warehouse
+mistakes:
+  - id: swapped
+    value: 4
+    working: from_warehouse
+    why: That blocks the warehouse sign-ins, the opposite of what's meant. The trusted location is the one left out of the block, through excludeLocations.
+  - id: allowed-all
+    value: 0
+    working: total - total
+    why: A location condition still makes the policy apply; it doesn't switch the block off.
+explanation: |
+  The block should catch everything that is not from the trusted location: 5 - 4 = 1. In Microsoft Graph you write this as a policy that applies everywhere (`includeLocations: ["All"]`) but excludes the trusted location (`excludeLocations`), with a block. Swap include and exclude and you block the one place you meant to allow and let the rest in.
+skills: [conditional-access]

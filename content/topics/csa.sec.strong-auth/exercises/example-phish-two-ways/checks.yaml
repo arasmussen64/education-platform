@@ -1,0 +1,42 @@
+# A worked example opens no follow-ups. These confirm the walkthrough's two
+# halves: the relay carried a sign-in all the way through and kept its session
+# (the learner ran it), and a key still can't be relayed (the check tries it
+# itself). A check that finds something wrong prints what it found and exits 0.
+checks:
+  - id: idp-ready
+    description: "The identity provider answers."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_ready && echo ready || echo "the identity provider isn't answering"
+    expect:
+      equals: ready
+  - id: relay-caught-a-session
+    description: "The relay's log holds a session cookie it kept from a sign-in it carried through during the walkthrough."
+    timeout: 30
+    command: |
+      grep 'caught session cookie: KEYCLOAK_IDENTITY=' /srv/relay.log > /dev/null 2>&1 && echo caught || echo "the relay's log holds no session yet: a relayed sign-in that finished leaves one"
+    expect:
+      equals: caught
+  - id: key-beats-relay
+    description: "A security key signed in through the lookalike site is refused: the key answers only for the real site."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      fake=https://login.shop-help.test/realms/shop; red=http://127.0.0.1:8400/callback
+      up() { on office curl -sk -m 2 -o /dev/null "$fake/.well-known/openid-configuration"; }
+      wait_for 12 up || { echo "the relay isn't answering"; exit 0; }
+      got=$(on office signin --code trace-cli "$red" "$fake" alice --key /etc/idlab/keys/alice.key | tail -n 1)
+      case "$got" in *"refused by the key"*) echo refused ;; *) echo "alice's key was not refused at the lookalike: $got" ;; esac
+    expect:
+      equals: refused
+  - id: whatif-shows-strength
+    description: "The conditional-access model blocks an admin who offers only a code for the admin app, and allows one with a key."
+    timeout: 30
+    command: |
+      b=$(on idp ca-whatif alice admin-app methods=pwd,otp | grep '^result:')
+      a=$(on idp ca-whatif alice admin-app methods=pwd,hwk | grep '^result:')
+      case "$b" in "result: block"*) ;; *) echo "an app code let an admin in: $b"; exit 0 ;; esac
+      case "$a" in "result: allow"*) echo strength ;; *) echo "a key did not let an admin in: $a"; exit 0 ;; esac
+    expect:
+      equals: strength

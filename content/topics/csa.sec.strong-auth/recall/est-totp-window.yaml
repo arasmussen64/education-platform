@@ -1,0 +1,24 @@
+id: est-totp-window
+type: estimate
+rev: 1
+prompt: |
+  A TOTP code changes every 30 seconds. To forgive clocks that don't quite agree, the server also accepts the code from one step before and one step after the current one.
+
+  For how many seconds in all can a single code be accepted? Exactly.
+unit: seconds
+answer: 90
+tolerance: { absolute: 0 }
+given: { step: 30 }
+working: step * 3
+mistakes:
+  - id: one-step
+    value: 30
+    working: step
+    why: That is one step only. The server also accepts the step before and the step after, so three steps are live.
+  - id: one-neighbour
+    value: 60
+    working: step * 2
+    why: That counts the current step and one neighbour. The server accepts a neighbour on each side, so three steps in all.
+explanation: |
+  Three 30-second steps are live at once: the current one, the one before and the one after. That is 90 seconds a single code can be used, not 30. For a relay this is generous: it has well over a minute to pass a code it collected on to the real site. The window exists so a slightly wrong clock doesn't reject a valid code, and it is the reason a code is "one-time" but not "one-instant".
+skills: [rollout-without-lockout]
