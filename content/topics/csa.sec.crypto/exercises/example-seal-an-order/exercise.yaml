@@ -16,7 +16,7 @@ prompt: |
   - **The transit engine**, under `transit/`, is OpenBao's key service: it keeps keys and encrypts and decrypts what it is sent, and never hands a key out.
   - **The audit log**, `/var/log/openbao/audit.log`, records every request. Only root can read it: `sudo tail`.
 
-  OpenBao must be opened with a key of its own each time it starts (unsealed). In these labs it unseals itself at boot from a key file made when the lab first started; Secrets explains that choice. A lab like this needs about 0.9 GB of disk for its image, once, and under 150 MB of memory.
+  OpenBao must be opened with a key of its own each time it starts (unsealed). In these labs it unseals itself at boot from a key file made when the lab first started; Secrets explains that choice. A lab like this needs about 1.2 GB of disk for its image, once, and under 150 MB of memory.
 
   **The lab.** The shop sends payment orders to its bank and keeps exports of its orders, card numbers included. In `~/orders` are `order.txt` (one payment order), `hmac.key` (a key the shop and the bank share) and `export.csv` (30 orders). OpenBao already has the transit key `orders`.
 
@@ -26,7 +26,7 @@ prompt: |
 steps:
   - label: "Meet OpenBao"
     lines: "1-4"
-    note: "`bao status` says OpenBao is unsealed (`Sealed false`) by a `static` seal, the key file. `bao token lookup` shows who you are to it: the token called `token-learner`, with the policy `lab-admin`. `bao secrets list` shows what is mounted where: `transit/` is the key service. `bao read transit/keys/orders` describes the shop's key without showing it: its type, `aes256-gcm96` (AES with a 256-bit key in GCM mode, with a 96-bit nonce), `exportable false` (the key can never be handed out), `latest_version 1`, and `min_decryption_version 1`, the oldest version that may still decrypt."
+    note: "`bao status` says OpenBao is unsealed (`Sealed false`) by a `static` seal, the key file. `bao token lookup` shows who you are to it: the token called `token-learner`, with the policy `lab-admin`. `bao secrets list` shows what is mounted where: `transit/` is the key service. `bao read transit/keys/orders` describes the shop's key without showing it: its type, `aes256-gcm96` (AES with a 256-bit key in GCM mode, with a 96-bit nonce), `exportable false` (the key can never be handed out), `auto_rotate_period 0s` (it doesn't rotate itself; `bao write transit/keys/orders/config auto_rotate_period=720h` would make it do so every 30 days), `latest_version 1`, and `min_decryption_version 1`, the oldest version that may still decrypt."
   - label: "A hash: a fingerprint anyone can take"
     lines: "5-6"
     note: "`sha256sum` prints the SHA-256 hash of the order, 64 hex digits. `sed` writes a copy with 100 changed to 900, and its hash shares nothing with the first: any change alters the whole fingerprint. But nothing secret went into either line. Whoever changes the order can run `sha256sum` too and send the new hash along."
