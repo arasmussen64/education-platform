@@ -62,12 +62,17 @@ checks:
     expect:
       equals: "on disk"
   - id: sealed-for-auditors
-    description: "The audit trail's newest file, with a sign-in made a moment ago in it, is sealed, and the key in /srv/auditors/verify-key validates it up to now."
+    description: "The audit trail's newest file, with a sign-in made a moment ago in it, is sealed every 10 seconds, by settings that outlast a reboot, and the key in /srv/auditors/verify-key validates it up to now."
     # The one wait of a check run: a seal is written every 10 seconds, so
     # the key can vouch for a new sign-in within about 20.
     timeout: 60
     command: |
       . /usr/local/lib/lab/trail.sh
+      # The first seal of a file is written when the file is opened, so a
+      # trail sealed once an hour looks sealed for its first hour: the
+      # interval is read off the key itself.
+      every=$(seal_interval /srv/auditors/verify-key)
+      [ -z "$every" ] || [ "$every" -eq 10 ] || { echo "the key in /srv/auditors/verify-key is for a trail sealed every $every seconds, not every 10"; exit 0; }
       sealed_now /srv/auditors/verify-key
     expect:
       equals: "sealed"

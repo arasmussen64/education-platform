@@ -52,13 +52,15 @@ seconds() {
 
 # bytes VALUE: a size as journald reads it ("8G", "7500M", a bare number of
 # bytes; K, M, G and T are powers of 1024), in bytes; nothing when it
-# isn't one.
+# isn't one. journald takes one letter and no more: it ignores "8GB"
+# ("Failed to parse size value") and keeps its default, so "8GB" isn't a
+# size here either.
 bytes() {
   python3 - "$1" << 'PY'
 import re, sys
-found = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([KMGTPE]?)B?", sys.argv[1].strip())
+found = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([BKMGTPE]?)", sys.argv[1].strip())
 if found:
-    print(int(float(found.group(1)) * 1024 ** " KMGTPE".index(found.group(2) or " ")))
+    print(int(float(found.group(1)) * 1024 ** max(" KMGTPE".find(found.group(2) or " "), 0)))
 PY
 }
 
@@ -79,6 +81,19 @@ rate_limit() {
   echo $((burst * 30 / interval))
 }
 
+# seal_interval KEYFILE: how many seconds apart the seals are that the key
+# in KEYFILE is for. A verification key ends "/START-INTERVAL", the
+# interval in microseconds, in hex; a key with another interval written on
+# it doesn't validate up to now. Prints nothing when there is no such key.
+seal_interval() {
+  local key every
+  key=$(cat "$1" 2> /dev/null | tr -d '[:space:]')
+  every=${key##*-}
+  case $key in */*-*) ;; *) return ;; esac
+  case $every in "" | *[!0-9a-f]*) return ;; esac
+  echo $((16#$every / 1000000))
+}
+
 # sealed_now KEYFILE: makes the shop record a sign-in and waits for the key
 # in KEYFILE to vouch for it. Prints "sealed", or one sentence about what
 # is wrong. The one wait of a check run: a seal is written every 10
@@ -88,6 +103,13 @@ sealed_now() {
   local key mark when said state from to try failures=0
   key=$(cat "$1" 2> /dev/null | tr -d '[:space:]')
   [ -n "$key" ] || { echo "there is no verification key in $1"; return; }
+  # Sealing has to be switched on by a file that outlasts a reboot:
+  # Seal=yes in a drop-in under /run seals until the next reboot only.
+  # (Unset counts: journald's own default is to seal once keys exist.)
+  case $(setting Seal) in
+    "" | yes | y | true | t | on | 1) ;;
+    *) echo "the audit journal's settings that outlast a reboot don't switch sealing on"; return ;;
+  esac
   [ -e "$journal_dir/system.journal" ] || { echo "the audit journal has no file of its own on disk"; return; }
   journalctl --file="$journal_dir/system.journal" --header 2> /dev/null | grep 'Compatible flags:.*SEALED' > /dev/null \
     || { echo "the audit journal's newest file is not a sealed one"; return; }
