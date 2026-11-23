@@ -108,8 +108,10 @@ def token(key, header, payload, sign="rs256", secret=b""):
     return signed + "." + b64url(key.sign(signed))
 
 
-def serve(port, path, keys):
-    """An issuer's two public documents, on 127.0.0.1:port."""
+def serve(port, path, keys, others=()):
+    """An issuer's two public documents, on 127.0.0.1:port. With others, a
+    second key set at /elsewhere/keys, which is no issuer's: the place a
+    forged token's own header points to."""
     issuer = f"http://127.0.0.1:{port}{path}"
     documents = {
         path + "/.well-known/openid-configuration": {
@@ -118,6 +120,8 @@ def serve(port, path, keys):
         },
         path + "/keys": {"keys": [key.jwk() for key in keys]},
     }
+    if others:
+        documents["/elsewhere/keys"] = {"keys": [key.jwk() for key in others]}
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
@@ -186,11 +190,13 @@ def sample(kind):
     print(made)
 
 
-def cases(issuer, audience, published, hidden):
-    """(what the case is, the token, the nonce argument or None, the line a
-    right script prints). Subjects, audiences and nonces are made up now."""
+def cases(issuer, audience, published, hidden, other_keys_uri):
+    """(what the case is, a function that makes the token when it is called,
+    the nonce argument or None). The function returns the token and the line
+    a right script prints. Tokens are made one at a time, just before each is
+    put to the script, so their times are right however slow the machine is.
+    Subjects, audiences and nonces are made up now."""
     old, new = published
-    now = int(time.time())
     out = []
 
     def add(
@@ -203,33 +209,33 @@ def cases(issuer, audience, published, hidden):
         raw=None,
         **claims,
     ):
-        sub = "u" + secrets.token_hex(4)
-        head = {"alg": "RS256", "typ": "JWT", "kid": key.kid}
-        head.update(header or {})
-        payload = {
-            "iss": issuer,
-            "sub": sub,
-            "aud": audience,
-            "iat": now - 5,
-            "exp": now + 300,
-        }
-        payload.update(claims)
-        payload = {k: v for k, v in payload.items() if v is not None}
-        secret = new.public_pem() if sign == "hmac" else b""
-        made = (
-            raw
-            if raw is not None
-            else token(key, head, payload, sign=sign, secret=secret)
-        )
-        out.append(
-            (
-                what,
-                made,
-                nonce_arg,
-                f"valid sub={sub}" if expect == "valid" else f"invalid: {expect}",
-            )
-        )
-        return made, payload
+        """A claim given as ("now", SECONDS) is a time: now plus that many."""
+
+        def make():
+            now = int(time.time())
+            sub = "u" + secrets.token_hex(4)
+            head = {"alg": "RS256", "typ": "JWT", "kid": key.kid}
+            head.update(header or {})
+            payload = {
+                "iss": issuer,
+                "sub": sub,
+                "aud": audience,
+                "iat": now - 5,
+                "exp": now + 300,
+            }
+            for name, value in claims.items():
+                if isinstance(value, tuple) and value[0] == "now":
+                    value = now + value[1]
+                payload[name] = value
+            payload = {k: v for k, v in payload.items() if v is not None}
+            secret = new.public_pem() if sign == "hmac" else b""
+            made = token(key, head, payload, sign=sign, secret=secret)
+            if raw is not None:
+                made = raw(made, payload)
+            want = f"valid sub={sub}" if expect == "valid" else f"invalid: {expect}"
+            return made, want
+
+        out.append((what, make, nonce_arg))
 
     other = "https://" + secrets.token_hex(4) + ".shop.test"
     nonce = secrets.token_hex(8)
@@ -255,17 +261,35 @@ def cases(issuer, audience, published, hidden):
         "audience",
         aud=audience + "-admin",
     )
-    add("a token that ran out 30 seconds ago", "valid", exp=now - 30)
+    add("a token that ran out 30 seconds ago", "valid", exp=("now", -30))
     add(
-        "a token that ran out five minutes ago", "expired", iat=now - 900, exp=now - 300
+        "a token that ran out 90 seconds ago",
+        "expired",
+        iat=("now", -400),
+        exp=("now", -90),
     )
-    add("a token that becomes valid in 30 seconds", "valid", nbf=now + 30)
-    add("a token that becomes valid in five minutes", "not-yet-valid", nbf=now + 300)
+    add(
+        "a token that ran out five minutes ago",
+        "expired",
+        iat=("now", -900),
+        exp=("now", -300),
+    )
+    add("a token that becomes valid in 30 seconds", "valid", nbf=("now", 30))
+    add(
+        "a token that becomes valid in 90 seconds",
+        "not-yet-valid",
+        nbf=("now", 90),
+    )
+    add(
+        "a token that becomes valid in five minutes",
+        "not-yet-valid",
+        nbf=("now", 300),
+    )
     add(
         "a token with no nbf, issued five minutes from now",
         "not-yet-valid",
-        iat=now + 300,
-        exp=now + 900,
+        iat=("now", 300),
+        exp=("now", 900),
     )
     add(
         "a good token that carries the nonce you were given",
@@ -294,12 +318,21 @@ def cases(issuer, audience, published, hidden):
         "a token from another issuer, which has also run out",
         "issuer",
         iss=issuer.replace("127.0.0.1", "127.0.0.2"),
-        exp=now - 300,
+        exp=("now", -300),
     )
     add(
         "a token signed by a key the issuer never published, under a name it never published",
         "key",
         key=hidden,
+    )
+    # The token brings its own key: the address of a key set that does hold
+    # the key that signed it (jku), and that key's certificate (x5c). Both
+    # are only the token's word. The key set to believe is the issuer's.
+    add(
+        "a token signed by an unpublished key, which its own header carries and points to",
+        "key",
+        key=hidden,
+        header={"jku": other_keys_uri, "x5c": hidden.jwk()["x5c"]},
     )
     add(
         "a token that names a published key and was signed by another",
@@ -307,18 +340,19 @@ def cases(issuer, audience, published, hidden):
         key=hidden,
         header={"kid": new.kid},
     )
-    good, payload = add(
+    add(
         "a token with no signature, whose header says none",
         "alg",
         sign="none",
         header={"alg": "none"},
     )
     add("a token whose header says HS256", "alg", sign="hmac", header={"alg": "HS256"})
-    made, payload = add("placeholder", "valid")
-    out.pop()
-    first, _, signature = made.split(".")
-    payload["sub"] = "admin"
-    changed = first + "." + b64url(json.dumps(payload).encode()) + "." + signature
+
+    def changed(made, payload):
+        first, _, signature = made.split(".")
+        payload = dict(payload, sub="admin")
+        return first + "." + b64url(json.dumps(payload).encode()) + "." + signature
+
     add(
         "a token whose payload was changed after it was signed",
         "signature",
@@ -327,9 +361,13 @@ def cases(issuer, audience, published, hidden):
     add(
         "a line that isn't a token at all",
         "format",
-        raw="hello-" + secrets.token_hex(6),
+        raw=lambda made, payload: "hello-" + secrets.token_hex(6),
     )
-    add("a token with only two parts", "format", raw=".".join(made.split(".")[:2]))
+    add(
+        "a token with only two parts",
+        "format",
+        raw=lambda made, payload: ".".join(made.split(".")[:2]),
+    )
     random.shuffle(out)
     return out
 
@@ -348,7 +386,9 @@ def run(script):
         for _ in range(20):
             port = random.randint(20000, 29999)
             try:
-                issuer, server = serve(port, "/realms/" + secrets.token_hex(4), in_set)
+                issuer, server = serve(
+                    port, "/realms/" + secrets.token_hex(4), in_set, [hidden]
+                )
                 break
             except OSError:
                 continue
@@ -357,8 +397,10 @@ def run(script):
             return 0
         threading.Thread(target=server.serve_forever, daemon=True).start()
         audience = "https://" + secrets.token_hex(4) + ".shop.test"
-        all_cases = cases(issuer, audience, published, hidden)
-        for what, made, nonce, want in all_cases:
+        elsewhere = f"http://127.0.0.1:{port}/elsewhere/keys"
+        all_cases = cases(issuer, audience, published, hidden, elsewhere)
+        for what, make, nonce in all_cases:
+            made, want = make()
             args = ["runuser", "-u", "learner", "--", script, issuer, audience] + (
                 [nonce] if nonce else []
             )
