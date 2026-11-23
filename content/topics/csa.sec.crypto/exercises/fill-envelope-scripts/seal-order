@@ -1,0 +1,23 @@
+#!/bin/bash
+# seal-order FILE: seals FILE as FILE.sealed, and leaves the key that
+# opens it, wrapped by OpenBao's orders key, as FILE.key.
+# It talks to OpenBao with the token in BAO_TOKEN, or yours when there is
+# none.
+set -euo pipefail
+
+[ $# -eq 1 ] && [ -f "$1" ] || {
+  echo "usage: seal-order FILE" >&2
+  exit 2
+}
+
+# Ask OpenBao for a new data key for this file. The answer is a small
+# table that holds the key twice: once as itself, once wrapped.
+answer=$(bao write -f ___)
+
+# The copy that is safe to keep goes beside the data.
+echo "$answer" | awk '$1 == "___" {print $2}' > "$1.key"
+
+# The other copy goes down a pipe to gcm and is never in a file.
+echo "$answer" | awk '$1 == "___" {print $2}' | gcm seal "$1" "$1.sealed"
+
+echo "sealed $1"

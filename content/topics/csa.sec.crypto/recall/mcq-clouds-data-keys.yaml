@@ -1,0 +1,16 @@
+id: mcq-clouds-data-keys
+type: mcq
+rev: 1
+prompt: |
+  An app needs a data key for each file it encrypts, kept wrapped by a key in the cloud's key service. How do the three clouds' key services differ in where that data key comes from?
+choices:
+  - "AWS KMS makes one for you; with Azure Key Vault and Google Cloud KMS you make your own and have it wrapped"
+  - "All three make a data key for you on request and return it both as itself and wrapped by your key"
+  - "Google Cloud KMS makes one for you; with AWS KMS and Azure Key Vault you make your own and have it wrapped"
+  - "None of them deals in data keys: each wants the file itself sent to it and returns it encrypted"
+answer: 0
+explanation: |
+  AWS KMS has `GenerateDataKey`, which returns a new data key twice, as itself and wrapped, as OpenBao's `transit/datakey/plaintext` does. Google's guidance is to generate the data key on your own machine and send it to Cloud KMS's `Encrypt` to be wrapped (which takes up to 64 KiB). Azure Key Vault has `wrapKey` and `unwrapKey` for a key you made: Azure Storage uses them on its own account key when you give it a customer-managed key. (Each provider's pages, read 2026-11-22.)
+
+  The envelope is the same on all three: the data key encrypts the file where the file is, and only the small key travels to the service. No cloud's key service takes whole files.
+skills: [envelope-encryption]

@@ -1,0 +1,16 @@
+id: mcq-why-not-kms-encrypt
+type: mcq
+rev: 1
+prompt: |
+  A developer wants to protect a 50 MB export by sending it to AWS KMS's `Encrypt` with the shop's KMS key, "so that the key never leaves KMS". Why won't that work?
+choices:
+  - "Encrypt takes at most 4,096 bytes in a call: it is made for keys, not files"
+  - "KMS keys are too weak for whole files and are rated for short messages only"
+  - "Encrypt accepts only data that has already been compressed and signed"
+  - "KMS bills by the byte, so a file of that size costs more than storing it"
+answer: 0
+explanation: |
+  `Encrypt` accepts at most 4,096 bytes with a symmetric key (AWS's API reference, read 2026-11-22); Google Cloud KMS's limit is 64 KiB. A key service is built to protect keys, so the way to keep the KMS key inside it and still encrypt a file is an envelope: ask for a data key (`GenerateDataKey`), encrypt the file on your own machine with AES-GCM under it, and keep the wrapped copy of the data key beside the file. Only 32 bytes ever go to KMS.
+
+  The key isn't weak: KMS's symmetric keys are AES-256-GCM. Nothing needs compressing or signing first. And KMS bills by the request, not the byte, which is one more reason not to turn a 50 MB file into more than 12,000 requests.
+skills: [envelope-encryption]

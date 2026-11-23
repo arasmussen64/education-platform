@@ -1,0 +1,30 @@
+id: debug-orders-wont-open
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Orders that won't open"
+prompt: |
+  The shop's server, the morning after a night of maintenance on its keys. Every part is described here, the broken and the working alike. OpenBao runs on it (its basics are in this topic's first lab), and your token may do anything there.
+
+  - **The archive**, `/srv/orders/archive`, holds 16 sealed orders: each `order-N.txt.sealed` (the order, encrypted by `gcm` under a data key of its own) with `order-N.txt.key` (that data key, wrapped by a key in OpenBao's transit engine) beside it. You are in the group that may write there.
+  - **The web front end's sealer** seals each order that arrives in `/srv/orders/incoming` into the archive. It is `/usr/local/bin/sealer`, run as the user `web` by `sealer.service`; its settings are in `/etc/shop/sealer.conf`, which it reads when it starts, and its token, with the policy `web-front`, is in `/etc/shop/sealer.token`. It logs to the journal: `journalctl -t sealer`.
+  - **The nightly report**, `/usr/local/bin/report-orders`, opens every archived order, with a token of its own (`/etc/shop/report.token`, policy `reporting`), and logs `opened N of M` and a line for each order it couldn't open: `journalctl -t report-orders`. `report-orders.timer` runs it at 02:00, and `sudo systemctl start report-orders` runs it now.
+  - **OpenBao's transit engine** holds the shop's keys: `bao list transit/keys`, `bao read transit/keys/NAME`. `bao policy read NAME` shows a policy.
+
+  Every night the report should open all of the shop's archived orders. Since last night it reports that it can't. And a penetration test (a paid attack on the shop's own systems, to find the holes before someone else does) found that the web front end's token can open archived orders too, which a program that only seals has no need to do.
+
+  There are three faults. Find each from what the programs log and what OpenBao says, and fix it at its cause. Fixing one can change what you see.
+
+  The rules of the fix:
+
+  - **No archived order's `.sealed` file may change.** Only the `.key` files beside them may.
+  - **The report's policy and token stay as they are:** the report may unwrap with the key `orders`, and nothing else.
+  - **The front end must still seal new orders,** and its token must be able to do nothing else.
+  - **Once nothing needs an old version of a key, nothing may be able to use it.**
+  - **The two programs and their units stay as they are.** `/etc/shop/sealer.conf` is yours to change (`sudo nano`).
+
+  When the report opens 16 of 16, run the checks.
+skills: [envelope-encryption, authenticated-encryption]

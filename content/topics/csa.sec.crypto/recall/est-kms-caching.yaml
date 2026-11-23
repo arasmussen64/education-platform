@@ -1,0 +1,30 @@
+id: est-kms-caching
+type: estimate
+rev: 1
+prompt: |
+  An app writes 2,000,000 objects a month and reads 6,000,000, with one AWS KMS request for each: a `GenerateDataKey` for a write, a `Decrypt` for a read, at $0.03 for every 10,000 requests. To save money, it starts to reuse each data key for 10 objects before asking for a new one. Reads go on as before: each still unwraps its object's key.
+
+  How many dollars a month does that save? Ignore the free requests. Within 5%.
+unit: US dollars
+answer: 5.4
+tolerance: { percent: 5 }
+given: { writes: 2000000, reads: 6000000, reuse: 10, price: 0.03, per: 10000 }
+# aws.amazon.com/kms/pricing/, read 2026-11-22: the page's example prices
+# requests at $0.03 per 10,000.
+working: (writes - writes / reuse) * price / per
+mistakes:
+  - id: saved-every-write
+    value: 6
+    working: writes * price / per
+    why: That saves every write's request. One object in ten still asks for a new data key.
+  - id: reads-too
+    value: 21.6
+    working: (writes - writes / reuse + reads - reads / reuse) * price / per
+    why: That cuts the reads by nine-tenths too. Reusing a key when writing saves nothing when reading, where each object's key is still unwrapped.
+prices_as_of: 2026-11-22
+prices_source: https://aws.amazon.com/kms/pricing/
+explanation: |
+  Writes fall from 2,000,000 requests to 200,000, which saves 1,800,000 requests: 1,800,000 ÷ 10,000 × $0.03 = $5.40 a month. The reads, three-quarters of the bill, don't change.
+
+  What it costs is the thing a fresh key per object was buying. Ten objects now stand or fall together if one data key leaks, and a reused key spends its supply of nonces ten times as fast. Caching data keys is a real technique (AWS's encryption SDK has it), with a limit on how many messages and how long a key may be reused; $5.40 is rarely the reason to do it.
+skills: [envelope-encryption]

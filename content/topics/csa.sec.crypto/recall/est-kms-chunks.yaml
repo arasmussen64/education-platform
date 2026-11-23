@@ -1,0 +1,24 @@
+id: est-kms-chunks
+type: estimate
+rev: 1
+prompt: |
+  Ignoring advice, a developer encrypts a 50 MiB file (52,428,800 bytes) by sending it to AWS KMS's `Encrypt` in pieces of 4,096 bytes, the most one request takes. How many requests is that? Exactly.
+unit: requests
+answer: 12800
+tolerance: { absolute: 0 }
+given: { size: 52428800, piece: 4096, mebibytes: 50 }
+# docs.aws.amazon.com/kms/latest/APIReference/API_Encrypt.html, read
+# 2026-11-22: "Encrypts plaintext of up to 4,096 bytes".
+working: size / piece
+mistakes:
+  - id: megabytes-as-millions
+    value: 12207
+    working: floor(mebibytes * 1000000 / piece)
+    why: That takes 50 MiB as 50,000,000 bytes. A mebibyte is 1,048,576 bytes, and the prompt gives the file's size in bytes.
+  - id: four-thousand
+    value: 13107.2
+    working: size / 4000
+    why: That divides by 4,000. The limit is 4,096 bytes.
+explanation: |
+  52,428,800 ÷ 4,096 = 12,800 requests, each a round trip to KMS, to do what one request and a local AES-GCM would do: ask for a data key, encrypt the file with it on the spot, keep the wrapped key. And to read the file back, 12,800 more. An envelope sends KMS 32 bytes, once to write and once to read, whatever the file's size.
+skills: [envelope-encryption]

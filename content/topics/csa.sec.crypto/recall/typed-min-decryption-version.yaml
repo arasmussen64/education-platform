@@ -1,0 +1,22 @@
+id: typed-min-decryption-version
+type: typed
+rev: 1
+prompt: |
+  The shop's `orders` key in OpenBao's transit engine is at version 4, and every wrapped data key has been rewrapped to version 4. Which setting of the key do you now raise to 4, so that versions 1 to 3 can no longer unwrap anything? Type the setting's name.
+kind: text
+case: sensitive
+answers:
+  - min_decryption_version
+mistakes:
+  - id: encryption
+    answers: [min_encryption_version]
+    why: "That one sets the oldest version that may still encrypt. Old ciphertexts would still open. The setting you want is about decrypting."
+  - id: latest
+    answers: [latest_version]
+    why: "That is the version new encryptions use, which OpenBao sets when the key is rotated. It retires nothing."
+  - id: rotate
+    answers: [rotate, auto_rotate_period]
+    why: "Rotating adds a new version and leaves the old ones usable. Retiring them is a separate setting."
+explanation: |
+  `bao write transit/keys/orders/config min_decryption_version=4`. From then on a ciphertext from an older version is refused: `ciphertext or signature version is disallowed by policy (too old)`. It comes last: rotate, rewrap every wrapped key, and only then retire. OpenBao archives the old versions and doesn't delete them, so lowering the setting brings them back.
+skills: [envelope-encryption]

@@ -1,16 +1,310 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.crypto
 kind: topic
-status: planned
+status: ready
 title: Applied cryptography
-summary: Choose symmetric or asymmetric encryption.
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "Using cryptography yourself, outside TLS: which tool for which job (symmetric, public-key, and the two together); what a hash, a MAC and a signature each prove, and how passwords are stored; why encryption needs authentication, and what a nonce is; envelope encryption with a key service, from data keys and policies to rotating, rewrapping and retiring a key, with the three clouds' key services side by side; and how strong a key is, and what quantum computers change."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections
+# 2, 3, 4.2 and 5) and its designer's brief (csa.sec.crypto.md), with the
+# vault base as it was built (content/lab-bases/vault/README.md).
+# The plan's prerequisite is csa.sec.authn-authz, for policy, least
+# privilege and separation of duties, which the key service half of this
+# topic applies to a key. Through it and Checkpoint 3 the topic builds on
+# csa.net.http-tls (symmetric and public-key encryption, key exchange,
+# forward secrecy, cipher suite), csa.net.dns (a signature and a hash, one
+# sentence each), csa.net.certificates (key pairs, the private key that
+# never leaves), csa.net.ipsec (which names HMAC in its proposals),
+# csa.net.layers (hex and bytes) and Module 1 (scripts, awk, sed, find,
+# systemctl, journalctl, sudo).
+# This topic defines, for the module (the plan's 3.5): plaintext,
+# ciphertext, hash, MAC and HMAC, signature in full, salt, AEAD, nonce,
+# hybrid and envelope encryption, data key, key encryption key, KMS, HSM,
+# key version, rewrap, OpenBao and its transit engine, security strength
+# and post-quantum cryptography. It is the first topic to use OpenBao, so
+# its first lab carries the onboarding that Secrets and Checkpoint 4 point
+# back to.
+prerequisites: [csa.sec.authn-authz]
+# Worked out: the lesson about 33 minutes (4,300 words with its tables, at
+# 130 a minute), 20 practice quick questions at 1.5 each 30, then the
+# worked example 35, the fill-in 25, the write 35, the build 50, the debug
+# 40 and the explain 20: about 270, and the puzzle and the story about 5
+# more. The plan's 305 counted 52 minutes of assigned reading, which is
+# optional now (ADR-0031, step 3) and so left out.
+estimated_minutes: 275
 rev: 1
 objectives:
-- Choose symmetric or asymmetric encryption.
-- Explain hashes, MACs and signatures.
-- Design envelope encryption.
+  - "Choose the right tool for a job: a symmetric key for data, public-key cryptography for wrapping keys, signing and agreeing keys, and the two together almost always; say why nobody encrypts a file with RSA, and why an encoding such as base64 protects nothing."
+  - "Tell a hash, a MAC and a signature apart by what each proves and who can make one, and pick the right one for a download, a webhook, a release, a stored password and a log that must not give away card numbers."
+  - "Use authenticated encryption, show why encryption without it can be edited without the key, keep a nonce unique under a key, and work out when a key has done its 2^32 encryptions."
+  - "Design and run envelope encryption with a key service: a data key for each object, wrapped by a key that never leaves the service; a policy that splits who seals from who opens; rotating, rewrapping and retiring key versions in that order; and how AWS KMS, Azure Key Vault and Google Cloud KMS differ and bill."
+  - "Read a key's security strength in bits, do the brute-force arithmetic, and say what the post-quantum transition changes and what it leaves alone."
+# Facts the lesson and the items rely on, each read on 2026-11-22 unless a
+# line says otherwise:
+# - AWS KMS Encrypt "Encrypts plaintext of up to 4,096 bytes"; RSA_2048
+#   with RSAES_OAEP_SHA_256 190 bytes (SHA_1 214; RSA_3072 318, RSA_4096
+#   446); GenerateDataKey returns "a plaintext data key and an encrypted
+#   copy"; an encryption context is "additional authenticated data", needs
+#   "an exact case-sensitive match" to decrypt, is "strongly recommended"
+#   and "may be displayed in plaintext in CloudTrail logs":
+#   docs.aws.amazon.com/kms/latest/APIReference/API_Encrypt.html
+# - AWS KMS keys "never leave the AWS KMS FIPS 140-3 Security Level 3
+#   validated hardware security modules unencrypted"; symmetric operations
+#   are AES-GCM with 256-bit keys; envelope encryption defined; ML-DSA
+#   (44, 65, 87) and ML-KEM (512, 768, 1024) key specs:
+#   docs.aws.amazon.com/kms/latest/developerguide/kms-cryptography.html
+# - AWS KMS rotation: optional for customer managed keys, every 365 days
+#   by default once enabled, or on demand; the KMS key "is the same logical
+#   resource"; all key material is retained; "Key rotation has no effect on
+#   the data that the KMS key protects. It does not rotate the data keys
+#   ... or re-encrypt any data"; ReEncrypt is a cryptographic operation:
+#   docs.aws.amazon.com/kms/latest/developerguide/rotate-keys.html. (The
+#   designer's "90 to 2,560 days" is on another page, not opened today, so
+#   the lesson doesn't give it.)
+# - AWS KMS prices: "$1/month (prorated hourly)" a key; "the first and
+#   second rotation of the key adds $1/month"; the page's example prices
+#   requests at $0.03 per 10,000 after "a free tier of 20,000
+#   requests/month": aws.amazon.com/kms/pricing/
+# - Google Cloud: "Generate DEKs locally", "256-bit Advanced Encryption
+#   Standard (AES) in Galois Counter Mode (GCM)", "Store the encrypted data
+#   and the wrapped DEK", Encrypt and Decrypt take at most 64 KiB:
+#   docs.cloud.google.com/kms/docs/envelope-encryption. Rotation "creates
+#   new active key versions"; "data encrypted with previous key versions
+#   isn't automatically re-encrypted"; "Previous key versions remain active
+#   and incur costs until they are destroyed"; "such as every 90 days":
+#   docs.cloud.google.com/kms/docs/key-rotation
+# - Azure Key Vault: a rotation policy creates a new key version; rotation
+#   time's "minimum value is seven days"; "rotate encryption keys at least
+#   every two years"; "Key rotation re-wraps data encryption keys (DEKs)
+#   with the new key version - it does not re-encrypt the underlying data.
+#   Both old and new key versions must remain enabled until re-wrapping is
+#   complete"; versionless key URI (ms.date 2026-04-10):
+#   learn.microsoft.com/en-us/azure/key-vault/keys/how-to-configure-key-rotation.
+#   Azure Storage "wraps the account encryption key with the
+#   customer-managed key", needs wrapkey, unwrapkey and get, checks for a
+#   new version "only once daily", "wait 24 hours before disabling the
+#   older version" (ms.date 2026-08-18):
+#   learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview.
+#   Azure's and Google's prices were not read, so the lesson gives AWS's
+#   alone.
+# - NIST SP 800-38D, section 8.3: "The total number of invocations of the
+#   authenticated encryption function shall not exceed 2^32 ... with the
+#   given key" (the PDF's text, extracted):
+#   nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
+# - NIST SP 800-57 Part 1 Rev. 5, Table 2: 112 bits = 3TDEA, RSA 2048,
+#   ECC 224-255 (the PDF's text, extracted; the 128 and 256 rows as the
+#   designer read them on 2026-11-12):
+#   nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57pt1r5.pdf
+# - NIST IR 8547, "Transition to Post-Quantum Cryptography Standards",
+#   final, 27 October 2026 (csrc.nist.gov/pubs/ir/8547/final). Its Tables 2
+#   and 4 (the PDF's text, extracted): ECDSA, EdDSA and RSA signatures and
+#   finite-field and elliptic-curve DH and MQV, "Deprecated after 2030",
+#   "Disallowed after 2035"; "all NIST-approved symmetric primitives that
+#   provide at least 128 bits of classical security are believed to meet
+#   the requirements of at least Category 1"; "harvest now, decrypt later";
+#   ML-KEM (FIPS 203) "the only approved post-quantum key-establishment
+#   scheme"; a hybrid's "derived keys remain secure if at least one of" its
+#   parts is: nvlpubs.nist.gov/nistpubs/ir/2026/NIST.IR.8547.pdf
+# - OWASP: Argon2id "with a minimum configuration of 19 MiB of memory, an
+#   iteration count of 2, and 1 degree of parallelism"; bcrypt work factor
+#   "a minimum of 10", "72 bytes"; "PBKDF2-HMAC-SHA256: 600,000
+#   iterations"; a salt is "unique, randomly generated":
+#   cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+# - GitHub webhooks: X-Hub-Signature-256, "an HMAC hex digest", starts
+#   "sha256=", compare in "constant time":
+#   docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
+# - "Kubernetes Secrets are, by default, stored unencrypted in the API
+#   server's underlying data store (etcd)":
+#   kubernetes.io/docs/concepts/configuration/secret/
+# - OpenBao's transit engine: aes256-gcm96 is the default key type; rewrap
+#   "does not reveal the plaintext data"; versions below
+#   min_decryption_version are archived; rotate before about 2^32
+#   encryptions by a key version: openbao.org/docs/secrets/transit/
+# - The story: CSO Online, "Adobe confirms stolen passwords were encrypted,
+#   not hashed" (4 November 2013). The plan's first source, the Australian
+#   Information Commissioner's investigation report, answered 403 to every
+#   fetch on the day, at both of its addresses, so the story tells only
+#   what CSO's article says.
+# Tried in this topic's labs (OpenBao 2.7.2, OpenSSL 3.0.13, age 1.1.1,
+# the Python cryptography library 41.0.7 on Ubuntu 24.04, the vault base),
+# 2026-11-22: transit's encrypt, decrypt, datakey/plaintext, rotate,
+# rewrap and min_decryption_version, with the two refusals quoted in the
+# lesson; policies of one path and `bao token capabilities`; the audit
+# log's hmac-sha256 values and sys/audit-hash; `plaintext=-` reading a
+# value from standard input; an exportable key can't be made
+# non-exportable again; `openssl enc` refuses GCM; the CTR bit flip;
+# Ed25519 signing with `openssl pkeyutl -rawin`; age's header for two
+# recipients (3,000 bytes in, 3,298 out); `openssl speed`: AES-256-GCM
+# 6,827,704 kB/s at 8,192-byte blocks, RSA-2048 1,985 signs/s and 68,590
+# verifies/s on the owner's PC (machine-dependent, and said so).
+# Every output in the lesson, the labs and the recall items marked
+# "captured" is real output of those labs; keys, tokens and ciphertexts
+# differ in a new run.
+#
+# Linked, never copied: the reading importer (tools/import_reading.py)
+# knows none of these sites, so every page is an optional "go deeper" link
+# and the lesson's own text carries the topic (ADR-0031, step 3).
+# Licences, each read on 2026-11-22: Google's documentation pages are CC
+# BY 4.0 "except as otherwise noted" (Google's site policies; the footer
+# wasn't in the text fetched); Nakov's book is MIT (its repository's
+# README: "published under the MIT license"; the pages themselves name
+# none); OWASP's cheat sheets are CC BY-SA 4.0 (the page); OpenBao's site
+# says "Copyright (c) 2026 OpenBao a Series of LF Projects, LLC" (its
+# documentation is in the openbao/openbao repository, MPL-2.0); AWS's
+# documentation is (c) Amazon Web Services; Microsoft's is CC BY 4.0 as
+# Module 3 recorded MicrosoftDocs content (this page's own repository is
+# private); NIST's publications are US government work.
+resources:
+  - title: "Envelope encryption (Google Cloud): the pattern in one short page, from a provider"
+    url: https://docs.cloud.google.com/kms/docs/envelope-encryption
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "Hash Functions (Practical Cryptography for Developers, Svetlin Nakov): what a cryptographic hash is, with SHA-256 and SHA-3 examples in code"
+    url: https://cryptobook.nakov.com/cryptographic-hash-functions
+    type: reading
+    use: link
+    optional: true
+    license: "MIT (the book's repository); linked, not copied"
+  - title: "MAC and Key Derivation (Practical Cryptography for Developers): MACs and HMAC, with an example; its title promises key derivation, which it only touches"
+    url: https://cryptobook.nakov.com/mac-and-key-derivation
+    type: reading
+    use: link
+    optional: true
+    license: "MIT (the book's repository); linked, not copied"
+  - title: "Cipher Block Modes (Practical Cryptography for Developers): CTR and GCM, the IV, and authenticated encryption"
+    url: https://cryptobook.nakov.com/symmetric-key-ciphers/cipher-block-modes
+    type: reading
+    use: link
+    optional: true
+    license: "MIT (the book's repository); linked, not copied"
+  - title: "Password Storage Cheat Sheet (OWASP): the algorithms and their settings, and why hashing and not encryption"
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY-SA 4.0 (the page); linked, not copied"
+  - title: "Transit secrets engine (OpenBao): every path the labs use, and its advice on when to rotate"
+    url: https://openbao.org/docs/secrets/transit/
+    type: reading
+    use: link
+    optional: true
+    license: "MPL-2.0 (the openbao/openbao repository, which holds the site); linked, not copied"
+  - title: "AWS KMS cryptography essentials (AWS): look for \"Envelope encryption\""
+    url: https://docs.aws.amazon.com/kms/latest/developerguide/kms-cryptography.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Rotate AWS KMS keys (AWS): what rotation changes and what it leaves alone"
+    url: https://docs.aws.amazon.com/kms/latest/developerguide/rotate-keys.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Configure cryptographic key auto-rotation in Azure Key Vault (Microsoft Learn): the rotation policy and its note on rewrapping"
+    url: https://learn.microsoft.com/en-us/azure/key-vault/keys/how-to-configure-key-rotation
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0 (as Module 3 recorded Microsoft's documentation; this page's repository is private); linked, not copied"
+  - title: "Transition to Post-Quantum Cryptography Standards, NIST IR 8547 (final, October 2026): the plan and its dates"
+    url: https://csrc.nist.gov/pubs/ir/8547/final
+    type: reading
+    use: link
+    optional: true
+    license: "US government work (NIST); linked, not copied"
+# The recall items read output captured from this topic's labs and work
+# out nonce budgets, a key service's bill and brute-force times. All five
+# labs are systemd labs on the vault base: one server running OpenBao.
+practice:
+  - example-seal-an-order
+  - mcq-backup-two-people
+  - mcq-age-header
+  - est-rsa-gigabyte
+  - hmac-which-match
+  - mcq-hash-beside-download
+  - mcq-webhook
+  - est-card-guesses
+  - mcq-password-storage
+  - typed-argon2id
+  - ctr-flip-predict
+  - mcq-nonce-reuse
+  - est-gcm-api-days
+  - fill-envelope-scripts
+  - mcq-why-not-kms-encrypt
+  - mcq-who-unwraps
+  - mcq-which-still-open
+  - typed-min-decryption-version
+  - est-kms-month
+  - write-rewrap-archive
+  - mcq-rsa-2048-strength
+  - mcq-pq-what-moves
+  - est-bruteforce-aes128
+prove:
+  build: build-sealed-orders
+  debug: debug-orders-wont-open
+  explain:
+    prompt: |
+      A teammate says: "Our database disk is encrypted, so the card data is safe. For lookups we'll store a SHA-256 of each card number, and we'll encrypt the exports with one AES key that we keep in the config file." Explain, in your own words: what disk encryption does and doesn't protect against; what's wrong with hashing card numbers, and what to use instead; how you'd design the exports' encryption with a key management service, including who may read what, what happens when the key is rotated, and what an auditor can see; what authenticated encryption and a nonce are and why each matters; and how the three clouds' key services differ in how you'd do this.
+    rubric:
+      - id: layers
+        required: true
+        description: "Disk encryption protects a stolen disk or snapshot, and nothing else: anyone who can query the running database or the app reads the data as before. Encryption is worth what the control over its key is worth, and a key in a config file beside the data is no control."
+      - id: hash-vs-mac
+        required: true
+        description: "A hash has no key, and a card number has few possible values, so hashing every candidate reverses the whole table quickly: a plain hash of guessable data is the data. Use a MAC (HMAC) under a key kept in a key service, so the values can't be computed without the key. (Passwords: a slow, salted hash such as Argon2id.)"
+      - id: envelope
+        required: true
+        description: "Envelope encryption: a fresh data key for each export, used where the data is, with AES-GCM; the data key wrapped by a key that never leaves the KMS, and the wrapped key stored beside the export. The policy is the control: the program that writes exports may make data keys and not unwrap, the reader may unwrap, and every unwrap is in the KMS's log."
+      - id: rotation
+        required: true
+        description: "Rotation adds a key version and changes no data and no data keys; old wrapped keys still open. To finish: rewrap the stored wrapped keys inside the KMS, and only then retire the old versions. Retiring first, or deleting the key, makes what it wrapped unreadable."
+      - id: aead-nonce
+        required: true
+        description: "Encryption without authentication can be changed without the key (a flipped ciphertext bit flips the plaintext bit); authenticated encryption (AES-GCM) adds a tag and refuses a changed ciphertext. A nonce is the per-encryption starting value, never reused under one key; with random 96-bit nonces, at most 2^32 encryptions a key, which a key per object avoids."
+      - id: clouds
+        required: false
+        description: "AWS KMS: GenerateDataKey returns the key both ways, ReEncrypt rewraps, rotation yearly once enabled. Azure Key Vault: you make the data key, wrapKey and unwrapKey, rotation policies, keep both versions enabled until services have rewrapped. Google Cloud KMS: generate the data key locally, Encrypt wraps up to 64 KiB, old versions stay until destroyed. All bill by the request."
+    model_answer: |
+      Disk encryption protects one thing: the disk itself, if it's stolen, thrown away or copied as a snapshot. The running database decrypts every block for anyone who can query it, so an attacker who gets in through the app, or a curious admin, reads the card data exactly as before. Encryption is only as good as the control over who can use the key.
+
+      Storing a SHA-256 of each card number hides nothing. A hash has no key, and a card number is guessable: once the digits that name the bank are known, few enough candidates are left that a laptop hashes them all in seconds. After that the table of hashes is a lookup table. For lookups I'd store an HMAC of the number under a key that lives in a key management service, which nobody can compute without the key.
+
+      For the exports, one AES key in a config file means everyone who can read the file can read every export, and the key can never be changed. I'd use envelope encryption. Each export gets a fresh random data key; the export is encrypted with it on the spot, with AES-256-GCM; the KMS wraps the data key with a key that never leaves the KMS; and the wrapped key is stored beside the export. To read one, a program hands the wrapped key to the KMS, which checks its policy, unwraps it and logs the request. The job that writes exports gets a policy that lets it make data keys and nothing else, and the job that reads them gets unwrap and nothing else, so breaking into the writer doesn't open the archive. The auditor reads the KMS's log: every unwrap, by whom and when.
+
+      Rotating the KMS key adds a new version. Nothing breaks, because old wrapped keys still open with their own version, but nothing old is protected by the new version either. So after rotating I'd have the KMS rewrap every stored data key, which happens inside it without the keys coming out, and only then retire the old versions. Doing it in the other order locks us out of whatever wasn't rewrapped.
+
+      It must be authenticated encryption. Plain encryption hides data but lets someone flip bits in the ciphertext and change what it decrypts to, without the key; AES-GCM adds a tag and refuses anything that was changed. GCM also needs a nonce, a starting value that must never repeat under the same key; with random nonces that's at most 2^32 encryptions per key, and a data key per export never comes near it.
+
+      On AWS, KMS's GenerateDataKey returns the data key both plain and wrapped, ReEncrypt rewraps, and rotation is yearly once switched on. On Azure, I'd make the data key myself and call Key Vault's wrapKey and unwrapKey, set a rotation policy, and keep both versions enabled until everything is rewrapped. On Google Cloud I'd also generate the key locally and have Cloud KMS's Encrypt wrap it; old versions stay until I destroy them. All three charge per request.
+review_pool:
+  - mcq-base64-secret
+  - est-rsa-gigabyte
+  - hmac-which-match
+  - mcq-audit-hmac
+  - est-card-guesses
+  - mcq-encryption-context
+  - est-gcm-fleet-days
+  - est-gcm-rotation
+  - mcq-clouds-data-keys
+  - est-kms-month
+  - est-kms-caching
+  - est-kms-chunks
+  - mcq-harvest-now
+  - est-strength-gap
+  - est-bruteforce-112
+# A lab short enough for a hands-on refresher in a review (ADR-0009,
+# amended 2026-11-16): the review asks it in place of a quick question.
+review_labs:
+  - write-rewrap-archive
+skills:
+  - id: choose-the-primitive
+    description: "Symmetric against public-key against the two together for a given job, and what each key can do; why RSA doesn't encrypt files (190 bytes at a time, and the speed); hybrid encryption as `age` does it, one file key wrapped once per reader; an encoding such as base64 is not encryption"
+  - id: hash-mac-signature
+    description: "What a hash, a MAC and a signature each prove, and who can make each; reading `sha256sum`, `openssl dgst -hmac` and signature output; webhooks; why a plain hash of guessable data (a card number) hides nothing, and a MAC under a kept key does; storing passwords with Argon2id and a salt"
+  - id: authenticated-encryption
+    description: "Hiding data against protecting it from change; CTR's bit flip; an AEAD, its tag and its associated data (the encryption context); the nonce, what reusing one gives away, and the 2^32 budget of random nonces, with its arithmetic"
+  - id: envelope-encryption
+    description: "A data key per object and the key that wraps it; the key service's calls (make a data key, unwrap); the wrapped key stored beside the data; the policy that splits sealing from opening, and the audit log; rotating, rewrapping and retiring key versions in order; the three clouds' key services side by side, and what the requests cost"
+  - id: key-strength
+    description: "Security strength in bits and the brute-force arithmetic; RSA-2048's 112 bits as the floor; what a quantum computer would break and what it leaves; NIST IR 8547's 2030 and 2035; why key exchange moves first"
