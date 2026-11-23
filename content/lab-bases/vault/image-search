@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""image-search: where in a saved container image does a value appear?
+
+    image-search IMAGE.tar VALUE
+
+IMAGE.tar is what `podman save -o IMAGE.tar NAME` (or `docker save`) writes.
+An image is a stack of layers, each a tar archive of the files one build
+step added or changed, plus a small JSON file with the image's settings and
+its history (the command of every build step). A file deleted by a later
+step is still in the earlier step's layer, and a build argument is still in
+the history, so a secret used during a build can outlive the build. This
+looks in all of those places and prints one line for each place it finds
+VALUE:
+
+    layer 2: tmp/deploy.token          in that file's content, in layer 2
+    layer 2: name of tmp/deploy.token  in the file's name
+    history: step 3                    in the command of the third build step
+    config                             elsewhere in the settings (ENV, labels)
+    manifest.json                      in another file of the archive
+
+Layers are numbered from 1, oldest first, as `podman history` lists them
+from the bottom up. It exits 0 when VALUE is anywhere, 1 when it is nowhere,
+and 2 when IMAGE.tar can't be read.
+
+The labs' checks use it through checklib-sec.sh's image_has. Its cases are
+tools/tests/test_vault_image_search.py.
+"""
+
+import io
+import json
+import sys
+import tarfile
+
+
+def open_tar(data: bytes) -> tarfile.TarFile | None:
+    """The bytes as a tar archive (plain or compressed), or None."""
+    try:
+        return tarfile.open(fileobj=io.BytesIO(data), mode="r:*")
+    except (tarfile.TarError, EOFError, OSError):
+        return None
+
+
+def needles(value: str) -> list[bytes]:
+    """The value as bytes, and as it is written inside a JSON string."""
+    plain = value.encode()
+    in_json = json.dumps(value)[1:-1].encode()
+    return [plain] if in_json == plain else [plain, in_json]
+
+
+def has(data: bytes, value: str) -> bool:
+    return any(needle in data for needle in needles(value))
+
+
+def layer_hits(layer: tarfile.TarFile, value: str) -> list[str]:
+    """The files in one layer whose name or content holds the value."""
+    hits = []
+    for member in layer:
+        if value in member.name:
+            hits.append(f"name of {member.name}")
+        if not member.isfile():
+            continue
+        content = layer.extractfile(member)
+        if content is not None and value.encode() in content.read():
+            hits.append(member.name)
+    return hits
+
+
+def texts(item: object) -> list[str]:
+    """Every piece of text in a parsed JSON value: its strings and its keys."""
+    if isinstance(item, str):
+        return [item]
+    if isinstance(item, dict):
+        return [text for key, value in item.items() for text in [key, *texts(value)]]
+    if isinstance(item, list):
+        return [text for value in item for text in texts(value)]
+    return [str(item)]
+
+
+def config_hits(data: bytes, value: str) -> list[str] | None:
+    """Where the value is in an image's settings file, or None when the
+    bytes aren't one (it is the JSON file that has a "history" list)."""
+    try:
+        config = json.loads(data)
+    except ValueError:
+        return None
+    if not isinstance(config, dict) or not isinstance(config.get("history"), list):
+        return None
+    hits = []
+    for number, step in enumerate(config["history"], start=1):
+        if any(value in text for text in texts(step)):
+            hits.append(f"history: step {number}")
+    rest = {key: item for key, item in config.items() if key != "history"}
+    if any(value in text for text in texts(rest)):
+        hits.append("config")
+    return hits
+
+
+def layer_order(files: dict[str, bytes]) -> list[str]:
+    """The archive's layer files, oldest first.
+
+    A docker-archive lists them in manifest.json; an oci-archive lists them
+    in the image manifest that index.json points at. Layers that neither
+    names (there shouldn't be any) follow in name order, so nothing in the
+    archive goes unsearched.
+    """
+    named: list[str] = []
+    try:
+        for image in json.loads(files.get("manifest.json", b"[]")):
+            named += image.get("Layers", [])
+    except (ValueError, AttributeError, TypeError):
+        pass
+    try:
+        index = json.loads(files.get("index.json", b"{}"))
+        for entry in index.get("manifests", []):
+            blob = "blobs/" + entry["digest"].replace(":", "/")
+            manifest = json.loads(files.get(blob, b"{}"))
+            for layer in manifest.get("layers", []):
+                named.append("blobs/" + layer["digest"].replace(":", "/"))
+    except (ValueError, AttributeError, TypeError, KeyError):
+        pass
+    ordered = [name for name in dict.fromkeys(named) if name in files]
+    return ordered + sorted(name for name in files if name not in ordered)
+
+
+def search(archive: bytes, value: str) -> list[str]:
+    """Every place in a saved image where the value appears, one line each."""
+    outer = open_tar(archive)
+    if outer is None:
+        raise ValueError("not a saved image (a tar archive)")
+    files: dict[str, bytes] = {}
+    for member in outer:
+        content = outer.extractfile(member) if member.isfile() else None
+        if content is not None:
+            files[member.name] = content.read()
+
+    found = []
+    number = 0
+    for name in layer_order(files):
+        data = files[name]
+        layer = open_tar(data)
+        if layer is not None:
+            number += 1
+            found += [f"layer {number}: {hit}" for hit in layer_hits(layer, value)]
+            continue
+        in_config = config_hits(data, value)
+        if in_config is not None:
+            found += in_config
+        elif has(data, value):
+            found.append(name)
+    return found
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 3 or not argv[2]:
+        print("usage: image-search IMAGE.tar VALUE", file=sys.stderr)
+        return 2
+    try:
+        with open(argv[1], "rb") as file:
+            found = search(file.read(), argv[2])
+    except (OSError, ValueError) as error:
+        print(f"image-search: can't read {argv[1]}: {error}", file=sys.stderr)
+        return 2
+    for line in found:
+        print(line)
+    return 0 if found else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""gcm: encrypt or decrypt a file with AES-256-GCM, as an app's library would.
+
+    gcm seal IN OUT [--aad TEXT]     encrypt IN, write OUT
+    gcm open IN OUT [--aad TEXT]     decrypt IN, write OUT ("-" prints it)
+
+The key is 32 bytes in base64, read from standard input, so it is never in
+a command line (which `ps` shows) or in a file:
+
+    echo "$key" | gcm seal orders.csv orders.csv.sealed
+
+A sealed file is the 12-byte nonce, then the ciphertext, then the 16-byte
+tag. The nonce is random and new for every file. --aad names "associated
+data": text the tag covers but that isn't encrypted (a record's id), which
+must be given again, unchanged, to open the file.
+
+`openssl enc` refuses GCM ("AEAD ciphers not supported"), which is why the
+labs have this. It is a thin layer over the Python cryptography library.
+"""
+
+import argparse
+import base64
+import binascii
+import os
+import sys
+
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+NONCE_BYTES = 12
+
+
+def stop(message: str) -> None:
+    print(f"gcm: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def read_key() -> bytes:
+    text = sys.stdin.read().strip()
+    try:
+        key = base64.b64decode(text, validate=True)
+    except (binascii.Error, ValueError):
+        stop("the key on standard input isn't base64")
+    if len(key) != 32:
+        stop(f"the key must be 32 bytes (AES-256); this one is {len(key)}")
+    return key
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="gcm", description="AES-256-GCM for files.")
+    parser.add_argument("action", choices=["seal", "open"])
+    parser.add_argument("source", metavar="IN")
+    parser.add_argument("target", metavar="OUT")
+    parser.add_argument("--aad", default=None, help="associated data, as text")
+    args = parser.parse_args()
+
+    aad = args.aad.encode() if args.aad is not None else None
+    cipher = AESGCM(read_key())
+    try:
+        with open(args.source, "rb") as file:
+            data = file.read()
+    except OSError as error:
+        stop(f"can't read {args.source}: {error.strerror}")
+
+    if args.action == "seal":
+        nonce = os.urandom(NONCE_BYTES)
+        result = nonce + cipher.encrypt(nonce, data, aad)
+    else:
+        if len(data) < NONCE_BYTES + 16:
+            stop(f"{args.source} is too short to be a sealed file")
+        try:
+            result = cipher.decrypt(data[:NONCE_BYTES], data[NONCE_BYTES:], aad)
+        except InvalidTag:
+            stop("authentication failed")
+
+    if args.target == "-":
+        sys.stdout.buffer.write(result)
+        return
+    try:
+        # A new file is the caller's alone until they say otherwise.
+        descriptor = os.open(args.target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "wb") as file:
+            file.write(result)
+    except OSError as error:
+        stop(f"can't write {args.target}: {error.strerror}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,29 @@
+#!/bin/bash
+# make-busybox-image: puts one small image, "busybox", into podman's store
+# (lab-busybox-image.service, at the machine's first boot), so a lab's
+# Containerfile can say "FROM busybox" with no registry to pull from: a lab
+# machine has no internet.
+#
+# The image is the busybox program Ubuntu ships (busybox-static, already on
+# the machine): one file that is sh, cat, ls, wget and some 300 other
+# commands, each a link to it. It is made from a folder with "podman
+# import", so nothing is downloaded. At later boots the image is there
+# already, and this does nothing.
+set -euo pipefail
+
+podman image exists localhost/busybox:latest && exit 0
+
+root=$(mktemp -d)
+mkdir -p "$root/bin" "$root/etc" "$root/opt" "$root/root" "$root/tmp" "$root/var" "$root/usr/bin"
+chmod 1777 "$root/tmp"
+cp /usr/bin/busybox "$root/bin/busybox"
+for applet in $(/usr/bin/busybox --list); do
+  [ "$applet" = busybox ] || ln -s busybox "$root/bin/$applet"
+done
+echo 'root:x:0:0:root:/root:/bin/sh' > "$root/etc/passwd"
+echo 'root:x:0:' > "$root/etc/group"
+
+tar -C "$root" --sort=name --numeric-owner --owner=0 --group=0 -c . \
+  | podman import --change 'CMD ["/bin/sh"]' - localhost/busybox:latest > /dev/null
+rm -rf "$root"
+podman image exists localhost/busybox:latest

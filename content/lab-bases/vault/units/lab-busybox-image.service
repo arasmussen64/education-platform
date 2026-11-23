@@ -1,0 +1,15 @@
+# Puts the small "busybox" image into podman's store at this machine's first
+# boot, so a Containerfile can say "FROM busybox" with no registry to pull
+# from. Off unless a lab switches it on ("systemctl enable
+# lab-busybox-image" in its Dockerfile). It can't be done while the base
+# image is built: podman needs privileges a Docker build doesn't have.
+[Unit]
+Description=The lab's busybox image for podman builds
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/lab/make-busybox-image
+
+[Install]
+WantedBy=multi-user.target

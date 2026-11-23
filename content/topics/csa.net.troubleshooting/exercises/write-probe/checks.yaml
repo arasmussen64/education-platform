@@ -70,7 +70,10 @@ checks:
       . /usr/local/lib/lab/probecheck.sh
       have_probe || exit 0
       trap stop_servers EXIT
-      port=$((30000 + RANDOM % 10000))
+      # Below 32768: from there up Linux hands ports out by itself for
+      # outgoing connections, and a port already taken that way stops this
+      # check's own server from starting (seen once in CI, 2026-11-23).
+      port=$((10000 + RANDOM % 10000))
       serve_on_targets hangup-server "$port" || { echo "the check's own server didn't start (port $port): run the checks again"; exit 0; }
       for t in "http-404 http://www.shop.test/nothing-$RANDOM" \
                "no-address http://nosuch-$RANDOM.shop.test/" \

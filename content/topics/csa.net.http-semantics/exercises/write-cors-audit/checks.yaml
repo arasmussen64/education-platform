@@ -52,7 +52,10 @@ checks:
     command: |
       dir=$(mktemp -d)
       /usr/local/lib/lab/cors-cases make "$dir/cases.json" > "$dir/asks"
-      port=$((30000 + RANDOM % 10000))
+      # Below 32768: from there up Linux hands ports out by itself for
+      # outgoing connections, and a port already taken that way stops this
+      # check's own server from starting (seen once in CI, 2026-11-23).
+      port=$((10000 + RANDOM % 10000))
       python3 /usr/local/lib/lab/cors-cases serve "$dir/cases.json" "$port" &
       server=$!
       trap 'kill "$server" 2> /dev/null; wait "$server" 2> /dev/null; rm -rf "$dir"' EXIT

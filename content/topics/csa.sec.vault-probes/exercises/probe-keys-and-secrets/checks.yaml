@@ -1,0 +1,114 @@
+# The vault-base probe's checks. Each reads real state through the base's
+# helpers: what OpenBao answers, what the database says about an account
+# OpenBao made, what is inside the image podman built, what gitleaks itself
+# finds in the repository. The restart trial runs them all again, which is
+# what shows that OpenBao came back unsealed with its keys.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: openbao-answers
+    description: "OpenBao is set up and has unsealed itself."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      ready() { bao status > /dev/null 2>&1; }
+      wait_for 10 ready
+      bao status -format=json | json "'%s %s %s' % (d['initialized'], d['sealed'], d['type'])"
+    expect:
+      equals: "True False static"
+  - id: export-sealed
+    description: "The export is sealed with AES-GCM under a data key of its own, and that key is kept wrapped by OpenBao's orders key."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      dir=/home/learner/orders
+      [ -s "$dir/export.csv.sealed" ] || { echo "there is no export.csv.sealed"; exit 0; }
+      grep -qa '4111-0000' "$dir/export.csv.sealed" && { echo "export.csv.sealed holds card numbers anyone can read"; exit 0; }
+      wrapped=$(cat "$dir/export.csv.key" 2> /dev/null)
+      case "$wrapped" in
+        vault:v*) ;;
+        *) echo "export.csv.key isn't a key wrapped by OpenBao"; exit 0 ;;
+      esac
+      key=$(bao write -field=plaintext transit/decrypt/orders ciphertext="$wrapped" 2> /dev/null) \
+        || { echo "OpenBao's orders key doesn't unwrap export.csv.key"; exit 0; }
+      opened=$(echo "$key" | gcm open "$dir/export.csv.sealed" - 2> /dev/null | sha256sum)
+      [ "$opened" = "$(sha256sum < /usr/local/lib/lab/probe/export.csv)" ] \
+        || { echo "export.csv.sealed doesn't open to the export under the key in export.csv.key"; exit 0; }
+      echo sealed
+    expect:
+      equals: sealed
+  - id: nothing-left-readable
+    description: "The unencrypted export is gone, and the data key is in no file."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      dir=/home/learner/orders
+      [ -e "$dir/export.csv" ] && { echo "export.csv is still there, unencrypted"; exit 0; }
+      key=$(bao write -field=plaintext transit/decrypt/orders ciphertext="$(cat "$dir/export.csv.key" 2> /dev/null)" 2> /dev/null) \
+        || { echo "there is no wrapped data key to look for"; exit 0; }
+      found=$(on_disk "$key") && { echo "the data key is in a file, unwrapped: $(echo "$found" | head -1)"; exit 0; }
+      echo clean
+    expect:
+      equals: clean
+  - id: password-expires
+    description: "OpenBao's report role makes a database account that can only read orders, lasts at most 10 seconds, and is gone afterwards."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      made=$(bao read -format=json database/creds/report 2> /dev/null) \
+        || { echo "OpenBao can't make an account from a role called report"; exit 0; }
+      user=$(echo "$made" | json "d['data']['username']")
+      password=$(echo "$made" | json "d['data']['password']")
+      seconds=$(echo "$made" | json "d['lease_duration']")
+      [ "$seconds" -le 10 ] || { echo "an account from report lasts $seconds seconds, more than 10"; exit 0; }
+      ask() { PGPASSWORD="$password" PGCONNECT_TIMEOUT=3 psql -X -A -t -q --host=127.0.0.1 --username="$user" --dbname=shop -c "$1" 2>&1; }
+      [ "$(ask 'SELECT count(*) FROM orders')" = 25 ] || { echo "the account can't read the orders table"; exit 0; }
+      more=$(pg "SELECT has_table_privilege('$user', 'orders', 'INSERT') OR has_table_privilege('$user', 'orders', 'UPDATE') OR has_table_privilege('$user', 'orders', 'DELETE') OR has_table_privilege('$user', 'orders', 'TRUNCATE')" shop)
+      [ "$more" = f ] || { echo "the account can do more to orders than read it"; exit 0; }
+      gone() { [ "$(pg "SELECT count(*) FROM pg_roles WHERE rolname = '$user'")" = 0 ]; }
+      wait_for 25 gone || { echo "25 seconds later the database still has the account"; exit 0; }
+      ask 'SELECT 1' | grep -q 'authentication failed' || { echo "the account's password still works after it expired"; exit 0; }
+      echo "made, read-only, gone"
+    timeout: 60
+    expect:
+      equals: "made, read-only, gone"
+  - id: image-without-token
+    description: "The image shop-api:1 holds the shop's library, and the package token is in none of its layers and nowhere in its history."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      podman image exists shop-api:1 || { echo "there is no image called shop-api:1"; exit 0; }
+      image_has shop-api:1 "shop-lib 2.4.1" > /dev/null || { echo "the image doesn't hold the library from the package server"; exit 0; }
+      found=$(image_has shop-api:1 "$(cat /etc/shop/pkg.token)") && { echo "the token is in the image ($(echo "$found" | head -1))"; exit 0; }
+      echo clean
+    timeout: 60
+    expect:
+      equals: clean
+  - id: leak-reported
+    description: "~/leak-report.json is gitleaks' report of the repository's history, and names the commit that added the key."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      repo=/home/learner/shop-web
+      key=$(cat /usr/local/lib/lab/probe/leaked-key)
+      added=$(git -C "$repo" log --all --reverse --format=%H -S"$key" | head -1)
+      [ -n "$added" ] || { echo "the repository's history no longer holds the key"; exit 0; }
+      # What gitleaks itself finds: nothing in the files as they are now,
+      # and the key in the history.
+      scratch=$(mktemp -d /var/tmp/leak-check.XXXXXX)
+      trap 'rm -rf "$scratch"' EXIT
+      gitleaks detect --no-banner --no-git --source="$repo" --report-path="$scratch/tree.json" > /dev/null 2>&1
+      gitleaks detect --no-banner --source="$repo" --report-path="$scratch/history.json" > /dev/null 2>&1
+      commits() { json "' '.join(sorted({f['Commit'] for f in d}))" < "$1"; }
+      [ "$(json 'len(d)' < "$scratch/tree.json")" = 0 ] || { echo "the key is back in the repository's files"; exit 0; }
+      [ "$(commits "$scratch/history.json")" = "$added" ] || { echo "gitleaks no longer finds the key in the repository's history"; exit 0; }
+      [ -e /home/learner/leak-report.json ] || { echo "there is no ~/leak-report.json"; exit 0; }
+      [ "$(commits /home/learner/leak-report.json)" = "$added" ] || { echo "~/leak-report.json doesn't name the commit that added the key"; exit 0; }
+      echo found
+    expect:
+      equals: found
+  - id: scenery-intact
+    description: "The package server, its token and app.sh are as they were."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      sealed_ok
+    expect:
+      equals: intact
