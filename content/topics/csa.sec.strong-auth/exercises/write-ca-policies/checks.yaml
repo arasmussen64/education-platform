@@ -1,0 +1,57 @@
+# Each rule check runs the case generator for one requirement: it makes up
+# people and sign-ins, works out what the shop's rules should decide, and
+# asks the learner's policies through ca-whatif --batch. Fresh names and both
+# sides of every threshold each run. A check that finds a disagreement prints
+# it and exits 0.
+checks:
+  - id: lint
+    description: "Every policy file is well formed and names only groups, roles, apps and controls that exist."
+    command: |
+      cd /home/learner/ca && ca-whatif --lint
+    expect:
+      equals: ok
+  - id: mfa-for-everyone
+    description: "Every person, in any group or none, must do multifactor authentication for every app."
+    command: /usr/local/lib/lab-checks/ca-cases mfa
+    expect:
+      equals: ok
+  - id: admins-phishing-resistant
+    description: "Members of the partner-admins group and holders of the Global Administrator role must use a phishing-resistant method."
+    command: /usr/local/lib/lab-checks/ca-cases admins
+    expect:
+      equals: ok
+  - id: contractors-from-warehouse
+    description: "Contractors reach the partner portal only from the trusted warehouse location."
+    command: /usr/local/lib/lab-checks/ca-cases contractors
+    expect:
+      equals: ok
+  - id: risk-steps
+    description: "A medium-risk sign-in needs a phishing-resistant method and a high-risk one is blocked, at every risk level."
+    command: /usr/local/lib/lab-checks/ca-cases risk
+    expect:
+      equals: ok
+  - id: legacy-blocked
+    description: "Legacy authentication clients are blocked and browser and modern clients are not."
+    command: /usr/local/lib/lab-checks/ca-cases legacy
+    expect:
+      equals: ok
+  - id: emergency-gets-in
+    description: "An emergency-access account gets in under every combination of signals, including ones that block everyone else."
+    command: /usr/local/lib/lab-checks/ca-cases emergency
+    expect:
+      equals: ok
+  - id: exclusion-narrow
+    description: "A person in any group other than emergency-access, or with the admin role, is still held to the policies."
+    command: /usr/local/lib/lab-checks/ca-cases exclusion-narrow
+    expect:
+      equals: ok
+  - id: new-policy-report-only
+    description: "The partner-portal compliant-device policy is report-only: it blocks nobody, and a noncompliant device is shown as a report-only failure."
+    command: /usr/local/lib/lab-checks/ca-cases report-only
+    expect:
+      equals: ok
+  - id: scenery
+    description: "The directory and the named locations are as they were."
+    command: sha256sum -c --status /usr/local/lib/lab-checks/scenery.sha256 && echo same
+    expect:
+      equals: same

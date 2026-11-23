@@ -1,0 +1,56 @@
+#!/usr/bin/python3
+"""signin-watch: the shop's alerting on emergency-account use, lab scenery.
+
+It follows the identity provider's sign-in events and, when one is a sign-in
+by an account listed in /etc/shop/watched-accounts, writes a line to
+/var/log/shop/alerts.log. The learner keeps the list; this program is given.
+"""
+
+import os
+import re
+import subprocess
+import sys
+import time
+
+WATCHED = "/etc/shop/watched-accounts"
+LOG = "/var/log/shop/alerts.log"
+LOGIN = re.compile(r'type="LOGIN"')
+REALM = re.compile(r'realmName="shop"')
+USER = re.compile(r'username="([^"]*)"')
+
+
+def watched():
+    try:
+        return {
+            line.strip()
+            for line in open(WATCHED)
+            if line.strip() and not line.startswith("#")
+        }
+    except OSError:
+        return set()
+
+
+def main():
+    os.makedirs("/var/log/shop", exist_ok=True)
+    # Follow from now on; -n 0 so a restart doesn't replay old sign-ins.
+    proc = subprocess.Popen(
+        ["journalctl", "-u", "keycloak@idp", "-f", "-n", "0", "-o", "cat"],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    for line in proc.stdout:
+        if not (LOGIN.search(line) and REALM.search(line)):
+            continue
+        found = USER.search(line)
+        if not found:
+            continue
+        user = found.group(1)
+        if user in watched():
+            stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
+            with open(LOG, "a") as out:
+                out.write(f"{stamp} alert: emergency account {user} signed in\n")
+                out.flush()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

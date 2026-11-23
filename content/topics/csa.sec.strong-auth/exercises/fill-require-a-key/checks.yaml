@@ -1,0 +1,56 @@
+# Each check makes its own throwaway person at the provider, signs them in
+# for real, and removes them in an EXIT trap. A check never runs kc_saved
+# while one exists. A check that finds something wrong prints what it found
+# and exits 0, so the checker shows that sentence.
+checks:
+  - id: idp-ready
+    description: "The identity provider answers."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_ready && echo ready || echo "the identity provider isn't answering"
+    expect:
+      equals: ready
+  - id: admins-need-a-key
+    description: "An admin can only finish signing in with a security key: one who has only a password and an app code can't, and one with a key gets in and the token records the key."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-a$r
+      idp-user add shop "$u" "pw$r" --otp admins > /dev/null || { echo "couldn't make a test admin"; exit 0; }
+      trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
+      otp=$(cat /etc/idlab/otp/"$u")
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$otp")
+      case $got in "{"*) echo "an admin with only a password and an app code got in"; exit 0 ;; esac
+      toks=$(on office signin --code trace-cli "$red" "$iss" alice --key /etc/idlab/keys/alice.key)
+      case $toks in "{"*) ;; *) echo "alice couldn't sign in with her key: $(echo "$toks" | tail -n 1)"; exit 0 ;; esac
+      amr=$(printf '%s' "$toks" | python3 -c "import sys,json,base64; d=json.load(sys.stdin); p=d['id_token'].split('.')[1]; p+='='*(-len(p)%4); print(','.join(sorted(json.loads(base64.urlsafe_b64decode(p)).get('amr',[]))))")
+      [ "$amr" = "hwk,pwd" ] || { echo "alice's token records amr=$amr, not a key"; exit 0; }
+      echo keyed
+    expect:
+      equals: keyed
+  - id: staff-need-two
+    description: "A staff member needs a password and a second factor: one with only a password can't sign in, one who adds an app code can."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-s$r
+      idp-user add shop "$u" "pw$r" --otp staff > /dev/null || { echo "couldn't make a test staff member"; exit 0; }
+      trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r")
+      case $got in "{"*) echo "a staff member got in with a password alone"; exit 0 ;; esac
+      otp=$(cat /etc/idlab/otp/"$u")
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$otp")
+      case $got in "{"*) echo two ;; *) echo "a staff member with an app code was refused: $(echo "$got" | tail -n 1)"; exit 0 ;; esac
+    expect:
+      equals: two
+  - id: saved
+    description: "The running realm is the one the file builds."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_saved shop
+    expect:
+      equals: saved

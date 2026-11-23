@@ -1,0 +1,161 @@
+# The identity checks make their own throwaway people at the provider, sign
+# them in for real, and remove them in an EXIT trap. The conditional-access
+# checks run the case generator on the provider, which makes up its own people
+# and passes them to ca-whatif as a directory. A check that finds something
+# wrong prints it and exits 0.
+checks:
+  - id: idp-ready
+    description: "The identity provider answers."
+    timeout: 30
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_ready && echo ready || echo "the identity provider isn't answering"
+    expect:
+      equals: ready
+  - id: admins-key-only
+    description: "An admin can only finish signing in with a security key, and the token records the key."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-a$r
+      idp-user add shop "$u" "pw$r" --otp admins > /dev/null || { echo "couldn't make a test admin"; exit 0; }
+      trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
+      otp=$(cat /etc/idlab/otp/"$u")
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$otp")
+      case $got in "{"*) echo "an admin with only a password and an app code got in"; exit 0 ;; esac
+      amr=
+      for attempt in 1 2 3; do
+        toks=$(on office signin --code trace-cli "$red" "$iss" alice --key /etc/idlab/keys/alice.key)
+        case $toks in "{"*) ;; *) sleep 2; continue ;; esac
+        amr=$(printf '%s' "$toks" | python3 -c "import sys,json,base64; d=json.load(sys.stdin); p=d['id_token'].split('.')[1]; p+='='*(-len(p)%4); print(','.join(sorted(json.loads(base64.urlsafe_b64decode(p)).get('amr',[]))))")
+        [ "$amr" = "hwk,pwd" ] && break
+        sleep 2
+      done
+      [ "$amr" = "hwk,pwd" ] || { echo "alice's token records amr=$amr, not a key"; exit 0; }
+      echo keyed
+    expect:
+      equals: keyed
+  - id: staff-two-factors
+    description: "A staff member needs a password and a second factor: one with only a password can't sign in, one who adds an app code can."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-s$r
+      idp-user add shop "$u" "pw$r" --otp staff > /dev/null || { echo "couldn't make a test staff member"; exit 0; }
+      trap 'idp-user del shop '"$u"' > /dev/null 2>&1' EXIT
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r")
+      case $got in "{"*) echo "a staff member got in with a password alone"; exit 0 ;; esac
+      otp=$(cat /etc/idlab/otp/"$u")
+      got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$otp")
+      case $got in "{"*) echo two ;; *) echo "a staff member with an app code was refused: $(echo "$got" | tail -n 1)"; exit 0 ;; esac
+    expect:
+      equals: two
+  - id: brute-force
+    description: "The running realm and its file both lock an account after at most five failures."
+    timeout: 20
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      on=$(kc get shop | json "str(d['bruteForceProtected']).lower()")
+      count=$(kc get shop | json "d['failureFactor']")
+      [ "$on" = true ] || { echo "the running realm doesn't have brute-force detection on"; exit 0; }
+      [ "$count" -ge 1 ] && [ "$count" -le 5 ] || { echo "the running realm locks after $count failures"; exit 0; }
+      fon=$(python3 -c "import json; d=json.load(open('/etc/netns/idp/keycloak/realms/shop.json')); print(str(d.get('bruteForceProtected',False)).lower())")
+      fcount=$(python3 -c "import json; d=json.load(open('/etc/netns/idp/keycloak/realms/shop.json')); print(d.get('failureFactor', 0))")
+      [ "$fon" = true ] && [ "$fcount" -ge 1 ] && [ "$fcount" -le 5 ] || { echo "the file doesn't set brute-force detection with a limit of five or less"; exit 0; }
+      echo locked
+    expect:
+      equals: locked
+  - id: emergency-key-only
+    description: "Each emergency account gets in with its own key, and not with a password alone."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      for u in bg-1 bg-2; do
+        toks=$(on office signin --code trace-cli "$red" "$iss" "$u" --key /etc/idlab/keys/"$u".key)
+        case $toks in "{"*) ;; *) echo "$u couldn't sign in with its key: $(echo "$toks" | tail -n 1)"; exit 0 ;; esac
+      done
+      got=$(on office signin --code trace-cli "$red" "$iss" bg-1 --password "$(password_of bg-1)")
+      case $got in "{"*) echo "bg-1 got in with a password alone"; exit 0 ;; esac
+      echo keyed
+    expect:
+      equals: keyed
+  - id: emergency-alerts
+    description: "A sign-in by either emergency account raises a line naming it in the alerts log, and an ordinary staff sign-in raises none."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      log=/var/log/shop/alerts.log
+      on office signin --code trace-cli "$red" "$iss" bg-1 --key /etc/idlab/keys/bg-1.key > /dev/null
+      on office signin --code trace-cli "$red" "$iss" bg-2 --key /etc/idlab/keys/bg-2.key > /dev/null
+      has_bg1() { grep -q 'bg-1' "$log" 2> /dev/null; }
+      has_bg2() { grep -q 'bg-2' "$log" 2> /dev/null; }
+      wait_for 20 has_bg1 || { echo "no alert for bg-1"; exit 0; }
+      wait_for 20 has_bg2 || { echo "no alert for bg-2"; exit 0; }
+      before=$(grep -c 'ana' "$log" 2> /dev/null || true)
+      on office signin --code trace-cli "$red" "$iss" ana --password "$(password_of ana)" --otp-secret "$(cat /etc/idlab/otp/ana)" > /dev/null
+      sleep 3
+      after=$(grep -c 'ana' "$log" 2> /dev/null || true)
+      [ "$before" = "$after" ] || { echo "an ordinary staff sign-in raised an alert"; exit 0; }
+      echo alerted
+    expect:
+      equals: alerted
+  - id: emergency-group-exact
+    description: "The emergency-access group holds exactly the two emergency accounts, in the running realm and the file."
+    timeout: 20
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      gid=$(kc get "shop/groups?search=emergency-access" | json "d[0]['id']")
+      live=$(kc get "shop/groups/$gid/members" | json "' '.join(sorted(u['username'] for u in d))")
+      [ "$live" = "bg-1 bg-2" ] || { echo "the running realm's emergency-access group holds: $live"; exit 0; }
+      filed=$(python3 -c "import json; d=json.load(open('/etc/netns/idp/keycloak/realms/shop.json')); print(' '.join(sorted(u['username'] for u in d['users'] if '/emergency-access' in u.get('groups', []))))")
+      [ "$filed" = "bg-1 bg-2" ] || { echo "the file's emergency-access group holds: $filed"; exit 0; }
+      echo exact
+    expect:
+      equals: exact
+  - id: ca-rules
+    description: "The policies decide every made-up sign-in the way the shop's rules should: MFA for everyone, a key for admins, a compliant device for payments, high risk blocked, legacy blocked."
+    timeout: 40
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases rules
+    expect:
+      equals: ok
+  - id: ca-emergency-gets-in
+    description: "An emergency account is allowed under every combination of signals, including ones that block everyone else."
+    timeout: 20
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases emergency
+    expect:
+      equals: ok
+  - id: ca-exclusion-narrow
+    description: "A person in any group other than emergency-access is still held to the blocking policies."
+    timeout: 20
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases exclusion-narrow
+    expect:
+      equals: ok
+  - id: ca-new-policy-report-only
+    description: "The admin-app compliant-device policy is report-only: it blocks nobody and is shown as a report-only failure for a noncompliant device."
+    timeout: 20
+    command: |
+      on idp /usr/local/lib/lab-checks/ca-cases report-only
+    expect:
+      equals: ok
+  - id: ca-lint
+    description: "Every conditional-access policy file is well formed."
+    timeout: 15
+    command: |
+      on idp ca-whatif --lint
+    expect:
+      equals: ok
+  - id: lasts
+    description: "The running realm is the one its file builds."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_saved shop
+    expect:
+      equals: saved

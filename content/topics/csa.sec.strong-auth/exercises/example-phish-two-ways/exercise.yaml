@@ -1,0 +1,34 @@
+id: example-phish-two-ways
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Phishing, two ways"
+prompt: |
+  This is the lesson's story, run for real. The shop signs people in at `https://login.shop.test` (the realm `shop`); admins finish with a security key, staff with a password and an app code. Four machines: `office` (the staff laptop), `idp` (the provider), `phish` (10.0.5.50, a lookalike at `https://login.shop-help.test` with its own valid certificate from the lab's CA, running a relay that passes a sign-in straight through to the real provider and writes what it catches to `/srv/relay.log`), and `attacker` (which runs `attacker-replay`). `ana` is staff (her app code is `/etc/idlab/otp/ana`); `alice` is an admin with a security key (`/etc/idlab/keys/alice.key`).
+
+  The basics of an identity lab (`signin`, the realm file, `realm-apply`) are in `csa.sec.federation`'s first lab, `example-trace-a-sign-in`; here `signin --code CLIENT REDIRECT ISSUER USER` plays both the app and the person's browser, printing the token response.
+
+  Type each line and read what it prints before the next. You will see a password and a one-time code defeated by a relay, and a security key shrug it off.
+steps:
+  - label: "Ana signs in the ordinary way"
+    lines: "1-4"
+    note: "`signin --code` runs the whole sign-in and prints the tokens. Decode the `id_token`'s middle piece if you like: its `amr` claim is `[\"pwd\", \"otp\"]`, a password and a code."
+  - label: "Ana clicks the link in the phishing email"
+    lines: "5-7"
+    note: "The same sign-in, but pointed at `login.shop-help.test`. It works, and Ana sees nothing odd: a valid padlock, the shop's own page. `/srv/relay.log` shows what the relay kept as it passed each answer along: her password, her code, and the session cookie the real site handed back. A one-time code lasts long enough for the relay to use it."
+  - label: "The attacker uses the stolen session"
+    lines: "8"
+    note: "`attacker-replay` shows the real provider the cookie the relay caught, and the provider, which already treats that cookie as a signed-in session, hands over a fresh token: `signed in as ana without a password or a code`. MFA happened; it didn't help."
+  - label: "Alice signs in with her key"
+    lines: "9"
+    note: "An admin. Her token's `amr` is `[\"pwd\", \"hwk\"]`: a password and a hardware key."
+  - label: "Alice clicks the same link"
+    lines: "10"
+    note: "`refused by the key: the security key has no credential for login.shop-help.test`. The browser puts the site's real name into what the key signs, and the key answers only for the name it was registered with, `login.shop.test`. Nothing reached the relay but her password, which alone gets nobody in."
+  - label: "What conditional access would say"
+    lines: "11-12"
+    note: "`ca-whatif` models Microsoft Entra's Conditional Access: for the admin app it blocks an admin who offers only a password and a code, and allows one who used a key. That is the next lesson's idea: requiring the strength, not just offering it."
+skills: [phishing-resistance, authentication-strength, conditional-access]

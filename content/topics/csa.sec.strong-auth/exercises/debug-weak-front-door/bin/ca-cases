@@ -1,0 +1,234 @@
+#!/usr/bin/python3
+"""ca-cases REQUIREMENT: makes up sign-ins for the build's conditional-access
+requirements, works out what the shop's rules should decide for each, and asks
+the learner's policies through `ca-whatif --batch` on the provider. Fresh
+names and both sides of every signal each run. Run on idp, where the policies
+(/etc/shop/ca) and the realm are.
+"""
+
+import json
+import os
+import random
+import subprocess
+import sys
+import tempfile
+
+POLICIES = "/etc/shop/ca"
+PHISHING_RESISTANT = {"hwk", "whfb", "cert"}
+PASSWORDLESS = PHISHING_RESISTANT | {"phone"}
+SOMETHING_YOU_HAVE = {"otp", "sms", "voice", "push"}
+APPS = ["trace-cli", "payments", "admin-app"]
+GROUPS = ["staff", "warehouse", "admins", "emergency-access"]
+
+
+def has_mfa(methods):
+    methods = set(methods)
+    if methods & (PASSWORDLESS | {"tap"}):
+        return True
+    return "pwd" in methods and bool(methods & SOMETHING_YOU_HAVE)
+
+
+def has_pr(methods):
+    return bool(set(methods) & PHISHING_RESISTANT)
+
+
+def expect(attrs, s):
+    groups = set(attrs["groups"])
+    if "emergency-access" in groups:
+        return "allow"
+    if s.get("risk") == "high":
+        return "block"
+    if s.get("client") in ("exchangeActiveSync", "other"):
+        return "block"
+    if not has_mfa(s.get("methods", [])):
+        return "block"
+    if "admins" in groups and not has_pr(s.get("methods", [])):
+        return "block"
+    if s["app"] == "payments" and s.get("device") != "compliant":
+        return "block"
+    # admin-app compliant-device policy is report-only: it never blocks.
+    return "allow"
+
+
+def name():
+    return "u-" + "".join(random.choice("0123456789abcdef") for _ in range(6))
+
+
+def base(user, app):
+    return {
+        "user": user,
+        "app": app,
+        "methods": ["pwd"],
+        "risk": "none",
+        "userrisk": "none",
+        "device": "unknown",
+        "location": None,
+        "client": "browser",
+    }
+
+
+def run_batch(users, sign_ins):
+    directory = {
+        "users": [
+            {"id": n, "groups": a["groups"], "roles": a["roles"]}
+            for n, a in users.items()
+        ],
+        "groups": GROUPS,
+        "roles": ["admin"],
+        "apps": APPS,
+    }
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".json", delete=False, dir="/srv"
+    ) as handle:
+        json.dump(directory, handle)
+        path = handle.name
+    try:
+        done = subprocess.run(
+            ["ca-whatif", "--batch", "--policies", POLICIES, "--directory", path],
+            input=json.dumps(sign_ins),
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        os.unlink(path)
+    if done.returncode != 0:
+        print(
+            (done.stdout or done.stderr).strip()
+            or "ca-whatif could not read the policies"
+        )
+        sys.exit(0)
+    return json.loads(done.stdout)
+
+
+def judge(cases):
+    users = {c[2]["user"]: c[1] for c in cases}
+    verdicts = run_batch(users, [c[2] for c in cases])
+    wrong = []
+    for (words, attrs, s), verdict in zip(cases, verdicts):
+        want = expect(attrs, s)
+        if verdict["result"] != want:
+            wrong.append(
+                f"{words}: the rules say {want}, your policies say {verdict['result']}"
+            )
+    if not wrong:
+        print("ok")
+        return
+    for line in wrong[:3]:
+        print(line)
+    if len(wrong) > 3:
+        print(f"...and {len(wrong) - 3} more")
+
+
+METHOD_SETS = [
+    ("a password alone", ["pwd"]),
+    ("a password and an app code", ["pwd", "otp"]),
+    ("a password and a key", ["pwd", "hwk"]),
+]
+
+
+def req_rules():
+    cases = []
+    for groups in ([], ["staff"], ["warehouse"], ["admins"]):
+        for app in APPS:
+            for _label, methods in METHOD_SETS:
+                for device in ("unknown", "compliant", "noncompliant"):
+                    for risk, client in (
+                        ("none", "browser"),
+                        ("high", "browser"),
+                        ("none", "other"),
+                    ):
+                        user = name()
+                        attrs = {
+                            "groups": groups,
+                            "roles": ["admin"] if groups == ["admins"] else [],
+                        }
+                        s = base(user, app)
+                        s.update(
+                            methods=methods, device=device, risk=risk, client=client
+                        )
+                        cases.append(
+                            (
+                                f"a person in {groups or 'no group'} at {app} with {_label}, {device} device, {risk} risk, {client}",
+                                attrs,
+                                s,
+                            )
+                        )
+    # keep the batch a sensible size
+    random.shuffle(cases)
+    return cases[:120]
+
+
+def req_emergency():
+    cases = []
+    for who in ("bg-1", "bg-2", name()):
+        for label, over in (
+            ("a high-risk sign-in", {"risk": "high"}),
+            ("a legacy client", {"client": "other"}),
+            ("payments on an unknown device", {"app": "payments", "device": "unknown"}),
+            ("a password alone", {"methods": ["pwd"]}),
+        ):
+            attrs = {"groups": ["emergency-access"], "roles": ["admin"]}
+            s = base(who, over.get("app", "admin-app"))
+            s.update(over)
+            cases.append((f"the emergency account {who} with {label}", attrs, s))
+    return cases
+
+
+def req_exclusion_narrow():
+    cases = []
+    for groups in ([], ["staff"], ["warehouse"], ["admins"]):
+        user = name()
+        attrs = {"groups": groups, "roles": ["admin"] if groups == ["admins"] else []}
+        s = base(user, "admin-app")
+        s.update(methods=["pwd", "otp"], risk="high")  # a block only emergency escapes
+        cases.append(
+            (f"a high-risk sign-in by a person in {groups or 'no group'}", attrs, s)
+        )
+    return cases
+
+
+def req_report_only():
+    user = name()
+    attrs = {"groups": ["admins"], "roles": ["admin"]}
+    s = base(user, "admin-app")
+    s.update(methods=["pwd", "hwk"], device="noncompliant")
+    verdicts = run_batch({user: attrs}, [s])
+    verdict = verdicts[0]
+    if verdict["result"] != "allow":
+        print(
+            "an admin on a noncompliant device at the admin app was blocked: the new policy isn't report-only"
+        )
+        return
+    rows = [r for r in verdict["policies"] if r.get("outcome") == "report-only"]
+    if not rows:
+        print("no report-only policy applied to an admin-app sign-in")
+        return
+    if not any(r.get("blocks") or not r.get("passes") for r in rows):
+        print(
+            "the report-only policy would have passed a noncompliant device: it isn't the compliant-device rule"
+        )
+        return
+    print("ok")
+
+
+BUILDERS = {
+    "rules": req_rules,
+    "emergency": req_emergency,
+    "exclusion-narrow": req_exclusion_narrow,
+}
+
+
+def main(argv):
+    if len(argv) != 1:
+        sys.exit("usage: ca-cases REQUIREMENT")
+    which = argv[0]
+    if which == "report-only":
+        req_report_only()
+        return
+    if which not in BUILDERS:
+        sys.exit(f"ca-cases: no requirement called {which}")
+    judge(BUILDERS[which]())
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

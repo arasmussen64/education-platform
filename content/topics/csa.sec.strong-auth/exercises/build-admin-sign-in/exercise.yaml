@@ -1,0 +1,42 @@
+id: build-admin-sign-in
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Build the shop's strong sign-in"
+prompt: |
+  The shop's sign-in already makes admins use a security key and everyone else a password and an app code (the flow you met in `fill-require-a-key`). Four things are still missing, and you add them.
+
+  Two machines: `office` (10.0.5.2), a staff laptop, and `idp` (10.0.5.10), the identity provider at `https://login.shop.test`, realm `shop`. The people: admins `alice` and `carol` (group `admins`, each with a security key); staff `ana` (`staff`) and `ben` (`warehouse`), each with an app code; and two emergency accounts, `bg-1` and `bg-2`, each with its own security key and no app code. The realm is `on idp nano /etc/keycloak/realms/shop.json`, applied with `sudo realm-apply shop`.
+
+  **1. Lock out guessing.** Turn on brute-force detection in the realm, so an account is locked after at most **five** failed passwords (`"bruteForceProtected": true` and `"failureFactor": 5`, both at the top of the realm file). Apply it.
+
+  **2. The emergency accounts.** Put `bg-1` and `bg-2` in the group `emergency-access` (and nobody else in it), by giving each of them `"groups": ["/emergency-access"]` in the realm file, then applying. That group carries the realm role `admin`, so the sign-in flow already makes them use their keys. Then tell the watcher to alert on them: list them, one a line, in `/etc/shop/watched-accounts` on the lab machine (`sudo nano /etc/shop/watched-accounts`). The watcher (`signin-watch`, already running) writes a line to `/var/log/shop/alerts.log` whenever a watched account signs in.
+
+  **3. Conditional access.** Write one JSON policy a file in `/etc/shop/ca/` **on the provider** (`on idp nano /etc/shop/ca/10-everyone-mfa.json`), in Microsoft Entra's shape, and try them with `on idp ca-whatif USER APP methods=...` (a model of Entra's Conditional Access; `on idp ca-whatif --lint` checks them). The apps are `payments` and `admin-app`; the role is `admin`; the groups are `admins` and `emergency-access`. Write:
+
+  - everyone must do multifactor authentication (`"builtInControls": ["mfa"]`), for every app;
+  - the `admins` group must use a phishing-resistant method (`"authenticationStrength": {"displayName": "Phishing-resistant MFA"}`);
+  - the `payments` app needs a compliant device (`"builtInControls": ["compliantDevice"]`);
+  - a high sign-in risk is blocked (`"signInRiskLevels": ["high"]`, `"builtInControls": ["block"]`);
+  - legacy authentication is blocked (`"clientAppTypes": ["exchangeActiveSync", "other"]`);
+  - a new policy, "admin app needs a compliant device", goes in **report-only** (`"state": "enabledForReportingButNotEnforced"`) first.
+
+  **4. Don't lock out the emergency accounts.** Every policy that **blocks or restricts** must exclude the `emergency-access` group (`"excludeGroups": ["emergency-access"]`), and nothing wider. A report-only policy need not exclude it.
+
+  A policy file looks like:
+
+      {
+        "displayName": "a name",
+        "state": "enabled",
+        "conditions": {
+          "users": { "includeUsers": ["All"], "excludeGroups": ["emergency-access"] },
+          "applications": { "includeApplications": ["All"] }
+        },
+        "grantControls": { "operator": "AND", "builtInControls": ["mfa"] }
+      }
+
+  When `realm-saved` says `saved`, the policies lint, and your sign-ins go the way you mean, run the checks.
+skills: [authentication-strength, conditional-access, break-glass, rollout-without-lockout]

@@ -1,0 +1,366 @@
+#!/usr/bin/python3
+"""ca-cases REQUIREMENT: makes up sign-ins for one of the write lab's
+requirements, works out what the shop's rules should decide for each, asks
+the learner's policies through `ca-whatif --batch`, and prints "ok" or the
+first few sign-ins that disagree. Every run invents fresh user names and
+tries both sides of each threshold, so a policy that names this lab's own
+people or guesses a limit does not pass.
+"""
+
+import json
+import os
+import random
+import subprocess
+import sys
+import tempfile
+
+POLICIES = "/home/learner/ca/policies"
+LOCATIONS = "/home/learner/ca/locations.json"
+
+PHISHING_RESISTANT = {"hwk", "whfb", "cert"}
+PASSWORDLESS = PHISHING_RESISTANT | {"phone"}
+SOMETHING_YOU_HAVE = {"otp", "sms", "voice", "push"}
+
+APPS = ["partner-portal", "reports"]
+GROUPS_BASE = ["staff", "contractors", "partner-admins", "emergency-access"]
+
+
+def has_mfa(methods):
+    methods = set(methods)
+    if methods & (PASSWORDLESS | {"tap"}):
+        return True
+    return "pwd" in methods and bool(methods & SOMETHING_YOU_HAVE)
+
+
+def has_pr(methods):
+    return bool(set(methods) & PHISHING_RESISTANT)
+
+
+def expect(attrs, s):
+    """What the shop's rules should decide for one sign-in: 'allow' or 'block'."""
+    groups, roles = set(attrs["groups"]), set(attrs["roles"])
+    if "emergency-access" in groups:
+        return "allow"
+    methods = s.get("methods", [])
+    # Blocks (any one ends it).
+    if s.get("client") in ("exchangeActiveSync", "other"):
+        return "block"
+    if s.get("risk") == "high":
+        return "block"
+    if (
+        "contractors" in groups
+        and s["app"] == "partner-portal"
+        and s.get("location") != "warehouse"
+    ):
+        return "block"
+    # Controls everyone or some must meet.
+    if not has_mfa(methods):
+        return "block"
+    is_admin = "partner-admins" in groups or "Global Administrator" in roles
+    if is_admin and not has_pr(methods):
+        return "block"
+    if s.get("risk") == "medium" and not has_pr(methods):
+        return "block"
+    return "allow"
+
+
+def name():
+    return "u-" + "".join(random.choice("0123456789abcdef") for _ in range(6))
+
+
+def run_batch(users, sign_ins):
+    """users: {name: {groups, roles}}. Returns the list of verdicts, or ends
+    the check (exit 0) printing ca-whatif's own complaint if the files are ill
+    formed."""
+    directory = {
+        "users": [
+            {"id": n, "groups": a["groups"], "roles": a["roles"]}
+            for n, a in users.items()
+        ],
+        "groups": sorted(
+            set(GROUPS_BASE) | {g for a in users.values() for g in a["groups"]}
+        ),
+        "roles": ["Global Administrator"],
+        "apps": APPS,
+    }
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+        json.dump(directory, handle)
+        path = handle.name
+    try:
+        done = subprocess.run(
+            [
+                "ca-whatif",
+                "--batch",
+                "--policies",
+                POLICIES,
+                "--directory",
+                path,
+                "--locations",
+                LOCATIONS,
+            ],
+            input=json.dumps(sign_ins),
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        os.unlink(path)
+    if done.returncode != 0:
+        print(
+            (done.stdout or done.stderr).strip()
+            or "ca-whatif could not read the policies"
+        )
+        sys.exit(0)
+    return json.loads(done.stdout)
+
+
+def judge(cases):
+    """cases: list of (words, attrs, sign_in). Compares ca-whatif's result
+    with what the rules should decide, and prints ok or the first three
+    disagreements."""
+    users, sign_ins = {}, []
+    for _words, attrs, sign_in in cases:
+        users[sign_in["user"]] = attrs
+    verdicts = run_batch(users, [c[2] for c in cases])
+    wrong = []
+    for (words, attrs, sign_in), verdict in zip(cases, verdicts):
+        want = expect(attrs, sign_in)
+        got = verdict["result"]
+        if got != want:
+            wrong.append(f"{words}: the rules say {want}, your policies say {got}")
+    report(wrong)
+
+
+def report(wrong):
+    if not wrong:
+        print("ok")
+        return
+    for line in wrong[:3]:
+        print(line)
+    if len(wrong) > 3:
+        print(f"...and {len(wrong) - 3} more")
+
+
+def methods_pool():
+    """A spread of sign-in methods: none, a password alone, a password and a
+    code (MFA but phishable), and a password and a key (phishing-resistant)."""
+    return [
+        ("nothing", ["pwd"]),
+        ("a password and an app code", ["pwd", "otp"]),
+        ("a password and a text code", ["pwd", "sms"]),
+        ("a password and a key", ["pwd", "hwk"]),
+    ]
+
+
+def base_signin(user, app):
+    return {
+        "user": user,
+        "app": app,
+        "methods": ["pwd"],
+        "risk": "none",
+        "userrisk": "none",
+        "device": "unknown",
+        "location": None,
+        "client": "browser",
+    }
+
+
+def req_mfa():
+    cases = []
+    for groups in ([], ["staff"], ["warehouse"], ["contractors"]):
+        for label, methods in methods_pool():
+            if "contractors" in groups:
+                app = "reports"  # keep the contractor location rule out of it
+            else:
+                app = random.choice(APPS)
+            user = name()
+            attrs = {"groups": groups, "roles": []}
+            s = base_signin(user, app)
+            s["methods"] = methods
+            s["location"] = "warehouse"
+            cases.append(
+                (
+                    f"a person in {groups or 'no group'} signing in with {label}",
+                    attrs,
+                    s,
+                )
+            )
+    return cases
+
+
+def req_admins():
+    cases = []
+    for who, groups, roles in (
+        ("a partner-admin", ["partner-admins"], []),
+        ("a Global Administrator", ["staff"], ["Global Administrator"]),
+        ("a plain staff member", ["staff"], []),
+    ):
+        for label, methods in methods_pool():
+            user = name()
+            attrs = {"groups": groups, "roles": roles}
+            s = base_signin(user, "reports")
+            s["methods"] = methods
+            s["location"] = "warehouse"
+            cases.append((f"{who} signing in with {label}", attrs, s))
+    return cases
+
+
+def req_contractors():
+    cases = []
+    for where in ("warehouse", "home", None):
+        for groups in (["contractors"], ["staff"]):
+            user = name()
+            attrs = {"groups": groups, "roles": []}
+            s = base_signin(user, "partner-portal")
+            s["methods"] = ["pwd", "hwk"]  # so only the location rule can block
+            s["location"] = where
+            cases.append(
+                (
+                    f"a person in {groups} reaching the partner portal from {where or 'an unknown place'}",
+                    attrs,
+                    s,
+                )
+            )
+    return cases
+
+
+def req_risk():
+    cases = []
+    for level in ("none", "low", "medium", "high"):
+        for label, methods in (
+            ("an app code", ["pwd", "otp"]),
+            ("a key", ["pwd", "hwk"]),
+        ):
+            user = name()
+            attrs = {"groups": ["staff"], "roles": []}
+            s = base_signin(user, "reports")
+            s["methods"] = methods
+            s["risk"] = level
+            s["location"] = "warehouse"
+            cases.append((f"a {level}-risk sign-in with {label}", attrs, s))
+    return cases
+
+
+def req_legacy():
+    cases = []
+    for client in (
+        "browser",
+        "mobileAppsAndDesktopClients",
+        "exchangeActiveSync",
+        "other",
+    ):
+        user = name()
+        attrs = {"groups": ["staff"], "roles": []}
+        s = base_signin(user, "reports")
+        s["methods"] = ["pwd", "hwk"]
+        s["client"] = client
+        s["location"] = "warehouse"
+        cases.append((f"a sign-in over {client}", attrs, s))
+    return cases
+
+
+def req_emergency():
+    cases = []
+    members = ["bg-1", "bg-2", name()]
+    worst = [
+        ("a high-risk sign-in", {"risk": "high"}),
+        ("a legacy client", {"client": "other"}),
+        ("the partner portal from home", {"app": "partner-portal", "location": "home"}),
+        ("a password alone", {"methods": ["pwd"]}),
+    ]
+    for who in members:
+        for label, over in worst:
+            attrs = {"groups": ["emergency-access"], "roles": []}
+            s = base_signin(who, over.get("app", "reports"))
+            s.update(over)
+            cases.append((f"the emergency account {who} with {label}", attrs, s))
+    return cases
+
+
+def req_exclusion_narrow():
+    cases = []
+    for groups, roles in (
+        ([], []),
+        (["staff"], []),
+        (["contractors"], []),
+        (["partner-admins"], []),
+        (["staff"], ["Global Administrator"]),
+    ):
+        user = name()
+        attrs = {"groups": groups, "roles": roles}
+        s = base_signin(user, "reports")
+        s["methods"] = ["pwd"]  # fails MFA, so a non-excluded person is blocked
+        s["location"] = "warehouse"
+        who = groups or "no group"
+        cases.append(
+            (
+                f"a person in {who} (role {roles or 'none'}) with a password alone",
+                attrs,
+                s,
+            )
+        )
+        s2 = base_signin(name(), "reports")
+        s2["methods"] = ["pwd", "otp"]
+        s2["risk"] = "high"  # a block that only emergency accounts escape
+        s2["location"] = "warehouse"
+        cases.append((f"a high-risk sign-in by a person in {who}", attrs, s2))
+        attrs2 = {"groups": groups, "roles": roles}
+        cases[-1] = (cases[-1][0], attrs2, s2)
+        cases[-1][2]["user"] = s2["user"]
+    return cases
+
+
+def req_report_only():
+    """The partner-portal compliant-device policy is report-only: it blocks
+    nobody, but it is worked out and shown as a failure for a noncompliant
+    device."""
+    user = name()
+    attrs = {"groups": ["staff"], "roles": []}
+    s = base_signin(user, "partner-portal")
+    s["methods"] = ["pwd", "hwk"]
+    s["device"] = "noncompliant"
+    s["location"] = "warehouse"
+    verdicts = run_batch({user: attrs}, [s])
+    verdict = verdicts[0]
+    if verdict["result"] != "allow":
+        print(
+            "a noncompliant device at the partner portal was blocked: the compliant-device policy isn't report-only"
+        )
+        return
+    report_rows = [r for r in verdict["policies"] if r.get("outcome") == "report-only"]
+    if not report_rows:
+        print("no report-only policy applied to a partner-portal sign-in")
+        return
+    would_fail = any((r.get("blocks") or not r.get("passes")) for r in report_rows)
+    if not would_fail:
+        print(
+            "the report-only policy would have passed a noncompliant device: it isn't the compliant-device rule"
+        )
+        return
+    print("ok")
+
+
+BUILDERS = {
+    "mfa": req_mfa,
+    "admins": req_admins,
+    "contractors": req_contractors,
+    "risk": req_risk,
+    "legacy": req_legacy,
+    "emergency": req_emergency,
+    "exclusion-narrow": req_exclusion_narrow,
+}
+
+
+def main(argv):
+    if len(argv) != 1:
+        sys.exit("usage: ca-cases REQUIREMENT")
+    which = argv[0]
+    if which == "report-only":
+        req_report_only()
+        return
+    if which not in BUILDERS:
+        sys.exit(f"ca-cases: no requirement called {which}")
+    judge(BUILDERS[which]())
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

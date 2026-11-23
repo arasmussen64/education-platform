@@ -1,0 +1,29 @@
+id: debug-weak-front-door
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The weak front door"
+prompt: |
+  The shop's strong sign-in was set up by someone else, and it is not holding. Two machines: `office` (10.0.5.2), a staff laptop, and `idp` (10.0.5.10), the identity provider at `https://login.shop.test`, realm `shop`. The admins are `alice` and `carol` (group `admins`, each with a security key); staff are `ana` and `ben` (each with an app code); the emergency accounts are `bg-1` and `bg-2` (group `emergency-access`, each with a security key). The sign-in flow is in the realm file (`on idp nano /etc/keycloak/realms/shop.json`, applied with `sudo realm-apply shop`); the conditional-access policies are one JSON file each in `/etc/shop/ca/` on the provider, and `on idp ca-whatif USER APP ...` models what they do.
+
+  **The symptoms.**
+
+  - Last week's phishing exercise captured a working session for one admin. The exercise's log is in `/var/log/shop/phish-test.log`.
+  - The sign-in log shows the payments app being used from laptops the device service says are not compliant.
+  - At the quarterly drill, `bg-2` could not get in, while the drill's sign-in was flagged high risk.
+
+  There are **three faults**. Mending one can change what you see from another, so work through them and check at the end.
+
+  **The rules for your fix.**
+
+  - Admins stay phishing-resistant only: no admin may finish signing in with anything but a key.
+  - No policy is deleted, disabled, or moved to report-only (except the one already meant to be report-only).
+  - No exclusion is wider than the two emergency accounts.
+  - Nobody gets a password-only way in, and staff keep their own way in.
+  - The fix lasts a restart.
+
+  Useful: `kc-flows shop` draws the running sign-in flow; `on idp ca-whatif alice payments methods=pwd,hwk device=noncompliant` tries one sign-in; `realm-saved` says whether the running realm matches its file. Then run the checks.
+skills: [authentication-strength, conditional-access, break-glass, phishing-resistance]
