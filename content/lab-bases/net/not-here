@@ -9,6 +9,9 @@ daemon=$1
 case $daemon in
   nftables) example="sudo systemctl enable --now nftables@gw (each machine's firewall is its own /etc/nftables.conf)" ;;
   bind9) daemon=named example="sudo systemctl restart named@ns1" ;;
+  # The two below are the identity-lab base's (content/lab-bases/id).
+  apache2) example="sudo systemctl restart apache2@app, journalctl -u apache2@app" ;;
+  chrony) example="systemctl status chrony@ntp (a lab's time server; a machine's own clock is set by its time sync, timesync@MACHINE)" ;;
   *) example="sudo systemctl restart $daemon@r1, systemctl status $daemon@r1, journalctl -u $daemon@r1" ;;
 esac
 echo "$daemon doesn't run on the lab machine here: each machine runs its own, as $daemon@MACHINE. For example: $example. netlab show lists the machines and what each runs." >&2

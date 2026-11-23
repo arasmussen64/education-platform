@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""jwt: read a token, or check one. The token comes on standard input or
+from a file.
+
+  jwt show [FILE]
+      the header and the payload as JSON, and its times as dates
+  jwt verify --issuer URL --audience AUD [--nonce N] [--leeway SECONDS] [--jwks FILE] [FILE]
+      prints "valid sub=SUBJECT", or "invalid: REASON" where REASON is the
+      first of: format alg key signature issuer audience expired
+      not-yet-valid nonce. The keys come from the issuer's discovery
+      document (its jwks_uri), or from a file with --jwks.
+"""
+
+import argparse
+import json
+import sys
+import time
+
+sys.path.insert(0, "/usr/local/lib/idlab")
+import jwtlib  # noqa: E402
+
+
+def read(path):
+    return (open(path).read() if path else sys.stdin.read()).strip()
+
+
+def show(args):
+    try:
+        header, payload, _, _ = jwtlib.parts(read(args.file))
+    except ValueError:
+        sys.exit("jwt: not a JSON Web Token (three parts joined by dots)")
+    print(json.dumps(header, indent=2))
+    print(json.dumps(payload, indent=2))
+    for claim in ("iat", "nbf", "exp"):
+        if isinstance(payload.get(claim), (int, float)):
+            when = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(payload[claim]))
+            delta = int(payload[claim] - time.time())
+            print(f"{claim}: {when} ({abs(delta)} s {'from now' if delta >= 0 else 'ago'} by this machine's clock)")
+
+
+def verify(args):
+    token = read(args.file)
+    if args.jwks:
+        jwks = json.load(open(args.jwks))
+    else:
+        try:
+            well_known = args.issuer.rstrip("/") + "/.well-known/openid-configuration"
+            jwks = jwtlib.fetch_jwks(jwtlib.fetch_jwks(well_known)["jwks_uri"])
+        except Exception as error:  # noqa: BLE001
+            sys.exit(f"jwt: couldn't fetch the issuer's keys: {error}")
+    verdict, payload = jwtlib.verify(token, args.issuer, args.audience, jwks, args.nonce, args.leeway)
+    if verdict == "valid":
+        print(f"valid sub={payload.get('sub')}")
+        return 0
+    print(f"invalid: {verdict}")
+    return 1
+
+
+parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+commands = parser.add_subparsers(dest="command", required=True)
+one = commands.add_parser("show")
+one.add_argument("file", nargs="?")
+one.set_defaults(run=show)
+one = commands.add_parser("verify")
+one.add_argument("--issuer", required=True)
+one.add_argument("--audience", required=True)
+one.add_argument("--nonce")
+one.add_argument("--leeway", type=int, default=60)
+one.add_argument("--jwks")
+one.add_argument("file", nargs="?")
+one.set_defaults(run=verify)
+arguments = parser.parse_args()
+sys.exit(arguments.run(arguments))

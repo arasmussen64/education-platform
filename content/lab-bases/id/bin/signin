@@ -1,0 +1,526 @@
+#!/usr/bin/env python3
+"""signin: the lab's scripted browser. It opens a page as a person's browser
+would: follows redirects, keeps cookies, fills in the identity provider's
+sign-in form, types a one-time code, uses a (software) security key, and
+posts the forms that single sign-on sends through the browser.
+
+  signin URL USER [options]        open URL and sign in as USER when asked
+  signin --code CLIENT REDIRECT_URI ISSUER USER [--secret S] [--scope S]
+                                   be the app itself: run the authorization-code
+                                   flow with PKCE and print the token response
+  signin --approve-device CODE USER [--realm REALM]
+                                   be the person a device showed a code to: open
+                                   the identity provider's device page, type the
+                                   code, sign in as USER and grant the access
+
+  --password P       USER's password (default: the one in /etc/idlab/accounts)
+  --otp-secret S     the authenticator app's secret (base32), to type a code when asked
+  --key FILE         USER's security key (a file made by --register-key or at image build)
+  --register-key FILE  when asked to register a security key, make one and save it here
+  --jar FILE         keep cookies here between runs (a browser that stays open)
+  --origin ORIGIN    lie about which site the page is on (what a fooled browser would report)
+  --realm REALM      the realm whose device page --approve-device opens (default: shop)
+  -v                 show every request, redirect and form
+
+It prints what a person would see at the end: "signed in: STATUS URL" and
+the page, or "refused: WHY". Exit 0 only when the last page is a 2xx that
+is not the identity provider's own sign-in or error page.
+"""
+
+import argparse
+import base64
+import hashlib
+import hmac
+import html
+import http.cookiejar
+import json
+import os
+import re
+import struct
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+AGENT = "signin/1 (the lab's scripted browser)"
+
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def unb64url(text):
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def totp(secret, at=None):
+    """RFC 6238 with the usual settings: SHA-1, 30 seconds, 6 digits."""
+    key = base64.b32decode(secret.upper() + "=" * (-len(secret) % 8))
+    counter = struct.pack(">Q", int((at or time.time()) // 30))
+    digest = hmac.new(key, counter, hashlib.sha1).digest()
+    offset = digest[-1] & 15
+    return "%06d" % ((struct.unpack(">I", digest[offset : offset + 4])[0] & 0x7FFFFFFF) % 1000000)
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *_):
+        return None
+
+
+class Browser:
+    def __init__(self, jar_path, verbose):
+        self.jar = http.cookiejar.LWPCookieJar(jar_path) if jar_path else http.cookiejar.CookieJar()
+        if jar_path and os.path.exists(jar_path):
+            self.jar.load(ignore_discard=True, ignore_expires=True)
+        self.jar_path = jar_path
+        self.opener = urllib.request.build_opener(NoRedirect, urllib.request.HTTPCookieProcessor(self.jar))
+        self.verbose = verbose
+
+    def say(self, text):
+        if self.verbose:
+            print(text, file=sys.stderr)
+
+    def fetch(self, url, form=None, headers=None):
+        """One request, no redirects followed: (status, headers, body, url)."""
+        data = urllib.parse.urlencode(form).encode() if form is not None else None
+        # What a browser says it wants: a page. (mod_auth_openidc answers 401,
+        # not a redirect to the sign-in, to anything that doesn't ask for HTML.)
+        asks = {"User-Agent": AGENT, "Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
+        request = urllib.request.Request(url, data=data, headers={**asks, **(headers or {})})
+        try:
+            answer = self.opener.open(request, timeout=20)
+        except urllib.error.HTTPError as error:
+            answer = error
+        except (urllib.error.URLError, OSError) as error:
+            reason = getattr(error, "reason", error)
+            print(f"refused: the browser couldn't open {url}: {reason}")
+            sys.exit(1)
+        body = answer.read().decode(errors="replace")
+        self.say(f"{'POST' if form is not None else 'GET'} {shorten(url)} -> {answer.status}")
+        return answer.status, answer.headers, body, url
+
+    def go(self, url, form=None):
+        """A request and every redirect after it."""
+        for _ in range(25):
+            status, headers, body, url = self.fetch(url, form)
+            if status in (301, 302, 303, 307, 308) and headers.get("Location"):
+                target = urllib.parse.urljoin(url, headers["Location"])
+                self.say(f"   redirect to {shorten(target)}")
+                if urllib.parse.urlsplit(target).scheme not in ("http", "https"):
+                    return status, headers, body, target
+                if status not in (307, 308):
+                    form = None
+                url = target
+                continue
+            return status, headers, body, url
+        print("refused: the browser gave up after 25 redirects (a redirect loop)")
+        sys.exit(1)
+
+    def save(self):
+        if self.jar_path:
+            self.jar.save(ignore_discard=True, ignore_expires=True)
+
+
+def shorten(url):
+    """A URL with long values cut, so -v stays readable."""
+    return re.sub(r"=([^&]{48})[^&]*", r"=\1...", url)
+
+
+def forms_of(body):
+    """Every form on a page: its id, action, method and named inputs."""
+    found = []
+    for match in re.finditer(r"<form\b([^>]*)>(.*?)</form>", body, re.S | re.I):
+        attrs, inner = match.group(1), match.group(2)
+        inputs = {}
+        for tag in re.finditer(r"<input\b([^>]*)>", inner, re.I):
+            name = attr(tag.group(1), "name")
+            if name:
+                inputs[name] = attr(tag.group(1), "value") or ""
+        found.append(
+            {
+                "id": attr(attrs, "id"),
+                "action": attr(attrs, "action"),
+                "method": (attr(attrs, "method") or "get").lower(),
+                "inputs": inputs,
+            }
+        )
+    return found
+
+
+def attr(attrs, name):
+    match = re.search(rf'\b{name}\s*=\s*"([^"]*)"', attrs, re.I) or re.search(rf"\b{name}\s*=\s*'([^']*)'", attrs, re.I)
+    return html.unescape(match.group(1)) if match else None
+
+
+def text_of(fragment):
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", fragment))).strip()
+
+
+def page_message(body):
+    """What an identity provider's page tells the person: an error or a notice."""
+    for pattern in (
+        r'id="kc-error-message"[^>]*>(.*?)</div>',
+        r'id="input-error[^"]*"[^>]*>(.*?)</(?:span|div)>',
+        r'class="[^"]*kc-feedback-text[^"]*"[^>]*>(.*?)</span>',
+        r'class="[^"]*pf-v5-c-alert__title[^"]*"[^>]*>(.*?)</(?:span|h4|div)>',
+        r'class="[^"]*pf-v5-c-helper-text__item-text[^"]*"[^>]*>(.*?)</(?:span|div)>',
+        r'class="instruction"[^>]*>(.*?)</p>',
+    ):
+        match = re.search(pattern, body, re.S)
+        if match and text_of(match.group(1)):
+            return text_of(match.group(1))
+    return None
+
+
+def page_title(body):
+    """The heading of one of the identity provider's pages."""
+    match = re.search(r'id="kc-page-title"[^>]*>(.*?)</h1>', body, re.S)
+    return text_of(match.group(1)) if match else None
+
+
+def consent_form(forms):
+    """The form on the page that asks "do you grant this access?", or None.
+    It has no id; it posts to the provider's consent address."""
+    for form in forms:
+        if form["method"] == "post" and "/login-actions/consent" in (form["action"] or ""):
+            return form
+    return None
+
+
+def script_value(body, name):
+    """A value the page hands its WebAuthn script: challenge : 'abc'."""
+    match = re.search(rf"\b{name}\s*:\s*'([^']*)'", body) or re.search(rf'\b{name}\s*:\s*"([^"]*)"', body)
+    return match.group(1) if match else None
+
+
+# --- The software security key ----------------------------------------------------
+
+
+def origin_of(url):
+    parts = urllib.parse.urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def browser_allows(rp_id, origin):
+    """The browser's own rule (WebAuthn): a page may ask for a key only for
+    its own host name or a parent of it."""
+    host = urllib.parse.urlsplit(origin).hostname or ""
+    return host == rp_id or host.endswith("." + rp_id)
+
+
+def client_data(kind, challenge, origin):
+    return json.dumps({"type": kind, "challenge": challenge, "origin": origin, "crossOrigin": False}, separators=(",", ":")).encode()
+
+
+def register_key(path, rp_id, user_handle, challenge, origin, label):
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from fido2.cose import ES256
+    from fido2.webauthn import AttestationObject, AttestedCredentialData, AuthenticatorData
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    credential_id = os.urandom(32)
+    credential = AttestedCredentialData.create(b"\0" * 16, credential_id, ES256.from_cryptography_key(key.public_key()))
+    flags = AuthenticatorData.FLAG.UP | AuthenticatorData.FLAG.UV | AuthenticatorData.FLAG.AT
+    auth_data = AuthenticatorData.create(hashlib.sha256(rp_id.encode()).digest(), flags, 1, credential)
+    attestation = AttestationObject.create("none", auth_data, {})
+    pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    saved = {
+        "rp_id": rp_id,
+        "credential_id": b64url(credential_id),
+        "user_handle": user_handle,
+        "counter": 1,
+        "private_key": pem.decode(),
+        "label": label,
+    }
+    with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as out:
+        json.dump(saved, out, indent=1)
+    return {
+        "clientDataJSON": b64url(client_data("webauthn.create", challenge, origin)),
+        "attestationObject": b64url(bytes(attestation)),
+        "publicKeyCredentialId": b64url(credential_id),
+        "authenticatorLabel": label,
+        "transports": "usb",
+        "error": "",
+    }
+
+
+def use_key(path, rp_id, challenge, origin):
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from fido2.webauthn import AuthenticatorData
+
+    saved = json.load(open(path))
+    if saved["rp_id"] != rp_id:
+        return None, f"the security key has no credential for {rp_id} (it was registered with {saved['rp_id']})"
+    saved["counter"] += 1
+    key = serialization.load_pem_private_key(saved["private_key"].encode(), None)
+    flags = AuthenticatorData.FLAG.UP | AuthenticatorData.FLAG.UV
+    auth_data = bytes(AuthenticatorData.create(hashlib.sha256(rp_id.encode()).digest(), flags, saved["counter"]))
+    data = client_data("webauthn.get", challenge, origin)
+    signature = key.sign(auth_data + hashlib.sha256(data).digest(), ec.ECDSA(hashes.SHA256()))
+    json.dump(saved, open(path, "w"), indent=1)
+    return {
+        "clientDataJSON": b64url(data),
+        "authenticatorData": b64url(auth_data),
+        "signature": b64url(signature),
+        "credentialId": saved["credential_id"],
+        "userHandle": saved["user_handle"],
+        "error": "",
+    }, None
+
+
+# --- Signing in --------------------------------------------------------------------
+
+
+def password_of(user):
+    try:
+        for line in open("/etc/idlab/accounts"):
+            fields = line.split()
+            if len(fields) == 2 and fields[0] == user:
+                return fields[1]
+    except OSError:
+        pass
+    return None
+
+
+def walk(browser, args, status, headers, body, url):
+    """Answers the identity provider's pages until something else comes back.
+    Returns (status, headers, body, url, steps)."""
+    steps = []
+    for _ in range(12):
+        forms = forms_of(body)
+        ids = {form["id"]: form for form in forms if form["id"]}
+        auto = next((f for f in forms if f["method"] == "post" and ({"SAMLResponse", "SAMLRequest"} & set(f["inputs"]) or {"code", "state"} <= set(f["inputs"]) or "id_token" in f["inputs"])), None)
+        message = page_message(body)
+        if auto:
+            # A form the page posts by itself the moment it loads (SAML's POST
+            # binding, OpenID Connect's form_post): the browser carries it on.
+            kind = "SAMLResponse" if "SAMLResponse" in auto["inputs"] else "SAMLRequest" if "SAMLRequest" in auto["inputs"] else "form_post"
+            steps.append(f"carried a {kind} form to {origin_of(urllib.parse.urljoin(url, auto['action']))}")
+            status, headers, body, url = browser.go(urllib.parse.urljoin(url, auto["action"]), auto["inputs"])
+        elif "kc-user-verify-device-user-code-form" in ids:
+            form = ids["kc-user-verify-device-user-code-form"]
+            code = getattr(args, "approve_device", None)
+            if not code:
+                return status, headers, body, url, steps + ["refused: the page asks for a device's code (signin --approve-device CODE USER)"]
+            if steps and steps[-1].startswith("typed the device's code"):
+                return status, headers, body, url, steps + [f"refused: {message or 'the code was not accepted'}"]
+            steps.append(f"typed the device's code {code} at {origin_of(url)}")
+            status, headers, body, url = browser.go(urllib.parse.urljoin(url, form["action"]), dict(form["inputs"], device_user_code=code))
+        elif consent_form(forms):
+            form = consent_form(forms)
+            what = page_title(body) or "grant access"
+            if not getattr(args, "approve_device", None):
+                return status, headers, body, url, steps + [f'refused: the page asks "{what}?", and signin grants access only with --approve-device']
+            if steps and steps[-1].startswith("answered yes"):
+                return status, headers, body, url, steps + [f"refused: {message or 'the consent was not accepted'}"]
+            steps.append(f'answered yes to "{what}"')
+            status, headers, body, url = browser.go(urllib.parse.urljoin(url, form["action"]), dict(form["inputs"], accept="Yes"))
+        elif "kc-form-login" in ids and "password" in ids["kc-form-login"]["inputs"] or "kc-form-login" in ids and "username" in ids["kc-form-login"]["inputs"]:
+            form = ids["kc-form-login"]
+            if steps and steps[-1].startswith("typed the password"):
+                return status, headers, body, url, steps + [f"refused: {message or 'the sign-in form came back'}"]
+            if not args.user:
+                return status, headers, body, url, steps + ["refused: the page asks who you are, and no USER was given"]
+            password = args.password or password_of(args.user)
+            if password is None:
+                return status, headers, body, url, steps + [f"refused: no password known for {args.user}"]
+            fields = dict(form["inputs"], username=args.user, password=password)
+            fields.pop("rememberMe", None)
+            steps.append(f"typed the password at {origin_of(url)}")
+            status, headers, body, url = browser.go(urllib.parse.urljoin(url, form["action"]), fields)
+        elif "kc-otp-login-form" in ids:
+            if not args.otp_secret:
+                return status, headers, body, url, steps + ["refused: the page asks for a one-time code, and this person has no authenticator app (--otp-secret)"]
+            if steps and steps[-1].startswith("typed the authenticator"):
+                return status, headers, body, url, steps + [f"refused: {message or 'the code was not accepted'}"]
+            form = ids["kc-otp-login-form"]
+            steps.append("typed the authenticator app's code")
+            status, headers, body, url = browser.go(urllib.parse.urljoin(url, form["action"]), dict(form["inputs"], otp=totp(args.otp_secret)))
+        elif "webauth" in ids:
+            form, rp_id, challenge = ids["webauth"], script_value(body, "rpId"), script_value(body, "challenge")
+            origin = args.origin or origin_of(url)
+            if not args.key:
+                return status, headers, body, url, steps + ["refused: the page asks for a security key, and this person has none (--key)"]
+            if not browser_allows(rp_id, origin_of(url)):
+                return status, headers, body, url, steps + [f"refused by the browser: the page on {urllib.parse.urlsplit(url).hostname} asked for a key for {rp_id}"]
+            fields, problem = use_key(args.key, rp_id, challenge, origin)
+            if problem:
+                return status, headers, body, url, steps + [f"refused by the key: {problem}"]
+            if steps and steps[-1].startswith("touched the security key"):
+                return status, headers, body, url, steps + [f"refused: {message or 'the key was not accepted'}"]
+            steps.append(f"touched the security key for {rp_id}")
+            status, headers, body, url = browser.go(urllib.parse.urljoin(url, form["action"]), dict(form["inputs"], **fields))
+        elif "register" in ids and "attestationObject" in ids["register"]["inputs"]:
+            form, rp_id, challenge = ids["register"], script_value(body, "rpId"), script_value(body, "challenge")
+            if not args.register_key:
+                return status, headers, body, url, steps + ["refused: the page asks to register a security key (--register-key FILE to do it)"]
+            if not browser_allows(rp_id, origin_of(url)):
+                return status, headers, body, url, steps + [f"refused by the browser: the page on {urllib.parse.urlsplit(url).hostname} asked for a key for {rp_id}"]
+            if steps and steps[-1].startswith("registered a security key"):
+                return status, headers, body, url, steps + [f"refused: {message or 'the new key was not accepted'}"]
+            fields = register_key(args.register_key, rp_id, script_value(body, "userid"), challenge, args.origin or origin_of(url), f"{args.user}'s key")
+            steps.append(f"registered a security key for {rp_id}")
+            status, headers, body, url = browser.go(urllib.parse.urljoin(url, form["action"]), dict(form["inputs"], **fields))
+        elif "kc-form-login" in ids or "kc-error-message" in body or (message and "/login-actions/" in url):
+            return status, headers, body, url, steps + [f"refused: {message or 'the identity provider showed a page signin does not know'}"]
+        else:
+            return status, headers, body, url, steps
+    return status, headers, body, url, steps + ["refused: too many pages"]
+
+
+def open_page(args):
+    browser = Browser(args.jar, args.verbose)
+    status, headers, body, url = browser.go(args.url)
+    status, headers, body, url, steps = walk(browser, args, status, headers, body, url)
+    browser.save()
+    for step in steps:
+        if not step.startswith("refused"):
+            print(step)
+    refusal = next((step for step in steps if step.startswith("refused")), None)
+    if refusal:
+        print(refusal)
+        return 1
+    if 200 <= status < 300:
+        print(f"signed in: {status} {url.split('?')[0]}")
+        print(body.strip()[:2000])
+        return 0
+    print(f"refused: {status} from {url.split('?')[0]}: {text_of(body)[:300]}")
+    return 1
+
+
+def idp_url():
+    try:
+        for line in open("/etc/idlab/idp"):
+            if line.startswith("IDP_URL="):
+                return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return None
+
+
+def approve_device(args):
+    """The person's side of the device grant (RFC 8628): the device showed
+    them a code and an address; they open the address in their own browser,
+    type the code, sign in and say yes. The device, polling meanwhile, then
+    gets its tokens."""
+    args.user = args.user or args.url
+    base = idp_url()
+    if not base:
+        print("refused: this lab has no identity provider recorded in /etc/idlab/idp")
+        return 1
+    browser = Browser(args.jar, args.verbose)
+    status, headers, body, url = browser.go(f"{base}/realms/{args.realm}/device")
+    status, headers, body, url, steps = walk(browser, args, status, headers, body, url)
+    browser.save()
+    for step in steps:
+        if not step.startswith("refused"):
+            print(step)
+    refusal = next((step for step in steps if step.startswith("refused")), None)
+    if refusal:
+        print(refusal)
+        return 1
+    if 200 <= status < 300 and url.split("?")[0].endswith("/device/status") and any(s.startswith("answered yes") for s in steps):
+        print(f"approved: {page_message(body) or 'the device may collect its tokens'}")
+        return 0
+    print(f"refused: {status} from {url.split('?')[0]}: {page_message(body) or text_of(body)[:200]}")
+    return 1
+
+
+def code_flow(args):
+    """The app's side of the authorization-code flow with PKCE, with the
+    scripted browser as the person's side."""
+    client, redirect, issuer = args.code
+    args.user = args.url  # the fourth positional
+    with urllib.request.urlopen(issuer.rstrip("/") + "/.well-known/openid-configuration", timeout=15) as answer:
+        meta = json.load(answer)
+    verifier = b64url(os.urandom(32))
+    # Hex, so neither can start with "-" and be taken for an option by a
+    # command a check passes it to.
+    state, nonce = os.urandom(12).hex(), os.urandom(12).hex()
+    query = {
+        "client_id": client,
+        "response_type": "code",
+        "scope": args.scope,
+        "redirect_uri": redirect,
+        "state": state,
+        "nonce": nonce,
+        "code_challenge": b64url(hashlib.sha256(verifier.encode()).digest()),
+        "code_challenge_method": "S256",
+    }
+    browser = Browser(args.jar, args.verbose)
+    url = meta["authorization_endpoint"] + "?" + urllib.parse.urlencode(query)
+    # The browser stops at the redirect back to the app: the app is us.
+    status, headers, body, url = browser.fetch(url)
+    while status in (302, 303) and not urllib.parse.urljoin(url, headers["Location"]).startswith(redirect):
+        status, headers, body, url = browser.fetch(urllib.parse.urljoin(url, headers["Location"]))
+    steps = []
+    for _ in range(6):
+        if status in (302, 303):
+            break
+        before = len(steps)
+        forms = forms_of(body)
+        if not any(form["id"] in ("kc-form-login", "kc-otp-login-form", "webauth", "register") for form in forms):
+            print(f"refused: {page_message(body) or text_of(body)[:200]}")
+            return 1
+        # One page at a time, without following the redirect to the app.
+        original_go = browser.go
+        browser.go = lambda u, f=None: browser.fetch(u, f)
+        status, headers, body, url, more = walk(browser, args, status, headers, body, url)
+        browser.go = original_go
+        steps += more
+        if any(step.startswith("refused") for step in more) or len(steps) == before:
+            break
+    browser.save()
+    refusal = next((step for step in steps if step.startswith("refused")), None)
+    if refusal:
+        print(refusal)
+        return 1
+    back = urllib.parse.urljoin(url, headers.get("Location", ""))
+    answer = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(back).query))
+    if "code" not in answer or answer.get("state") != state:
+        print(f"refused: no code came back: {answer.get('error_description') or answer.get('error') or back[:200]}")
+        return 1
+    form = {"grant_type": "authorization_code", "code": answer["code"], "redirect_uri": redirect, "client_id": client, "code_verifier": verifier}
+    if args.secret:
+        form["client_secret"] = args.secret
+    request = urllib.request.Request(meta["token_endpoint"], data=urllib.parse.urlencode(form).encode())
+    try:
+        with urllib.request.urlopen(request, timeout=15) as reply:
+            tokens = json.load(reply)
+    except urllib.error.HTTPError as error:
+        print(f"refused at the token endpoint: {error.read().decode(errors='replace')[:300]}")
+        return 1
+    tokens["nonce_sent"] = nonce
+    print(json.dumps(tokens))
+    return 0
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--code", nargs=3, metavar=("CLIENT", "REDIRECT_URI", "ISSUER"))
+    parser.add_argument("--approve-device", metavar="CODE")
+    parser.add_argument("url", nargs="?")
+    parser.add_argument("user", nargs="?")
+    parser.add_argument("--password")
+    parser.add_argument("--otp-secret")
+    parser.add_argument("--key")
+    parser.add_argument("--register-key")
+    parser.add_argument("--jar")
+    parser.add_argument("--origin")
+    parser.add_argument("--secret")
+    parser.add_argument("--scope", default="openid")
+    parser.add_argument("--realm", default="shop")
+    parser.add_argument("-v", "--verbose", action="store_true")
+    arguments = parser.parse_args(argv)
+    if arguments.approve_device:
+        return approve_device(arguments)
+    if not arguments.url:
+        parser.error("a URL to open is needed (or --code, or --approve-device)")
+    return code_flow(arguments) if arguments.code else open_page(arguments)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

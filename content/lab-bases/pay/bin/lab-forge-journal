@@ -1,0 +1,70 @@
+#!/usr/bin/python3
+"""lab-forge-journal IN OUT [OLD NEW]: rewrites a journal file the way an
+attacker who knows the format would.
+
+It reads every entry of the journal file IN (journalctl -o export), changes
+OLD to NEW in the entries' messages when the two are given, and has
+systemd's own journal writer make a new, well-formed file OUT (which must
+end ".journal") from the result. The new file's hashes are all correct, so
+"journalctl --verify" finds nothing wrong with it. What it can't have is
+the seals: only the sealing key makes those, so a verification with the
+verification key validates no time range at all.
+
+    sudo lab-forge-journal copy.journal forged.journal amount=19.99 amount=91.99
+"""
+
+import os
+import subprocess
+import sys
+
+REMOTE = "/usr/lib/systemd/systemd-journal-remote"
+
+
+def rewrite(export: bytes, old: bytes, new: bytes) -> bytes:
+    """An export stream with old changed to new in every MESSAGE= line.
+
+    Only text fields are touched: a field with a line break in it is written
+    with its length in front, and changing it would need that length redone.
+    """
+    if not old:
+        return export
+    lines = export.split(b"\n")
+    for index, line in enumerate(lines):
+        if line.startswith(b"MESSAGE="):
+            lines[index] = line.replace(old, new)
+    return b"\n".join(lines)
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    if len(args) not in (2, 4) or not args[1].endswith(".journal"):
+        print(
+            "usage: lab-forge-journal IN OUT.journal [OLD NEW]",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    source, target = args[0], args[1]
+    old, new = (args[2].encode(), args[3].encode()) if len(args) == 4 else (b"", b"")
+    export = subprocess.run(
+        ["journalctl", "--file", source, "-o", "export"],
+        capture_output=True,
+    )
+    if export.returncode != 0 or not export.stdout:
+        sys.stderr.write(export.stderr.decode(errors="replace"))
+        print(f"lab-forge-journal: couldn't read {source}", file=sys.stderr)
+        sys.exit(1)
+    if os.path.exists(target):
+        os.unlink(target)
+    written = subprocess.run(
+        [REMOTE, "--output", target, "-"],
+        input=rewrite(export.stdout, old, new),
+        capture_output=True,
+    )
+    if written.returncode != 0:
+        sys.stderr.write(written.stderr.decode(errors="replace"))
+        sys.exit(1)
+    print(f"{target}: rewritten from {source}")
+
+
+if __name__ == "__main__":
+    main()

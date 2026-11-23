@@ -103,6 +103,8 @@ Each daemon runs as a systemd unit per machine on the lab machine, all after `ne
 
 So prompts say `sudo systemctl restart frr@r2`, `systemctl reload nginx@web`, `journalctl -u haproxy@lb`.
 
+`netlab` also knows five services whose programs and units are not in this image: `keycloak`, `apache2`, `stock-api`, `timesync` and `chrony`. They belong to the identity-lab base, [`content/lab-bases/id/`](../id/README.md), which starts `FROM lab-base-net` and brings them. A topology here that names one is accepted, and then fails at boot, because the unit doesn't exist.
+
 A unit's journal lines carry its name and machine (`unbound@resolver[812]: ...`), set by `SyslogIdentifier=`; a daemon that logs to syslog itself still uses its own name (`bgpd`, `named`).
 
 **The plain units say what to type.** On the lab machine, `frr.service`, `strongswan`, `named` (and `bind9`), `unbound`, `nginx`, `haproxy`, `radvd` and `nftables` never start their daemon: a habit-typed `sudo systemctl restart frr` fails, systemd points at `systemctl status frr.service`, and that shows "Not on this lab machine: frr runs on each machine, as frr@MACHINE" and the line to type. (`reload` and `enable` on them only say the job doesn't apply; `status` always shows the advice.)
@@ -212,6 +214,8 @@ From the Module 3 brief, sections 3.5 and 4.4.
 - **nginx 1.24's habits** (`csa.net.http-tls`): `ssl_protocols` comes from the default server for an address and port, whatever another server block says (fixed only in 1.29.2); one `listen` line's `http2` covers every site on that port; stapling works with no `resolver`, from the address looked up at load, and never looks again; a resolver that doesn't answer stops stapling after the 30 s `resolver_timeout`.
 - **A daemon that looks names up while it loads** (nginx's OCSP responder) starts after the machine's resolver, with an `After=` drop-in and a wait, or it loads without them until it is reloaded.
 - **TLS in a lab:** the base has no `ca-certificates` package, and `/etc/ssl` is shared by every machine, so a lab's trust store is the lab machine's `/etc/ssl/certs/ca-certificates.crt`, which curl and openssl read by default. `openssl s_client` prints `Verify return code: 0 (ok)` even when no certificate arrived, so a check also requires a PEM block; `openssl s_server` applies `-alpn` to its first certificate only; openssl's OCSP index refuses a repeated subject unless `index.txt.attr` says `unique_subject = no`.
+- **A lab that downloads at build installs `ca-certificates` first,** in the same `RUN` (`apt-get install -y --no-install-recommends ca-certificates`), or `curl` can't verify the server it downloads from. The package's bundle then replaces the shared file above, so the lab's own root is added to it afterwards (`update-ca-certificates`, as the identity-lab base does). Every download is pinned by version and SHA-256 (the identity-lab base's README has the pattern).
+- **Nothing sets the clock.** A lab's container is privileged, so its clock is the real clock of Docker's whole machine: `date -s` in a lab would move the time for every other container on the computer, or on the CI runner. The base's `date` (`/usr/local/bin/date`, found first by the learner, by `sudo` and by `on M`) refuses `-s` and `--set` and says why; every other use goes straight to `/usr/bin/date`. It guards a habit and is not a wall (`/usr/bin/date -s` still works for root), so no prompt, solution or check ever sets a date, and no lab runs a time daemon that could (chrony without `-x`, `systemd-timesyncd`, `timedatectl set-time`). A lab that needs a machine whose clock is wrong uses the identity-lab base, where a machine can have a clock of its own.
 - **HAProxy 2.8's check timing** (`csa.net.load-balancing`, measured): the next health check starts `inter` after the previous one ends, so a refused server is out after about fall × inter and a hung one after about fall × (inter + timeout). `httpchk` sends `GET ... HTTP/1.0` with no headers.
 - **iperf3 and the journal** (`csa.net.congestion`): iperf3's server closes its listener between tests, so a test started the moment another ends can be refused (wait a second between them); `iperf3 -s` under journald needs `--forceflush`; `journalctl --since @SECONDS` includes the same second, so a check that reads only what came after its run takes a cursor first (`-n 1 --show-cursor`, then `--after-cursor`).
 - **Caddy as a lab unit** (`csa.net.congestion`): `Type=notify` works through lab-enter; `ExecReload` must also run inside the machine, since the admin endpoint is the machine's 127.0.0.1:2019; `caddy adapt` gives the JSON the admin endpoint serves, so "the running site equals its file" is one comparison. aioquic's connect has no deadline of its own (wrap it in `asyncio.wait_for`).
@@ -257,7 +261,7 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 | `netlab` | the engine: the topology's words, `up`, `down`, `restart`, `show`, `link`, `verify`, `enable`, `seal`, `intact` |
 | `network-up` | runs a machine's `/etc/network/up` and names the line that fails |
 | `machine-state` | a machine's network configuration, normalised, for `netlab verify` |
-| `lab-enter` | what makes a namespace a machine: its `/run`, state folders, hostname and no domain name (so FRR never writes `domainname localdomain`) |
+| `lab-enter` | what makes a namespace a machine: its `/run`, state folders, hostname and no domain name (so FRR never writes `domainname localdomain`); and, only for a machine with its own `/etc/faketimerc` in an image that has libfaketime (the identity-lab base's clock labs), its own clock |
 | `on` | `on MACHINE [COMMAND...]` |
 | `checklib.sh` | the check helpers |
 | `cors-verdict` | the Fetch standard's CORS check and preflight rules, for checks (its cases are `tools/tests/test_cors_verdict.py`; `csa.net.http-semantics`' write lab keeps an identical copy) |
@@ -266,6 +270,7 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 | `strongswan.d/` | charon's settings for every machine that runs strongSwan, and swanctl's plugin list |
 | `sysctl.d-README` | the note in every machine's `/etc/sysctl.d/` |
 | `looking-glass`, `holdconns`, `holdserver`, `web-svc` | helpers in `/usr/local/bin` |
+| `date` | `/usr/local/bin/date`: refuses to set the clock, passes everything else to `/usr/bin/date` |
 
 ## Size and time
 

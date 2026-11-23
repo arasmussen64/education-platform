@@ -1,0 +1,191 @@
+#!/usr/bin/python3
+"""access-review: what a principal is granted, against what it has used.
+
+    access-review [--days N] [--dir FOLDER] [--log FILE] PRINCIPAL
+
+A stand-in for the clouds' analyzers, modelled on IAM Access Analyzer's
+unused access findings and Google's role recommendations. It is not either
+tool: it reads this lab's files.
+
+Run it in the folder that holds the policies (or name it with --dir):
+
+    policies.cedar   the policies as they are now
+    entities.json    the principals, roles and resources
+    catalogue.txt    every action there is, one "ACTION RESOURCE-TYPE" a line
+
+and the access log (--log FILE, or the path in the folder's "log" file, or
+/var/log/ops/access.log), one request a line:
+
+    DATE PRINCIPAL ACTION RESOURCE        2026-08-04 reports read Order/o-17
+
+For every line of the catalogue it asks Cedar whether the principal may do
+that action to a resource of that type today, then looks for a request like
+it in the last N days of the log (90 unless --days says otherwise, counted
+back from the log's newest line). It prints two lists: granted and used,
+and granted but never used in those N days.
+
+What it can't see: anything before the window, and why a permission was
+given. A job that runs once a quarter may not be in 90 days of log.
+"""
+
+import datetime
+import os
+import sys
+
+sys.path.insert(0, "/usr/local/lib/policy")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import checklib  # noqa: E402
+
+DEFAULT_LOG = "/var/log/ops/access.log"
+
+
+def kind_of(resource):
+    """Order from Order/o-17 or Order::"o-17"."""
+    return resource.replace("::", "/").split("/")[0]
+
+
+def read_catalogue(path):
+    pairs = []
+    with open(path, encoding="utf-8") as file:
+        for number, line in enumerate(file, 1):
+            words = line.split("#")[0].split()
+            if not words:
+                continue
+            if len(words) != 2:
+                raise checklib.PolicyError(
+                    f"{path}, line {number}: a catalogue line is ACTION RESOURCE-TYPE"
+                )
+            pairs.append((words[0], words[1]))
+    return pairs
+
+
+def read_log(path):
+    """(date, principal, action, resource type) for each request in the log."""
+    requests = []
+    with open(path, encoding="utf-8") as file:
+        for number, line in enumerate(file, 1):
+            words = line.split()
+            if not words:
+                continue
+            try:
+                day = datetime.date.fromisoformat(words[0])
+                requests.append((day, words[1], words[2], kind_of(words[3])))
+            except (ValueError, IndexError):
+                raise checklib.PolicyError(
+                    f"{path}, line {number}: a log line is DATE PRINCIPAL ACTION RESOURCE"
+                ) from None
+    return requests
+
+
+def review(granted, requests, name, days):
+    """Splits the granted (action, type) pairs by whether the principal used
+    them in the window: ([(action, type, count, last day)], [(action, type)],
+    the window's first and last day)."""
+    newest = max((day for day, *_ in requests), default=datetime.date.today())
+    first = newest - datetime.timedelta(days=days - 1)
+    used, unused = [], []
+    for action, kind in granted:
+        hits = [
+            day
+            for day, who, did, on in requests
+            if who == name and did == action and on == kind and first <= day <= newest
+        ]
+        if hits:
+            used.append((action, kind, len(hits), max(hits)))
+        else:
+            unused.append((action, kind))
+    return used, unused, first, newest
+
+
+def main(argv):
+    days, folder, log, names = 90, ".", None, []
+    args = list(argv)
+    while args:
+        arg = args.pop(0)
+        if arg in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        if arg in ("--days", "--dir", "--log"):
+            if not args:
+                print(f"access-review: {arg} needs a value")
+                return 1
+            value = args.pop(0)
+            if arg == "--days":
+                if not value.isdigit() or int(value) < 1:
+                    print(
+                        "access-review: --days takes a whole number of days, such as 90"
+                    )
+                    return 1
+                days = int(value)
+            elif arg == "--dir":
+                folder = value
+            else:
+                log = value
+        else:
+            names.append(arg)
+    if len(names) != 1:
+        print(
+            "access-review: name one principal, as in: access-review --days 90 reports"
+        )
+        return 1
+
+    policies = os.path.join(folder, "policies.cedar")
+    entities_path = os.path.join(folder, "entities.json")
+    catalogue_path = os.path.join(folder, "catalogue.txt")
+    pointer = os.path.join(folder, "log")
+    if log is None and os.path.isfile(pointer):
+        with open(pointer, encoding="utf-8") as file:
+            log = file.read().strip()
+    log = log or DEFAULT_LOG
+    for path in (policies, entities_path, catalogue_path, log):
+        if not os.path.isfile(path):
+            print(f"access-review: there is no file {path}")
+            return 1
+
+    try:
+        entities = checklib.load_entities(entities_path)
+        principal = checklib.find_entity(names[0], entities, "principal")
+        name = principal.split("::")[-1].strip('"')
+        samples = {}
+        for e in entities:
+            samples.setdefault(e["uid"]["type"], e["uid"]["id"])
+        granted = []
+        for action, kind in read_catalogue(catalogue_path):
+            # A resource of this type that exists, so its attributes do; a
+            # type with none in entities.json gets a name nothing else has.
+            resource = checklib.uid(kind, samples.get(kind, "any"))
+            allowed, _, _ = checklib.authorize(
+                policies,
+                entities_path,
+                principal,
+                checklib.uid("Action", action),
+                resource,
+                {},
+            )
+            if allowed:
+                granted.append((action, kind))
+        used, unused, first, newest = review(granted, read_log(log), name, days)
+    except checklib.PolicyError as error:
+        print(f"access-review: {error}")
+        return 1
+
+    print(f"access review of {principal}: the {days} days from {first} to {newest}")
+    print(f"(policies: {policies}; log: {log})")
+    print()
+    print("granted and used:")
+    for action, kind, count, last in used:
+        times = "1 request" if count == 1 else f"{count} requests"
+        print(f"  {action} {kind}  ({times}, the last on {last})")
+    if not used:
+        print("  nothing")
+    print()
+    print(f"granted, never used in {days} days:")
+    for action, kind in unused:
+        print(f"  {action} {kind}")
+    if not unused:
+        print("  nothing")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

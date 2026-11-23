@@ -1,0 +1,16 @@
+#!/bin/bash
+# base-intact: are the base's sealed files as the image shipped them?
+# For checks. Prints "intact", or each sealed file that changed or is gone,
+# and then exits 1. Sealed, with checksums taken when the image was built
+# (/usr/local/lib/lab-pay/SHA256SUMS): the scanners (osv-scanner, oscap),
+# the advisory records and their zip, the EPSS, KEV and SSVC extracts, the
+# benchmark's data stream and refs.tsv, NIST's control texts, the package
+# list as it was, the shop's programs and these helpers. A lab's own
+# scenery is not: seal that in the lab.
+changed=$(cd / && sha256sum --quiet -c /usr/local/lib/lab-pay/SHA256SUMS 2>&1 | grep -v '^sha256sum: WARNING')
+if [[ -z $changed ]]; then
+  echo intact
+else
+  echo "$changed"
+  exit 1
+fi

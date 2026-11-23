@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""make-key USER-ID RP-ID KEYFILE: at image build, makes a software security
+key for a person who already has one when the lab starts. The private half
+goes to KEYFILE (what "signin --key" reads); the public half is printed as
+the credentialData Keycloak keeps, for the realm file to carry as
+"credentials": [{"type": "webauthn", "userLabel": "...", "credentialData": "${NAME}", "secretData": "{}"}].
+USER-ID is the user's "id" in the realm file."""
+
+import base64
+import json
+import os
+import sys
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from fido2 import cbor
+from fido2.cose import ES256
+
+user_id, rp_id, path = sys.argv[1:4]
+key = ec.generate_private_key(ec.SECP256R1())
+credential_id = os.urandom(32)
+pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+saved = {
+    "rp_id": rp_id,
+    "credential_id": base64.urlsafe_b64encode(credential_id).rstrip(b"=").decode(),
+    "user_handle": base64.urlsafe_b64encode(user_id.encode()).rstrip(b"=").decode(),
+    "counter": 1,
+    "private_key": pem.decode(),
+    "label": "made at image build",
+}
+with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as out:
+    json.dump(saved, out, indent=1)
+print(
+    json.dumps(
+        {
+            "aaguid": "00000000-0000-0000-0000-000000000000",
+            "credentialId": base64.b64encode(credential_id).decode(),
+            "counter": 1,
+            "credentialPublicKey": base64.b64encode(cbor.encode(ES256.from_cryptography_key(key.public_key()))).decode(),
+            "attestationStatementFormat": "none",
+            "transports": ["usb"],
+        },
+        separators=(",", ":"),
+    )
+)

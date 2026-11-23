@@ -37,15 +37,16 @@ RUN apt-get update \
 # Layer 3: netlab, which builds a lab's machines at boot; "on", which runs a
 # command on one; the per-machine services; the plain services replaced by
 # ones that say what to type; strongSwan's settings for every machine that
-# runs it; the checks' helpers; and the helpers a learner runs.
+# runs it; the checks' helpers; the helpers a learner runs; and a date that
+# refuses to set the clock, which is the clock of Docker's whole machine.
 COPY netlab network-up machine-state not-here plain-units lab-enter checklib.sh sysctl.d-README /usr/local/lib/netlab/
-COPY on looking-glass holdconns holdserver web-svc /usr/local/bin/
+COPY on looking-glass holdconns holdserver web-svc date /usr/local/bin/
 COPY units/ /etc/systemd/system/
 COPY strongswan.d/ /etc/strongswan.d/
 RUN cd /usr/local/lib/netlab \
  && chmod 644 /etc/systemd/system/netlab.service /etc/systemd/system/*@.service /etc/strongswan.d/netlab.conf /etc/strongswan.d/swanctl.conf \
  && chmod 755 netlab network-up machine-state not-here plain-units lab-enter \
- && chmod 755 /usr/local/bin/on /usr/local/bin/looking-glass /usr/local/bin/holdconns /usr/local/bin/holdserver /usr/local/bin/web-svc \
+ && chmod 755 /usr/local/bin/on /usr/local/bin/looking-glass /usr/local/bin/holdconns /usr/local/bin/holdserver /usr/local/bin/web-svc /usr/local/bin/date \
  && ln -s /usr/local/lib/netlab/netlab /usr/local/bin/netlab \
  && ./plain-units \
  && mkdir -p /etc/netlab /etc/netns /var/lib/netlab/machines \
