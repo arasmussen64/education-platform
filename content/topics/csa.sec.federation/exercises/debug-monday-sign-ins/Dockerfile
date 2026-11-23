@@ -39,5 +39,6 @@ RUN chmod 755 /usr/local/lib/shop/orders/* /usr/local/lib/shop/stock/* /usr/loca
  && (umask 077; printf 'client_id=stock-job\nclient_secret=%s\n' "$(idlab secret-of STOCK_JOB_SECRET)" > /etc/netns/jobs/stock-job/client) \
  && idlab bake \
  && netlab seal /etc/netlab/topology /etc/netns/idp/keycloak/realms/partners.json /etc/netns/jobs/stock-job/client \
+      /etc/netns/idp/keycloak/secrets.env \
       /usr/local/lib/shop/orders/me /usr/local/lib/shop/orders/stock /usr/local/lib/shop/stock/level \
       /usr/local/bin/stock-job /usr/local/bin/scanner-login

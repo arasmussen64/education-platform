@@ -14,6 +14,12 @@ checks:
     command: |
       . /usr/local/lib/idlab/idlib.sh
       rm -f /run/hr-check/verdicts
+      # The connector's own work is SCIM requests with curl: not the admin
+      # API, the realm file or the checks' tools.
+      if grep -E 'kcadm|idp-user|realm-apply|kcapi|admin\.env|hr-check|python|/admin/realms' /home/learner/bin/hr-sync > /dev/null 2>&1; then
+        echo "the connector hands its work to another tool: it should make its changes through the SCIM API, with curl"
+        exit 0
+      fi
       python3 /usr/local/lib/shop/hr-check
     expect:
       equals: ran
