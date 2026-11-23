@@ -1,16 +1,309 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.threat-modeling
 kind: topic
-status: planned
+status: ready
 title: Threat modeling
-summary: Threat-model a system with data-flow diagrams, STRIDE and attack trees, and rank the risks.
+summary: "Find what can go wrong in a system before it is built: draw its parts, its flows and the boundaries where trust changes; run STRIDE over every flow that crosses one; rank the threats by a stated method; answer each with a control that restores the property it breaks; work out an attack tree's cheapest path; and name attackers' techniques with MITRE ATT&CK and turn the worst threats into abuse cases a team can test."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections 3,
+# 4.4 and 5) and its designer's brief (csa.sec.threat-modeling.md). The
+# module's first topic, so it carries the note every threat-model lab
+# leans on ("Before your first threat-model lab", in the worked example's
+# prompt). It builds on Module 3 whole (HTTPS, certificates and mutual TLS,
+# cookies, load balancers, DNS, VPNs) and Module 1 (least privilege for a
+# service, attack surface, awk with arrays, sed -i, nano), and assumes
+# nothing from Module 2. It defines, for the module (the plan's 3.5):
+# threat, trust boundary, STRIDE, risk, likelihood, impact, residual risk,
+# control, attack tree, ATT&CK, abuse case, webhook and shared
+# responsibility. MFA, authentication, authorization and a signing secret
+# get one plain sentence each here and are taught by the next topics.
 prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+  - csa.m3.checkpoint
+# Worked out (content/README.md): the lesson about 4,900 words with its
+# tables, 38 minutes; the copied reading (OWASP's cheat sheet, from
+# "Overview" to the end of "Review and Validation", 1,950 words) 15;
+# 21 practice quick questions at 1.5 each, 32; the worked example 20, the
+# fill-in 20, the write 30; the build 70, the debug 35, the explain 20:
+# 280. The plan's 300 assumed 81 minutes of assigned readings, which are
+# optional now (ADR-0031), and a shorter lesson.
+estimated_minutes: 280
 rev: 1
 objectives:
-- Threat-model a system with data-flow diagrams, STRIDE and attack trees, and rank the risks.
-- Use MITRE ATT&CK for cloud.
-- Bring abuse cases into design reviews.
+  - "Draw a system as a data-flow diagram (external entities, processes, data stores, data flows) in trust zones, and mark every flow that crosses a trust boundary, a cloud provider's managed services included."
+  - "Run STRIDE over the flows that cross a boundary, and write each threat as a sentence that says who can do what and what it leads to, or record why there is nothing to record."
+  - "Rank threats by likelihood times impact on stated scales, read OWASP's longer method, and say what such a ranking leaves out."
+  - "Choose a response to each risk (mitigate, eliminate, transfer, accept) and a control of a kind that restores the property the threat breaks; say what residual risk is."
+  - "Draw an attack tree for the worst risk, work out its cheapest path, and say what a countermeasure does to it."
+  - "Name an attacker's technique with MITRE ATT&CK's cloud matrices, citing the version, and bring abuse cases with acceptance tests into a design review."
+# Facts the lesson and the items rely on, each read on 2026-11-22:
+# - The four questions ("What are we working on?", "What can go wrong?",
+#   "What are we going to do about it?", "Did we do a good enough job?")
+#   and the definition "analyzing representations of a system to highlight
+#   concerns about security and privacy characteristics": the Threat
+#   Modeling Manifesto, CC BY 4.0: threatmodelingmanifesto.org.
+# - OWASP's Threat Modeling Cheat Sheet (CC BY-SA 4.0, its footer): DFDs
+#   with trust boundaries; STRIDE's six properties; likelihood times impact
+#   is hard to estimate and leaves out the effort to fix; mitigate,
+#   eliminate, transfer (which lowers neither likelihood nor consequence),
+#   accept: cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html.
+# - STRIDE per element, from the six category units of Microsoft Learn's
+#   module "Use a framework to identify threats and find ways to reduce or
+#   eliminate risk" (9 units, ms.date 2025-05-12): spoofing: process,
+#   external entity; tampering: process, data store, data flow;
+#   repudiation: process, external entity, data store; information
+#   disclosure and denial of service: process, data store, data flow;
+#   elevation of privilege: process. The same units pair the categories
+#   with authentication, integrity, non-repudiation, confidentiality,
+#   availability and authorization, and list the controls the lesson's
+#   table draws on:
+#   learn.microsoft.com/en-us/training/modules/tm-use-a-framework-to-identify-threats-and-find-ways-to-reduce-or-eliminate-risk/.
+# - OWASP Risk Rating Methodology (CC BY-SA 4.0, the site's footer): risk =
+#   likelihood x impact; four threat-agent and four vulnerability factors,
+#   four technical and four business impact factors, each 0 to 9 and
+#   averaged; LOW 0 to under 3, MEDIUM 3 to under 6, HIGH 6 to 9; the
+#   severity table (HIGH and HIGH is Critical, LOW and LOW is Note);
+#   business impact is used when known:
+#   owasp.org/www-community/OWASP_Risk_Rating_Methodology (it answers 308
+#   to community.owasp.org/OWASP_Risk_Rating_Methodology).
+# - Bruce Schneier, "Attack Trees" (Dr. Dobb's Journal, December 1999): an
+#   OR node costs its cheapest child, an AND node the sum of its children;
+#   the safe's cheapest attack is a $20,000 bribe, and raising the bribe to
+#   $80,000 leaves a $60,000 threat as the cheapest:
+#   schneier.com/academic/archives/1999/12/attack_trees.html.
+# - MITRE ATT&CK: v20.1 is current since 13 October 2026 (v19.2 from 28
+#   April, v18.1 from 28 October 2025): attack.mitre.org/resources/versions/.
+#   15 Enterprise tactics, Stealth TA0005 and Defense Impairment TA0112
+#   among them: attack.mitre.org/tactics/enterprise/. v19 split Defense
+#   Evasion into Stealth and Defense Impairment, and "Impair Defenses" was
+#   revoked by "Disable or Modify Tools" (T1685):
+#   attack.mitre.org/resources/updates/updates-april-2026/. The page
+#   attack.mitre.org/techniques/T1562/008/ is a refresh to
+#   /techniques/T1685/002, "Disable or Modify Tools: Disable or Modify
+#   Cloud Log" (created 14 April 2026, tactic Defense Impairment). The IaaS
+#   matrix's 12 tactics and the techniques the items name (T1190 Exploit
+#   Public-Facing Application; T1566 Phishing; T1078.004 Valid Accounts: Cloud Accounts;
+#   T1110.004 Brute Force: Credential Stuffing; T1552.005 Unsecured
+#   Credentials: Cloud Instance Metadata API; T1530 Data from Cloud
+#   Storage; T1619 Cloud Storage Object Discovery; T1537 Transfer Data to
+#   Cloud Account; T1098.001 Account Manipulation: Additional Cloud
+#   Credentials): attack.mitre.org/matrices/enterprise/cloud/iaas/ and each
+#   technique's own page. Tactics are the "why", techniques the "how", from
+#   "real-world observations": attack.mitre.org/resources/.
+# - OWASP's Abuse Case Cheat Sheet is archived ("Reviewers have identified
+#   that abuse cases are rarely used in practice"), CC BY-SA 4.0:
+#   cheatsheetseries.owasp.org/cheatsheets/Abuse_Case_Cheat_Sheet.html.
+# - Shared responsibility: AWS's "security of the cloud" and "security in
+#   the cloud", with more left to the customer on EC2 than on S3 or
+#   DynamoDB: aws.amazon.com/compliance/shared-responsibility-model/.
+#   Azure's matrix by service type, and the four things a customer always
+#   keeps (data, endpoints, accounts, access management), ms.date
+#   2026-08-24: learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility.
+#   Google's shared responsibility by IaaS, PaaS and SaaS, and "shared
+#   fate" (blueprints, the Risk Protection Program with insurers):
+#   docs.cloud.google.com/architecture/framework/security/shared-responsibility-shared-fate.
+# - Tools named once: OWASP Threat Dragon 2.6.2, a desktop and web app that
+#   draws data-flow diagrams (threatdragon.com/docs/); AWS Labs' Threat
+#   Composer, Apache-2.0 (github.com/awslabs/threat-composer).
+# - The story: Brian Krebs, "Target Hackers Broke in Via HVAC Company"
+#   (5 February 2014, updated 6 February):
+#   krebsonsecurity.com/2014/02/target-hackers-broke-in-via-hvac-company/.
+# Every tm-check sentence quoted in the lesson and the labs is the lab
+# base's real output (content/lab-bases/tm), captured in this topic's
+# labs on 2026-11-22.
+#
+# Licences, each read on its page on 2026-11-22. OWASP's cheat sheets and
+# community pages are CC BY-SA 4.0 (their footers); the manifesto is CC BY
+# 4.0; Schneier's article states no licence; MITRE ATT&CK is © The MITRE
+# Corporation, under its terms of use; Microsoft Learn's training modules
+# come from the private learn-pr repository, under Microsoft Learn's terms
+# of use; AWS's page is © Amazon Web Services; Azure's documentation is CC
+# BY 4.0 (MicrosoftDocs/azure-docs); Google's page showed no licence line
+# in the text fetched. Only the first is copied in.
+resources:
+  - title: "Threat Modeling Cheat Sheet (OWASP Cheat Sheet Series): the four questions, one at a time, from \"Overview\" to \"Review and Validation\""
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html
+    type: reading
+    use: embed
+    license: CC BY-SA 4.0
+    text:
+      file: readings/threat-modeling-cheat-sheet.html
+      by: "Cheat Sheets Series Team: OWASP Cheat Sheet Series, Threat Modeling Cheat Sheet"
+      license_url: "https://creativecommons.org/licenses/by-sa/4.0/"
+      retrieved: "2026-11-22"
+      changes: "From the heading Overview to the end of Review and Validation; the Introduction before it, and Threat Modeling and the Development Team and the References after it, are left out, with the site's menus. Nothing else is changed."
+  - title: "Threat Modeling Manifesto: optional, the four questions' own home, with the values and habits its authors recommend"
+    url: https://www.threatmodelingmanifesto.org/
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "Use a framework to identify threats and find ways to reduce or eliminate risk (Microsoft Learn): optional, a unit for each STRIDE category with the elements it applies to"
+    url: https://learn.microsoft.com/en-us/training/modules/tm-use-a-framework-to-identify-threats-and-find-ways-to-reduce-or-eliminate-risk/
+    type: reading
+    use: link
+    optional: true
+    license: "Microsoft Learn's terms of use; linked, not copied"
+  - title: "OWASP Risk Rating Methodology: optional, the sixteen factors scored 0 to 9 and the severity table"
+    url: https://owasp.org/www-community/OWASP_Risk_Rating_Methodology
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY-SA 4.0 (the site's footer); linked, not copied"
+  - title: "Attack Trees (Bruce Schneier, Dr. Dobb's Journal, December 1999): optional, the article that introduced them, with the safe"
+    url: https://www.schneier.com/academic/archives/1999/12/attack_trees.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Bruce Schneier, no licence stated; linked, not copied"
+  - title: "Get Started (MITRE ATT&CK): optional, what tactics, techniques and procedures are"
+    url: https://attack.mitre.org/resources/
+    type: reading
+    use: link
+    optional: true
+    license: "© The MITRE Corporation, ATT&CK's terms of use; linked, not copied"
+  - title: "IaaS Matrix (MITRE ATT&CK): optional, the techniques seen against cloud infrastructure, by tactic"
+    url: https://attack.mitre.org/matrices/enterprise/cloud/iaas/
+    type: reading
+    use: link
+    optional: true
+    license: "© The MITRE Corporation, ATT&CK's terms of use; linked, not copied"
+  - title: "Abuse Case Cheat Sheet (OWASP, archived): optional, abuse cases worked through in a workshop, and why OWASP retired the page"
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Abuse_Case_Cheat_Sheet.html
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY-SA 4.0 (the page's footer); linked, not copied"
+  - title: "Shared Responsibility Model (AWS): optional, security of the cloud against security in the cloud"
+    url: https://aws.amazon.com/compliance/shared-responsibility-model/
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Shared responsibility in the cloud (Microsoft Learn): optional, Azure's table of who owns what for IaaS, PaaS and SaaS"
+    url: https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Shared responsibilities and shared fate on Google Cloud: optional, Google's version, and what it adds to the model"
+    url: https://docs.cloud.google.com/architecture/framework/security/shared-responsibility-shared-fate
+    type: reading
+    use: link
+    optional: true
+    license: "Google's documentation terms (no licence line in the text fetched); linked, not copied"
+# All five labs are plain labs on the threat-model base
+# (content/lab-bases/tm): a design note to read, a model to write as
+# lines of text, and tm-check. The recall items run in the browser.
+practice:
+  - example-model-the-shop-api
+  - mcq-first-question
+  - mcq-element-kind
+  - crossings-awk
+  - mcq-boundary-managed-db
+  - typed-spoofing-property
+  - mcq-stride-letter-hook
+  - typed-stride-letter-logs
+  - typed-stride-letter-error
+  - mcq-stride-per-element
+  - mcq-threat-statement
+  - est-stride-rows
+  - fill-model-the-newsletter
+  - est-risk-after-mfa
+  - est-owasp-likelihood
+  - est-how-many-high
+  - mcq-ordinal
+  - mcq-control-fit
+  - mcq-four-responses
+  - est-tree-cheapest
+  - est-tree-after-fix
+  - est-tree-probability
+  - mcq-attack-metadata
+  - write-review-gaps
+prove:
+  build: build-model-the-clinic
+  debug: debug-approved-model
+  explain:
+    prompt: |
+      A product manager asks why the team should spend a morning threat-modeling a new booking feature when "we already use HTTPS and the cloud is secure". Explain, in your own words: the four questions and why the first one comes first; what a trust boundary is, and where you'd draw them for an app that a partner's system calls back; how STRIDE helps you find what can go wrong, with one example of a threat that HTTPS doesn't touch; how you'd rank the threats and what that ranking can't tell you; how you'd choose what to do about the worst one, and why "we use TLS" isn't an answer to every threat; and what MITRE ATT&CK and abuse cases each add to a design review. Say one way the cloud's shared responsibility changes where your boundaries are.
+    rubric:
+      - id: four-questions
+        required: true
+        description: "The four questions (what are we working on, what can go wrong, what are we going to do about it, did we do a good enough job), and that the system must be drawn and agreed before a threat means anything: its parts, its flows and who runs each."
+      - id: boundaries
+        required: true
+        description: "A trust boundary is where the level of trust changes because the owner or the network changes: the internet, a partner's systems, a provider-managed service. A partner's callback crosses one, and threats cluster on the flows that cross."
+      - id: stride-beyond-tls
+        required: true
+        description: "STRIDE as six categories, each breaking one property (authentication, integrity, non-repudiation, confidentiality, availability, authorization), run over the flows that cross a boundary; and a threat HTTPS doesn't touch, such as a forged callback, a guessed or phished password, a change nobody is recorded as making, or a link that opens for anyone."
+      - id: ranking-limits
+        required: true
+        description: "Likelihood times impact on stated scales, with a line above which a risk must be answered; the numbers are ranks, so equal scores aren't equal risks, and the score leaves out the effort to fix."
+      - id: fitting-controls
+        required: true
+        description: "Mitigate, eliminate, transfer or accept; a control must restore the property the threat breaks (something that proves the sender or the user for spoofing, a record for repudiation), so TLS, which proves the server and hides the traffic, doesn't answer a forged message or a stolen password; what is left afterwards is the residual risk."
+      - id: attack-and-abuse
+        required: true
+        description: "ATT&CK names techniques seen in real attacks, by ID and version, so a threat can be named precisely and matched to controls and detections; an abuse case tells a threat as an attacker's story with an acceptance test the team can run, which carries the threat into the backlog."
+      - id: clouds-differ
+        required: false
+        description: "Shared responsibility moves the boundary by the kind of service: on a VM you own the operating system up, on a managed service the provider runs more and you keep the data, the identities and the configuration; each provider words it differently (AWS's of and in the cloud, Azure's table by service type, Google's shared fate)."
+    model_answer: |
+      HTTPS answers two questions: is this really our server, and can anyone read or change the traffic on the way. Most of what goes wrong with a feature is neither of those, and a morning of threat modeling is how we find the rest while it is still a drawing.
+
+      It asks four things in order. What are we working on? We draw the parts, the flows between them and who runs each, because a threat only means something in a system we agree on. What can go wrong, what are we going to do about it, and did we do a good enough job follow from that.
+
+      A trust boundary is where trust changes because the owner or the network changes: between the internet and our network, between us and the SMS company, between our servers and a service the cloud provider runs for us. Threats cluster on the flows that cross one, so those get reviewed first. The SMS company's callback to our site crosses one.
+
+      STRIDE is a checklist of six ways to break six properties: spoofing breaks authentication, tampering integrity, repudiation the record of who did what, information disclosure confidentiality, denial of service availability, elevation of privilege authorization. On the callback, spoofing asks "how do we know the SMS company sent this?" If we don't check, anyone can post a STOP and cancel a patient's appointments, over perfect HTTPS.
+
+      I'd rate each threat's likelihood and impact on scales we write down and multiply them, and treat anything above a line as something we must fix. The numbers are ranks: two sixes aren't equally bad, and the score doesn't say what a fix costs.
+
+      For the worst one we can mitigate, eliminate the feature, transfer the cost or accept it. A control only counts if it restores the property the threat breaks: a forged callback needs a signature check, a phished password a second factor. TLS does neither. What remains afterwards is the residual risk, and we write that down too.
+
+      ATT&CK gives the threats the names of techniques real attackers have used, with an ID and a version, which tells us what to detect. An abuse case turns a threat into a story with a test ("an unsigned report gets 401 and changes nothing") so it lands in the backlog.
+
+      And "the cloud is secure" covers the provider's half. On a VM we own the operating system and everything above it; on a managed database the provider runs more, but the data, the accounts and the settings are always ours.
+review_pool:
+  - crossings-awk
+  - crossings-awk-2
+  - mcq-boundary-managed-db
+  - mcq-element-scheduled-job
+  - mcq-stride-letter-hook
+  - mcq-stride-per-element
+  - mcq-stride-letter-quota
+  - typed-spoofing-property
+  - est-stride-rows
+  - est-stride-rows-2
+  - est-risk-after-mfa
+  - est-owasp-likelihood
+  - est-owasp-impact
+  - est-how-many-high
+  - mcq-ordinal
+  - mcq-control-fit
+  - mcq-four-responses
+  - mcq-transfer-not-lower
+  - est-residual
+  - est-tree-cheapest
+  - est-tree-after-fix
+  - est-tree-probability
+  - est-tree-countermeasure
+  - mcq-attack-metadata
+  - mcq-attack-snapshot
+  - mcq-attack-cloud-log
+  - mcq-abuse-case
+# Labs short enough for a hands-on refresher in a review (ADR-0009,
+# amended 2026-11-16): the review asks one in place of a quick question.
+review_labs:
+  - debug-approved-model
+  - fill-model-the-newsletter
+skills:
+  - id: draw-the-system
+    description: "The four questions and why the first comes first; the kinds of element in a data-flow diagram (external entity, process, data store, data flow) and how to tell them apart; trust zones and boundaries, and which flows cross; a flow drawn from the side that starts it; shared responsibility as a boundary to the cloud provider"
+  - id: stride
+    description: "The six categories and the property each breaks; which apply to which kind of element (Microsoft's mapping); STRIDE run over each flow that crosses a boundary; a threat written as who can do what, leading to what; a `none` line as a recorded review"
+  - id: rank-risks
+    description: "Likelihood and impact on stated scales; risk as likelihood times impact, and high as a line; OWASP's method (factors scored 0 to 9 and averaged, the bands, business impact when known); what a ranking of ranks can't say"
+  - id: respond-to-risk
+    description: "Mitigate, eliminate, transfer and accept, and when each fits; a control of a kind that restores the property the threat breaks (why TLS doesn't answer spoofing at a sign-in or a hook); residual risk; why a high risk isn't simply accepted"
+  - id: attack-trees
+    description: "A goal, AND and OR nodes and leaves with costs; the cheapest path (an OR takes its cheapest child, an AND adds its children); probabilities of independent steps; how a countermeasure moves the cheapest path"
+  - id: attack-and-abuse
+    description: "MITRE ATT&CK: tactics and techniques, the cloud matrices, technique IDs and why a model names the version; ATT&CK beside STRIDE; abuse cases as an attacker's story with an acceptance test, and their place in a design review"
