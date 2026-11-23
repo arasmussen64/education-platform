@@ -1,0 +1,24 @@
+id: est-exposure-alternating
+type: estimate
+rev: 1
+prompt: |
+  A database secret is rotated every 30 days with two users that take turns: each rotation changes the password of the user that is not in use. So each user's password is changed at every second rotation. A password leaks on the day it is set. For how many days, at most, does it keep working? Exactly.
+unit: days
+answer: 60
+tolerance: { absolute: 0 }
+given: { period: 30 }
+working: 2 * period
+mistakes:
+  - id: one-period
+    value: 30
+    working: "30"
+    why: After 30 days the rotation changes the other user's password. This one is left alone until the rotation after that.
+  - id: three-periods
+    value: 90
+    working: 3 * period
+    why: That is one rotation too many. A user's password is changed at every second rotation, 2 × 30 days after it was set.
+explanation: |
+  2 × 30 = 60 days. With alternating users a rotation never touches the password in use, which is what keeps applications working through it, and the cost is that every password lives for two periods: one as the current pair, one as the previous pair.
+
+  So "we rotate every 30 days" means 60 days of life for a leaked password under this strategy, and anyone setting the period should halve it in their head. It also means that a rotation run in an emergency, because a password leaked, has to run twice, or the leaked one is merely "previous" and still valid.
+skills: [rotate-and-revoke]

@@ -1,0 +1,24 @@
+id: est-creds-per-day
+type: estimate
+rev: 1
+prompt: |
+  The shop runs 40 copies of its order API. Each copy gets its own database credential from OpenBao and a new one every 3 hours, when the old one reaches its maximum lifetime. How many database accounts does OpenBao make in a day of 24 hours? Exactly.
+unit: accounts
+answer: 320
+tolerance: { absolute: 0 }
+given: { copies: 40, hours: 3, day: 24 }
+working: copies * day / hours
+mistakes:
+  - id: one-copy
+    value: 8
+    working: day / hours
+    why: That is one copy's accounts in a day. There are 40 copies, each with accounts of its own.
+  - id: times-three
+    value: 120
+    working: copies * hours
+    why: That multiplies by the 3 hours. Each copy gets a new account every 3 hours, which is 24 ÷ 3 = 8 a day.
+explanation: |
+  Each copy gets 24 ÷ 3 = 8 accounts a day, and 40 copies make 320. Every one is made and dropped by OpenBao, has its own name, and appears in the database's logs under that name, so "which copy ran this query at 14:02?" has an answer.
+
+  It is also why the numbers matter when choosing a lifetime. An hour's lifetime would be 960 accounts a day, each a few statements of SQL: fine for a database. Five minutes would be 11,520, and a database with thousands of roles being made and dropped starts to notice. Short enough to make theft pointless, long enough not to be a load: for most services that is somewhere between an hour and a day.
+skills: [dynamic-secrets]

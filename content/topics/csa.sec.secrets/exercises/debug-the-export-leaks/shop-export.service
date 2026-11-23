@@ -1,0 +1,13 @@
+# The shop's export: charges the day's orders at the payment gateway, as
+# the user export. shop-export.timer starts it; "systemctl start
+# shop-export" runs it now.
+[Unit]
+Description=Charge the day's orders at the payment gateway
+After=paygate.service lab-bao-init.service
+
+[Service]
+Type=oneshot
+User=export
+EnvironmentFile=/etc/shop/export.env
+ExecStart=/usr/local/bin/shop-export --api-key ${PAYGATE_KEY}
+SyslogIdentifier=shop-export

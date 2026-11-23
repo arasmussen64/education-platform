@@ -1,0 +1,16 @@
+id: mcq-imds-is-identity
+type: mcq
+rev: 1
+prompt: |
+  Boot, cloud-init and instance metadata showed a cloud VM fetching temporary credentials for its role from the metadata service at `169.254.169.254`, with no key stored on the VM. Why does that answer the secret-zero problem?
+choices:
+  - "The platform vouches for the VM, so no first credential is stored on it"
+  - "Those credentials never expire, so nothing needs to be rotated"
+  - "They are encrypted under the VM's own disk encryption key"
+  - "Only root on the VM can reach the metadata service, so no other user can ask for them"
+answer: 0
+explanation: |
+  The cloud started the VM, so the cloud knows which VM is asking and which role it was given. The metadata service hands that VM short-lived credentials for the role, and replaces them before they run out. The VM never had to be given a first secret: its identity is a fact the platform knows, not a value the VM keeps. Nothing is in an image, a repository or a config file to leak.
+
+  They do expire, in hours, which is a feature. They aren't encrypted under a disk key, and any process on the VM can ask the metadata service, which is why IMDSv2 exists and why the role should carry least privilege. The same idea, a signed statement from the platform about who a workload is, is what Kubernetes gives each pod and a CI system gives each job, and what the build lab's `platform-token` stands in for.
+skills: [secret-zero]

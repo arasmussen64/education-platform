@@ -1,0 +1,91 @@
+# The walkthrough's end state, read from the gateway's own records, from
+# OpenBao and from the database: which keys still work, where the new key
+# is kept, whether the leaking job is stopped, what the database role
+# gives. The restart trial runs them all again.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: leaked-key-revoked
+    description: "The key that leaked no longer works at the payment gateway."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      key=$(cat /usr/local/lib/lab/example/leaked-key)
+      ready() { curl -s -m 3 http://127.0.0.1:9440/health; }
+      wait_for 10 ready || { echo "the payment gateway isn't answering"; exit 0; }
+      answer=$(printf 'Authorization: Bearer %s' "$key" | curl -s -m 5 -o /dev/null -w '%{http_code}' -H @- http://127.0.0.1:9440/whoami)
+      [ "$answer" = 401 ] || { echo "the leaked key still works at the gateway"; exit 0; }
+      echo revoked
+    expect:
+      equals: revoked
+  - id: new-key-kept-in-openbao
+    description: "The shop has a new, active key, kept in OpenBao at secret/paygate/shop-key and in no file on this machine."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      key=$(bao kv get -field=key secret/paygate/shop-key 2> /dev/null) || { echo "there is no key at secret/paygate/shop-key"; exit 0; }
+      [ "$key" != "$(cat /usr/local/lib/lab/example/leaked-key)" ] || { echo "the key in OpenBao is the one that leaked"; exit 0; }
+      answer=$(printf 'Authorization: Bearer %s' "$key" | curl -s -m 5 -o /dev/null -w '%{http_code}' -H @- http://127.0.0.1:9440/whoami)
+      [ "$answer" = 200 ] || { echo "the key in OpenBao doesn't work at the gateway"; exit 0; }
+      # The key as it is, and as base64 and hex: another spelling in a
+      # file is the key all the same.
+      b64=$(printf '%s' "$key" | base64 -w 0)
+      hex=$(printf '%s' "$key" | xxd -p -c 256)
+      found=$(on_disk "$key") || found=$(on_disk "$b64") || found=$(on_disk "$hex") \
+        && { echo "the new key is in a file: $(echo "$found" | head -n 1)"; exit 0; }
+      journalctl --no-pager -o cat 2> /dev/null | grep -F -e "$key" > /dev/null && { echo "the new key is in the journal"; exit 0; }
+      echo "in OpenBao only"
+    expect:
+      equals: "in OpenBao only"
+  - id: demo-stopped
+    description: "The demo job is stopped and won't start at the next boot."
+    command: |
+      state="$(systemctl is-active shop-demo 2> /dev/null) $(systemctl is-enabled shop-demo 2> /dev/null)"
+      case "$state" in
+        "inactive disabled" | "failed disabled") echo stopped ;;
+        *) echo "shop-demo is $state" ;;
+      esac
+    expect:
+      equals: stopped
+  - id: root-rotated
+    description: "OpenBao is connected to the shop database, and the admin account's old password no longer works."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      bao read database/config/shop > /dev/null 2>&1 || { echo "OpenBao has no database connection called shop"; exit 0; }
+      old=$(cat /usr/local/lib/lab/example/db-admin-password)
+      if PGPASSWORD="$old" PGCONNECT_TIMEOUT=3 psql -X -A -t -q --host=127.0.0.1 --username=bao_admin --dbname=shop -c 'SELECT 1' > /dev/null 2>&1; then
+        echo "the password in secret/db/admin still logs in as bao_admin"
+        exit 0
+      fi
+      echo rotated
+    expect:
+      equals: rotated
+  - id: report-role
+    description: "OpenBao's report role makes an account that can only read orders and lasts at most an hour."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      made=$(bao read -format=json database/creds/report 2> /dev/null) \
+        || { echo "OpenBao can't make an account from a role called report"; exit 0; }
+      lease=$(echo "$made" | json "d['lease_id']")
+      trap 'bao lease revoke "$lease" > /dev/null 2>&1' EXIT
+      user=$(echo "$made" | json "d['data']['username']")
+      password=$(echo "$made" | json "d['data']['password']")
+      seconds=$(echo "$made" | json "d['lease_duration']")
+      longest=$(bao read -format=json database/roles/report | json "d['data']['max_ttl']")
+      [ "$seconds" -le 3600 ] && [ "$longest" -gt 0 ] && [ "$longest" -le 3600 ] \
+        || { echo "an account from report can last more than an hour"; exit 0; }
+      ask() { PGPASSWORD="$password" PGCONNECT_TIMEOUT=3 psql -X -A -t -q --host=127.0.0.1 --username="$user" --dbname=shop -c "$1" 2>&1; }
+      [ "$(ask 'SELECT count(*) FROM orders')" = 25 ] || { echo "the account can't read the orders table"; exit 0; }
+      more=$(pg "SELECT has_table_privilege('$user', 'orders', 'INSERT') OR has_table_privilege('$user', 'orders', 'UPDATE') OR has_table_privilege('$user', 'orders', 'DELETE') OR has_table_privilege('$user', 'orders', 'TRUNCATE') OR has_table_privilege('$user', 'customers', 'SELECT') OR (SELECT rolsuper OR rolcreaterole OR rolcreatedb FROM pg_roles WHERE rolname = '$user')" shop)
+      [ "$more" = f ] || { echo "the account can do more than read orders"; exit 0; }
+      echo "read-only, short-lived"
+    expect:
+      equals: "read-only, short-lived"
+  - id: scenery-intact
+    description: "The gateway, payctl and the demo program are as they were."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      sealed_ok
+    expect:
+      equals: intact

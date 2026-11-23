@@ -1,0 +1,80 @@
+# The checks push to a copy of the shop's repository that has the
+# learner's pre-receive hook in it, as the learner, from a clone of their
+# own: clean commits, and commits holding secrets made up on the spot (a
+# cloud access key ID, a code-hosting token, a private key, payment
+# gateway keys). The hook reads /etc/gitleaks/server.toml where the
+# learner wrote it. guardcheck.sh, beside this file, is the trial; it runs
+# once for all nine checks. The real repository never receives a push.
+checks:
+  - id: clean-accepted
+    description: "Pushes with no secret in them are accepted: commits to main, a new branch, and a branch's removal."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding clean-accepted
+    timeout: 60
+    expect:
+      equals: ok
+  - id: secret-refused
+    description: "A push whose newest commit adds a secret is refused, and the pusher is shown the rule and the commit."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding secret-refused
+    timeout: 60
+    expect:
+      equals: ok
+  - id: buried-refused
+    description: "A push is refused when any commit it brings adds a secret, whatever the last commit holds, and the pusher is shown which commit."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding buried-refused
+    timeout: 60
+    expect:
+      equals: ok
+  - id: new-branch
+    description: "A new branch whose commits add a secret is refused."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding new-branch
+    timeout: 60
+    expect:
+      equals: ok
+  - id: every-ref
+    description: "Every branch and tag a push brings is scanned: a secret on any one of them refuses the whole push."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding every-ref
+    timeout: 60
+    expect:
+      equals: ok
+  - id: own-rule
+    description: "A payment gateway key is refused by a rule called paygate-key."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding own-rule
+    timeout: 60
+    expect:
+      equals: ok
+  - id: fixtures-only
+    description: "A key-shaped value under tests/fixtures/ is accepted, and the same anywhere else is refused."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding fixtures-only
+    timeout: 60
+    expect:
+      equals: ok
+  - id: pushed-config-ignored
+    description: "Scanner settings that arrive inside a push change nothing about what the server refuses."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding pushed-config-ignored
+    timeout: 60
+    expect:
+      equals: ok
+  - id: no-secret-printed
+    description: "Nothing a pusher is shown holds a secret itself."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding no-secret-printed
+    timeout: 60
+    expect:
+      equals: ok

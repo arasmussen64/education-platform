@@ -1,0 +1,22 @@
+id: mcq-wrapped-twice
+type: mcq
+rev: 1
+prompt: |
+  A deployer asks OpenBao for a sign-in credential for a new application, wrapped: what it gets and passes on is a wrapping token that can be unwrapped once, within two minutes. Twenty seconds later the application tries to unwrap it and OpenBao answers (captured in the lab):
+
+  ```
+  * wrapping token is not valid or does not exist
+  ```
+
+  What should the application's operators conclude?
+choices:
+  - "Someone else may have unwrapped it first: raise an alarm and investigate"
+  - "The token ran out early: ask the deployer for another and carry on"
+  - "The token was meant for another application: try the next one in the list"
+  - "OpenBao restarted in between: wait a minute and unwrap it again"
+answer: 0
+explanation: |
+  A wrapping token works exactly once. If it was within its two minutes and it is already gone, then somebody unwrapped it, and it wasn't the application. Whoever did now holds the credential that was inside. That is the whole point of wrapping: it can't stop a token being intercepted on the way, but it turns an interception into something the rightful receiver notices at once. OpenBao's documentation says a failed unwrap should trigger an alert for immediate investigation.
+
+  Asking for another and carrying on throws that signal away, and leaves the stolen credential valid. The right next steps are to revoke what was in the wrapper and find out who read it. A restart doesn't lose wrapping tokens, and a wrapper isn't addressed to anyone: the first to unwrap it wins.
+skills: [secret-zero]

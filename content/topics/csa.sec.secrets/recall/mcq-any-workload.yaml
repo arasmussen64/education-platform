@@ -1,0 +1,16 @@
+id: mcq-any-workload
+type: mcq
+rev: 1
+prompt: |
+  A platform signs a token for each workload on a server, with the subject `workload:NAME` and the audience `openbao`. In OpenBao, the sign-in role `shop-api` is set up with `bound_audiences=openbao` and no bound subject, and its tokens may read the order API's database credentials. In the lab, which workloads' tokens could sign in with that role?
+choices:
+  - "Any workload's: the role checks the signature and the audience, not who"
+  - "Only `workload:shop-api`'s: OpenBao matches the role's name to the token's subject"
+  - "No workload's: a role with no bound subject refuses every token"
+  - "Only tokens with no subject at all, since none was bound"
+answer: 0
+explanation: |
+  A signature proves the platform made the token, and the audience proves it was made for OpenBao. Neither says which workload it is about: that is the subject's job, and this role never looks at it. In the lab, the nightly report's token (`workload:report-job`) signed in with the role and got a token that could read the order API's database credentials. The role's name means nothing to OpenBao.
+
+  The binding is the security. `bound_subject=workload:shop-api` makes the same sign-in answer `invalid subject (sub) claim` for every other workload, and a pattern such as `workload:*` is as open as no binding. This is the token validation from SAML, OAuth 2.0 and OIDC, turned round: there you checked a token's issuer, audience and expiry; here you also say which subject may have what.
+skills: [secret-zero]

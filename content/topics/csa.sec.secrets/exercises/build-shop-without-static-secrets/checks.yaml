@@ -1,0 +1,81 @@
+# The build's checks. Each reads real state through shopcheck.sh, beside
+# this file: what the API answers and as which database account, what the
+# database says that account may do, what OpenBao does with platform
+# tokens the check signs itself (for other workloads, other audiences,
+# names made up on the spot), and what a token from a good sign-in may
+# do. The restart trial runs them all again: the machine comes back with
+# no credentials file, and the agent has to sign in afresh.
+# A check that finds something wrong prints what it found.
+checks:
+  - id: api-works
+    description: "The order API and its agent run and start at boot, and the API serves the orders as a database account that OpenBao made for the workload's platform sign-in."
+    command: |
+      . /usr/local/lib/lab/shopcheck.sh
+      check_api
+    timeout: 90
+    expect:
+      equals: "serving, as a dynamic account"
+  - id: creds-short
+    description: "A database account from the role shop-api lasts at most an hour unless renewed, and at most a day in all."
+    command: |
+      . /usr/local/lib/lab/shopcheck.sh
+      check_short
+    expect:
+      equals: "an hour, a day"
+  - id: db-least
+    description: "The API's database account can read and add orders, and nothing else in the database."
+    command: |
+      . /usr/local/lib/lab/shopcheck.sh
+      check_db_least
+    expect:
+      equals: "orders: read and add"
+  - id: static-gone
+    description: "The old account shop_app can't log in, its password opens no account, and that password and /etc/shop/db.conf are gone."
+    command: |
+      . /usr/local/lib/lab/shopcheck.sh
+      check_static_gone
+    expect:
+      equals: gone
+  - id: root-rotated
+    description: "The database admin's password is known to OpenBao alone."
+    command: |
+      . /usr/local/lib/lab/shopcheck.sh
+      check_root_rotated
+    expect:
+      equals: "only OpenBao knows it"
+  - id: identity-bound
+    description: "Only the order API's own platform token can sign in: not another workload's, another audience's, an expired one, or one from another issuer or key; and no other way of signing in is switched on."
+    command: |
+      . /usr/local/lib/lab/shopcheck.sh
+      check_identity
+    timeout: 60
+    expect:
+      equals: "the order API only"
+  - id: token-least
+    description: "A token from that sign-in may read the API's own database credentials, and nothing else in OpenBao."
+    command: |
+      . /usr/local/lib/lab/shopcheck.sh
+      check_token_least
+    expect:
+      equals: "its own credentials only"
+  - id: nothing-standing
+    description: "No OpenBao token is kept in a file anywhere on the machine, in a unit or in a running program's environment for the API, except what a platform sign-in gave."
+    command: |
+      . /usr/local/lib/lab/shopcheck.sh
+      check_no_standing
+    expect:
+      equals: "nothing standing"
+  - id: creds-private
+    description: "The credentials file the API reads can be read by the user shop alone, and the password in it is in no other file."
+    command: |
+      . /usr/local/lib/lab/shopcheck.sh
+      check_private
+    expect:
+      equals: "shop alone"
+  - id: scenery-intact
+    description: "The order API, the platform's token service and their units are as they were."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      sealed_ok
+    expect:
+      equals: intact

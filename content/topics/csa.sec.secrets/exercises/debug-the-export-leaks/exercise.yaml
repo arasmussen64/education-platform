@@ -1,0 +1,30 @@
+id: debug-the-export-leaks
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The export leaks"
+prompt: |
+  The shop's server. Every part is described here, the broken and the working alike. OpenBao runs on it (its basics are in Applied cryptography's first lab), and your token may do anything there.
+
+  - **The export**, `/usr/local/bin/shop-export`, charges the day's orders (`/srv/shop/orders-today.csv`) at the payment gateway. `shop-export.service` runs it as the user `export`, and `shop-export.timer` starts it shortly after boot and then every ten minutes (nightly in the story; every ten minutes here, so that there is always a recent run to look at). `sudo systemctl start shop-export` runs it now, and `journalctl -u shop-export` shows what it logged. Its settings are in `/etc/shop/export.conf`. `shop-export --help` lists the ways it can be given its key.
+  - **The payment gateway**, a stand-in for an outside company's API, at `127.0.0.1:9440`. Its keys look like `pg_live_` and 32 letters and digits, and the shop may have two active at a time. `payctl` is the shop's tool for its account there: `payctl keys`, `payctl new` (prints `ID KEY`, once), `payctl revoke ID`, `payctl uses` (the gateway's record of every use), and `payctl check`, which says whether the key on its standard input works and which key it is. The gateway's admin key is in OpenBao at `secret/paygate/admin`, where `payctl` finds it.
+  - **The shop's repository**, `/srv/git/shop.git`, which every developer has cloned. `/etc/gitleaks/shop.toml` holds the shop's scanner settings.
+  - **`audit`**, an ordinary account of the kind every operator of this server has: no `sudo`, and membership of the groups that may read the journal. `sudo -u audit COMMAND` runs a command as that account.
+
+  The gateway has warned the shop: its key was used from an address that isn't the shop's. And the shop's auditor says that from the `audit` account, with no special rights, they can read the key the export pays with.
+
+  There are three faults. Find each from what the gateway's record, the repository and the running system show, and fix it at its cause. Fixing one can change what you see.
+
+  The rules of the fix:
+
+  - **A key that has leaked anywhere is no longer a secret.** When you are done, no key that has ever been where it shouldn't be may still work at the gateway.
+  - **The export must still charge the orders,** every ten minutes, through its unit and its timer.
+  - **Nothing an ordinary user can see or read may show the key the export pays with:** not while it runs, and not afterwards.
+  - **The operators keep their logs.** The export still logs each order it charges, and `audit` can still read those lines.
+  - **The gateway, `payctl` and the export program stay as they are.** The export's unit and its settings file are yours to change. A change to a unit can go in a drop-in: `sudo systemctl edit shop-export` opens one. This machine is a container, where systemd's own credentials (`LoadCredential=`) don't work: give the export its key another way.
+
+  Run the checks when the export runs clean.
+skills: [keep-secrets-out, rotate-and-revoke, scan-for-leaks]

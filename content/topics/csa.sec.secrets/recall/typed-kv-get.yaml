@@ -1,0 +1,22 @@
+id: typed-kv-get
+type: typed
+rev: 1
+prompt: |
+  The payment gateway's admin key is in OpenBao's key-value store, at the path `secret/paygate/admin`, in a field called `key`. Type the command that prints that one field and nothing else, ready to go down a pipe.
+kind: command
+answers:
+  - bao kv get -field=key secret/paygate/admin
+  - bao kv get -field key secret/paygate/admin
+mistakes:
+  - id: whole-table
+    answers: [bao kv get secret/paygate/admin]
+    why: "That prints the whole answer: the path, the metadata table and the data table. A pipe needs the one value, which `-field=key` gives."
+  - id: plain-read
+    answers: [bao read -field=key secret/paygate/admin, bao read secret/paygate/admin]
+    why: "In a version 2 key-value store the data is read at `secret/data/paygate/admin`, so a plain read of this path finds nothing. The key-value command adds the `data/` for you."
+  - id: put
+    answers: [bao kv put secret/paygate/admin key=-, bao kv put secret/paygate/admin]
+    why: "That one writes a secret. Reading is the other word."
+explanation: |
+  `bao kv get -field=key secret/paygate/admin`. `kv get` reads from the key-value store and `-field=NAME` prints one field alone, with no table round it, so the value can go straight into a pipe or a file and never onto the screen: the lab's `payctl` does exactly this each time it needs the admin key. The other direction is `bao kv put PATH name=value`, and `name=-` reads the value from standard input, so a secret can be stored without ever being typed as an argument.
+skills: [keep-secrets-out]
