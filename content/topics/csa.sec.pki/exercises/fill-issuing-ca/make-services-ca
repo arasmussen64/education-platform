@@ -1,0 +1,54 @@
+#!/bin/bash
+# make-services-ca: sets up the shop's issuing CA for its own servers from
+# the two settings files, and gives the API its certificate. Run it again
+# after every change to a ca.cnf: each run starts the issuing CA afresh.
+#
+#   1. On ca, the issuing CA's key is made (once), and a request for its
+#      certificate, which goes to root through ~/transfer.
+#   2. On root, the root signs the request with the section
+#      [ v3_services_ca ] of root's /etc/shop-ca/ca.cnf, and the
+#      certificate comes back to ca.
+#   3. On web, the API makes a request with the key it has, and on ca the
+#      issuing CA signs it with the section [ server ] of ca's
+#      /etc/shop-ca/ca.cnf. web gets the full chain: the API's
+#      certificate, then the issuing CA's.
+#   4. On ca, the issuing CA makes its CRL, where http://crl.shop.test/
+#      serves it, and its OCSP responder and nginx on web start.
+set -euo pipefail
+t=/home/learner/transfer
+mkdir -p "$t"
+
+for f in root:/etc/shop-ca/ca.cnf ca:/etc/shop-ca/ca.cnf; do
+  if on "${f%%:*}" grep -n '___' "${f#*:}" > /dev/null; then
+    echo "${f%%:*}'s ${f#*:} still has a ___ in it:" >&2
+    on "${f%%:*}" grep -n '___' "${f#*:}" >&2
+    exit 1
+  fi
+done
+
+echo "1. the issuing CA's key and request, on ca"
+on ca sh -c '[ -s /etc/shop-ca/services.key ] || openssl ecparam -name prime256v1 -genkey -noout -out /etc/shop-ca/services.key'
+on ca chmod 600 /etc/shop-ca/services.key
+on ca openssl req -new -key /etc/shop-ca/services.key -subj "/CN=Shop Services CA" -out "$t/services.csr"
+
+echo "2. the root signs it, on root"
+on root openssl ca -batch -notext -config /etc/shop-ca/ca.cnf -extensions v3_services_ca -in "$t/services.csr" -out "$t/services.pem" 2> "$t/root-said.txt" ||
+  { cat "$t/root-said.txt" >&2; echo "the root could not sign the issuing CA's certificate: read openssl's words above" >&2; exit 1; }
+on ca cp "$t/services.pem" /etc/shop-ca/services.pem
+on ca cp "$t/services.pem" /etc/shop-ca/public/services.pem
+
+echo "3. the API's certificate, from a request made on web"
+on ca sh -c ': > /etc/shop-ca/index.txt; rm -f /etc/shop-ca/newcerts/*.pem'
+on web openssl req -new -key /etc/nginx/tls/api.key -subj "/CN=api.shop.test" -addext "subjectAltName=DNS:api.shop.test" -out "$t/api.csr"
+on ca openssl ca -batch -notext -config /etc/shop-ca/ca.cnf -extensions server -in "$t/api.csr" -out "$t/api.pem" 2> "$t/ca-said.txt" ||
+  { cat "$t/ca-said.txt" >&2; echo "the issuing CA could not sign the API's certificate: read openssl's words above" >&2; exit 1; }
+on web sh -c "cat $t/api.pem $t/services.pem > /etc/nginx/tls/api-fullchain.pem"
+
+echo "4. the CRL, the OCSP responder, and nginx on web"
+on ca openssl ca -config /etc/shop-ca/ca.cnf -gencrl -out /etc/shop-ca/public/services.crl 2> /dev/null
+on ca chmod 644 /etc/shop-ca/public/services.crl /etc/shop-ca/public/services.pem
+sudo systemctl enable ocsp-responder@ca nginx@web > /dev/null 2>&1
+sudo systemctl reset-failed ocsp-responder@ca nginx@web 2> /dev/null || true
+sudo systemctl restart ocsp-responder@ca nginx@web
+sleep 1
+echo "done: the issuing CA is set up, and web serves the API with its new certificate"

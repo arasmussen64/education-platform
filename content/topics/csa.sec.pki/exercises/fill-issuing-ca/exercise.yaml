@@ -1,0 +1,29 @@
+id: fill-issuing-ca
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Limit the issuing CA"
+prompt: |
+  The shop wants certificates for its own servers from a PKI of its own: a root that stays offline, and under it an issuing CA, "Shop Services CA", that signs servers' certificates day to day. The first server is the API, `api.shop.test` on `web` (10.0.9.1). The root exists already, on `root`, the machine with no network; every machine trusts it. `ca` (10.0.9.5) will hold the issuing CA: nginx there serves the folder `/etc/shop-ca/public` as `http://crl.shop.test/`, and the CA's OCSP responder will answer at `http://ocsp.shop.test:8888`. `office` (10.0.9.2) is a staff laptop and `resolver` (10.0.9.53) the shop's name server. `netlab show` lists them.
+
+  A script, `~/bin/make-services-ca`, does the work in four steps and says what each is: the issuing CA's key and request on ca; the root signing it on root; the API's request on web and its certificate from the issuing CA; then the CRL, the OCSP responder and nginx on web. Read it with `less ~/bin/make-services-ca`. It takes everything that matters from two settings files, and both have lost values, each marked `___`:
+
+  - **root's `/etc/shop-ca/ca.cnf`**, the section `[ v3_services_ca ]`: what the root writes into the issuing CA's certificate. Three `___`. The comment above the section says what the certificate must say:
+    1. **it is a CA, and no CA may stand below it;**
+    2. **its key may sign certificates and CRLs, and nothing else;**
+    3. **its certificates are good only for names under `shop.test`**, and a client that can't read that limit must refuse the certificate.
+  - **ca's `/etc/shop-ca/ca.cnf`**, the section `[ server ]`: what the issuing CA writes into every server's certificate. Two `___`:
+    4. **where its CRL is:** `http://crl.shop.test/services.crl`;
+    5. **where its OCSP responder is:** `http://ocsp.shop.test:8888`.
+
+  Edit with `on root nano /etc/shop-ca/ca.cnf` and `on ca nano /etc/shop-ca/ca.cnf`, replace each `___` (and nothing else), and run `~/bin/make-services-ca`. It refuses to start while a `___` is left, and stops with openssl's own words if openssl can't read a value. Run it again after every change: each run starts the issuing CA afresh.
+
+  Then look at what you made. `openssl x509 -in ~/transfer/services.pem -noout -text` shows the issuing CA's certificate, with its limits under `X509v3 extensions`. From the office, `on office curl -s https://api.shop.test/orders` is a client that trusts only the root. And try a limit: `on ca openssl ca -batch -config /etc/shop-ca/ca.cnf -extensions server -in FILE -out FILE` signs any request you make, for any name. Does a certificate for `www.example.test` verify with `openssl verify -CAfile ~/shop-pki/root.pem -untrusted ~/transfer/services.pem FILE`? Then run the checks, which make certificates of their own with the issuing CA's key, for names made up as they run.
+hints:
+  - "The extensions are written as openssl writes them in a settings file. A basic constraint ends with how many CAs may stand below this one: `pathlen:N`. A CA's key usage is a list from `digitalSignature`, `keyCertSign` and `cRLSign`. A name constraint is `permitted;DNS:.NAME` (only names under NAME) or `excluded;DNS:.NAME` (any name but those), and `critical,` in front of a value is what tells a client to refuse a certificate whose limit it can't read."
+  - "Which is the limit here: a list of the names the CA may vouch for, or a list of names it may not? A CA that is only told what it may not sign may sign everything else."
+  - "The two addresses go in exactly as the prompt gives them, after `URI:`. They are where a client goes to ask, so the CRL's must be the file the script publishes, and the responder's the port it listens on."
+skills: [ca-hierarchy, run-a-ca]

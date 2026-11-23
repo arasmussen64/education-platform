@@ -1,0 +1,129 @@
+# The checks of "Limit the issuing CA": the gaps are filled and the script
+# has run; the issuing CA's certificate carries its limits; certificates the
+# checks make with the issuing CA's key, with made-up names, are refused
+# wherever they step outside those limits; the API's certificate verifies
+# from the office and names a CRL and an OCSP responder that answer; the
+# root's key is where it was; and nginx starts at every boot. The fourth
+# check waits for nginx on web after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: gaps-filled
+    description: "No ___ is left in root's or ca's /etc/shop-ca/ca.cnf, and the issuing CA on ca has a certificate the root signed for its key, listed in the root's database."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      CA_PEM=$CA_DIR/services.pem
+      if grep '___' "$ROOT_DIR/ca.cnf" > /dev/null; then echo "root's /etc/shop-ca/ca.cnf still has a ___ on line $(grep -n '___' "$ROOT_DIR/ca.cnf" | head -n 1 | cut -d: -f1)"; exit 0; fi
+      if grep '___' "$CA_DIR/ca.cnf" > /dev/null; then echo "ca's /etc/shop-ca/ca.cnf still has a ___ on line $(grep -n '___' "$CA_DIR/ca.cnf" | head -n 1 | cut -d: -f1)"; exit 0; fi
+      [ -s "$CA_PEM" ] || { echo "there is no /etc/shop-ca/services.pem on ca: run ~/bin/make-services-ca"; exit 0; }
+      same_key "$CA_PEM" "$CA_DIR/services.key" || { echo "ca's services.pem isn't the certificate of ca's services.key"; exit 0; }
+      [ "$(verify_error -CAfile "$ROOT_PEM" "$CA_PEM")" = ok ] || { echo "ca's services.pem doesn't verify under the root"; exit 0; }
+      [ "$(db_status "$ROOT_DIR/index.txt" "$CA_PEM")" = V ] || { echo "ca's services.pem isn't a valid line in the root's database"; exit 0; }
+      echo filled
+    expect:
+      equals: filled
+  - id: ca-limits
+    description: "The issuing CA's certificate says what the root's settings ask of it: how many CAs may stand below it, what its key may sign, and which names its certificates are good for, marked so that a client that can't read the limit refuses."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      CA_PEM=$CA_DIR/services.pem
+      [ -s "$CA_PEM" ] || { echo "there is no /etc/shop-ca/services.pem on ca"; exit 0; }
+      bc=$(openssl x509 -in "$CA_PEM" -noout -ext basicConstraints 2> /dev/null | tail -n 1 | sed 's/^ *//')
+      [ "$bc" = "CA:TRUE, pathlen:0" ] || { echo "the issuing CA's basic constraints are \"${bc:-none}\""; exit 0; }
+      ku=$(openssl x509 -in "$CA_PEM" -noout -ext keyUsage 2> /dev/null | tail -n 1 | sed 's/^ *//')
+      [ "$ku" = "Certificate Sign, CRL Sign" ] || { echo "the issuing CA's key usage is \"${ku:-none}\""; exit 0; }
+      head=$(openssl x509 -in "$CA_PEM" -noout -ext nameConstraints 2> /dev/null | head -n 1)
+      nc=$(openssl x509 -in "$CA_PEM" -noout -ext nameConstraints 2> /dev/null | sed '1d;s/^ *//' | tr '\n' ' ' | sed 's/ $//')
+      case $nc in
+        "Permitted: DNS:.shop.test" | "Permitted: DNS:shop.test") ;;
+        *) echo "the issuing CA's name constraints are \"${nc:-none}\""; exit 0 ;;
+      esac
+      case $head in *critical*) ;; *) echo "the issuing CA's name constraints aren't marked critical"; exit 0 ;; esac
+      echo limited
+    expect:
+      equals: limited
+  - id: limits-hold
+    description: "Certificates made for this check with the issuing CA's key verify for a name under shop.test, and are refused for a name outside it and when they come from a CA below the issuing CA."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      CA_PEM=$CA_DIR/services.pem
+      CA_KEY=$CA_DIR/services.key
+      [ -s "$CA_PEM" ] && [ -s "$CA_KEY" ] || { echo "there is no issuing CA on ca yet"; exit 0; }
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      in="$(rand_label s).$(rand_label team).shop.test"
+      mint "$dir" in "$in" serverAuth "$CA_PEM" "$CA_KEY" || { echo "the check couldn't sign with the issuing CA's key"; exit 0; }
+      got=$(verify_error -purpose sslserver -CAfile "$ROOT_PEM" -untrusted "$CA_PEM" "$dir/in.pem")
+      [ "$got" = ok ] || { echo "a certificate from the issuing CA for $in, a name under shop.test, verifies as: $got"; exit 0; }
+      for out in "$(rand_label s).$(rand_label shop).test" "$(rand_label s).shop$(rand_label x).test" "$(rand_label www).example.test"; do
+        mint "$dir" out "$out" serverAuth "$CA_PEM" "$CA_KEY"
+        got=$(verify_error -purpose sslserver -CAfile "$ROOT_PEM" -untrusted "$CA_PEM" "$dir/out.pem")
+        [ "$got" = "47 at 0" ] || { echo "a certificate from the issuing CA for $out, a name outside shop.test, verifies as: $got"; exit 0; }
+      done
+      mint_ca "$dir" sub "Sub CA $(rand_label)" "$CA_PEM" "$CA_KEY"
+      mint "$dir" deep "$(rand_label d).shop.test" serverAuth "$dir/sub.pem" "$dir/sub.key"
+      cat "$CA_PEM" "$dir/sub.pem" > "$dir/chain.pem"
+      got=$(verify_error -purpose sslserver -CAfile "$ROOT_PEM" -untrusted "$dir/chain.pem" "$dir/deep.pem")
+      [ "$got" = "25 at 2" ] || { echo "a certificate from a CA below the issuing CA verifies as: $got"; exit 0; }
+      echo held
+    expect:
+      equals: held
+  - id: api-cert
+    description: "From the office, api.shop.test's certificate verifies under the root for that name, sent with the issuing CA's; it is listed in the issuing CA's database; and the CRL address and the OCSP address written in it both answer, from the issuing CA."
+    # It waits up to about 20 seconds for nginx after a boot, and asks a
+    # responder that doesn't answer five times, five seconds each.
+    timeout: 75
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      CA_PEM=$CA_DIR/services.pem
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      chmod 755 "$dir"
+      up() { on office timeout 2 openssl s_client -connect 10.0.9.1:443 -servername api.shop.test < /dev/null 2>&1 | grep -- '-----BEGIN CERTIFICATE-----' > /dev/null; }
+      wait_for 6 up || { echo "nothing answers TLS on web's port 443"; exit 0; }
+      out=$(on office timeout 5 openssl s_client -connect 10.0.9.1:443 -servername api.shop.test -verify_hostname api.shop.test -CAfile /home/learner/shop-pki/root.pem -showcerts < /dev/null 2>&1)
+      code=$(printf '%s\n' "$out" | grep -m 1 '^Verify return code')
+      [ "$code" = "Verify return code: 0 (ok)" ] || { echo "from the office, $code"; exit 0; }
+      n=$(printf '%s\n' "$out" | grep -c -- '-----BEGIN CERTIFICATE-----')
+      [ "$n" = 2 ] || { echo "the API sends $n certificate(s)"; exit 0; }
+      printf '%s\n' "$out" | sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' | sed '/-----END CERTIFICATE-----/q' > "$dir/api.pem"
+      [ "$(db_status "$CA_DIR/index.txt" "$dir/api.pem")" = V ] || { echo "the API's certificate isn't a valid line in the issuing CA's database"; exit 0; }
+      wait_for 3 ca_web_up
+      cdp=$(openssl x509 -in "$dir/api.pem" -noout -ext crlDistributionPoints 2> /dev/null | sed -n 's/^ *URI://p' | head -n 1)
+      ocsp=$(openssl x509 -in "$dir/api.pem" -noout -ext authorityInfoAccess 2> /dev/null | sed -n 's/^ *OCSP - URI://p' | head -n 1)
+      [ -n "$cdp" ] || { echo "the API's certificate names no CRL address"; exit 0; }
+      [ -n "$ocsp" ] || { echo "the API's certificate names no OCSP address"; exit 0; }
+      on office curl -fsS --max-time 5 "$cdp" > "$dir/the.crl" 2> /dev/null && crl_from "$dir/the.crl" "$CA_PEM" ||
+        { echo "the CRL address in the API's certificate, $cdp, doesn't give the office a CRL the issuing CA signed"; exit 0; }
+      [ "$(seconds_left "$dir/the.crl")" -ge 86400 ] || { echo "the CRL at $cdp has less than a day left"; exit 0; }
+      said=$(ocsp_status "$CA_PEM" "$dir/api.pem" "$ocsp")
+      [ "$said" = good ] || { echo "the OCSP address in the API's certificate, $ocsp, doesn't tell the office that the certificate is good"; exit 0; }
+      echo verifies
+    expect:
+      equals: verifies
+  - id: root-key-stays
+    description: "The root's key is in no file outside root's own /etc/shop-ca."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      found=$(holds_key_of "$ROOT_PEM" | head -n 1)
+      [ -z "$found" ] || { echo "the root's private key is also in a file outside root's own /etc/shop-ca"; exit 0; }
+      echo stays
+    expect:
+      equals: stays
+  - id: lasts
+    description: "nginx on web and the OCSP responder on ca start at every boot, and nginx's files pass its own test."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      [ "$(systemctl is-enabled nginx@web 2> /dev/null)" = enabled ] || { echo "nginx@web doesn't start at boot"; exit 0; }
+      [ "$(systemctl is-enabled ocsp-responder@ca 2> /dev/null)" = enabled ] || { echo "ocsp-responder@ca doesn't start at boot: run ~/bin/make-services-ca"; exit 0; }
+      said=$(on web nginx -t 2>&1) || { echo "on web, nginx -t says: $(echo "$said" | grep -m 1 emerg)"; exit 0; }
+      echo lasts
+    expect:
+      equals: lasts
+  - id: scenery
+    description: "The network, the resolver, the root's key and certificate, the API's key and site, the script and the responder's unit are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact

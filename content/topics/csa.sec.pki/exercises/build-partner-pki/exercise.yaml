@@ -1,0 +1,35 @@
+id: build-partner-pki
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A PKI for the partners"
+prompt: |
+  The shop's partners' API, `api.shop.test` on `web` (10.0.9.1), answers anybody today: `on office curl -s https://api.shop.test/orders`. Build the shop a PKI of its own for its partners, so that the API answers only partners whose certificates are still good.
+
+  The machines (`netlab show` lists them):
+
+  - **`root`** has no network. Its `/etc/shop-ca` holds `ca.cnf` (the root's settings, with a `v3_root` section for its own certificate), an empty database (`index.txt`), `crlnumber` and `newcerts/`. There is no key and no certificate yet.
+  - **`ca`** (10.0.9.5) will hold the partners' issuing CA. Its `/etc/shop-ca` holds `ca.cnf` (which names `partners.key` and `partners.pem`, neither made yet), an empty database, and `public/`, which nginx on ca already serves as `http://crl.shop.test/`.
+  - **`depot`** (10.0.9.3) is the warehouse's server and **`courier`** (10.0.9.4) the courier's. Each has its key in its `/etc/partner/` (`warehouse.key`, `courier.key`) and no certificate.
+  - **`web`** runs nginx; the API's site is its `/etc/nginx/sites-available/partner-api`, and its files for TLS are in `/etc/nginx/tls/`. The API's own certificate there comes from the shop's server CA and stays as it is. **`office`** (10.0.9.2) is a staff laptop, and **`resolver`** (10.0.9.53) answers for `crl.shop.test` and `ocsp.shop.test` (both ca).
+
+  Your home folder is the same on every machine: carry requests and certificates between machines through `~/transfer`, as a USB stick would.
+
+  **The lab's fast clock:** the partners' CA's CRLs last 2 hours and are published every hour (a real CA's: days). The root's CRL lasts 180 days.
+
+  What to build:
+
+  1. **The root CA, on root.** A key, `/etc/shop-ca/root.key`, which is never in any file anywhere else, and the certificate it signs for itself, `/etc/shop-ca/root.pem`.
+  2. **The partners' CA, on ca, signed by the root** with `openssl ca` on root: key `/etc/shop-ca/partners.key`, certificate `/etc/shop-ca/partners.pem`, subject `CN=Shop Partners CA`. The root will sign other issuing CAs later, so this one's certificate must limit it: **it can sign no CA below it; its certificates are good only for names under `partners.shop.test`; and only as client certificates.**
+  3. **A certificate for each partner**, issued with `openssl ca` on ca from a request made on the partner's own machine with the key it has: `warehouse.partners.shop.test` as depot's `/etc/partner/warehouse.pem`, `courier.partners.shop.test` as courier's `/etc/partner/courier.pem`. Each is for client use only, says it is not a CA, and names `http://crl.shop.test/partners.crl` as its CRL and `http://ocsp.shop.test:8888` as its OCSP responder.
+  4. **The CA publishes.** `http://crl.shop.test/partners.crl` is the partners' CA's CRL, each one made to last 2 hours, and `http://crl.shop.test/root.crl` the root's. A new partners' CRL is published **at least every hour, and after every boot**, by a timer, `crl-publish@ca.timer`: the lab gives its service, `crl-publish@.service`, which runs `/usr/local/bin/publish-crl` on ca, and the script and the timer are yours to write. The OCSP responder runs now and at every boot: the lab gives `ocsp-responder@ca`, which reads the CA's database, `partners.pem` and `partners.key`. Ask it with `openssl ocsp`, twice (its first answer after a change is the old one), and never with a bare port probe such as `nc -z`, which hangs this test responder until `sudo systemctl restart ocsp-responder@ca`.
+  5. **The API checks.** It answers only a client whose certificate chains to the root through the partners' CA, and it checks every chain against both CAs' CRLs. web fetches the CRLs being served **at least every 30 minutes, and after every boot**, and has nginx use them, by a timer, `crl-fetch@web.timer`: the lab gives `crl-fetch@.service`, which runs `/usr/local/bin/fetch-crls` on web, and the script and the timer are yours.
+  6. **The courier's laptop has gone, with its key.** Revoke the courier's certificate, with the reason, and make the API refuse it now.
+
+  When you're done, the warehouse gets its orders, `on depot curl -s --cert /etc/partner/warehouse.pem --key /etc/partner/warehouse.key https://api.shop.test/orders`; the courier gets `400`; and so does anyone else. The checks try certificates of their own, with made-up names, signed with your CA's key, and they run each timer's service once, as the timer would.
+
+  `systemctl cat crl-publish@.service crl-fetch@.service ocsp-responder@.service` shows the three units the lab gives. A unit file of your own goes in `/etc/systemd/system/` (`sudo nano`), followed by `sudo systemctl daemon-reload`; a script in `/usr/local/bin/` needs `sudo chmod +x`. `on web nginx -t` checks nginx's files and `sudo systemctl reload nginx@web` has it read them; nginx on web logs why it refused a certificate in `/var/log/nginx/error.log`.
+skills: [run-a-ca, ca-hierarchy, revocation]

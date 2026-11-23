@@ -1,0 +1,129 @@
+#!/bin/bash
+# make-story: the shop's partner PKI a week after it was built, and the day
+# after its issuing CA was replaced. Made once, when the lab's image is
+# built; every key is made here, so none is in the repository. This script
+# is removed from the image once it has run.
+#
+#   - The shop's server CA and the API's own certificate (scenery).
+#   - The root CA, on root, and its CRL.
+#   - Two partners' issuing CAs on ca, both signed by the root with the same
+#     limits: the one of 2025 (/etc/shop-ca/2025), which issued until
+#     yesterday, and the one of 2026 (/etc/shop-ca/2026), which issues now.
+#   - The warehouse's certificate, from the CA of 2025.
+#   - A florist's certificate, from the CA of 2025, revoked last week when
+#     the florist stopped being a partner. The checks use it.
+#   - The courier's certificate, from the CA of 2026, issued yesterday.
+#   - web as yesterday's work left it.
+set -euo pipefail
+ns=/etc/netns
+key() { openssl ecparam -name prime256v1 -genkey -noout -out "$1"; }
+run() {
+  local said
+  said=$("$@" 2>&1) || { printf 'make-story: %s\n%s\n' "$*" "$said" >&2; exit 1; }
+}
+ca_dir() {
+  mkdir -p "$1/newcerts"
+  : > "$1/index.txt"
+  echo 1000 > "$1/crlnumber"
+}
+# cnf_for FOLDER INSIDE: a copy of FOLDER/ca.cnf whose dir is FOLDER (in the
+# file it is INSIDE, the folder's path inside its machine).
+cnf_for() {
+  local out
+  out=$(mktemp)
+  sed "s#^dir .*#dir = $1#" "$1/ca.cnf" > "$out"
+  echo "$out"
+}
+
+# The server CA and the API's own certificate.
+srv=/var/lib/lab/server-ca
+tls=$ns/web/nginx/tls
+mkdir -p "$srv" "$tls" /etc/ssl/certs
+key "$srv/ca.key"
+run openssl req -x509 -new -key "$srv/ca.key" -subj "/CN=Shop Lab Server CA" -days 7300 -out "$srv/ca.pem" \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+key "$tls/api.key"
+run openssl req -new -key "$tls/api.key" -subj "/CN=api.shop.test" -out "$srv/api.csr"
+printf '%s\n' 'subjectAltName=DNS:api.shop.test' 'extendedKeyUsage=serverAuth' 'keyUsage=critical,digitalSignature' > "$srv/api.ext"
+run openssl x509 -req -in "$srv/api.csr" -CA "$srv/ca.pem" -CAkey "$srv/ca.key" -CAcreateserial -days 3650 -extfile "$srv/api.ext" -out "$tls/api.pem"
+cp "$srv/ca.pem" /etc/ssl/certs/ca-certificates.crt
+
+# The root CA, on root.
+root=$ns/root/shop-ca
+ca_dir "$root"
+rootcnf=$(cnf_for "$root")
+key "$root/root.key"
+run openssl req -x509 -new -config "$rootcnf" -extensions v3_root -key "$root/root.key" -days 7300 -out "$root/root.pem"
+
+# The two issuing CAs, on ca.
+pub=$ns/ca/shop-ca/public
+mkdir -p "$pub"
+for year in 2025 2026; do
+  dir=$ns/ca/shop-ca/$year
+  ca_dir "$dir"
+  key "$dir/partners.key"
+  run openssl req -new -key "$dir/partners.key" -subj "/CN=Shop Partners CA $year" -out "$dir/partners.csr"
+  run openssl ca -batch -config "$rootcnf" -extensions v3_partners_ca -in "$dir/partners.csr" -out "$dir/partners.pem"
+  rm "$dir/partners.csr"
+  openssl x509 -in "$dir/partners.pem" > "$pub/partners-$year.pem"
+done
+cnf25=$(cnf_for "$ns/ca/shop-ca/2025")
+cnf26=$(cnf_for "$ns/ca/shop-ca/2026")
+openssl x509 -in "$root/root.pem" > "$pub/root.pem"
+# The root's CRL. A real root's lasts months; this one lasts ten years, so
+# that the lab still works from an image built long ago.
+run openssl ca -config "$rootcnf" -gencrl -crldays 3650 -out "$pub/root.crl"
+
+# issue CNF KEY NAME OUT: a certificate for NAME from a request made with KEY.
+issue() {
+  run openssl req -new -key "$2" -subj "/CN=$3" -addext "subjectAltName=DNS:$3" -out /tmp/story.csr
+  run openssl ca -batch -config "$1" -extensions partner -in /tmp/story.csr -out /tmp/story.pem
+  openssl x509 -in /tmp/story.pem > "$4"
+  rm -f /tmp/story.csr /tmp/story.pem
+}
+
+# The warehouse and the florist, from the CA of 2025; the florist's revoked.
+mkdir -p "$ns/depot/partner" "$ns/courier/partner" /usr/local/lib/lab/florist
+key "$ns/depot/partner/warehouse.key"
+issue "$cnf25" "$ns/depot/partner/warehouse.key" warehouse.partners.shop.test "$ns/depot/partner/warehouse.pem"
+key /usr/local/lib/lab/florist/florist.key
+issue "$cnf25" /usr/local/lib/lab/florist/florist.key florist.partners.shop.test /usr/local/lib/lab/florist/florist.pem
+run openssl ca -config "$cnf25" -revoke /usr/local/lib/lab/florist/florist.pem -crl_reason cessationOfOperation
+
+# A copy of everything issued so far, for the checks: a CA's database must
+# never lose a line.
+mkdir -p /usr/local/lib/lab/issued
+cp "$ns/depot/partner/warehouse.pem" /usr/local/lib/lab/issued/2025-warehouse.pem
+cp /usr/local/lib/lab/florist/florist.pem /usr/local/lib/lab/issued/2025-florist.pem
+
+# What web was last given, before the fetches stopped: the root's CRL, and
+# a CRL of the CA of 2025 that ran out two hours ago however late the lab
+# is started.
+stamp() { date -u -d "$1" +%Y%m%d%H%M%SZ; }
+run openssl ca -config "$cnf25" -gencrl -crl_lastupdate "$(stamp '4 hours ago')" -crl_nextupdate "$(stamp '2 hours ago')" -out /tmp/old-2025.crl
+cat /tmp/old-2025.crl "$pub/root.crl" > "$tls/crls.pem"
+rm /tmp/old-2025.crl
+
+# Yesterday: the courier's certificate, from the CA of 2026.
+key "$ns/courier/partner/courier.key"
+issue "$cnf26" "$ns/courier/partner/courier.key" courier.partner.test "$ns/courier/partner/courier.pem"
+
+cp "$ns/courier/partner/courier.pem" /usr/local/lib/lab/issued/2026-courier.pem
+
+# What the CA serves until its first publish at boot.
+run openssl ca -config "$cnf25" -gencrl -crlhours 2 -out "$pub/partners-2025.crl"
+run openssl ca -config "$cnf26" -gencrl -crlhours 2 -out "$pub/partners-2026.crl"
+rm -f "$rootcnf" "$cnf25" "$cnf26"
+
+# The CA certificates are public: copies for the learner, and web's file of
+# CAs it trusts for clients, as yesterday's work left it.
+mkdir -p /home/learner/shop-pki /home/learner/transfer
+cp "$pub/root.pem" "$pub/partners-2025.pem" "$pub/partners-2026.pem" /home/learner/shop-pki/
+cat "$pub/partners-2026.pem" "$pub/root.pem" > "$tls/partners-bundle.pem"
+
+chmod 600 "$root/root.key" "$ns/ca/shop-ca/2025/partners.key" "$ns/ca/shop-ca/2026/partners.key" "$srv/ca.key" "$tls/api.key" \
+  "$ns/depot/partner/warehouse.key" "$ns/courier/partner/courier.key" /usr/local/lib/lab/florist/florist.key
+chmod 755 "$root" "$ns/ca/shop-ca" "$ns/ca/shop-ca/2025" "$ns/ca/shop-ca/2026" "$pub" "$tls"
+chmod 644 "$pub"/* "$tls/api.pem" "$tls/partners-bundle.pem" "$tls/crls.pem" /etc/ssl/certs/ca-certificates.crt \
+  "$ns/depot/partner/warehouse.pem" "$ns/courier/partner/courier.pem"
+chown -R learner:learner /home/learner/shop-pki /home/learner/transfer

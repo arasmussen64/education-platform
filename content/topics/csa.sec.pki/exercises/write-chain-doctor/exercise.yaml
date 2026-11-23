@@ -1,0 +1,62 @@
+id: write-chain-doctor
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Chain doctor"
+prompt: |
+  From a blank file, write `~/bin/chain-doctor`, a bash script that takes a certificate, the certificates sent with it, the root a client trusts and, optionally, the CRLs the client holds, and says in one line what is wrong, or `ok`. It's what you run when a partner says "your API refuses our certificate" and you have the files in front of you.
+
+  It's run as `chain-doctor LEAF CHAIN ROOT [CRLS]`, all files in PEM: LEAF holds one certificate, CHAIN one or more (what was sent with it), ROOT the trusted root, CRLS one or more CRLs. It prints exactly one of these lines and exits 0:
+
+  | Line | When `openssl verify` first says | Meaning |
+  | --- | --- | --- |
+  | `ok` | no error | the chain verifies |
+  | `wrong-intermediate` | `error 20 at 0`, and CHAIN holds a certificate whose subject is LEAF's issuer | the right name with the wrong key: an issuing CA that was given a new key |
+  | `missing-intermediate` | `error 20 at 0`, and CHAIN holds no such certificate | the issuer's certificate wasn't sent |
+  | `untrusted-root` | `error 20` at a depth above 0, or `error 19` | the chain is whole and ends at a root the client doesn't trust |
+  | `expired D` | `error 10 at D` | the certificate at depth D has run out |
+  | `not-a-ca D` | `error 79 at D` | the certificate at depth D signed another and isn't a CA |
+  | `path-too-long D` | `error 25 at D` | a CA below one that may have none below it |
+  | `name-not-permitted` | `error 47` | a name outside a CA's name constraint |
+  | `revoked D` | `error 23 at D` | the certificate at depth D is on its CA's CRL |
+  | `crl-expired D` | `error 12 at D` | the CRL for the certificate at depth D has run out |
+  | `crl-missing D` | `error 3 at D` | CRLS has no CRL for the certificate at depth D |
+
+  D is the depth openssl gives: 0 is LEAF, 1 the certificate that signed it, and so on up.
+
+  One command does the checking. Without CRLS it is `openssl verify -CAfile ROOT -untrusted CHAIN LEAF`; with CRLS, add `-crl_check_all -CRLfile CRLS`, which checks every certificate in the chain against its CA's CRL. Without CRLS, revocation isn't checked at all. It prints lines like these (keep them with `out=$(... 2>&1)`), and may print more than one `error` line: **the first is the one to report**.
+
+  ```
+  CN = Issuing CA 3
+  error 10 at 1 depth lookup: certificate has expired
+  error leaf.pem: verification failed
+  ```
+
+  Only `error 20 at 0` needs a second look. `openssl storeutl -noout -text -certs FILE` prints every certificate in a file, each with a line `Issuer: CN=...` and a line `Subject: CN=...`: compare LEAF's issuer with each subject in CHAIN. (By hand you would then compare key identifiers, `openssl x509 -noout -ext authorityKeyIdentifier` on the leaf with `-ext subjectKeyIdentifier` on the certificate sent: same name, different identifier, different key.)
+
+  `grep -m 1 -E PATTERN` prints the first line that matches; `cut -d' ' -f2` the second word of a line; `grep -Fx -- "$text"` succeeds if a line is exactly that text; `case $num in 10) ... ;; esac` picks by value. Make the file with `nano ~/bin/chain-doctor`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/chain-doctor`. ShellCheck must have nothing to say about it (`shellcheck ~/bin/chain-doctor`), and it does its own work with openssl and the shell.
+
+  `~/examples` holds six cases to try it on, each a folder with `leaf.pem`, `chain.pem`, `root.pem` and, in two of them, `crls.pem`:
+
+  ```
+  cd ~/examples/ok && ~/bin/chain-doctor leaf.pem chain.pem root.pem
+  cd ~/examples/revoked && ~/bin/chain-doctor leaf.pem chain.pem root.pem crls.pem
+  ```
+
+  | Folder | With `crls.pem`? | Prints |
+  | --- | --- | --- |
+  | `ok` | no | `ok` |
+  | `wrong-intermediate` | no | `wrong-intermediate` |
+  | `expired-intermediate` | no | `expired 1` |
+  | `path-too-long` | no | `path-too-long 2` |
+  | `revoked` | yes | `revoked 0` |
+  | `crl-missing` | yes | `crl-missing 1` |
+
+  The checks also run it on eighteen cases of their own, made as they run, with names made up then.
+hints:
+  - "One shape that works: run `openssl verify` once into a variable (two forms, by whether `$4` was given: `crls=${4:-}` is empty without it), take the first line that matches `^error [0-9]+ at [0-9]+ depth`, and if there is none print `ok`. In `error 10 at 1 depth lookup: ...` the number is the second word and the depth the fourth."
+  - "For `error 20 at 0`: `openssl storeutl -noout -text -certs \"$leaf\" | sed -n 's/^ *Issuer: //p'` is the leaf's issuer, and the same command on the chain file with `Subject` in place of `Issuer` gives one subject a line. Read both with storeutl: `openssl x509` writes the same name with spaces round the `=`."
+  - "ShellCheck wants variables in double quotes (`\"$leaf\"`), and a `grep` that only tests should send its output to `/dev/null`. Don't use `set -e` unless you end the `openssl verify` line with `|| true`: verify exits with an error status whenever the chain is bad, which is most of the time here."
+skills: [fix-chains]

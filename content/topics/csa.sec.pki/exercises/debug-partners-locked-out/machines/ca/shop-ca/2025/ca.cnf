@@ -1,0 +1,37 @@
+# The partners' issuing CA of 2025, on the machine "ca": what "openssl ca"
+# reads. It issued the partners' certificates until yesterday. It issues
+# nothing new now, and still signs its own CRL until the last certificate
+# it issued has expired.
+
+[ ca ]
+default_ca = shop_partners
+
+[ shop_partners ]
+dir               = /etc/shop-ca/2025
+certificate       = $dir/partners.pem     # the CA's own certificate, signed by the root
+private_key       = $dir/partners.key     # and its key
+database          = $dir/index.txt        # one line for every certificate it has signed
+new_certs_dir     = $dir/newcerts         # a copy of each, named by serial number
+crlnumber         = $dir/crlnumber        # the number of the next CRL
+rand_serial       = yes                   # serial numbers are random, never counted up
+default_md        = sha256
+default_days      = 90                    # a partner's certificate lasts 90 days
+default_crl_hours = 2                     # a CRL lasts 2 hours (the labs' fast clock)
+policy            = policy_partner
+unique_subject    = no                    # a partner may hold two certificates at once, while it renews
+copy_extensions   = copy                  # the names a request asks for (its subjectAltName) are copied in
+
+# What a request's subject must hold.
+[ policy_partner ]
+commonName = supplied
+
+# What goes into every partner's certificate, whatever the request asked
+# for: it is not a CA, it may prove a client and nothing else, and it says
+# where its CRL is.
+[ partner ]
+basicConstraints       = critical, CA:FALSE
+keyUsage               = critical, digitalSignature
+extendedKeyUsage       = clientAuth
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid
+crlDistributionPoints  = URI:http://crl.shop.test/partners-2025.crl

@@ -1,0 +1,177 @@
+# The checks of "Partners locked out". Each states an end state. The first
+# waits for nginx on web after a boot; the rest read at once. They try
+# certificates of their own, with made-up names, signed with the two CAs'
+# keys outside their databases, and run crl-fetch@web.service once, as its
+# timer would.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: warehouse-in
+    description: "The API answers the warehouse, with the certificate and key it has always had, with its orders."
+    # It waits up to about 30 seconds for nginx after a boot (10 tries of
+    # at most 3 seconds), so it gets 45 and prints its own sentence.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      wait_for 10 api_up || { echo "nothing answers HTTPS for api.shop.test on web"; exit 0; }
+      wait_for 3 ca_web_up
+      got=$(api_code depot /etc/partner/warehouse.pem /etc/partner/warehouse.key)
+      [ "$got" = 200 ] || { echo "the API answers the warehouse with ${got:-nothing}"; exit 0; }
+      echo in
+    expect:
+      equals: in
+  - id: courier-in
+    description: "The API answers the courier with its orders. The courier's certificate is for the key it has always had, was issued by the CA that issues today, and is valid in that CA's database."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      c=/etc/netns/courier/partner/courier.pem
+      ca=/etc/netns/ca/shop-ca/2026
+      [ -s "$c" ] || { echo "there is no /etc/partner/courier.pem on courier"; exit 0; }
+      same_key "$c" /etc/netns/courier/partner/courier.key || { echo "courier's certificate isn't for the key in courier's /etc/partner/courier.key"; exit 0; }
+      got=$(api_code courier /etc/partner/courier.pem /etc/partner/courier.key)
+      [ "$got" = 200 ] || { echo "the API answers the courier with ${got:-nothing}"; exit 0; }
+      [ "$(openssl x509 -in "$c" -noout -issuer 2> /dev/null)" = "issuer=CN = Shop Partners CA 2026" ] || { echo "courier's certificate wasn't issued by the CA that issues today"; exit 0; }
+      [ "$(db_status "$ca/index.txt" "$c")" = V ] || { echo "courier's certificate isn't a valid line in its CA's database"; exit 0; }
+      echo in
+    expect:
+      equals: in
+  - id: partners-of-both
+    description: "The API answers partners the check makes up, one with a certificate from each of the two issuing CAs, for names under partners.shop.test."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      api_up || { echo "nothing answers HTTPS for api.shop.test on web"; exit 0; }
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      chmod 755 "$dir"
+      for year in 2025 2026; do
+        ca=/etc/netns/ca/shop-ca/$year
+        name="$(rand_label new).partners.shop.test"
+        mint "$dir" "p$year" "$name" clientAuth "$ca/partners.pem" "$ca/partners.key" || { echo "the check couldn't sign with a CA's key"; exit 0; }
+        got=$(api_code office "$dir/p$year.pem" "$dir/p$year.key")
+        [ "$got" = 200 ] || { echo "the API answers $name, whose certificate the CA of $year signed, with ${got:-nothing}"; exit 0; }
+      done
+      echo both
+    expect:
+      equals: both
+  - id: still-closed
+    description: "The API still refuses a client with no certificate, the florist, whose certificate was revoked last week, and clients the check makes up: a name outside partners.shop.test from either CA, a certificate from another CA the root signed, and one from a stranger's CA."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      api_up || { echo "nothing answers HTTPS for api.shop.test on web"; exit 0; }
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      chmod 755 "$dir"
+      refused() { case $1 in 4*) return 0 ;; esac; return 1; }
+      got=$(api_code office)
+      refused "$got" || { echo "the API answers a client with no certificate with ${got:-nothing}"; exit 0; }
+      cp /usr/local/lib/lab/florist/florist.pem /usr/local/lib/lab/florist/florist.key "$dir/"
+      chmod 644 "$dir/florist.key"
+      got=$(api_code office "$dir/florist.pem" "$dir/florist.key")
+      refused "$got" || { echo "the API answers the florist, whose certificate is revoked, with ${got:-nothing}"; exit 0; }
+      for year in 2025 2026; do
+        ca=/etc/netns/ca/shop-ca/$year
+        out="$(rand_label p).$(rand_label partner).test"
+        mint "$dir" "out$year" "$out" clientAuth "$ca/partners.pem" "$ca/partners.key"
+        got=$(api_code office "$dir/out$year.pem" "$dir/out$year.key")
+        refused "$got" || { echo "the API answers a client whose certificate is for $out with ${got:-nothing}"; exit 0; }
+      done
+      mint_ca "$dir" sib "Shop $(rand_label Team) CA" "$ROOT_PEM" "$ROOT_DIR/root.key" 'basicConstraints=critical,CA:TRUE,pathlen:0' 'extendedKeyUsage=clientAuth'
+      mint "$dir" sibleaf "$(rand_label x).partners.shop.test" clientAuth "$dir/sib.pem" "$dir/sib.key"
+      cat "$dir/sibleaf.pem" "$dir/sib.pem" > "$dir/sib-chain.pem"
+      got=$(api_code office "$dir/sib-chain.pem" "$dir/sibleaf.key")
+      refused "$got" || { echo "the API answers a client whose certificate comes from another CA the root signed with ${got:-nothing}"; exit 0; }
+      mint_ca "$dir" fakeroot "Shop Root CA" - -
+      mint_ca "$dir" fake "Shop Partners CA 2026" "$dir/fakeroot.pem" "$dir/fakeroot.key" 'extendedKeyUsage=clientAuth'
+      mint "$dir" fakeleaf "$(rand_label f).partners.shop.test" clientAuth "$dir/fake.pem" "$dir/fake.key"
+      cat "$dir/fakeleaf.pem" "$dir/fake.pem" "$dir/fakeroot.pem" > "$dir/fake-chain.pem"
+      got=$(api_code office "$dir/fake-chain.pem" "$dir/fakeleaf.key")
+      refused "$got" || { echo "the API answers a client whose certificate comes from a stranger's CA named like the shop's with ${got:-nothing}"; exit 0; }
+      echo closed
+    expect:
+      equals: closed
+  - id: databases-clean
+    description: "Every certificate that is valid in either issuing CA's database verifies as a client's certificate under the root and that CA, and every certificate the CAs had issued when the lab began still has its line."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      for f in /usr/local/lib/lab/issued/*.pem; do
+        year=$(basename "$f" | cut -d- -f1)
+        [ -n "$(db_status "/etc/netns/ca/shop-ca/$year/index.txt" "$f")" ] || { echo "a certificate the CA of $year issued is no longer in its database: a CA can't revoke what it has no record of"; exit 0; }
+      done
+      for year in 2025 2026; do
+        ca=/etc/netns/ca/shop-ca/$year
+        # The database's fields are separated by tabs, and a valid line's
+        # third field is empty, so awk reads it (the shell's read would
+        # close the gap).
+        for serial in $(awk -F'\t' '$1 == "V" {print $4}' "$ca/index.txt"); do
+          f=$ca/newcerts/$serial.pem
+          [ -s "$f" ] || { echo "the CA of $year's database lists a valid certificate with no copy in newcerts/"; exit 0; }
+          got=$(verify_error -purpose sslclient -CAfile "$ROOT_PEM" -untrusted "$ca/partners.pem" "$f")
+          [ "$got" = ok ] || { echo "the CA of $year's database still lists as valid a certificate that doesn't verify: $(openssl x509 -in "$f" -noout -subject | sed 's/^subject=//')"; exit 0; }
+        done
+      done
+      echo clean
+    expect:
+      equals: clean
+  - id: fetch-timer
+    description: "crl-fetch@web.timer is on now and at every boot and runs at least every 30 minutes; and one run of crl-fetch@web.service leaves nginx on web using the CRLs being served now: both issuing CAs' and the root's."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      said=$(timer_ok crl-fetch@web.timer 1800)
+      [ "$said" = ok ] || { echo "$said"; exit 0; }
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      crl=$(on web nginx -T 2> /dev/null | sed -n 's/^\s*ssl_crl\s\+\(\S\+\);.*/\1/p' | head -n 1)
+      [ -n "$crl" ] || { echo "web's nginx has no ssl_crl line"; exit 0; }
+      file=/etc/netns/web${crl#/etc}
+      [ -f "$file" ] || file=$crl
+      # Newer CRLs at the CA, so that this run has something to bring.
+      systemctl start crl-publish@ca.service > /dev/null 2>&1
+      for year in 2025 2026; do
+        served "partners-$year.crl" "$dir/p$year.crl" || { echo "the office gets nothing from http://crl.shop.test/partners-$year.crl"; exit 0; }
+      done
+      before=$(web_workers)
+      # Twice at most: a run the timer had already begun, just before the
+      # newer CRLs came out, would be joined by this start and not repeated.
+      for try in 1 2; do
+        systemctl start crl-fetch@web.service > /dev/null 2>&1 || { echo "crl-fetch@web.service fails when it is started: journalctl -u crl-fetch@web"; exit 0; }
+        rm -f "$dir"/web*.crl
+        split_crls "$file" "$dir" web
+        have_root=no have_2025=no have_2026=no
+        for f in "$dir"/web*.crl; do
+          [ -e "$f" ] || break
+          crl_from "$f" "$ROOT_PEM" && have_root=yes
+          for year in 2025 2026; do
+            if crl_from "$f" "/etc/netns/ca/shop-ca/$year/partners.pem"; then
+              [ "$(crl_number "$f")" = "$(crl_number "$dir/p$year.crl")" ] && eval "have_$year=yes"
+            fi
+          done
+        done
+        [ "$have_2025" = yes ] && [ "$have_2026" = yes ] && break
+      done
+      [ "$have_2025" = yes ] && [ "$have_2026" = yes ] || { echo "after a run of crl-fetch@web.service, the file nginx reads its CRLs from doesn't hold both issuing CAs' CRLs being served now"; exit 0; }
+      [ "$have_root" = yes ] || { echo "after a run of crl-fetch@web.service, the file nginx reads its CRLs from doesn't hold the root's CRL"; exit 0; }
+      fresh() { [ -n "$(web_workers)" ] && [ "$(web_workers)" != "$before" ]; }
+      wait_for 5 fresh || { echo "after a run of crl-fetch@web.service, nginx on web is still running with the CRLs it had loaded before"; exit 0; }
+      echo fetches
+    expect:
+      equals: fetches
+  - id: lasting
+    description: "nginx on web starts at every boot and its files pass its own test, the CA still publishes every hour, and the warehouse still gets its orders."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      [ "$(systemctl is-enabled nginx@web 2> /dev/null)" = enabled ] || { echo "nginx@web doesn't start at boot"; exit 0; }
+      said=$(on web nginx -t 2>&1) || { echo "on web, nginx -t says: $(echo "$said" | grep -m 1 emerg)"; exit 0; }
+      said=$(timer_ok crl-publish@ca.timer 3600)
+      [ "$said" = ok ] || { echo "$said"; exit 0; }
+      ok() { [ "$(api_code depot /etc/partner/warehouse.pem /etc/partner/warehouse.key)" = 200 ]; }
+      wait_for 5 ok || { echo "the API no longer answers the warehouse with its orders"; exit 0; }
+      echo lasts
+    expect:
+      equals: lasts
+  - id: scenery
+    description: "The network, the root, both issuing CAs' certificates, keys and settings, the warehouse's certificate and key, the courier's key, and the scripts and units that publish and fetch CRLs are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact
