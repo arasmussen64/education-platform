@@ -1,0 +1,24 @@
+id: typed-gencrl
+type: typed
+rev: 1
+prompt: |
+  A CA run with `openssl ca` has just revoked a certificate, so its database has a new `R` line. Nothing that a client can download has changed yet. Which option of `openssl ca` makes the next CRL from the database? Type the option.
+kind: text
+case: sensitive
+answers:
+  - "-gencrl"
+  - "openssl ca -gencrl"
+  - "gencrl"
+mistakes:
+  - id: revoke
+    answers: ["-revoke", "revoke"]
+    why: "That is the step already done: it marks one certificate as revoked in the database. The signed list that clients fetch is made by another option."
+  - id: crl-check
+    answers: ["-crl_check", "-crl_check_all"]
+    why: "That is an option of `openssl verify`, on the client's side: it reads a CRL. The CA has to make one first."
+  - id: crlhours
+    answers: ["-crlhours", "-crldays"]
+    why: "Those say how long the new CRL is good for, and go beside the option that makes it."
+explanation: |
+  `openssl ca -config ca.cnf -gencrl -crlhours 2 -out public/partners.crl` reads the database, lists the serial number of every `R` line, signs the list with the CA's key and gives it a `nextUpdate` two hours on. A revocation is two steps on the CA (`-revoke`, then `-gencrl`) and two more at every client that relies on the list: fetch it, and load it. Until all four have happened, the revoked certificate still works there.
+skills: [run-a-ca, revocation]

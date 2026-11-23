@@ -1,0 +1,20 @@
+id: est-bundle-overlap
+type: estimate
+rev: 1
+prompt: |
+  An old issuing CA issued its last certificate, good for 200 days, on the day the new issuing CA took over. For how many days after that day must relying parties keep the old CA's certificate among the CAs they trust? Exactly.
+unit: days
+answer: 200
+tolerance: { absolute: 0 }
+given: { leaf_days: 200 }
+working: leaf_days
+mistakes:
+  - id: zero
+    value: 0
+    working: "0"
+    why: Dropping the old CA on the day the new one starts refuses every certificate the old one issued, including the one it issued that morning.
+explanation: |
+  The old CA's certificates stay good until each expires, and the youngest was issued on the changeover day for 200 days: 200 days. Until then relying parties trust both issuing CAs, and the old CA goes on publishing its CRL, so that its certificates can still be revoked. After that the old CA can be removed everywhere, and should be: a CA that nothing needs is one more key that could be misused.
+
+  The overlap is one leaf lifetime, which is one more reason to keep leaves short: with 90-day certificates a CA can be retired in three months.
+skills: [ca-rotation]

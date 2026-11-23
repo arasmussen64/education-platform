@@ -1,0 +1,27 @@
+id: aki-ski-match
+type: predict_shell
+rev: 1
+prompt: |
+  An issuing CA was given a new key and kept its name, so there are two certificates with the subject `CN = Shop Issuing CA`. The three files are `openssl x509 -noout -issuer -ext authorityKeyIdentifier` on a leaf, and `-noout -subject -ext subjectKeyIdentifier` on each of the two CA certificates, captured in this topic's lab on 2026-11-22 (trailing spaces taken off). The command takes the last line of the leaf's file and looks for it in the other two. What is printed?
+files:
+  leaf.txt: |
+    issuer=CN = Shop Issuing CA
+    X509v3 Authority Key Identifier:
+        25:7D:EC:A2:1B:F0:4D:6E:2C:89:98:46:0A:6F:14:64:FC:C8:09:9F
+  issuing-2025.txt: |
+    subject=CN = Shop Issuing CA
+    X509v3 Subject Key Identifier:
+        F9:FB:57:FB:85:B5:EB:EE:76:EA:85:28:A9:45:43:4A:E0:24:7F:4E
+  issuing-2026.txt: |
+    subject=CN = Shop Issuing CA
+    X509v3 Subject Key Identifier:
+        25:7D:EC:A2:1B:F0:4D:6E:2C:89:98:46:0A:6F:14:64:FC:C8:09:9F
+command: |
+  grep -l "$(tail -n 1 leaf.txt)" issuing-*.txt
+expected_output: |
+  issuing-2026.txt
+explanation: |
+  `tail -n 1 leaf.txt` is the leaf's **authority key identifier** (AKI): a fingerprint of the public key of whoever signed it. `grep -l` prints the names of the files that contain that line, and only `issuing-2026.txt` does: its **subject key identifier** (SKI), the fingerprint of its own public key, is the same 20 bytes. So the 2026 certificate holds the key that signed this leaf.
+
+  Both CA certificates have the name the leaf's `issuer=` asks for, which is why names alone can't settle it. A client finds an issuer by name first and then by key identifier, and a server that sends the 2025 certificate with this leaf gets `error 20 at 0 depth lookup: unable to get local issuer certificate`: the right name, the wrong key. After an issuing CA is re-keyed, each server must send the certificate that matches its own leaf, and relying parties keep both.
+skills: [ca-rotation, fix-chains]

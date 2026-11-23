@@ -1,0 +1,22 @@
+id: mcq-key-values-mismatch
+type: mcq
+rev: 1
+prompt: |
+  After a certificate was replaced by hand, nginx won't start. Captured in this topic's lab on 2026-11-22:
+
+  ```
+  [emerg] SSL_CTX_use_PrivateKey("/etc/nginx/tls/api.key") failed (SSL: error:05800074:x509 certificate routines::key values mismatch)
+  ```
+
+  The file `ssl_certificate` names holds two certificates, the server's and its issuing CA's. What is the most likely cause?
+choices:
+  - "The file starts with the issuing CA's certificate, not with the server's own"
+  - "The private key file can be read by other users, which nginx refuses to load"
+  - "The server's certificate has run out since the last time nginx was started"
+  - "The issuing CA was given a new key, so the server's old key no longer fits it"
+answer: 0
+explanation: |
+  nginx takes the **first** certificate in the file as the server's own and checks that it goes with the private key. If the file was put together the wrong way round (`cat ca.pem api.pem` instead of `cat api.pem ca.pem`), the first certificate is the CA's, its public key isn't the partner of `api.key`, and nginx stops: `key values mismatch`. The order is the server's certificate first, then each CA up the chain, and never the root.
+
+  nginx doesn't refuse a key for its permissions, and it starts happily with an expired certificate (the clients complain). A server's key pairs with its own certificate only; nothing about the CA's key enters into it.
+skills: [fix-chains]

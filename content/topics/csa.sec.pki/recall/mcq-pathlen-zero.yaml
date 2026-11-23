@@ -1,0 +1,16 @@
+id: mcq-pathlen-zero
+type: mcq
+rev: 1
+prompt: |
+  An issuing CA's certificate says `CA:TRUE, pathlen:0`. Someone with its key signs a certificate for a new "team CA", and the team CA signs a server's certificate. What happens?
+choices:
+  - "Both are signed without complaint, and clients refuse the server's certificate with error 25"
+  - "`openssl ca` refuses to sign the team CA's certificate, because of the issuing CA's `pathlen`"
+  - "Both are signed, and clients accept the server's certificate: `pathlen` binds only the root"
+  - "Both are signed, and clients accept: `pathlen:0` allows one CA below and none below that"
+answer: 0
+explanation: |
+  `pathlen` is how many CA certificates may stand below this one in a chain. With 0, the issuing CA may sign leaves and no CA. Nothing stops the signing: like every limit on a CA, it is checked by the client that verifies. A chain leaf, team CA, issuing CA, root then fails at the issuing CA, which sits at depth 2: `error 25 at 2 depth lookup: path length constraint exceeded`.
+
+  It applies to whichever CA's certificate carries it, not just the root; and the count is of CAs below, so 0 means none (1 would allow one). It is the limit that keeps a stolen issuing CA key from being used to mint further CAs that outlive its revocation.
+skills: [ca-hierarchy]

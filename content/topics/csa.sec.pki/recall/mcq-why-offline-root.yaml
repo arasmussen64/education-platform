@@ -1,0 +1,16 @@
+id: mcq-why-offline-root
+type: mcq
+rev: 1
+prompt: |
+  Why does a PKI keep its root CA's key on a machine with no network, and issue day-to-day certificates from an issuing CA below it?
+choices:
+  - "A stolen issuing CA key can be revoked by the root; nobody can revoke a stolen root"
+  - "Clients verify a chain faster when the root is offline, since they never contact it"
+  - "A root's key is too large to sign every certificate, so a smaller issuing key does it"
+  - "Clients refuse a chain whose root can be reached on a network, as a rule of verifying"
+answer: 0
+explanation: |
+  Every certificate can be taken back by whoever signed it, except the root's, which signed itself. If an issuing CA's key is stolen, the root revokes that CA's certificate (it goes on the root's CRL) and signs a new issuing CA, and every client that trusts the root carries on. If the root's key is stolen there is nobody above it: the root has to be removed from every trust store on every machine, by hand or by update. So the root's key is used a few times a year, on a machine that nothing can reach, and the key that must be online to sign every day is one the PKI can afford to lose.
+
+  Clients never contact a root, online or not: they hold its certificate already. Key size has nothing to do with it, and no rule of verification looks at where a root lives.
+skills: [ca-hierarchy]
