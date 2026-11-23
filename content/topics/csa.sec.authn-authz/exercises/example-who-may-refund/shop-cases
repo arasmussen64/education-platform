@@ -1,0 +1,154 @@
+#!/usr/bin/python3
+"""shop-cases RULE: one rule of the shop's refund policy, tried on requests
+made up now, with the policy base's check library. Every store, person and
+order has a new random name in every run, so a policy can't name them.
+
+RULE is view, refund, forbid or default-deny. Prints "ok" or the first
+three requests where the learner's policy and the rules disagree.
+"shop-cases validates" prints "ok" or why cedar validate refuses the file.
+"""
+
+import sys
+
+sys.path.insert(0, "/usr/local/lib/policy")
+from checklib import (  # noqa: E402
+    Case,
+    Names,
+    check,
+    combine,
+    entity,
+    ref,
+    sides,
+    uid,
+    validates,
+)
+
+SHOP = "/home/learner/shop"
+LIMIT = 100  # support staff refund up to this amount
+# Supervisors are support staff too: their role sits inside support's.
+ROLES = ["support", "supervisor", "warehouse", "finance", None]
+SAID = {
+    "support": "support staff",
+    "supervisor": "a supervisor",
+    "warehouse": "warehouse staff",
+    "finance": "finance staff",
+    None: "someone with no role",
+}
+
+
+def is_support(role):
+    return role in ("support", "supervisor")
+
+
+def request(names, role, same_store, amount, own, mfa, action):
+    """One request and the small world it is asked in: a member of staff
+    with the role (or none), an order in their store or another, handled by
+    them or by a colleague."""
+    store, elsewhere = names.new("store"), names.new("store")
+    person, colleague, order = (
+        names.new("staff"),
+        names.new("staff"),
+        names.new("order"),
+    )
+    roles = [("Role", role)] if role else []
+    entities = [
+        entity("Role", "support"),
+        entity("Role", "supervisor", parents=[("Role", "support")]),
+        entity("Role", "warehouse"),
+        entity("Role", "finance"),
+        entity("Staff", person, {"store": store}, roles),
+        entity("Staff", colleague, {"store": store}, [("Role", "support")]),
+        entity(
+            "Order",
+            order,
+            {
+                "store": store if same_store else elsewhere,
+                "amount": amount,
+                "handled_by": ref("Staff", person if own else colleague),
+            },
+        ),
+    ]
+    words = (
+        f"{SAID[role]}, {'their own' if same_store else 'another'} store, {action} "
+        f"on an order of {amount} that {'they' if own else 'a colleague'} handled, "
+        f"{'with' if mfa else 'without'} MFA"
+    )
+    return {
+        "words": words,
+        "principal": uid("Staff", person),
+        "action": uid("Action", action),
+        "resource": uid("Order", order),
+        "context": {"mfa": mfa},
+        "entities": entities,
+    }
+
+
+def cases_for(rule, names):
+    cases = []
+    if rule == "view":
+        # Viewing has no limit, no MFA rule and no rule about who handled the
+        # order: amounts on both sides of the refund limit, with and without
+        # MFA, one's own orders and a colleague's.
+        for c in combine(
+            role=ROLES,
+            same_store=[True, False],
+            mfa=[True, False],
+            own=[True, False],
+            amount=sides(LIMIT),
+        ):
+            made = request(
+                names,
+                c["role"],
+                c["same_store"],
+                c["amount"],
+                c["own"],
+                c["mfa"],
+                "view",
+            )
+            cases.append(Case(allow=is_support(c["role"]) and c["same_store"], **made))
+    elif rule == "refund":
+        for c in combine(role=ROLES, same_store=[True, False], amount=sides(LIMIT)):
+            made = request(
+                names, c["role"], c["same_store"], c["amount"], False, True, "refund"
+            )
+            allow = is_support(c["role"]) and c["same_store"] and c["amount"] <= LIMIT
+            cases.append(Case(allow=allow, **made))
+    elif rule == "forbid":
+        for c in combine(
+            role=["support", "supervisor"],
+            own=[True, False],
+            mfa=[True, False],
+            amount=[1, LIMIT],
+        ):
+            made = request(
+                names, c["role"], True, c["amount"], c["own"], c["mfa"], "refund"
+            )
+            cases.append(Case(allow=not c["own"] and c["mfa"], **made))
+    elif rule == "default-deny":
+        for c in combine(
+            role=ROLES, same_store=[True, False], mfa=[True, False], amount=sides(LIMIT)
+        ):
+            made = request(
+                names,
+                c["role"],
+                c["same_store"],
+                c["amount"],
+                False,
+                c["mfa"],
+                "export",
+            )
+            cases.append(Case(allow=False, **made))
+    else:
+        sys.exit(f"shop-cases: no rule called {rule}")
+    return cases
+
+
+if __name__ == "__main__":
+    if sys.argv[1] == "validates":
+        print(validates(f"{SHOP}/shop.cedarschema", f"{SHOP}/policies.cedar"))
+        sys.exit(0)
+    check(
+        f"{SHOP}/policies.cedar",
+        cases_for(sys.argv[1], Names()),
+        schema=f"{SHOP}/shop.cedarschema",
+    )

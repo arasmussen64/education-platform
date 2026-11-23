@@ -1,0 +1,31 @@
+id: build-clinic-records
+stage: build
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "The clinic's records"
+prompt: |
+  A small clinic is replacing its paper files with a records system, and the system will ask a Cedar policy file about every request. The file is empty. Write it.
+
+  `~/clinic/` holds the system as it is, which you only read:
+
+  - `clinic.cedarschema`: staff and patients are all **people**, each with a `ward`, and a member of staff can be a patient too. The roles are `doctor`, `nurse`, `billing` and `pharmacist`. There are three kinds of record, each about one `patient` and belonging to the `ward` treating them: a `Chart`, an `Invoice`, and a `Prescription`, which also has `written_by`. The actions are `view` (a chart or an invoice), `annotate` (add a note to a chart), `edit` and `prescribe` (on a chart), `dispense` (a prescription) and `export` (any record). Every request carries two facts about its session: `mfa` and `on_shift`.
+  - `entities.json`: a few people and records to try your rules on. Dora is a doctor on the east ward; Dev is a doctor on the west ward and is registered as a pharmacist as well; Nia and Nick are nurses, east and west, and Nick is also a patient on the west ward (`chart-nick`); Bea is billing staff; Phil is a pharmacist; Pat and Quinn are patients. Dora wrote `rx-pat` and Dev wrote `rx-quinn`.
+
+  The clinic's rules:
+
+  1. Doctors and nurses view the charts of their own ward.
+  2. Doctors and nurses add notes to the charts of their own ward. Only doctors edit them.
+  3. Billing staff view invoices, of any ward, and nothing else.
+  4. Doctors prescribe on the charts of their own ward. Pharmacists dispense prescriptions, of any ward. Nobody dispenses a prescription they wrote.
+  5. Nobody does anything to a record about themselves.
+  6. Editing, prescribing and dispensing need a session that used MFA. Nothing at all is done off shift.
+  7. Everything else is denied.
+
+  The clinic expects its permits to grow over the years. So whatever in rules 4, 5 and 6 says "nobody", "needs" or "nothing" must hold whatever permits are added later: one check adds a rule that permits everything to a copy of your file and asks again.
+
+  Write the rules in `~/clinic/policies.cedar` (`nano ~/clinic/policies.cedar`). In `~/clinic`, `cedar validate --schema clinic.cedarschema --policies policies.cedar` checks your names against the schema, and `ask PERSON ACTION RECORD mfa=yes on_shift=yes` asks one question (a fact you leave out counts as no): `ask nia view chart-pat on_shift=yes`, `ask -v dev dispense rx-quinn mfa=yes on_shift=yes`.
+
+  The checks ask your rules about people, wards and records that are made up when the checks run, so a rule has to hold for any ward and any person, not for the ones in `entities.json`. Change only `policies.cedar`.
+skills: [access-models, separation-of-duties, least-privilege, authn-or-authz]

@@ -1,0 +1,42 @@
+id: write-tighten-service-roles
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Tighten three service accounts"
+prompt: |
+  Three of the shop's services each got everything on the day they were set up: `~/ops/policies.cedar` permits `reports`, `deployer` and `backup` every action on every resource, each by name. Take them down to least privilege, one turn of the loop: observe, cut, watch.
+
+  `~/ops/` holds the system as it is, which you only read:
+
+  - `ops.cedarschema` and `entities.json`: an **account** is a person or a service. The three services are accounts, each already in a role (`report-writer`, `release-deployer`, `backup-operator`) that no rule uses yet. Maya is a person with the `release-approver` role. The things acted on are orders, reports, summaries, releases, store data, the backup vault and changes; a change (a change to the live site, waiting for approval) has `made_by`, the account that made it.
+  - `catalogue.txt`: every action there is, each with the kind of thing it's done to, 18 lines.
+  - `jobs.txt`: what each service is for, written by the team that owns it.
+  - `/var/log/ops/access.log`: every request of the last 120 days, one a line: the date, the account, the action and the resource.
+
+  and `policies.cedar`, which is yours.
+
+  **Observe.** `access-review ACCOUNT`, run in `~/ops`, is this lab's stand-in for a cloud's access analyzer (modelled on AWS IAM Access Analyzer's unused access findings and Google Cloud's role recommendations, and neither of them). It lists what your rules grant the account today, split in two: granted and used in the last 90 days of the log, and granted but never used in them. `--days N` changes the window: `access-review --days 120 reports`. Run it for each service. Then read `jobs.txt`. An analyzer sees what happened in its window. It can't see what happened before it, and it can't tell something the job needs from something the account merely could do. Where the review and the job description disagree, the job description is right.
+
+  **Cut.** Rewrite `~/ops/policies.cedar` (`nano ~/ops/policies.cedar`) so that:
+
+  1. Each of the three roles is permitted exactly what `jobs.txt` says its job needs, and nothing else in the catalogue. Write each rule for the **role** (`principal in Role::"report-writer"`), never for an account by name: an account gets its access from its role, and the next account given the role must get the same.
+  2. Release approvers still approve changes.
+  3. Nobody approves a change they made themselves, whatever roles they hold. Write this one as a `forbid`, so that it holds whatever permits are added later.
+
+  A rule can name the kind of resource in its scope with `is`: `resource is Order` means any order, and no other kind of thing.
+
+  ```
+  permit (principal in Role::"report-writer", action == Action::"read", resource is Order);
+  ```
+
+  **Watch.** `cedar validate --schema ops.cedarschema --policies policies.cedar`, then `ask` for a few requests that should now be refused and a few that must still work (`ask reports delete o-1`, `ask -v maya approve c-2`; `entities.json` has one resource of each kind to ask about), and `access-review` again for each service.
+
+  The checks ask your rules about accounts and resources that are made up when the checks run: an account in each role against every line of the catalogue, accounts with no role, and accounts with two roles. One check adds a rule that permits everything to a copy of your file and asks again whether anyone can approve their own change. Change only `policies.cedar`.
+hints:
+  - "Start from `jobs.txt`, a line of the catalogue at a time: does this job need `read Order`? `delete Order`? Each yes becomes one `permit` with the role, the action and `resource is KIND` in its scope. Each no needs no rule at all: what no permit allows is denied."
+  - "`access-review reports` shows `export Summary` as never used in 90 days, and `access-review --days 120 reports` shows it used once. The job runs once a quarter, which is longer than 90 days."
+  - "`access-review deployer` shows `approve Change` as used. Read what `jobs.txt` says about the deployer and approving. Use isn't need."
+  - "Nobody approves their own change: `forbid (principal, action == Action::\"approve\", resource) when { resource.made_by == principal };`, the same shape as the worked example's rule about refunding your own sale."
+skills: [least-privilege, separation-of-duties]

@@ -1,0 +1,66 @@
+# Each rule check asks the learner's policies about requests the policy
+# base's check library makes up as the check runs
+# (/usr/local/lib/lab-checks/clinic-cases): new names for every person,
+# ward and record; every role, people with two roles and people who are
+# patients too; with MFA and without, on shift and off.
+checks:
+  - id: validates
+    description: "cedar validate accepts the policies against the clinic's schema."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/clinic-cases validates
+    expect:
+      equals: ok
+  - id: ward-viewing
+    description: "Rule 1: doctors and nurses can view the charts of their own ward, and no other ward's."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/clinic-cases viewing
+    expect:
+      equals: ok
+  - id: note-or-edit
+    description: "Rule 2: doctors and nurses can add a note to a chart of their own ward, and only doctors can edit one."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/clinic-cases charts
+    expect:
+      equals: ok
+  - id: billing-only-invoices
+    description: "Rule 3: billing staff can view the invoices of any ward, and nothing else."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/clinic-cases billing
+    expect:
+      equals: ok
+  - id: prescribe-dispense
+    description: "Rule 4: doctors can prescribe on their own ward, pharmacists can dispense, and nobody can dispense a prescription they wrote."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/clinic-cases medicines
+    expect:
+      equals: ok
+  - id: not-your-own-record
+    description: "Rule 5: nobody can do anything to a record about themselves, and their work on other patients' records goes on."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/clinic-cases own-record
+    expect:
+      equals: ok
+  - id: mfa-and-shift
+    description: "Rule 6: editing, prescribing and dispensing need MFA, viewing and adding a note don't, and nothing is done off shift."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/clinic-cases session
+    expect:
+      equals: ok
+  - id: default-deny
+    description: "Rule 7: what no rule allows is denied."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/clinic-cases default-deny
+    expect:
+      equals: ok
+  - id: rules-hold-later
+    description: "The parts of rules 4, 5 and 6 that refuse still refuse after a rule that permits everything is added to the file, and refuse nothing more."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/clinic-cases holds-later
+    expect:
+      equals: ok
+  - id: clinic-untouched
+    description: "The clinic's schema and entities.json are as they were."
+    timeout: 10
+    command: sha256sum -c --status /usr/local/lib/lab-checks/clinic.sha256 && echo same
+    expect:
+      equals: same

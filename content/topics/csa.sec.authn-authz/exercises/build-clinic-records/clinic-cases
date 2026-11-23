@@ -1,0 +1,290 @@
+#!/usr/bin/python3
+"""clinic-cases RULE: one rule of the clinic's records policy, tried on
+requests made up now, with the policy base's check library. Every person,
+ward and record has a new random name in every run.
+
+RULE is viewing, charts, billing, medicines, own-record, session,
+default-deny or holds-later. Prints "ok" or the first three requests where
+the learner's policy and the rules disagree. "clinic-cases validates"
+prints "ok" or why cedar validate refuses the file.
+"""
+
+import os
+import sys
+import tempfile
+
+sys.path.insert(0, "/usr/local/lib/policy")
+from checklib import (  # noqa: E402
+    Case,
+    Names,
+    check,
+    combine,
+    entity,
+    ref,
+    uid,
+    validates,
+)
+
+HERE = "/home/learner/clinic"
+SCHEMA = f"{HERE}/clinic.cedarschema"
+POLICIES = f"{HERE}/policies.cedar"
+
+ROLES = ["doctor", "nurse", "billing", "pharmacist"]
+A = {"doctor": "a doctor", "nurse": "a nurse", "billing": "billing staff"}
+A["pharmacist"] = "a pharmacist"
+NEEDS_MFA = ("edit", "prescribe", "dispense")
+# Which kinds of record each action can be asked about (the schema).
+KINDS = {
+    "view": ["Chart", "Invoice"],
+    "annotate": ["Chart"],
+    "edit": ["Chart"],
+    "prescribe": ["Chart"],
+    "dispense": ["Prescription"],
+    "export": ["Chart", "Invoice", "Prescription"],
+}
+DOING = {
+    "view": "viewing",
+    "annotate": "adding a note to",
+    "edit": "editing",
+    "prescribe": "prescribing on",
+    "dispense": "dispensing",
+    "export": "exporting",
+}
+
+
+def permitted(roles, action, kind, same_ward):
+    """Rules 1 to 4: who may do what."""
+    if action == "view" and kind == "Chart":
+        return ("doctor" in roles or "nurse" in roles) and same_ward
+    if action == "view" and kind == "Invoice":
+        return "billing" in roles
+    if action == "annotate":
+        return ("doctor" in roles or "nurse" in roles) and same_ward
+    if action in ("edit", "prescribe"):
+        return "doctor" in roles and same_ward
+    if action == "dispense":
+        return "pharmacist" in roles
+    return False
+
+
+def refused(action, own, wrote, mfa, on_shift):
+    """Rules 4 to 6: what nobody may do, whatever their role."""
+    return (
+        own
+        or (action == "dispense" and wrote)
+        or (action in NEEDS_MFA and not mfa)
+        or not on_shift
+    )
+
+
+def who(roles):
+    if not roles:
+        return "someone with no role"
+    if len(roles) == 1:
+        return A[roles[0]]
+    return "someone who is " + " and ".join(A[role] for role in roles)
+
+
+def request(
+    names, roles, action, kind, same_ward, own, wrote, mfa, on_shift, widened=False
+):
+    """One request and its small world: a person with the roles, and a
+    record of the kind, on their ward or another, about them or about a
+    patient, and (a prescription) written by them or by a colleague."""
+    ward, elsewhere = names.new("ward"), names.new("ward")
+    person, patient, colleague = (
+        names.new("person"),
+        names.new("person"),
+        names.new("person"),
+    )
+    record = names.new(kind.lower())
+    there = ward if same_ward else elsewhere
+    attrs = {"patient": ref("Person", person if own else patient), "ward": there}
+    if kind == "Prescription":
+        attrs["written_by"] = ref("Person", person if wrote else colleague)
+    entities = [entity("Role", role) for role in ROLES]
+    entities += [
+        entity("Person", person, {"ward": ward}, [("Role", role) for role in roles]),
+        entity("Person", patient, {"ward": there}),
+        entity("Person", colleague, {"ward": there}, [("Role", "doctor")]),
+        entity(kind, record, attrs),
+    ]
+    thing = {"Chart": "a chart", "Invoice": "an invoice"}.get(kind, "a prescription")
+    words = (
+        f"{who(roles)}, {DOING[action]} {thing} "
+        f"{'about themselves' if own else 'about a patient'}, on "
+        f"{'their own' if same_ward else 'another'} ward"
+    )
+    if kind == "Prescription":
+        words += f", written by {'themselves' if wrote else 'a colleague'}"
+    words += (
+        f", {'with' if mfa else 'without'} MFA, {'on' if on_shift else 'off'} shift"
+    )
+    if widened:
+        words += ", after a rule that permits everything is added to your file"
+        allow = not refused(action, own, wrote, mfa, on_shift)
+    else:
+        allow = permitted(roles, action, kind, same_ward) and not refused(
+            action, own, wrote, mfa, on_shift
+        )
+    return Case(
+        words=words,
+        principal=uid("Person", person),
+        action=uid("Action", action),
+        resource=uid(kind, record),
+        context={"mfa": mfa, "on_shift": on_shift},
+        entities=entities,
+        allow=allow,
+    )
+
+
+def mfa_values(action):
+    """A rule that says nothing about MFA is tried with it and without."""
+    return [True] if action in NEEDS_MFA else [True, False]
+
+
+SINGLE = [[role] for role in ROLES] + [[]]
+
+
+def cases_for(rule, names):
+    cases = []
+
+    def add(
+        roles, action, kind, same_ward, own=False, wrote=False, mfa=True, shift=True
+    ):
+        cases.append(
+            request(names, roles, action, kind, same_ward, own, wrote, mfa, shift)
+        )
+
+    if rule == "viewing":
+        for c in combine(
+            roles=SINGLE + [["doctor", "pharmacist"]],
+            same_ward=[True, False],
+            mfa=[True, False],
+        ):
+            add(c["roles"], "view", "Chart", c["same_ward"], mfa=c["mfa"])
+    elif rule == "charts":
+        for c in combine(
+            roles=SINGLE + [["nurse", "billing"]],
+            action=["annotate", "edit"],
+            same_ward=[True, False],
+        ):
+            for mfa in mfa_values(c["action"]):
+                add(c["roles"], c["action"], "Chart", c["same_ward"], mfa=mfa)
+    elif rule == "billing":
+        for c in combine(
+            roles=SINGLE + [["nurse", "billing"]],
+            kind=["Invoice", "Chart"],
+            same_ward=[True, False],
+            mfa=[True, False],
+        ):
+            add(c["roles"], "view", c["kind"], c["same_ward"], mfa=c["mfa"])
+        for action in ("annotate", "edit", "prescribe"):
+            for same_ward in (True, False):
+                add(["billing"], action, "Chart", same_ward)
+    elif rule == "medicines":
+        for c in combine(roles=SINGLE, same_ward=[True, False]):
+            add(c["roles"], "prescribe", "Chart", c["same_ward"])
+        for c in combine(
+            roles=SINGLE + [["doctor", "pharmacist"]],
+            same_ward=[True, False],
+            wrote=[True, False],
+        ):
+            add(
+                c["roles"], "dispense", "Prescription", c["same_ward"], wrote=c["wrote"]
+            )
+    elif rule == "own-record":
+        able = [
+            (["doctor"], "view", "Chart"),
+            (["doctor"], "annotate", "Chart"),
+            (["doctor"], "edit", "Chart"),
+            (["doctor"], "prescribe", "Chart"),
+            (["nurse"], "view", "Chart"),
+            (["nurse"], "annotate", "Chart"),
+            (["billing"], "view", "Invoice"),
+            (["pharmacist"], "dispense", "Prescription"),
+            (["nurse", "billing"], "view", "Invoice"),
+        ]
+        for roles, action, kind in able:
+            for own in (True, False):
+                for mfa in mfa_values(action):
+                    add(roles, action, kind, True, own=own, mfa=mfa)
+    elif rule == "session":
+        able = [
+            (["doctor"], "view", "Chart"),
+            (["nurse"], "annotate", "Chart"),
+            (["doctor"], "edit", "Chart"),
+            (["doctor"], "prescribe", "Chart"),
+            (["billing"], "view", "Invoice"),
+            (["pharmacist"], "dispense", "Prescription"),
+        ]
+        for roles, action, kind in able:
+            for c in combine(mfa=[True, False], shift=[True, False]):
+                add(roles, action, kind, True, mfa=c["mfa"], shift=c["shift"])
+    elif rule == "default-deny":
+        for c in combine(roles=SINGLE, same_ward=[True, False], mfa=[True, False]):
+            for kind in KINDS["export"]:
+                add(c["roles"], "export", kind, c["same_ward"], mfa=c["mfa"])
+            for action in ("view", "annotate", "edit", "prescribe", "dispense"):
+                if not c["roles"] or action in NEEDS_MFA and not c["mfa"]:
+                    continue
+                for kind in KINDS[action]:
+                    if not permitted(c["roles"], action, kind, True):
+                        add(c["roles"], action, kind, c["same_ward"], mfa=c["mfa"])
+        for action, kinds in KINDS.items():
+            for kind in kinds:
+                add([], action, kind, True)
+    else:
+        sys.exit(f"clinic-cases: no rule called {rule}")
+    return cases
+
+
+def with_a_broad_permit(names):
+    """Every action by someone with no role, after a rule that permits
+    everything is added: only what rules 4 to 6 refuse may be denied, and
+    all of it must be."""
+    cases = []
+    for action, kinds in KINDS.items():
+        for kind in kinds:
+            for c in combine(
+                own=[False, True],
+                wrote=[False, True] if kind == "Prescription" else [False],
+                mfa=[True, False],
+                shift=[True, False],
+                same_ward=[True, False],
+            ):
+                cases.append(
+                    request(
+                        names,
+                        [],
+                        action,
+                        kind,
+                        c["same_ward"],
+                        c["own"],
+                        c["wrote"],
+                        c["mfa"],
+                        c["shift"],
+                        widened=True,
+                    )
+                )
+    return cases
+
+
+if __name__ == "__main__":
+    rule = sys.argv[1]
+    if rule == "validates":
+        print(validates(SCHEMA, POLICIES))
+        sys.exit(0)
+    if rule == "holds-later":
+        if not os.path.isfile(POLICIES):
+            print(f"there is no file {POLICIES}")
+            sys.exit(0)
+        with tempfile.TemporaryDirectory() as folder:
+            widened = os.path.join(folder, "policies.cedar")
+            with open(POLICIES, encoding="utf-8") as file:
+                text = file.read()
+            with open(widened, "w", encoding="utf-8") as file:
+                file.write(text + "\npermit (principal, action, resource);\n")
+            check(widened, with_a_broad_permit(Names()), schema=SCHEMA)
+        sys.exit(0)
+    check(POLICIES, cases_for(rule, Names()), schema=SCHEMA)

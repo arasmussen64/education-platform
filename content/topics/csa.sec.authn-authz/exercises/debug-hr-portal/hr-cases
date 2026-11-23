@@ -1,0 +1,278 @@
+#!/usr/bin/python3
+"""hr-cases RULE: one rule of the HR portal's policy, tried on requests
+made up now, with the policy base's check library. Every employee,
+department and record has a new random name in every run.
+
+RULE is own-salary, managers, hr-partners, requests, approval, payroll-log,
+nothing-more or holds-later. Prints "ok" or the first three requests where
+the learner's policy and the rules disagree. "hr-cases validates" prints
+"ok" or why cedar validate refuses the file.
+"""
+
+import os
+import sys
+import tempfile
+
+sys.path.insert(0, "/usr/local/lib/policy")
+from checklib import (  # noqa: E402
+    Case,
+    Names,
+    check,
+    combine,
+    entity,
+    ref,
+    uid,
+    validates,
+)
+
+HERE = "/home/learner/hr"
+SCHEMA = f"{HERE}/hr.cedarschema"
+POLICIES = f"{HERE}/policies.cedar"
+
+ROLES = ["manager", "hr-partner", "auditor", "payroll"]
+A = {
+    "manager": "a manager",
+    "hr-partner": "an HR partner",
+    "auditor": "an auditor",
+    "payroll": "a payroll clerk",
+}
+SINGLE = [[role] for role in ROLES] + [[]]
+
+
+def allowed(roles, action, own, same_dept, supported, requested_self):
+    """The portal's rules."""
+    if action == "viewSalary":
+        return (
+            own
+            or ("manager" in roles and same_dept)
+            or ("hr-partner" in roles and supported)
+        )
+    if action == "requestRaise":
+        return "manager" in roles and same_dept
+    if action == "approveRaise":
+        return "hr-partner" in roles and supported and not requested_self
+    if action == "readPayrollLog":
+        return "auditor" in roles or "payroll" in roles
+    if action == "editPayrollLog":
+        return "payroll" in roles
+    raise ValueError(action)
+
+
+def who(roles):
+    if not roles:
+        return "an employee with no role"
+    if len(roles) == 1:
+        return A[roles[0]]
+    return "someone who is " + " and ".join(A[role] for role in roles)
+
+
+def request(
+    names,
+    roles,
+    action,
+    own=False,
+    same_dept=True,
+    supported=False,
+    requested_self=False,
+    widened=False,
+):
+    """One request and its small world. The person is in one department
+    and the record in the same one or another; an HR partner supports the
+    record's department (supported) or a different one."""
+    dept, elsewhere, unrelated = (names.new("dept") for _ in range(3))
+    person, colleague = names.new("employee"), names.new("employee")
+    there = dept if (same_dept or own) else elsewhere
+    supports = []
+    if "hr-partner" in roles:
+        supports = [there, unrelated] if supported else [unrelated]
+    entities = [entity("Role", role) for role in ROLES]
+    entities += [
+        entity(
+            "Employee",
+            person,
+            {"department": dept, "supports": supports},
+            [("Role", role) for role in roles],
+        ),
+        entity(
+            "Employee",
+            colleague,
+            {"department": there, "supports": []},
+            [("Role", "manager")],
+        ),
+    ]
+    where = "their own department" if there == dept else "another department"
+    if "hr-partner" in roles:
+        where += ", which they support" if supported else ", which they don't support"
+    if action in ("viewSalary", "requestRaise"):
+        record = names.new("salary")
+        owner = person if own else colleague
+        entities.append(
+            entity(
+                "Salary", record, {"owner": ref("Employee", owner), "department": there}
+            )
+        )
+        resource = uid("Salary", record)
+        verb = "viewing" if action == "viewSalary" else "requesting a raise on"
+        words = (
+            f"{who(roles)}, {verb} "
+            f"{'their own salary' if own else 'the salary of someone in ' + where}"
+        )
+    elif action == "approveRaise":
+        record = names.new("raise")
+        asker = person if requested_self else colleague
+        entities.append(
+            entity(
+                "Raise",
+                record,
+                {"requested_by": ref("Employee", asker), "department": there},
+            )
+        )
+        resource = uid("Raise", record)
+        asked = "someone else requested"
+        if requested_self:
+            asked = "they requested themselves"
+        words = f"{who(roles)}, approving a raise in {where} that {asked}"
+    else:
+        record = names.new("log")
+        entities.append(entity("PayrollLog", record))
+        resource = uid("PayrollLog", record)
+        verb = "reading" if action == "readPayrollLog" else "editing"
+        words = f"{who(roles)}, {verb} the payroll log"
+    if widened:
+        words += ", after a rule that permits everything is added to your file"
+        allow = not (action == "approveRaise" and requested_self)
+    else:
+        allow = allowed(roles, action, own, there == dept, supported, requested_self)
+    return Case(
+        words=words,
+        principal=uid("Employee", person),
+        action=uid("Action", action),
+        resource=resource,
+        entities=entities,
+        allow=allow,
+    )
+
+
+def cases_for(rule, names):
+    cases = []
+    if rule == "own-salary":
+        for roles in SINGLE + [["manager", "hr-partner"]]:
+            cases.append(request(names, roles, "viewSalary", own=True))
+        # ...and not a colleague's, for someone no other rule covers.
+        for c in combine(roles=[[], ["auditor"], ["payroll"]], same_dept=[True, False]):
+            cases.append(
+                request(names, c["roles"], "viewSalary", same_dept=c["same_dept"])
+            )
+    elif rule == "managers":
+        for c in combine(roles=SINGLE, same_dept=[True, False]):
+            cases.append(
+                request(names, c["roles"], "viewSalary", same_dept=c["same_dept"])
+            )
+    elif rule == "hr-partners":
+        for c in combine(
+            roles=[["hr-partner"], ["hr-partner", "auditor"]],
+            same_dept=[True, False],
+            supported=[True, False],
+        ):
+            cases.append(
+                request(
+                    names,
+                    c["roles"],
+                    "viewSalary",
+                    same_dept=c["same_dept"],
+                    supported=c["supported"],
+                )
+            )
+    elif rule == "requests":
+        for c in combine(
+            roles=SINGLE + [["manager", "hr-partner"]],
+            same_dept=[True, False],
+            own=[True, False],
+        ):
+            cases.append(
+                request(
+                    names,
+                    c["roles"],
+                    "requestRaise",
+                    own=c["own"],
+                    same_dept=c["same_dept"],
+                )
+            )
+    elif rule == "approval":
+        for c in combine(
+            roles=SINGLE + [["manager", "hr-partner"]],
+            same_dept=[True, False],
+            supported=[True, False],
+            requested_self=[True, False],
+        ):
+            cases.append(
+                request(
+                    names,
+                    c["roles"],
+                    "approveRaise",
+                    same_dept=c["same_dept"],
+                    supported=c["supported"],
+                    requested_self=c["requested_self"],
+                )
+            )
+    elif rule == "payroll-log":
+        for roles in SINGLE + [["manager", "auditor"], ["manager", "payroll"]]:
+            for action in ("readPayrollLog", "editPayrollLog"):
+                cases.append(request(names, roles, action))
+    elif rule == "nothing-more":
+        for c in combine(roles=[[], ["auditor"], ["payroll"]], same_dept=[True, False]):
+            for action in ("viewSalary", "requestRaise", "approveRaise"):
+                cases.append(
+                    request(names, c["roles"], action, same_dept=c["same_dept"])
+                )
+        for action in ("readPayrollLog", "editPayrollLog"):
+            for roles in ([], ["manager"], ["hr-partner"]):
+                cases.append(request(names, roles, action))
+        cases.append(request(names, [], "approveRaise", requested_self=True))
+    else:
+        sys.exit(f"hr-cases: no rule called {rule}")
+    return cases
+
+
+def with_a_broad_permit(names):
+    """Approving after a rule that permits everything is added: one's own
+    request must still be refused, and nothing else may be."""
+    cases = []
+    for c in combine(
+        roles=[[], ["hr-partner"], ["manager"], ["manager", "hr-partner"]],
+        supported=[True, False],
+        requested_self=[True, False],
+    ):
+        cases.append(
+            request(
+                names,
+                c["roles"],
+                "approveRaise",
+                supported=c["supported"],
+                requested_self=c["requested_self"],
+                widened=True,
+            )
+        )
+    for action in ("viewSalary", "requestRaise", "readPayrollLog", "editPayrollLog"):
+        cases.append(request(names, [], action, widened=True))
+    return cases
+
+
+if __name__ == "__main__":
+    rule = sys.argv[1]
+    if rule == "validates":
+        print(validates(SCHEMA, POLICIES))
+        sys.exit(0)
+    if rule == "holds-later":
+        if not os.path.isfile(POLICIES):
+            print(f"there is no file {POLICIES}")
+            sys.exit(0)
+        with tempfile.TemporaryDirectory() as folder:
+            widened = os.path.join(folder, "policies.cedar")
+            with open(POLICIES, encoding="utf-8") as file:
+                text = file.read()
+            with open(widened, "w", encoding="utf-8") as file:
+                file.write(text + "\npermit (principal, action, resource);\n")
+            check(widened, with_a_broad_permit(Names()), schema=SCHEMA)
+        sys.exit(0)
+    check(POLICIES, cases_for(rule, Names()), schema=SCHEMA)
