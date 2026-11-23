@@ -1,0 +1,16 @@
+id: mcq-hash-beside-download
+type: mcq
+rev: 1
+prompt: |
+  A download page shows a file's SHA-256 hash next to its link. The page and the file come from the same web server. You download the file, and `sha256sum` prints the hash on the page. What has that check ruled out?
+choices:
+  - "A download damaged on the way, but not a server that was taken over"
+  - "Anyone swapping the file, since nobody can fake a SHA-256 hash"
+  - "Nothing at all, because SHA-256 has known collisions, as MD5 has"
+  - "A swapped file, as long as the page itself was fetched over HTTPS"
+answer: 0
+explanation: |
+  A hash has no key: anyone can take one. Someone who takes over the server and swaps the file changes the hash on the page in the same minute, and the check passes. So a hash proves the file is the one the hash was made from, and it's worth exactly as much as the way the hash reached you. Here it came the same way as the file, so it catches a broken download and nothing more.
+
+  Nobody needs to fake SHA-256: they recompute it. SHA-256 has no known collisions (MD5 and SHA-1 do). HTTPS protects the page on its way from the server, which doesn't help when the server is the problem. What does help: a hash published somewhere the attacker doesn't control, or a signature, made with a private key the web server doesn't hold.
+skills: [hash-mac-signature]

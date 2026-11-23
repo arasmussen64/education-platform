@@ -1,0 +1,16 @@
+id: mcq-pq-what-moves
+type: mcq
+rev: 1
+prompt: |
+  NIST's plan for the move to post-quantum cryptography gives dates: deprecated after 2030, disallowed after 2035. Which part of the shop's cryptography do those dates make it replace?
+choices:
+  - "RSA and elliptic-curve keys, used for key exchange and for signatures"
+  - "AES-256 keys, which a large quantum computer could search through fast"
+  - "SHA-256 hashes, which a large quantum computer could run backwards"
+  - "All of it at once, symmetric ciphers and public-key algorithms alike"
+answer: 0
+explanation: |
+  A large quantum computer would break the mathematics under RSA and elliptic curves outright, so everything public-key goes: key exchange (ECDH), signatures (RSA, ECDSA, EdDSA) and the certificates that carry them. Their replacements are ML-KEM for agreeing keys and ML-DSA for signatures (NIST IR 8547, October 2026).
+
+  Symmetric cryptography stays. The best known quantum attack on AES or SHA-256 only speeds up a search, and NIST's plan says its symmetric algorithms with at least 128 bits of strength are believed to hold. So the data keys and the AES-256-GCM in an envelope are untouched; what changes is how keys are agreed and how things are signed.
+skills: [key-strength]

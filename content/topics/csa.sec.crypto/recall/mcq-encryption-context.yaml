@@ -1,0 +1,16 @@
+id: mcq-encryption-context
+type: mcq
+rev: 1
+prompt: |
+  An app keeps each customer's wrapped data key in that customer's row. When it calls AWS KMS to wrap or unwrap one, it passes the row's customer ID as the encryption context. Someone with access to the database copies customer 1001's wrapped key into customer 1002's row. What happens when the app next unwraps the key in row 1002?
+choices:
+  - "Decrypting fails, because the context no longer matches"
+  - "It decrypts, because both rows use the same KMS key"
+  - "It decrypts, and AWS's audit log records a warning"
+  - "KMS wraps the key again for the new customer by itself"
+answer: 0
+explanation: |
+  The encryption context is associated data: text that isn't encrypted but that the AEAD's tag covers. The key was wrapped with `customer=1001`; the app now asks to unwrap it with `customer=1002`; the tag doesn't verify, and KMS refuses. A ciphertext is tied to the place it belongs, so moving it somewhere else breaks it. The lab's `gcm` has the same thing as `--aad TEXT`.
+
+  The same KMS key isn't enough: with a context, the key and the context must both match. KMS doesn't decide to let it through with a warning, and it never re-encrypts by itself. AWS recommends a context on every symmetric call, and writes it in its own audit log (CloudTrail) in the clear, so nothing secret goes in it.
+skills: [authenticated-encryption]

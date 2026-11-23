@@ -1,0 +1,36 @@
+id: write-rewrap-archive
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Rewrap an archive"
+prompt: |
+  The shop's `orders` key has been rotated twice, and nobody rewrapped anything: `~/archive` holds nine sealed orders (`order-N.txt.sealed`, each with its wrapped data key beside it as `order-N.txt.key`) in folders of several depths, and their keys are wrapped by versions 1, 2 and 3 of the key. Before the old versions can be retired, every wrapped key has to be brought to the latest. OpenBao runs on this server; its basics are in this topic's first lab, `example-seal-an-order`.
+
+  Write **`~/bin/rewrap-archive DIR KEY`**, a bash script that:
+
+  1. finds every file under `DIR` whose name ends in `.key`, **at any depth**, in folders whose names may hold **spaces**;
+  2. leaves alone each one already wrapped by the latest version of the transit key `KEY`, and has OpenBao **rewrap** each of the others to the latest version, putting the new wrapped key in the file's place;
+  3. never changes a `.sealed` file, and never asks OpenBao to unwrap a key: the data keys stay inside OpenBao the whole time;
+  4. prints, as its last line, `rewrapped N, already current M`, with the two counts.
+
+  Run a second time, it finds nothing to do and prints `rewrapped 0, already current` and the number of keys.
+
+  The script must work with a token that may do only two things, which is all the nightly job that runs it will have: rewrap with `KEY` (`transit/rewrap/KEY`) and read the key's description (`transit/keys/KEY`). The policy `archive-rewrap` allows exactly that for the key `orders`, so you can try your script the way the checks will:
+
+  ```
+  export BAO_TOKEN=$(bao token create -policy=archive-rewrap -ttl=10m -field=token)
+  ~/bin/rewrap-archive ~/archive orders
+  unset BAO_TOKEN
+  ```
+
+  (`unset` gives you your own token back.) The checks don't use `~/archive`: they run the script on an archive they make themselves, with a key of another name, rotated three or four times, and a token that may only rewrap with that key and read its description. Then they rotate that key once more and run the script again, when every key in the archive is behind.
+
+  Create the script with `nano ~/bin/rewrap-archive`, start it with `#!/bin/bash` and `set -euo pipefail`, and make it executable with `chmod +x ~/bin/rewrap-archive`. `cut -c 1-9 FILE` shows the start of a wrapped key, which is where its version is written.
+hints:
+  - "`bao read -field=latest_version transit/keys/NAME` prints a key's latest version as a bare number. A wrapped key starts `vault:vN:`, so one that is current starts `vault:v` then that number then `:`. In bash, `[[ $text == \"vault:v$latest:\"* ]]` is true when `$text` starts that way."
+  - "`bao write -field=ciphertext transit/rewrap/NAME ciphertext=\"$(cat FILE)\"` prints the same data key wrapped by the latest version. Send that to a new file beside the old one and `mv` it into place, so that a call that fails doesn't leave you with an empty key file."
+  - "To loop over file names that may hold spaces: `while IFS= read -r -d '' file; do ... done < <(find \"$1\" -type f -name '*.key' -print0)`. `-print0` ends each name with a zero byte and `read -d ''` reads up to one. Feed the loop with `< <(...)` after `done`, not with `find ... |` before `while`: a loop at the end of a pipe runs in a shell of its own, and the counts it keeps are gone when it ends."
+skills: [envelope-encryption]
