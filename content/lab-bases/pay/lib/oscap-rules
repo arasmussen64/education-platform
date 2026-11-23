@@ -1,0 +1,86 @@
+#!/usr/bin/python3
+"""oscap-rules RULE...: runs the benchmark's named rules once, for checks.
+
+    oscap-rules sshd_disable_root_login journald_storage
+    sshd_disable_root_login fail
+    journald_storage pass
+
+One OpenSCAP run (oscap xccdf eval --profile ... --rule ... on the lab's
+data stream, with no tailoring file), then "rule result" for each rule in
+the order asked: pass, fail, notapplicable and OpenSCAP's other results, or
+"unknown" for a rule that got no result (no such rule). It exits 0 when
+every rule got a result, whatever the results, and 1 otherwise.
+
+Checks name their rules and never run the whole profile, because OpenSCAP
+1.3.9 is not reliable on it: one whole-profile run in five crashed on the
+designer's machine, and one in 28 hung for good while this base was
+built (the README has both). A run that crashes (a segmentation fault), or
+is still going after 12 seconds (named rules take about one;
+OSCAP_RULES_SECONDS changes the limit), is stopped and tried once more.
+Its cases are in tools/tests/test_pay_helpers.py.
+"""
+
+import os
+import signal
+import subprocess
+import sys
+
+STREAM = "/usr/share/lab-pay/scap/ssg-ubuntu2404-ds.xml"
+PROFILE = "xccdf_org.ssgproject.content_profile_cis_level1_server"
+PREFIX = "xccdf_org.ssgproject.content_rule_"
+CRASHED = {-signal.SIGSEGV, 128 + signal.SIGSEGV}
+# One attempt's limit. Two attempts stay under a check's 30 seconds.
+SECONDS = 12
+
+
+def results(output: str) -> dict[str, str]:
+    """oscap's Title / Rule / Result blocks as {rule: result}. oscap puts a
+    carriage return before each tab ("Rule\\r\\tNAME"), so lines are cut at
+    line feeds only (splitlines would cut at the carriage return too)."""
+    found: dict[str, str] = {}
+    rule = None
+    for line in output.split("\n"):
+        name, _, value = line.partition("\t")
+        name, value = name.strip(), value.strip()
+        if name == "Rule":
+            rule = value.removeprefix(PREFIX)
+        elif name == "Result" and rule is not None:
+            found[rule] = value
+            rule = None
+    return found
+
+
+def command(rules: list[str]) -> list[str]:
+    words = ["oscap", "xccdf", "eval", "--profile", PROFILE]
+    for rule in rules:
+        words += ["--rule", PREFIX + rule.removeprefix(PREFIX)]
+    return words + [STREAM]
+
+
+def main() -> None:
+    rules = [rule.removeprefix(PREFIX) for rule in sys.argv[1:]]
+    if not rules:
+        print("usage: oscap-rules RULE...", file=sys.stderr)
+        sys.exit(2)
+    limit = float(os.environ.get("OSCAP_RULES_SECONDS", SECONDS))
+    output = b""
+    for attempt in (1, 2):
+        # Bytes, not text: Python's text mode would turn each carriage
+        # return into a line feed and cut every block's lines in two.
+        try:
+            run = subprocess.run(command(rules), capture_output=True, timeout=limit)
+        except subprocess.TimeoutExpired:
+            print(f"oscap-rules: oscap hung (run {attempt} of 2)", file=sys.stderr)
+            continue
+        output = run.stdout
+        if run.returncode not in CRASHED:
+            break
+        print(f"oscap-rules: oscap crashed (run {attempt} of 2)", file=sys.stderr)
+    found = results(output.decode("utf-8", errors="replace"))
+    for rule in rules:
+        print(rule, found.get(rule, "unknown"))
+    sys.exit(0 if all(rule in found for rule in rules) else 1)
+
+
+if __name__ == "__main__":
+    main()

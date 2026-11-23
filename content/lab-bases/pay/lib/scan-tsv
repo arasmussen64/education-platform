@@ -1,0 +1,102 @@
+#!/usr/bin/python3
+"""scan-tsv [FILE...]: a vulnerability scan's findings as a table, for checks.
+
+It runs the lab's scanner offline against its frozen records
+(osv-scanner scan source --offline-vulnerabilities --offline -L FILE ...
+--format json) and prints one line per finding, tab-separated and sorted:
+
+    cve <TAB> package <TAB> installed <TAB> fixed <TAB> severity
+    CVE-2025-32463	sudo	1.9.15p5-3ubuntu5	1.9.15p5-3ubuntu5.24.04.1	9.3
+
+FILE is a dpkg status file: this machine's, /var/lib/dpkg/status, unless
+given; for a copy under another name write dpkg-status:PATH. "package" is
+the source package, as the scanner groups its findings (openssh, not
+openssh-server); "fixed" is the first fixed version, or "-" when the record
+names none. No findings is no output. Exit status 0 either way, 1 when the
+scanner itself failed. Its cases are in tools/tests/test_pay_helpers.py.
+"""
+
+import json
+import os
+import subprocess
+import sys
+
+DATABASE = "/usr/share/lab-pay/advisories"
+
+
+def cve_of(vulnerability: dict) -> str:
+    """The CVE a record is about: UBUNTU-CVE-2025-32463 is CVE-2025-32463."""
+    for name in vulnerability.get("upstream", []) + vulnerability.get("aliases", []):
+        if name.startswith("CVE-"):
+            return name
+    return vulnerability["id"].removeprefix("UBUNTU-")
+
+
+def fixed_in(vulnerability: dict, package: dict) -> str:
+    """The first fixed version the record gives for this package in this
+    release, or "-"."""
+    for affected in vulnerability.get("affected", []):
+        named = affected.get("package", {})
+        if named.get("name") != package["name"]:
+            continue
+        # "Ubuntu:24.04:LTS" in a record is "Ubuntu:24.04" in a scan.
+        if not named.get("ecosystem", "").startswith(package["ecosystem"]):
+            continue
+        if "Pro" in named.get("ecosystem", "") and "Pro" not in package["ecosystem"]:
+            continue
+        for span in affected.get("ranges", []):
+            for event in span.get("events", []):
+                if "fixed" in event:
+                    return event["fixed"]
+    return "-"
+
+
+def rows(report: dict) -> list[tuple[str, str, str, str, str]]:
+    """The scanner's JSON report as (cve, package, installed, fixed,
+    severity), one per finding and source package, sorted."""
+    found = set()
+    for result in report.get("results", []):
+        for entry in result.get("packages", []):
+            package = entry["package"]
+            severity = {}
+            for group in entry.get("groups", []):
+                for name in group.get("ids", []):
+                    severity[name] = group.get("max_severity") or "-"
+            for vulnerability in entry.get("vulnerabilities", []):
+                found.add(
+                    (
+                        cve_of(vulnerability),
+                        package["name"],
+                        package["version"],
+                        fixed_in(vulnerability, package),
+                        severity.get(vulnerability["id"], "-"),
+                    )
+                )
+    return sorted(found)
+
+
+def main() -> None:
+    files = sys.argv[1:] or ["/var/lib/dpkg/status"]
+    command = ["osv-scanner", "scan", "source", "--offline-vulnerabilities", "--offline"]
+    for file in files:
+        command += ["-L", file]
+    command += ["--format", "json"]
+    environment = {**os.environ}
+    environment.setdefault("OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY", DATABASE)
+    run = subprocess.run(command, capture_output=True, text=True, env=environment)
+    # The scanner exits 0 with no findings and 1 with some.
+    if run.returncode not in (0, 1):
+        sys.stderr.write(run.stderr)
+        sys.exit(1)
+    try:
+        report = json.loads(run.stdout)
+    except ValueError:
+        sys.stderr.write(run.stderr)
+        print("scan-tsv: the scanner printed no report", file=sys.stderr)
+        sys.exit(1)
+    for row in rows(report):
+        print("\t".join(row))
+
+
+if __name__ == "__main__":
+    main()
