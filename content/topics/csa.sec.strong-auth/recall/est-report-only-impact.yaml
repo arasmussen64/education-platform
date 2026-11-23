@@ -1,0 +1,24 @@
+id: est-report-only-impact
+type: estimate
+rev: 1
+prompt: |
+  A new block policy is run in report-only for a week. The sign-in log shows 18600 sign-ins, of which 2.5% are recorded "Report-only: Failure" and another 4% "Report-only: User action required".
+
+  If the policy were enforced, how many sign-ins would it have blocked outright? Exactly.
+unit: sign-ins
+answer: 465
+tolerance: { absolute: 0 }
+given: { sign_ins: 18600, failure_pct: 2.5, action_pct: 4 }
+working: sign_ins * failure_pct / 100
+mistakes:
+  - id: both-counted
+    value: 1209
+    working: sign_ins * (failure_pct + action_pct) / 100
+    why: "\"User action required\" means the person would be prompted, not blocked. Only the failures are blocked outright."
+  - id: action-share
+    value: 744
+    working: sign_ins * action_pct / 100
+    why: That is the "user action required" share. The ones blocked outright are the failures, 2.5%.
+explanation: |
+  Report-only tells you what a policy would do without doing it. "Failure" is a sign-in the policy would block; "User action required" is one it would prompt (for MFA, say), not block. So 2.5% of 18,600 = 465 would be blocked outright. Reading these numbers before you enforce is how you avoid locking out a crowd you didn't expect, which is the whole reason report-only exists.
+skills: [rollout-without-lockout]

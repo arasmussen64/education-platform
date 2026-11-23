@@ -1,0 +1,24 @@
+id: est-guess-odds
+type: estimate
+rev: 1
+prompt: |
+  An attacker who already has Bob's password gets 5 guesses at his 6-digit code before the account locks. A 6-digit code is one of 1000000 values, and this server accepts only the one current code.
+
+  Their chance of getting in is 1 in how many? Exactly (give the denominator).
+unit: (1 in this many)
+answer: 200000
+tolerance: { absolute: 0 }
+given: { codes: 1000000, guesses: 5 }
+working: codes / guesses
+mistakes:
+  - id: one-guess
+    value: 1000000
+    working: codes
+    why: That is the odds of one guess. With five tries before lockout the chance is five times better.
+  - id: six-guesses
+    value: 166667
+    working: codes / 6
+    why: The account locks after five failures, so there are five guesses, not six.
+explanation: |
+  Five guesses out of a million codes is 1 in 200,000: small, which is the point. Guessing is not how a code gets beaten; relaying is. A lockout after a few failures makes blind guessing hopeless, so the real risk a one-time code carries is that a person can be led to type it into a site that passes it on. That is why phishing resistance, not a longer code, is the fix.
+skills: [rollout-without-lockout]

@@ -1,0 +1,177 @@
+{
+  "realm": "shop",
+  "enabled": true,
+  "sslRequired": "all",
+  "accessTokenLifespan": 300,
+  "eventsEnabled": true,
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 54,
+      "config": {}
+    },
+    {
+      "alias": "webauthn-register",
+      "name": "Webauthn Register",
+      "providerId": "webauthn-register",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 80,
+      "config": {}
+    },
+    {
+      "alias": "webauthn-register-passwordless",
+      "name": "Webauthn Register Passwordless",
+      "providerId": "webauthn-register-passwordless",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 90,
+      "config": {}
+    }
+  ],
+  "roles": { "realm": [{ "name": "admin" }] },
+  "groups": [
+    { "name": "staff" },
+    { "name": "warehouse" },
+    { "name": "admins", "realmRoles": ["admin"] }
+  ],
+  "users": [
+    {
+      "id": "0a000000-0000-4000-8000-000000000011",
+      "username": "alice",
+      "enabled": true,
+      "firstName": "Alice",
+      "lastName": "Ng",
+      "email": "alice@shop.test",
+      "emailVerified": true,
+      "groups": ["/admins"],
+      "credentials": [
+        { "type": "password", "value": "${ALICE_PASSWORD}", "temporary": false },
+        { "type": "webauthn", "userLabel": "alice's key", "credentialData": "${ALICE_KEY}", "secretData": "{}" }
+      ]
+    },
+    {
+      "id": "0a000000-0000-4000-8000-000000000012",
+      "username": "carol",
+      "enabled": true,
+      "firstName": "Carol",
+      "lastName": "Diaz",
+      "email": "carol@shop.test",
+      "emailVerified": true,
+      "groups": ["/admins"],
+      "credentials": [
+        { "type": "password", "value": "${CAROL_PASSWORD}", "temporary": false },
+        { "type": "webauthn", "userLabel": "carol's key", "credentialData": "${CAROL_KEY}", "secretData": "{}" }
+      ]
+    },
+    {
+      "id": "0a000000-0000-4000-8000-000000000013",
+      "username": "ana",
+      "enabled": true,
+      "firstName": "Ana",
+      "lastName": "Lima",
+      "email": "ana@shop.test",
+      "emailVerified": true,
+      "groups": ["/staff"],
+      "credentials": [
+        { "type": "password", "value": "${ANA_PASSWORD}", "temporary": false },
+        { "type": "otp", "userLabel": "ana's app", "secretData": "{\"value\":\"${ANA_OTP}\"}", "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}" }
+      ]
+    },
+    {
+      "id": "0a000000-0000-4000-8000-000000000014",
+      "username": "ben",
+      "enabled": true,
+      "firstName": "Ben",
+      "lastName": "Okoro",
+      "email": "ben@shop.test",
+      "emailVerified": true,
+      "groups": ["/warehouse"],
+      "credentials": [
+        { "type": "password", "value": "${BEN_PASSWORD}", "temporary": false },
+        { "type": "otp", "userLabel": "ben's app", "secretData": "{\"value\":\"${BEN_OTP}\"}", "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}" }
+      ]
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "shop-browser",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "auth-cookie", "requirement": "ALTERNATIVE", "priority": 10, "autheticatorFlow": false },
+        { "flowAlias": "shop-forms", "requirement": "ALTERNATIVE", "priority": 20, "autheticatorFlow": true }
+      ]
+    },
+    {
+      "alias": "shop-forms",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "auth-username-password-form", "requirement": "REQUIRED", "priority": 10, "autheticatorFlow": false, "authenticatorConfig": "pwd-ref" },
+        { "flowAlias": "admins use a security key", "requirement": "CONDITIONAL", "priority": 20, "autheticatorFlow": true },
+        { "flowAlias": "others use a code", "requirement": "CONDITIONAL", "priority": 30, "autheticatorFlow": true }
+      ]
+    },
+    {
+      "alias": "admins use a security key",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "conditional-user-role", "requirement": "REQUIRED", "priority": 10, "autheticatorFlow": false, "authenticatorConfig": "is-admin" },
+        { "authenticator": "webauthn-authenticator", "priority": 20, "autheticatorFlow": false, "authenticatorConfig": "hwk-ref",
+          "requirement": "..." }
+      ]
+    },
+    {
+      "alias": "others use a code",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "conditional-user-role", "requirement": "REQUIRED", "priority": 10, "autheticatorFlow": false, "authenticatorConfig": "not-admin" },
+        { "authenticator": "auth-otp-form", "priority": 20, "autheticatorFlow": false, "authenticatorConfig": "otp-ref",
+          "requirement": "..." }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    { "alias": "is-admin", "config": {
+      "condUserRole": "..." } },
+    { "alias": "not-admin", "config": { "condUserRole": "admin",
+      "negate": "..." } },
+    { "alias": "pwd-ref", "config": { "default.reference.value": "pwd", "default.reference.maxAge": "36000" } },
+    { "alias": "hwk-ref", "config": { "default.reference.value": "hwk", "default.reference.maxAge": "36000" } },
+    { "alias": "otp-ref", "config": { "default.reference.value": "otp", "default.reference.maxAge": "36000" } }
+  ],
+  "browserFlow": "shop-browser",
+  "clients": [
+    {
+      "clientId": "trace-cli",
+      "name": "A command-line tool",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://127.0.0.1:8400/callback"],
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "protocolMappers": [
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "config": { "id.token.claim": "true", "access.token.claim": "true" }
+        }
+      ],
+      "fullScopeAllowed": false
+    }
+  ]
+}
