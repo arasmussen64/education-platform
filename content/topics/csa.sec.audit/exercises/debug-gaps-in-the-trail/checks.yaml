@@ -26,6 +26,31 @@ checks:
       echo kept
     expect:
       equals: kept
+  - id: history-still-verifies
+    description: "The key in /srv/auditors/verify-key still validates the sealed journal file that holds what the trail recorded before last week."
+    # New sealing keys with a new key handed to the auditors would seal
+    # from today on and leave a year of history that no key vouches for.
+    # The file is found by the last line of that history; nothing writes
+    # to it any more, so it reads the same every time.
+    command: |
+      . /usr/local/lib/lab/trail.sh
+      key=$(cat /srv/auditors/verify-key 2> /dev/null | tr -d '[:space:]')
+      [ -n "$key" ] || { echo "there is no verification key in /srv/auditors/verify-key"; exit 0; }
+      tail -n 1 /var/lib/lab/history > /tmp/history-end.$$
+      trap 'rm -f /tmp/history-end.$$' EXIT
+      for file in "$journal_dir"/*.journal*; do
+        [ -f "$file" ] || continue
+        journalctl --file="$file" -t shop-audit -o cat 2> /dev/null | grep -Fx -f /tmp/history-end.$$ > /dev/null || continue
+        said=$($lib/seal-range --file "$file" "$key")
+        case $said in
+          sealed*) echo verifies ;;
+          *) echo "the auditors' key doesn't validate the file that holds the trail's history: $said" ;;
+        esac
+        exit 0
+      done
+      echo "the journal file that holds the trail's history is gone"
+    expect:
+      equals: verifies
   - id: still-rate-limited
     description: "The audit journal's settings still limit how fast one service may write to it: to at least a settlement batch in half a minute, and to no more than ten batches."
     command: |
@@ -74,7 +99,7 @@ checks:
     expect:
       equals: "on disk"
   - id: sealed-for-auditors
-    description: "The audit trail's newest file, with a sign-in made a moment ago in it, is sealed, and the key in /srv/auditors/verify-key validates it up to now."
+    description: "The audit trail's newest file, with a sign-in made a moment ago in it, is sealed, by settings that outlast a reboot, and the key in /srv/auditors/verify-key validates it up to now."
     # The one seal wait of a check run: a seal is written every 10 seconds,
     # so the key can vouch for a new sign-in within about 20.
     timeout: 60
