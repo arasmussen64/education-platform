@@ -30,7 +30,7 @@ COPY audit.conf /etc/shop/audit.conf
 RUN mkdir -p /srv/auditors
 ```
 
-Every lab on the base sets `restart_trial: true`: an audit trail, a patch and a hardening setting are all things a reboot must keep. `csa.sec.pay-probes`' one lab is the smallest example (a draft topic for the CI spike, which goes once the spike has been read).
+Every lab on the base sets `restart_trial: true`: an audit trail, a patch and a hardening setting are all things a reboot must keep. `csa.sec.audit`, `csa.sec.vulnerabilities` and `csa.sec.compliance` have the labs written on it; `csa.sec.audit`'s worked example carries the payments-server onboarding.
 
 ## The shop: an audit writer and a way to make it do things
 
@@ -183,7 +183,7 @@ From Ubuntu's archive, with each package's licence as its `copyright` file gives
 
 ## Kernel and runner needs
 
-Seen on Docker Desktop 29.8.2 on the owner's PC on 2026-11-22. **Nothing here has run on a GitHub runner yet:** `csa.sec.pay-probes`' lab is what the CI spike reads, and each row gets its answer from it.
+Seen on Docker Desktop 29.8.2 on the owner's PC on 2026-11-22. Since 2026-11-23 these labs run on GitHub's runners in every Labs job (first the base's probe lab, then the three topics' fifteen labs).
 
 | Need | Topics | Docker Desktop | GitHub's runner |
 | --- | --- | --- | --- |
