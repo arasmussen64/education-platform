@@ -9,4 +9,11 @@ USER root
 COPY --chown=learner:learner design.md /home/learner/design.md
 COPY --chown=learner:learner --chmod=644 model.tm /home/learner/model.tm
 
+# The same model again, kept where the learner can read it and not change
+# it: a check compares the two line by line, so only the gaps may differ,
+# and a learner who spoils a line can copy this one back. It holds the
+# gaps, not the answers.
+RUN mkdir -p /usr/local/lib/lab
+COPY --chmod=644 model.tm /usr/local/lib/lab/model.tm
+
 USER learner

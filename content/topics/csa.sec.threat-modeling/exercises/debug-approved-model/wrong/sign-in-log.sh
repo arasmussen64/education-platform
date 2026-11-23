@@ -1,5 +1,5 @@
-# The phished sign-in answered with a stricter password rule. A phished
-# password is as long as the real one.
+# The phished sign-in answered with the log of sign-ins the design already
+# has. A log records the attacker's sign-in; it does not stop it.
 cat > ~/model.tm <<'EOF'
 # Riverside Parcels: threat model of the drivers' app
 # Approved by the security board last month.
@@ -26,7 +26,7 @@ threat t3 f4 I 3 3 9 An outsider who works out a photo's link can open the doors
 none f4 STRDE a customer only reads, nobody but the API may write, and the cloud provider keeps the storage service running
 none f5 STRIDE the maps company signs every report and the API refuses one without a valid signature, a report holds a road's name and a time, and the load balancer limits each address
 top t1 t3
-control c1 t1 authn make drivers' passwords at least 16 characters long
+control c1 t1 audit-log every sign-in is written to a log with its time and address
 accept t2 a parcel marked delivered by mistake is settled with the doorstep photo
 control c2 t3 authz serve a photo only to its customer, through a link that is signed and runs out
 EOF

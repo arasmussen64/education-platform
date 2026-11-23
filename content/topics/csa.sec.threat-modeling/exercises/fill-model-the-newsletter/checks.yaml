@@ -5,8 +5,11 @@
 # ___ stops the model reading, and then every other part says so. No
 # description holds a word that a gap asks for. The forged bounce report
 # may be filed under either of two letters; the none line beside it must
-# then cover exactly the others. The last check is that the design note is
-# as it was.
+# then cover exactly the others. One check is the lab's own, in awk: the
+# model is compared, line by line, with the copy the image keeps in
+# /usr/local/lib/lab, so a gap filled wrongly can't be covered by a line
+# added beside it, and the file can't be swapped for another. The last
+# check is that the design note is as it was.
 checks:
   - id: model-reads
     description: "The model reads: every line is one of the format's, and no gap is left."
@@ -89,6 +92,44 @@ checks:
       REF
     expect:
       equals: ok
+  - id: only-the-gaps-filled
+    description: "Every line of the model is as it was given, but for the eight gaps."
+    timeout: 10
+    command: |
+      awk '
+        NR == FNR {
+          want[FNR] = $0
+          n = FNR
+          next
+        }
+        {
+          sub(/[ \t\r]+$/, "")
+          got[FNR] = $0
+          if ($0 != "") m = FNR
+        }
+        END {
+          if (m != n) {
+            print "the model has lines added or taken out: fill the eight gaps and change nothing else (cp /usr/local/lib/lab/model.tm ~/model.tm starts again)"
+            exit
+          }
+          for (i = 1; i <= n; i++) {
+            gap = index(want[i], "___")
+            if (!gap) {
+              if (got[i] != want[i]) changed = 1
+              continue
+            }
+            before = substr(want[i], 1, gap - 1)
+            after = substr(want[i], gap + 3)
+            if (substr(got[i], 1, length(before)) != before) changed = 1
+            if (length(got[i]) < length(before) + length(after)) changed = 1
+            else if (substr(got[i], length(got[i]) - length(after) + 1) != after) changed = 1
+          }
+          if (changed) print "a line differs outside its gap: fill the eight gaps and change nothing else (cp /usr/local/lib/lab/model.tm ~/model.tm starts again)"
+          else print "same"
+        }
+      ' /usr/local/lib/lab/model.tm /home/learner/model.tm
+    expect:
+      equals: same
   - id: design-untouched
     description: "~/design.md is as it was."
     timeout: 10

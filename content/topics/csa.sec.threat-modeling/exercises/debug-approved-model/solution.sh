@@ -11,9 +11,11 @@
 #    link and that the link can be worked out: likelihood 3, risk 9. A 9
 #    can't be accepted, so it joins the top line and gets a control that
 #    answers disclosure.
-# 3. The phished sign-in was answered with a log. A log records a sign-in;
-#    it doesn't stop one. Spoofing needs something that proves the driver:
-#    a second factor.
+# 3. The phished sign-in was answered with a stricter password rule. A
+#    phished password is as long as the real one. tm-check controls said
+#    ok all the same, because the kind fits the letter: it can't know that
+#    this threat walks straight past it. A stolen password needs a proof
+#    the thief doesn't hold: a second factor.
 cat > ~/model.tm <<'EOF'
 # Riverside Parcels: threat model of the drivers' app
 # Approved by the security board last month.

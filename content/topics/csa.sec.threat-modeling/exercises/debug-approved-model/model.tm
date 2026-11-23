@@ -21,6 +21,6 @@ none f3 STRIDE the API writes with a key of its own over HTTPS, and nobody else 
 threat t3 f4 I 1 3 3 An outsider with a photo's link can open the doorstep photo, with the house number in view
 none f4 STRDE a customer only reads, nobody but the API may write, and the cloud provider keeps the storage service running
 top t1
-control c1 t1 audit-log every sign-in is written to a log with its time and address
+control c1 t1 authn drivers' passwords must be at least 12 characters long and are changed every 90 days
 accept t2 a parcel marked delivered by mistake is settled with the doorstep photo
 accept t3 only the customer is sent the link to their photo

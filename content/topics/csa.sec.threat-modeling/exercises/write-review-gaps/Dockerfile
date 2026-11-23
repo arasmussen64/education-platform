@@ -7,9 +7,12 @@ USER root
 
 # The checks' own side (review-cases makes models up as a check runs and
 # says what the script must print for each), a copy of the example the
-# checks read, and the example the learner tries the script on.
+# checks read, and the example the learner tries the script on. Only root
+# may run or read review-cases (700): the checks run as root, and the
+# learner's script, which they run as the learner, can't hand its work to
+# it, however the path is spelt.
 RUN mkdir -p /usr/local/lib/lab
-COPY --chmod=755 review-cases /usr/local/lib/lab/review-cases
+COPY --chmod=700 review-cases /usr/local/lib/lab/review-cases
 COPY --chmod=644 example.tm /usr/local/lib/lab/example.tm
 COPY --chown=learner:learner --chmod=644 example.tm /home/learner/example.tm
 

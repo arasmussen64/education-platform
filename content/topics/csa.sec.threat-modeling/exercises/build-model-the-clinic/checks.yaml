@@ -2,7 +2,10 @@
 # base's tm-check on the learner's model. The design's own answers (the
 # reference) are handed to tm-check on standard input ("-"), from here, so
 # they are never a file in the lab. What a failure says never names a flow
-# or a letter. The last check is that the design note is as it was.
+# or a letter. One check is the lab's own, in awk: a model that writes a
+# threat at every rating, or answers one with every kind of control, has
+# chosen nothing, and tm-check alone would pass it. The last check is
+# that the design note is as it was.
 #
 # The reference: the SMS company is the only part that must sit apart from
 # all the others; the three people on the internet may share a zone or not,
@@ -100,6 +103,21 @@ checks:
       tm-check abuse /home/learner/model.tm - <<'REF'
       {"elements":{"patient":["external","internet"],"staff":["external","internet"],"analyst":["external","internet"],"web":["process","clinic"],"bookings-db":["store","clinic"],"sms-gateway":["external","sms-co"],"exports":["store","clinic"]},"flows":{"f1":["patient","web"],"f2":["staff","web"],"f3":["web","bookings-db"],"f4":["sms-gateway","web"],"f5":["web","exports"],"f6":["analyst","exports"]},"weak":[{"flow":"f2","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"],"attack":["T1110","T1078","T1566"]},{"flow":"f2","letters":["R"],"L":2,"I":2},{"flow":"f4","letters":["S","T"],"L":3,"I":[2,3],"controls":["signing","mutual-tls","authn"]},{"flow":"f6","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"],"attack":["T1530","T1619"]}],"either":[["patient","staff"],["patient","analyst"],["staff","analyst"],["web","bookings-db"],["web","exports"],["bookings-db","exports"]]}
       REF
+    expect:
+      equals: ok
+  - id: chosen-not-listed
+    description: "The model chooses: no flow has more than three threats under one letter, and no threat more than two controls or two ATT&CK techniques."
+    timeout: 10
+    command: |
+      awk '
+        $1 == "threat" && ++threats[$3, $4] > 3 { listed = 1 }
+        $1 == "control" && ++controls[$3] > 2 { listed = 1 }
+        $1 == "attack" && ++techniques[$2] > 2 { listed = 1 }
+        END {
+          if (listed) print "the model lists where it should choose: a flow has more than three threats under one letter, or a threat has more than two controls or two techniques"
+          else print "ok"
+        }
+      ' /home/learner/model.tm
     expect:
       equals: ok
   - id: design-untouched

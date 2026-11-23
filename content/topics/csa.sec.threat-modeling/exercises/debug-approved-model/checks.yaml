@@ -3,7 +3,10 @@
 # failure says only the end state still missing and never which kind of
 # fault is left. The design's own answers (the reference) are handed to
 # tm-check on standard input ("-"), from here, so they are never a file in
-# the lab. The last check is that the design note is as it was.
+# the lab. One check is the lab's own, in awk: a model that answers a
+# threat with every kind of control has chosen nothing, and tm-check
+# alone would pass it. The last check is that the design note is as it
+# was.
 checks:
   - id: model-reads
     description: "The model reads: every line is one of the format's."
@@ -75,6 +78,21 @@ checks:
       tm-check kept /home/learner/model.tm - --quiet <<'REF'
       {"elements":{"driver":["external","internet"],"customer":["external","internet"],"app":["process","depot"],"parcels-db":["store","depot"],"photos":["store","depot"],"maps":["external","maps-co"]},"flows":{"f1":["driver","app"],"f2":["app","parcels-db"],"f3":["app","photos"],"f4":["customer","photos"],"f5":["maps","app"]},"weak":[{"flow":"f1","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"]},{"flow":"f4","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"]}],"either":[["driver","customer"],["app","photos"],["parcels-db","photos"]],"kept":{"t1":"f1","t2":"f1","t3":"f4"}}
       REF
+    expect:
+      equals: ok
+  - id: chosen-not-listed
+    description: "The model chooses: no flow has more than three threats under one letter, and no threat more than two controls."
+    timeout: 10
+    command: |
+      awk '
+        $1 == "threat" && ++threats[$3, $4] > 3 { listed = 1 }
+        $1 == "control" && ++controls[$3] > 2 { listed = 1 }
+        $1 == "attack" && ++techniques[$2] > 2 { listed = 1 }
+        END {
+          if (listed) print "the model does not yet choose: no flow has more than three threats under one letter, and no threat more than two controls"
+          else print "ok"
+        }
+      ' /home/learner/model.tm
     expect:
       equals: ok
   - id: design-untouched
