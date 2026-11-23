@@ -1,0 +1,25 @@
+id: typed-gitleaks-detect
+type: typed
+rev: 1
+prompt: |
+  gitleaks 8.16, the version in the labs and in Ubuntu 24.04, has two scanning subcommands. One checks changes that aren't committed yet. Name the other: the subcommand that scans every commit of a repository's history.
+kind: text
+case: sensitive
+answers:
+  - detect
+  - gitleaks detect
+mistakes:
+  - id: protect
+    answers: [protect, gitleaks protect]
+    why: "That is the one for changes not yet committed (`--staged` in a pre-commit hook). The history is the other."
+  - id: newer
+    answers: [git, gitleaks git]
+    why: "That is its name from release 8.19 on, where the old names are deprecated. In 8.16, which the labs use, it has the older name."
+  - id: scan
+    answers: [scan, gitleaks scan]
+    why: "gitleaks has no subcommand of that name. The word you want is the one for finding something."
+explanation: |
+  `gitleaks detect`. In a repository it reads every commit (`git log -p` underneath) and reports each secret with the commit that added it; `--log-opts="OLD..NEW"` narrows it to the commits a push brings, `--no-git` makes it read plain files instead, `--config FILE` names the rules, `-v` prints the findings and `--redact` blanks the secrets in what it prints. It exits 1 when it finds something.
+
+  Its sibling `gitleaks protect --staged` checks what is about to be committed. Releases from 8.19 on call the two modes `git` and `dir` (and add `stdin`) and mark the old names deprecated, so on a newer machine `gitleaks git` is the same scan.
+skills: [scan-for-leaks]
