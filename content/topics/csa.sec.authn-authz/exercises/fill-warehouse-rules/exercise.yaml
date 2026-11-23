@@ -1,0 +1,36 @@
+id: fill-warehouse-rules
+stage: fill_in
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Finish the warehouse's rules"
+prompt: |
+  The shop's warehouse has a stock system of its own, and its access rules are nearly written. `~/warehouse/` holds:
+
+  - `warehouse.cedarschema`: workers have a `zone`; bins have a `zone`; an adjustment (a correction to a bin's stock count, waiting for approval) has a `zone` and `made_by`, the worker who made it. The actions are `pick`, `adjust` and `audit`, done to a bin, and `approve`, done to an adjustment.
+  - `entities.json`: the roles `picker`, `supervisor` and `auditor`; Pia and Pete, pickers in zones A and B; Sunita and Sven, supervisors in A and B; Ada, an auditor; Omar, who is both a supervisor and an auditor; three bins and two adjustments (`adj-1`, which Sunita made, and `adj-2`, which Sven made).
+  - `policies.cedar`: the rules, with four gaps.
+
+  The warehouse's rules:
+
+  1. Pickers pick from the bins of their own zone.
+  2. Supervisors adjust the stock count of a bin in any zone.
+  3. Supervisors approve adjustments, in any zone, but nobody approves an adjustment they made themselves.
+  4. Auditors audit the bins of any zone, and an auditor never adjusts or approves, whatever other role they hold.
+
+  Nothing else is allowed.
+
+  Each gap in `policies.cedar` is marked `...` and sits under a comment that says which rule it belongs to. One is a condition, one is the operator that ties a person to a role, one is the word that says what kind of rule this is, and one is the word that says whether a condition switches a rule on or off. Fill them in with `nano ~/warehouse/policies.cedar`, and change nothing else: the schema and `entities.json` are the system as it is.
+
+  Until all four gaps are filled, Cedar can't read the file at all: `...` isn't Cedar, so `cedar validate` and `ask` both stop with `unexpected token` and the line of the first gap that's left.
+
+  Then, in `~/warehouse`, check the names with `cedar validate --schema warehouse.cedarschema --policies policies.cedar`, and try the rules with `ask`, as in the worked example: `ask pia pick bin-b1`, `ask -v sunita approve adj-1`, `ask -v omar adjust bin-b1`. Say what each should print before you run it.
+
+  The checks ask your rules about workers, zones, bins and adjustments that are made up when the checks run, with every role and pair of roles.
+hints:
+  - "Rule 1 compares two attributes, as the worked example's rule about stores did: the zone of the person asking and the zone of the bin. In Cedar the person is `principal` and the thing is `resource`."
+  - "The worked example's rules began `principal in Role::\"support\"`. Being *in* a role is membership; `==` would ask whether the person is the role itself, which nobody is."
+  - "A rule that takes something away from everyone, whatever any other rule gives, is the kind that always wins. `ask -v sunita approve adj-1` should name it as the rule that decided."
+  - "`when { ... }` switches a rule on in the case inside the braces; `unless { ... }` switches it on in every other case. Read rule 4's last line aloud both ways and ask which one stops Omar."
+skills: [access-models, separation-of-duties]

@@ -1,0 +1,22 @@
+id: est-window-to-see
+type: estimate
+rev: 1
+prompt: |
+  A data-retention job runs once every 100 days, on a fixed schedule. AWS's policy generation looks back over at most 90 days of activity; Google Cloud's role recommendations look back 90 days, or for a project 30 or 60 if you choose. What is the shortest look-back, in days, that is certain to include at least one run of the job? Exactly.
+unit: days
+answer: 100
+tolerance: { absolute: 0 }
+given: { interval: 100, longest: 90, short: 30, medium: 60 }
+working: interval
+mistakes:
+  - id: longest-offered
+    value: 90
+    working: longest
+    why: That's the longest window the tools offer. A job that runs every 100 days can sit entirely outside 90 days, in the 10 days the window doesn't reach.
+  - id: half
+    value: 50
+    working: interval / 2
+    why: Half the interval catches a run only half the time. To be certain, the window has to be as long as the gap between runs.
+explanation: |
+  Two runs are 100 days apart, so any stretch of 100 days holds one, and a shorter stretch can fall between two. 100 is more than any of these tools will look back, so on some days the job is invisible to all of them and its permissions are reported as unused. No setting fixes that. What fixes it is knowing what the job is for: read its description beside the analyzer's report, and keep what a rare task needs.
+skills: [least-privilege]

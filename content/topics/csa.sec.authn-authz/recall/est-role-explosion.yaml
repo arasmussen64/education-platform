@@ -1,0 +1,22 @@
+id: est-role-explosion
+type: estimate
+rev: 1
+prompt: |
+  A company wants this rule: staff see the data of their own department in their own country. It has 5 departments and 9 countries, and 2 levels of seniority that see different fields. With roles alone, and no attributes, every combination needs a role of its own. How many roles is that? Exactly.
+unit: roles
+answer: 90
+tolerance: { absolute: 0 }
+given: { departments: 5, countries: 9, levels: 2 }
+working: departments * countries * levels
+mistakes:
+  - id: added
+    value: 16
+    working: departments + countries + levels
+    why: That adds the three lists together. A role has to say all three things at once (which department, in which country, at which level), so the counts multiply.
+  - id: levels-forgotten
+    value: 45
+    working: departments * countries
+    why: That's one role for each department in each country. The two levels see different fields, so each of those 45 needs two roles.
+explanation: |
+  A role is a fixed bundle: "senior, sales, France" is one, "junior, sales, France" another. 5 departments times 9 countries times 2 levels is 90 roles, and a tenth country adds 10 more. That is **role explosion**: every new dimension multiplies the roles. With attributes it's one rule, `principal.department == resource.department && principal.country == resource.country`, and the levels become a second attribute.
+skills: [access-models]

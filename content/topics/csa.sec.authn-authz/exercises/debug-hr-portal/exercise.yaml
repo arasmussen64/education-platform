@@ -1,0 +1,36 @@
+id: debug-hr-portal
+stage: debug
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "The HR portal"
+prompt: |
+  The shop's HR portal shows salaries and handles raises, and it asks a Cedar policy file about every request. `~/hr/` holds:
+
+  - `hr.cedarschema`: every employee has a `department`, and `supports`, the set of departments an HR partner looks after (empty for everyone else). A salary record has an `owner` and is kept under the owner's `department`. A raise has `requested_by` and a `department`. The actions are `viewSalary` and `requestRaise` (on a salary record), `approveRaise` (on a raise), and `readPayrollLog` and `editPayrollLog` (on the payroll log). `SET.contains(VALUE)` is true when the value is in the set.
+  - `entities.json`: the roles `manager`, `hr-partner`, `auditor` and `payroll`, and a few people and records to ask about. Mia manages sales, where Tom and Sara work. Lee works in support, which Omar manages; Omar also covers as support's HR partner. Hana is the HR partner for sales and support. Ada is an auditor and Pete a payroll clerk. The records are `salary-mia`, `salary-tom`, `salary-sara`, `salary-lee`, `salary-ada`, the raises `raise-tom` (requested by Mia) and `raise-lee` (requested by Omar), and `payroll-log`.
+  - `policies.cedar`: the rules as they were written, eight of them.
+
+  What the portal's rules are meant to be:
+
+  1. Every employee sees their own salary.
+  2. Managers see the salaries of their own department.
+  3. HR partners see the salaries of the departments they support.
+  4. Managers request raises in their own department.
+  5. HR partners approve raises in the departments they support, and nobody approves a raise they requested themselves.
+  6. Auditors read the payroll log and change nothing. Payroll clerks read and edit it.
+  7. Everything else is denied.
+
+  An internal audit found that the policy file doesn't match these rules in three ways. Some people can see or do more than the rules allow, and one group says it can't do part of its job. There are three faults.
+
+  Find them by asking. In `~/hr`, `ask PERSON ACTION RECORD` puts one request to the policies and names the rules that decided it (`-v` shows each one's kind): for example `ask mia viewSalary salary-tom`. Go through the seven rules with people who should be allowed and people who shouldn't, and read `policies.cedar` beside the answers. Fixing one fault can change what you see of another.
+
+  The rules of the fix:
+
+  - **Change only `policies.cedar`** (`nano ~/hr/policies.cedar`). The schema and `entities.json` are the system as it is.
+  - **Everything the seven rules allow stays allowed.** A fix that stops people doing their jobs isn't one.
+  - **"Nobody approves a raise they requested" must hold whatever permits are added later.** One check adds a rule that permits everything to a copy of your file and asks again.
+
+  `cedar validate --schema hr.cedarschema --policies policies.cedar` checks your names. The checks ask the policies about employees, departments and records made up when they run, so a fix has to be right for anyone, not for the people in `entities.json`.
+skills: [access-models, separation-of-duties, least-privilege]

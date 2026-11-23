@@ -1,0 +1,42 @@
+# Each rule check asks the learner's policies about requests the policy
+# base's check library makes up as the check runs
+# (/usr/local/lib/lab-checks/warehouse-cases): new names for every worker,
+# zone, bin and adjustment, every role and pair of roles. No description
+# holds a word a gap asks for.
+checks:
+  - id: validates
+    description: "cedar validate accepts the policies against the warehouse's schema."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/warehouse-cases validates
+    expect:
+      equals: ok
+  - id: pick-rules
+    description: "Rule 1: pickers can pick from the bins of their own zone, and nobody else can pick."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/warehouse-cases pick
+    expect:
+      equals: ok
+  - id: adjust-rules
+    description: "Rule 2: supervisors can adjust a bin of any zone, and pickers and workers with no role can't."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/warehouse-cases adjust
+    expect:
+      equals: ok
+  - id: approval-rules
+    description: "Rule 3: supervisors can approve a colleague's adjustment, and nobody can approve their own."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/warehouse-cases approve
+    expect:
+      equals: ok
+  - id: auditor-rules
+    description: "Rule 4: auditors can audit any bin, and an auditor can't adjust or approve, whatever other role they hold."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/warehouse-cases auditor
+    expect:
+      equals: ok
+  - id: warehouse-untouched
+    description: "The warehouse's schema and entities.json are as they were."
+    timeout: 10
+    command: sha256sum -c --status /usr/local/lib/lab-checks/warehouse.sha256 && echo same
+    expect:
+      equals: same

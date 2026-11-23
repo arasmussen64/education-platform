@@ -1,0 +1,13 @@
+// The HR portal: who there is, what there is, what can be asked.
+entity Role;
+// supports: the departments an HR partner looks after (empty for everyone else).
+entity Employee in [Role] { department: String, supports: Set<String> };
+// One salary record for each employee, kept under the employee's department.
+entity Salary { owner: Employee, department: String };
+// A raise somebody has requested, waiting for approval.
+entity Raise { requested_by: Employee, department: String };
+entity PayrollLog;
+
+action viewSalary, requestRaise appliesTo { principal: [Employee], resource: [Salary] };
+action approveRaise appliesTo { principal: [Employee], resource: [Raise] };
+action readPayrollLog, editPayrollLog appliesTo { principal: [Employee], resource: [PayrollLog] };

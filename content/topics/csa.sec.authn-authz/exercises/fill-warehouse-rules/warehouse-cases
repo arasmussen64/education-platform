@@ -1,0 +1,154 @@
+#!/usr/bin/python3
+"""warehouse-cases RULE: one rule of the warehouse's stock policy, tried on
+requests made up now, with the policy base's check library. Every zone,
+worker, bin and adjustment has a new random name in every run.
+
+RULE is pick, adjust, approve or auditor. Prints "ok" or the first three
+requests where the learner's policy and the rules disagree.
+"warehouse-cases validates" prints "ok" or why cedar validate refuses the
+file.
+"""
+
+import sys
+
+sys.path.insert(0, "/usr/local/lib/policy")
+from checklib import (  # noqa: E402
+    Case,
+    Names,
+    check,
+    combine,
+    entity,
+    ref,
+    uid,
+    validates,
+)
+
+HERE = "/home/learner/warehouse"
+ALL_ROLES = ["picker", "supervisor", "auditor"]
+
+
+def said(roles):
+    if not roles:
+        return "a worker with no role"
+    if len(roles) == 1:
+        return {
+            "picker": "a picker",
+            "supervisor": "a supervisor",
+            "auditor": "an auditor",
+        }[roles[0]]
+    return "a worker who is " + " and ".join(
+        {"picker": "a picker", "supervisor": "a supervisor", "auditor": "an auditor"}[r]
+        for r in roles
+    )
+
+
+def allowed(roles, action, same_zone, own):
+    """The warehouse's four rules."""
+    if action == "pick":
+        return "picker" in roles and same_zone
+    if action == "audit":
+        return "auditor" in roles
+    if "auditor" in roles:
+        return False
+    if action == "adjust":
+        return "supervisor" in roles
+    if action == "approve":
+        return "supervisor" in roles and not own
+    raise ValueError(action)
+
+
+def request(names, roles, action, same_zone, own):
+    """One request and the small world it is asked in: a worker with the
+    roles, and a bin (or, for approve, an adjustment) in their zone or
+    another, made by them or by a colleague."""
+    zone, elsewhere = names.new("zone"), names.new("zone")
+    worker, colleague = names.new("worker"), names.new("worker")
+    there = zone if same_zone else elsewhere
+    entities = [entity("Role", role) for role in ALL_ROLES]
+    entities.append(
+        entity("Worker", worker, {"zone": zone}, [("Role", role) for role in roles])
+    )
+    entities.append(
+        entity("Worker", colleague, {"zone": there}, [("Role", "supervisor")])
+    )
+    where = "their own zone" if same_zone else "another zone"
+    if action == "approve":
+        thing = names.new("adjustment")
+        entities.append(
+            entity(
+                "Adjustment",
+                thing,
+                {"zone": there, "made_by": ref("Worker", worker if own else colleague)},
+            )
+        )
+        resource = uid("Adjustment", thing)
+        words = (
+            f"{said(roles)}, approving an adjustment in {where} that "
+            f"{'they' if own else 'a colleague'} made"
+        )
+    else:
+        thing = names.new("bin")
+        entities.append(entity("Bin", thing, {"zone": there}))
+        resource = uid("Bin", thing)
+        verb = {"pick": "picking from", "adjust": "adjusting", "audit": "auditing"}[
+            action
+        ]
+        words = f"{said(roles)}, {verb} a bin in {where}"
+    return Case(
+        words=words,
+        principal=uid("Worker", worker),
+        action=uid("Action", action),
+        resource=resource,
+        entities=entities,
+        allow=allowed(roles, action, same_zone, own),
+    )
+
+
+SINGLE = [["picker"], ["supervisor"], ["auditor"], []]
+MIXED = [["supervisor", "auditor"], ["picker", "auditor"], ["picker", "supervisor"]]
+
+
+def cases_for(rule, names):
+    cases = []
+    if rule == "pick":
+        # The auditors' rule says nothing about picking: a picker who is
+        # also an auditor still picks.
+        for c in combine(roles=SINGLE + MIXED, same_zone=[True, False]):
+            cases.append(request(names, c["roles"], "pick", c["same_zone"], False))
+    elif rule == "adjust":
+        for c in combine(
+            roles=SINGLE + [["picker", "supervisor"]], same_zone=[True, False]
+        ):
+            cases.append(request(names, c["roles"], "adjust", c["same_zone"], False))
+    elif rule == "approve":
+        for c in combine(
+            roles=SINGLE + [["picker", "supervisor"]],
+            same_zone=[True, False],
+            own=[True, False],
+        ):
+            cases.append(
+                request(names, c["roles"], "approve", c["same_zone"], c["own"])
+            )
+    elif rule == "auditor":
+        for c in combine(roles=SINGLE + MIXED, same_zone=[True, False]):
+            cases.append(request(names, c["roles"], "audit", c["same_zone"], False))
+        for c in combine(
+            roles=[["supervisor", "auditor"], ["supervisor"], ["auditor"]],
+            same_zone=[True, False],
+        ):
+            cases.append(request(names, c["roles"], "adjust", c["same_zone"], False))
+            cases.append(request(names, c["roles"], "approve", c["same_zone"], False))
+    else:
+        sys.exit(f"warehouse-cases: no rule called {rule}")
+    return cases
+
+
+if __name__ == "__main__":
+    if sys.argv[1] == "validates":
+        print(validates(f"{HERE}/warehouse.cedarschema", f"{HERE}/policies.cedar"))
+        sys.exit(0)
+    check(
+        f"{HERE}/policies.cedar",
+        cases_for(sys.argv[1], Names()),
+        schema=f"{HERE}/warehouse.cedarschema",
+    )

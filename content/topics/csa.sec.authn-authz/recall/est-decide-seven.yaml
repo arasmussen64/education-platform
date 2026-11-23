@@ -1,0 +1,57 @@
+id: est-decide-seven
+type: estimate
+rev: 1
+# The decisions were checked against the Cedar tool pinned in the policy
+# lab base (4.14.1) on 2026-11-22: requests A, B, D and G are allowed.
+prompt: |
+  In the shop's order system the `supervisor` role sits inside the `support` role: every supervisor is in support as well. The system has these two Cedar policies and no others:
+
+  ```
+  permit (principal in Role::"support", action == Action::"view", resource)
+  when { principal.store == resource.store };
+
+  permit (principal in Role::"supervisor", action == Action::"refund", resource)
+  when { principal.store == resource.store };
+  ```
+
+  Lea is support staff at the north store. Sam is a supervisor at the north store and Tia a supervisor at the south store. Wes works in the north warehouse. Here are 7 requests:
+
+  | Request | Who | Action | The order's store |
+  | --- | --- | --- | --- |
+  | A | Lea | view | north |
+  | B | Sam | view | north |
+  | C | Sam | view | south |
+  | D | Sam | refund | north |
+  | E | Lea | refund | north |
+  | F | Wes | view | north |
+  | G | Tia | view | south |
+
+  How many of the 7 are allowed? Exactly.
+unit: requests
+answer: 4
+tolerance: { absolute: 0 }
+given: { requests: 7 }
+# C is another store, E isn't a supervisor, F has no role the rules name.
+working: requests - 1 - 1 - 1
+mistakes:
+  - id: hierarchy-ignored
+    value: 2
+    working: requests - 1 - 1 - 1 - 2
+    why: That refuses B and G because Sam and Tia's role is supervisor, not support. The supervisor role is inside support, so `principal in Role::"support"` is true for them too.
+  - id: hierarchy-both-ways
+    value: 5
+    working: requests - 1 - 1
+    why: That counts E. Supervisors are in support; support staff aren't in supervisor. Membership goes up from the inner role to the outer one, never back.
+explanation: |
+  `in` follows membership upwards: a person in `supervisor` is also in everything `supervisor` is inside.
+
+  - A: support, own store. **Allowed.**
+  - B: a supervisor is in support. **Allowed.**
+  - C: another store. Denied.
+  - D: a supervisor refunding in his own store. **Allowed.**
+  - E: Lea is in support, and support isn't inside supervisor. Denied by default.
+  - F: no permit names the warehouse. Denied by default.
+  - G: a supervisor viewing her own store's order. **Allowed.**
+
+  Four: A, B, D and G. Putting one role inside another gives the inner role everything the outer one has, which saves writing rules twice, and is worth remembering when you change the outer role.
+skills: [access-models]

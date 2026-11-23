@@ -1,0 +1,47 @@
+id: unused-from-log
+type: predict_shell
+rev: 1
+prompt: |
+  `granted.txt` lists the 10 actions the `reports` service is granted, one a line. `log.txt` is three months of requests by every service, one a line: the date, the service, the action and what it was done to.
+
+  The command does by hand what an access analyzer does. Its first half writes `used.txt`: the actions `reports` used, sorted, each once. Its second half is `comm -23 A B`, which reads two sorted files and prints the lines that are only in the first; `<(sort granted.txt)` stands in for a file holding the sorted grants. What is printed?
+files:
+  granted.txt: |
+    read
+    list
+    write
+    export
+    copy
+    move
+    delete
+    archive
+    restore
+    purge
+  log.txt: |
+    2026-08-03 reports read orders
+    2026-08-03 reports list orders
+    2026-08-04 backup read orders
+    2026-08-10 reports read orders
+    2026-08-17 reports write report
+    2026-09-01 reports read orders
+    2026-09-01 deployer write release
+    2026-09-14 reports list orders
+    2026-09-21 reports write report
+    2026-09-30 reports export summary
+    2026-10-12 reports read orders
+    2026-10-12 backup copy orders
+    2026-10-30 reports write report
+command: |
+  awk '$2=="reports" {print $3}' log.txt | sort -u > used.txt; comm -23 <(sort granted.txt) used.txt
+expected_output: |
+  archive
+  copy
+  delete
+  move
+  purge
+  restore
+explanation: |
+  `awk` keeps the lines whose second field is `reports` and prints their third, the action; `sort -u` leaves each once: `export`, `list`, `read`, `write`. `comm -23` then prints what is in the sorted grants and not in that list: the six actions `reports` was granted and never used, in sorted order.
+
+  `copy` is among them. It is in the log, but `backup` used it, not `reports`: an unused-access report is about one principal at a time, which is what `$2=="reports"` is for. And the report says only what happened in these three months. Whether `archive` is safe to cut depends on whether `reports` has a job that archives once a year.
+skills: [least-privilege]

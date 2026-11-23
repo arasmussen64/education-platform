@@ -1,0 +1,55 @@
+id: est-decide-six
+type: estimate
+rev: 1
+# The decisions were checked against the Cedar tool pinned in the policy
+# lab base (4.14.1) on 2026-11-22: requests A, C and E are allowed.
+prompt: |
+  A warehouse's stock system has these three Cedar policies and no others:
+
+  ```
+  permit (principal in Role::"picker", action == Action::"pick", resource)
+  when { principal.zone == resource.zone };
+
+  permit (principal in Role::"supervisor", action == Action::"adjust", resource);
+
+  forbid (principal, action == Action::"adjust", resource)
+  unless { context.mfa };
+  ```
+
+  Pia is a picker in zone A and Sven a supervisor in zone B. Here are 6 requests:
+
+  | Request | Who | Action | The bin | Session used MFA |
+  | --- | --- | --- | --- | --- |
+  | A | Pia | pick | zone A | no |
+  | B | Pia | pick | zone B | no |
+  | C | Sven | adjust | zone B | yes |
+  | D | Sven | adjust | zone B | no |
+  | E | Sven | adjust | zone A | yes |
+  | F | Pia | adjust | zone A | yes |
+
+  How many of the 6 are allowed? Exactly.
+unit: requests
+answer: 3
+tolerance: { absolute: 0 }
+given: { requests: 6 }
+# B fails the permit's condition, D is forbidden, F has no permit.
+working: requests - 1 - 1 - 1
+mistakes:
+  - id: unless-read-as-when
+    value: 2
+    working: requests - 1 - 2 - 1
+    why: That reads the forbid as applying when the session used MFA. `unless` is the other way round, so the forbid applies in every case except that one. It stops D, and lets C and E through.
+  - id: mfa-is-enough
+    value: 4
+    working: requests - 1 - 1
+    why: That counts F, because Pia's session used MFA. MFA only keeps the forbid away. Something must still permit the request, and no permit lets a picker adjust.
+explanation: |
+  - A: a picker in her own zone. The forbid is about `adjust`, so MFA doesn't come into it. **Allowed.**
+  - B: another zone: the permit's condition fails. Denied.
+  - C: a supervisor adjusting, with MFA: permitted, and the forbid doesn't apply. **Allowed.**
+  - D: the same without MFA: `forbid ... unless { context.mfa }` applies. Denied.
+  - E: the supervisors' permit has no condition about zones. **Allowed.**
+  - F: no permit lets a picker adjust. Denied by default, MFA or not.
+
+  Three: A, C and E. `unless` switches a rule on in every case but the one in its braces.
+skills: [access-models]

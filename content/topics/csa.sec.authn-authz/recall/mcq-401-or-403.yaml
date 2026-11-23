@@ -1,0 +1,16 @@
+id: mcq-401-or-403
+type: mcq
+rev: 1
+prompt: |
+  The shop's payroll API is for payroll staff only. A contractor who is signed in to the shop's systems, but isn't payroll staff, calls it. A script with no credentials at all calls the same address. The API is written to the HTTP standard. Which status code does each get?
+choices:
+  - "The contractor gets `403 Forbidden`, and the script gets `401 Unauthorized`"
+  - "The contractor gets `401 Unauthorized`, and the script gets `403 Forbidden`"
+  - "Both get `401 Unauthorized`, because neither of them is authorized to use payroll"
+  - "Both get `403 Forbidden`, because the API refuses them both for the same reason"
+answer: 0
+explanation: |
+  `401` is the answer to a request the server can't put a name to: it "lacks valid authentication credentials" (RFC 9110), and the response says how to sign in. That's the script. `403` means the server understood the request, knows who is asking, and refuses: the credentials are good, and not enough. That's the contractor: authenticated, not authorized.
+
+  The name `Unauthorized` misleads: `401` is about authentication. Sending the contractor a `401` would tell a signed-in person to sign in again, which can't help. Sending the script a `403` would claim the API knows who it is.
+skills: [authn-or-authz]
