@@ -19,6 +19,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- **Cloud Module 4, security and identity foundations, is complete:** its last two topics and its checkpoint.
+  - **Strong authentication and conditional access** (`csa.sec.strong-auth`): why a security key resists phishing and a one-time code does not (shown with a relay on a lookalike site in the lab), requiring a key for the people who need one, conditional access, a break-glass account that doesn't weaken the policy, and rolling a policy out without locking everyone out.
+  - **Zero trust** (`csa.sec.zero-trust`): NIST SP 800-207's model, identity as the perimeter, micro-segmentation, continuous verification, and an identity-aware access proxy (oauth2-proxy, pinned) replacing a VPN.
+  - **Checkpoint 4: the threat model, the broken sign-in and the leak** (`csa.m4.checkpoint`): threat-model a card checkout with its PCI DSS scope; fix a staff sign-in that fails in three ways; answer a leaked key (history, rotation, revocation, the audit trail). The threat-model checker gains `--choose`, a cap on what a model may list.
 - Four more topics of cloud Module 4, the plan's second wave, each written by one helper and then read and attacked by another:
   - **Secrets** (`csa.sec.secrets`): keeping secrets out of code, images and logs; scanning history as well as files; rotation; the "secret zero" problem; database passwords made on request that expire by themselves. About 295 minutes.
   - **Certificates and PKI** (`csa.sec.pki`): running your own certificate authority, with an offline root and an issuing authority under it; path length and name constraints; revocation that clients really check (CRLs and OCSP); chain errors at depth. About 285 minutes.
@@ -61,6 +65,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- Threat modeling's build and debug passed a model that listed every threat under every letter of every flow; each now caps the whole model (#381).
+- The lab timings that balance CI's eight lab groups are refreshed from a full run, so Module 4's labs are weighed by their real times.
 - The identity-lab base's `realm-saved` compared too little and too much: it never compared client secrets (exports mask them, so a secret changed only in the running provider passed), and it reported honest settings as changed whenever a realm had a service account or a SAML client (the server stamps creation times). A settings file that could not be applied made the provider's service restart for ever; now the provider keeps serving the realm as it was and the learner gets one message naming the file and line.
 - Five Module 1 labs (the cloud-init boot topic) reached Ubuntu's public servers at every first boot: cloud-init wrote them back into apt's sources, undoing the lab's local-only repository. A slow mirror ran one lab out of time in CI. `apt: preserve_sources_list: true` keeps them offline.
 - The identity-lab base's shifted clock no longer keeps a shared file under `/dev/shm`. On CI's machines the clock tool (libfaketime) was refused that file and every program on a machine with its own clock died at start. A small preload now stops the tool from making it, and the lab's time service runs without the tool at all. The base's draft probe lab, `csa.sec.base-probes`, is back to prove it there.

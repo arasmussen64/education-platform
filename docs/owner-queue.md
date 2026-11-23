@@ -12,6 +12,13 @@ The short list of things only the owner can do or decide. It replaces the "Decis
 
 ## Open
 
+### The build is paused
+
+You said on 2026-11-23: "After module 4 is done then stop building for the time being." Module 4 is done (2026-11-24). Nothing new is built until you say so.
+
+- **To resume:** say "resume" (or name what to build). The plan's next step is the cloud track's Module 5, distributed systems for architects, designed first as Modules 3 and 4 were.
+- **Also waiting on you, from Module 4:** ADR-0018's fourth amendment (a lab base may start from another base; checks may make people and devices at a lab's identity provider; the module's pinned downloads) is Proposed. Say "accept it" or what to change.
+
 ### 0. Optional: remove old lab images from Docker
 
 The Module 4 design left some images on your Docker that nothing uses now: `lab-base-idproto`, `lab-base-idnet`, `idlab-sso:dev`, `idlab-kcprobe` (two tags), `lab-csa.idproto-proto-sso` and `lab-csa.idproto4-sso-a` to `-d`. Claude doesn't remove images it can't show it made in the current session.

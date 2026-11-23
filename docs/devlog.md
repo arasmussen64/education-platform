@@ -57,6 +57,41 @@ Each topic is written by one helper from the plan, the build notes and its desig
 - _I read every writer's and reviewer's report and did not re-read the topics myself._ The owner is still each topic's first human reader.
 - _CI time is above the plan's:_ the reviews added wrong-answer scripts, each a container start. The lab-seconds file is refreshed from a full run when the module ends.
 
+## 2026-11-24, Where we stopped: cloud Module 4 is complete
+
+The owner asked on 2026-11-23: "After module 4 is done then stop building for the time being", and then "continue until module 4 is completely done". It is done, and the build stops here until the owner says to resume.
+
+**Done since the last pause (2026-11-12):** steps 1 to 3 of bringing lessons into the app (ADR-0031), a visual redesign pass, starting everything over (a true deletion, live), and **cloud Module 4 in full**: its plan (#361), five lab bases and a lab checker that builds a base on a base (#362, #363, #367, #376), eleven topics (#366, #368 to #371, #373 to #375, #377, #382, #383) and Checkpoint 4 (#384). Every topic was written by one helper and attacked by another before it landed, and every pull request merged only with every check green, its labs included on GitHub's machines.
+
+**Where things sit.**
+
+- 165 topics are ready: 36 in Python Foundations, 64 in Machine Learning Foundations, 53 in the cloud track (Modules 1 to 4, with all four checkpoints), 12 in Finance and Markets.
+- The live site deploys from `main`; the last migration (erase history) was applied on 2026-11-22.
+- Nothing is running on the owner's machine: no dev server, no local database, no lab containers. Docker Desktop holds lab images (they speed up the next lab build; `docker image prune` is the owner's to run if the space is wanted).
+- No pull request is open.
+
+**Wave 3 and the checkpoint** (since the wave-2 entry below):
+
+- _Strong authentication._ Its first writer was stopped by the model's usage limit; a second took over and found much of the work broken (the phishing demonstration caught no session and its check passed anyway; the build's key checks passed before any work; an optional key was accepted where one was required). The cold review then closed a three-second lockout passing as "locked", brute-force protection switchable off in the debug, and **a keyless admin being offered key registration after a password alone**, so a stolen password could enrol an attacker's own key. Registration after a password is now off in every lab's realm file, and checked.
+- _Zero trust._ The second writer closed a catch-all route that skipped the proxy and a device certificate anyone could make. The review closed a second web server on the proxy machine serving the apps with no sign-in, a database firewall open over IPv6, a database accepting a whole subnet, and a 10-second refresh where 5 was asked. Prices the writer could not find (Entra Private Access, Google IAP) were found.
+- _Checkpoint 4._ Part 3 (answer a leak) had never been prototyped in the design; it keeps its contract and stays. The review found a shortcut in each part: a list-everything threat model (now capped, and the same hole closed in the threat-modeling topic, #381), a clock allowance hidden in quotes or an included file, the site running its own time server, a push guard that knew one key format, and a new key written onto a command line and so into the journal.
+
+**Not confirmed, carried forward:**
+
+- The payment-card standard's own text (the PCI SSC library refuses automated access); requirements are cited by number and version from its announcement, a college-hosted copy and the compliance and audit topics.
+- Nobody has read the Module 4 topics as a learner except the helpers; the owner is their first human reader.
+- CI time: Module 4 added about three hours of lab time to a full run; zero trust alone is about 39 minutes.
+
+**Follow-ups for when the build resumes** (none blocks a learner):
+
+1. `ca-whatif` (policy base) ignores realm roles a person gets through a group; strong authentication's lab prompt works round it.
+2. The lab checker could stop a wrong fix's checks at its first failure; the estimate for zero trust's build alone is about 400 seconds saved.
+3. Module 3's `csa.net.http-tls` uses openssl's OCSP responder without the cap the PKI labs give it against a hang after a port probe.
+4. A small `realm-saved`-style comparison for people in a realm file (today a check about a person asks Keycloak and the file itself).
+5. ADR-0018's fourth amendment is still Proposed (owner queue).
+
+**Next, when the owner says resume:** the cloud track's Module 5, distributed systems for architects, designed the way Modules 3 and 4 were (designers, a critic, a plan), then built.
+
 ## 2026-11-24, cloud Module 4: the second wave
 
 Four topics, written and attacked as wave 1's were. The owner said on 2026-11-23: "After module 4 is done then stop building for the time being", and later "continue until module 4 is completely done".
