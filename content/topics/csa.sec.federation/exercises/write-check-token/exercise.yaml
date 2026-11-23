@@ -1,0 +1,44 @@
+id: write-check-token
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Check a token"
+prompt: |
+  From a blank file, write `~/bin/check-token`, a bash script that decides whether a token should be trusted: the job an API does on every request, and the one you'll do by hand whenever a sign-in fails and you need to know which check refused it.
+
+  It's run as `check-token ISSUER AUDIENCE [NONCE]`, with the token on standard input. It prints exactly one line: `valid sub=SUB` (the token's `sub` claim) and exits 0, or `invalid: REASON` and exits with another status. REASON is the first of these nine that fails, in this order:
+
+  1. `format`: the token isn't three pieces of base64url joined by two dots (the third may be empty), or its first two pieces don't decode to JSON.
+  2. `alg`: the header's `alg` is anything but `RS256`. The script decides the algorithm; the token doesn't.
+  3. `key`: the issuer's key set has no key whose `kid` is the header's. Find the key set the way a real verifier does: fetch `ISSUER/.well-known/openid-configuration`, read its `jwks_uri`, fetch that. A key set holds several keys; take the one the `kid` names.
+  4. `signature`: the signature over the first two pieces, exactly as they arrived, doesn't verify with that key.
+  5. `issuer`: the `iss` claim isn't ISSUER, character for character.
+  6. `audience`: AUDIENCE isn't the `aud` claim, or one of its items when `aud` is a list. A whole name must match: a longer name that contains yours is another audience.
+  7. `expired`: the time now is more than 60 seconds past `exp`.
+  8. `not-yet-valid`: the time now is more than 60 seconds before `nbf`, or before `iat` when the token has no `nbf`.
+  9. `nonce`: a NONCE was given, and the token's `nonce` claim isn't equal to it. With no NONCE given, the claim isn't looked at.
+
+  The 60 seconds are the **leeway**, for clocks that don't quite agree.
+
+  The pieces you'll need, from the worked example:
+
+  - `d64() { tr '_-' '/+' | awk '{ while (length($0) % 4) $0 = $0 "="; print }' | base64 -d 2> /dev/null; }` decodes one base64url piece from standard input.
+  - `pem() { fold -w 64 | sed -e '1i -----BEGIN CERTIFICATE-----' -e '$a -----END CERTIFICATE-----'; }` wraps a key's `x5c` value as a certificate file; `openssl x509 -pubkey -noout` then prints its public key, and `openssl dgst -sha256 -verify KEY.pem -signature SIG.bin SIGNED.txt` checks a signature (exit status 0 when it verifies).
+  - `jq -r --arg k "$kid" '.keys[] | select(.kid == $k) | .x5c[0]'` picks a key's certificate by `kid`, and prints nothing when there is none.
+  - `jq -r '[.aud] | flatten | .[]'` prints the audiences one a line, whether `aud` is a string or a list (`grep -Fx -- "$name"` matches a whole line exactly). `jq -r '.nbf // .iat // 0'` prints `nbf`, or `iat` when there's no `nbf`, or 0: `//` means "or, if that's missing".
+  - `date +%s` is the time now in seconds since 1970, the unit of `exp`, `nbf` and `iat`. `mktemp -d` makes a folder for the script's working files.
+
+  Make the file with `nano ~/bin/check-token`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/check-token`. ShellCheck must have nothing to say about it (`shellcheck ~/bin/check-token`). It does its own work with the shell, `curl`, `jq` and `openssl`: Python is the checks' tool here, not the script's.
+
+  The lab runs a practice issuer at `http://127.0.0.1:8090/realms/practice` (plain HTTP, since it never leaves this machine), and `sample-token KIND` prints one of its tokens, for the audience `https://stock.shop.test`. KIND is `good`, `expired`, `other-audience`, `tampered` or `unsigned`:
+
+  ```
+  sample-token good | ~/bin/check-token http://127.0.0.1:8090/realms/practice https://stock.shop.test
+  sample-token tampered | ~/bin/check-token http://127.0.0.1:8090/realms/practice https://stock.shop.test
+  sample-token good | ~/bin/check-token http://127.0.0.1:8090/realms/practice https://stock.shop.test n-0S6_WzA2Mj
+  ```
+
+  should print `valid sub=ana`, `invalid: signature` and `valid sub=ana` (the samples carry that nonce). The checks then put about two dozen kinds of token to your script, from an issuer of their own with keys, names and times made up as they run. Then run the checks.
+skills: [validate-token]

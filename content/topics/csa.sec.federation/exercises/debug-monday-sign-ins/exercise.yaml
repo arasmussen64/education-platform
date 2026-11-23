@@ -1,0 +1,42 @@
+id: debug-monday-sign-ins
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Monday's sign-ins"
+prompt: |
+  Last week the shop's security team tidied up its single sign-on: secrets were rotated, the signing key was rotated, and every registered app was reviewed. This Monday morning, three things don't work.
+
+  **The system.** Six machines on one network.
+
+  - `idp` (10.0.5.10) is the identity provider at `https://login.shop.test`. The realm `shop` is the file `/etc/keycloak/realms/shop.json`, with its secrets in `/etc/keycloak/secrets.env` and its signing keys in `/etc/keycloak/keys/shop/` (`2025`, last year's, which is still published, and `2026`, which signs). A second realm, `partners`, is the suppliers' and is not yours to change; both realms were set up from one template and sign with the same keys.
+  - `app` (10.0.5.20) is the orders site, `https://app.shop.test/orders/` (Apache; client `shop-web`). Staff sign in to it, and its stock page, `/orders/stock`, asks the stock API for the level with the signed-in person's access token.
+  - `api` (10.0.5.30) is the stock API, `https://api.shop.test/stock/level` (Apache; its settings are `/etc/apache2/sites-available/stock-api.conf`). It serves a request only with an access token from the shop's realm, for the audience `https://api.shop.test`.
+  - `jobs` (10.0.5.60) runs the nightly stock job, `on jobs stock-job`, which signs in as itself (client `stock-job`) and asks the API for the level.
+  - `scanner` (10.0.5.70) stands in for a warehouse scanner, which has no browser. `on scanner scanner-login` starts a sign-in (client `scanner`), shows a code, and waits for someone to approve it on another device: `on office signin --approve-device CODE ben`, from a second terminal. Then it asks the API for the level.
+  - `office` (10.0.5.2) is a staff laptop: `on office signin https://app.shop.test/orders/stock ana -v`.
+
+  The monitoring team's client, `uptime-probe`, whose tokens last three seconds, is theirs.
+
+  **The symptoms.**
+
+  - Staff who sign in to the orders site get "Bad Request" straight after the sign-in page.
+  - The stock API refuses every caller, the nightly job and the orders site alike.
+  - The warehouse scanners can't start a sign-in.
+
+  There are three faults. Find each from the evidence: what the browser, the job and the scanner are told, and what the identity provider and the two sites logged (`journalctl -u keycloak@idp`, `on app tail /var/log/apache2/error.log`, `on office curl -si ...` for an answer's headers, `jwt show` for a token, `realm-saved`).
+
+  **The rules of the fix.**
+
+  - Last week's rotations stand: the secrets in the identity provider's `secrets.env` stay as they are now.
+  - The orders site's client stays confidential, and the site's copy of its secret stays in the file only root can read, and nowhere else.
+  - The identity provider keeps signing with this year's key. Last year's stays published and is not made to sign again.
+  - The API goes on checking every token's signature, issuer, audience and expiry, and gets the provider's keys in a way that will still work after the next rotation.
+  - No client gets the password grant or the implicit flow. The device grant is for the scanners only.
+  - A change at the identity provider is made in its realm file and applied.
+  - Every fix lasts a restart.
+
+  Then run the checks.
+skills: [trace-oidc, validate-token, choose-flow]

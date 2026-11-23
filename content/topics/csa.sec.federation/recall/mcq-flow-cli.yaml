@@ -1,0 +1,16 @@
+id: mcq-flow-cli
+type: mcq
+rev: 1
+prompt: |
+  A command-line tool on developers' laptops needs to act as the developer who runs it. The laptops have browsers. Which flow should the tool use, as the AWS CLI has for `aws sso login` since version 2.22.0?
+choices:
+  - "The password grant, with the developer's password typed at a prompt"
+  - "Client credentials, with one secret shipped inside every copy of the tool"
+  - "The implicit flow, with the token read from the browser's address bar"
+  - "The code flow with PKCE, with the redirect caught on a loopback address"
+answer: 3
+explanation: |
+  There is a person with a browser, so it is the code flow with PKCE. The tool opens the browser at the provider, listens for a moment on an address of the laptop itself (`http://127.0.0.1:PORT/...`, a loopback redirect), receives the code there and swaps it with its verifier. The tool is a public client: a secret shipped in a program on thousands of laptops is no secret, which is exactly why PKCE is required. AWS's guide (read 2026-11-22): PKCE authorization "is used by default ... starting with version 2.22.0", with `--use-device-code` for a machine that has no browser.
+
+  A password typed into a tool is the password grant again. One shared secret makes every developer the same principal. The implicit flow puts a token in an address, which RFC 9700 says clients SHOULD NOT do.
+skills: [choose-flow]

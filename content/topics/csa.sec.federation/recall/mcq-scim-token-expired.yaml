@@ -1,0 +1,16 @@
+id: mcq-scim-token-expired
+type: mcq
+rev: 1
+prompt: |
+  A company's identity provider provisions users into AWS IAM Identity Center with a SCIM access token that was made 13 months ago and never rotated. Dan left the company last week and was deactivated at the identity provider the same day. What is true of Dan in Identity Center?
+choices:
+  - "He was deactivated there within the hour, as every leaver is"
+  - "His account was deleted there when the token expired"
+  - "He is still there and active: the sync stopped a month ago"
+  - "He is locked out, since expired tokens fail closed for everyone"
+answer: 2
+explanation: |
+  Identity Center's SCIM tokens last one year. AWS's guide (read 2026-11-22): when the token expires, "the synchronization of user and group information ... stops, so automatic provisioning can no longer make updates or create and delete information". Nothing announces it at the identity provider's end beyond failing requests in a log, and people already provisioned stay exactly as they were. Dan's deactivation never arrived.
+
+  In practice his single sign-on would still fail, since the identity provider itself refuses him. But the account in Identity Center is live, with its permissions, and anything that doesn't pass through that sign-in still sees an active user. AWS sends reminders from 90 days before the expiry; the fix is to rotate the token on a calendar, and to watch the provisioning log.
+skills: [scim-provisioning]

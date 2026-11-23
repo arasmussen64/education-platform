@@ -1,0 +1,22 @@
+#!/bin/bash
+# stock-job: the nightly stock job. No person is involved: it signs in as
+# itself (the client credentials grant) with the client and secret in
+# /etc/stock-job/client, and asks the stock API for the level.
+#   on jobs stock-job
+. /etc/stock-job/client
+idp=https://login.shop.test/realms/shop
+answer=$(curl -s -m 10 "$idp/protocol/openid-connect/token" -d grant_type=client_credentials \
+  -d "client_id=$client_id" -d "client_secret=$client_secret")
+token=$(echo "$answer" | jq -r '.access_token // empty')
+if [[ -z $token ]]; then
+  echo "stock-job: no token: $(echo "$answer" | jq -r '"\(.error): \(.error_description)"')"
+  exit 1
+fi
+reply=$(curl -s -m 10 -w '\n%{http_code}' -H "Authorization: Bearer $token" https://api.shop.test/stock/level)
+status=${reply##*$'\n'}
+if [[ $status == 200 ]]; then
+  echo "stock-job: level=$(echo "${reply%$'\n'*}" | jq -r .level)"
+else
+  echo "stock-job: the stock API answered $status"
+  exit 1
+fi

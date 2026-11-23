@@ -1,0 +1,30 @@
+id: est-clock-ahead
+type: estimate
+rev: 1
+prompt: |
+  An identity provider, whose clock is right, issues an ID token that lasts 600 seconds. A site receives it 4 seconds later and refuses it: its log says the token "expired 110 seconds ago".
+
+  How many seconds ahead of the right time is the site's clock? Exactly.
+unit: seconds
+answer: 706
+tolerance: { absolute: 0 }
+given: { life: 600, delay: 4, late: 110 }
+working: life - delay + late
+mistakes:
+  - id: only-the-log
+    value: 110
+    working: late
+    why: That is how far past the token's end the site thinks it is. The token still had most of its 600 seconds to run, and the clock is ahead by that much more.
+  - id: no-delay
+    value: 710
+    working: life + late
+    why: That is how far the site's clock is past the moment the token was issued. 4 of those seconds really did pass.
+  - id: subtracted
+    value: 486
+    working: life - delay - late
+    why: The site thinks the token's end is already 110 seconds behind it, so its clock is further ahead than the token's remaining life, not less.
+explanation: |
+  When the site looked, the token really had 600 - 4 = 596 seconds left. The site believed its end was already 110 seconds in the past. So the site's clock reads 596 + 110 = 706 seconds later than the right time: nearly twelve minutes.
+
+  The log line gives away the size of the skew only once you add the lifetime, which is why "expired 110 seconds ago" for a token issued moments ago is such a clear sign of a clock problem and not of a short lifetime.
+skills: [validate-token]

@@ -1,0 +1,40 @@
+id: saml-read-assertion
+type: predict_shell
+rev: 1
+prompt: |
+  `response.xml` is the SAML response the identity provider sent the HR pages for Ana, captured in the worked example and shown one element a line, with its signature left out. The command picks out three things, wherever they appear, and prints each once, sorted. What does it print?
+files:
+  response.xml: |
+    <samlp:Response Destination="https://app.shop.test/hr/mellon/postResponse" ID="ID_795f418a-6f6c-4e08-947b-9fbc39dbffab" InResponseTo="_A75FD476ADD43CB609E5E9CB2BABC17D" IssueInstant="2026-11-23T05:22:11.707Z" Version="2.0">
+    <saml:Issuer>https://login.shop.test/realms/shop</saml:Issuer>
+    <saml:Assertion ID="ID_31513ab6-31af-434c-81b5-2e962be37c5d" IssueInstant="2026-11-23T05:22:11.707Z" Version="2.0">
+    <saml:Issuer>https://login.shop.test/realms/shop</saml:Issuer>
+    <saml:Subject>
+    <saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified">ana</saml:NameID>
+    <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+    <saml:SubjectConfirmationData InResponseTo="_A75FD476ADD43CB609E5E9CB2BABC17D" NotOnOrAfter="2026-11-23T05:27:09.707Z" Recipient="https://app.shop.test/hr/mellon/postResponse"/>
+    </saml:SubjectConfirmation>
+    </saml:Subject>
+    <saml:Conditions NotBefore="2026-11-23T05:22:09.707Z" NotOnOrAfter="2026-11-23T05:23:09.707Z">
+    <saml:AudienceRestriction>
+    <saml:Audience>https://app.shop.test/hr</saml:Audience>
+    </saml:AudienceRestriction>
+    </saml:Conditions>
+    <saml:AttributeStatement>
+    <saml:Attribute FriendlyName="email" Name="email">
+    <saml:AttributeValue>ana@shop.test</saml:AttributeValue>
+    </saml:Attribute>
+    </saml:AttributeStatement>
+    </saml:Assertion>
+    </samlp:Response>
+command: |
+  grep -o 'InResponseTo="[^"]*"\|Recipient="[^"]*"\|<saml:Audience>[^<]*' response.xml | sort -u
+expected_output: |
+  <saml:Audience>https://app.shop.test/hr
+  InResponseTo="_A75FD476ADD43CB609E5E9CB2BABC17D"
+  Recipient="https://app.shop.test/hr/mellon/postResponse"
+explanation: |
+  `grep -o` prints each match alone. `InResponseTo` appears twice in the file, on the response and inside the assertion, with the same value, so `sort -u` leaves one line; `<` sorts before the capital letters.
+
+  These three are how an assertion is tied down, and each has a twin in OpenID Connect. `Audience` is who the assertion is for, the HR pages' own name: the `aud` claim. `Recipient` is the one address allowed to receive it: the redirect address. `InResponseTo` is the id of the request this answers: the job `state` and `nonce` do. The service provider checks all three, the time window in `Conditions`, and the signature, before it believes the `NameID`.
+skills: [trace-saml]

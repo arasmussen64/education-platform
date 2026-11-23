@@ -1,0 +1,89 @@
+# The terms this topic teaches (ADR-0026). Where another topic's lesson
+# first uses one, the app shows its definition and links back here.
+# Left out on purpose: "grant", "scope", "state", "client", "assertion" and
+# "provisioning" alone are everyday words in other lessons (granting
+# access, an Azure scope, a connection's state, provisioning a VM), so
+# they are defined here only as the phrases "OAuth client", "SAML
+# assertion" and "account provisioning". "Relying party" is Certificates
+# and PKI's; "configuration drift" is Packages and patching's;
+# "idempotent" is HTTP semantics'; "nonce" is Applied cryptography's.
+- term: federation
+  definition: Letting one organisation's sign-in service vouch for people to apps that keep no passwords of their own. The app trusts a signed statement from that service.
+- term: identity provider
+  aliases: [IdP]
+  definition: The service that authenticates people and issues signed statements about them (tokens or assertions) to the apps that trust it. Entra ID, Okta and Keycloak are identity providers.
+- term: single sign-on
+  aliases: [SSO]
+  definition: Signing in once at the identity provider and getting into each further app without another password, because the provider remembers the sign-in in a session of its own.
+- term: front channel
+  definition: Messages between an app and an identity provider that the person's browser carries, as redirects and posted forms. The person, and anything in the browser, can see and change them.
+- term: back channel
+  definition: Messages an app sends straight to the identity provider, server to server over TLS, which the browser never sees. The exchange of a code for tokens is one.
+- term: OAuth 2.0
+  aliases: [OAuth]
+  definition: The standard for letting a program act at an API within limits, using short-lived tokens from an authorization server in place of the person's password.
+- term: OpenID Connect
+  aliases: [OIDC]
+  definition: A layer on OAuth 2.0 that also tells the app who signed in, with a signed ID token, and lets the provider describe itself in a discovery document.
+- term: OAuth client
+  definition: An app registered at an identity provider under a name of its own (its client ID), with the ways of getting tokens it is allowed and the addresses it may be answered at.
+- term: authorization server
+  definition: OAuth's name for the service that signs people in and issues tokens. In practice, the identity provider.
+- term: resource server
+  definition: OAuth's name for an API that accepts access tokens and checks each one before it answers.
+- term: redirect URI
+  definition: The address at an app where the identity provider sends the browser back after a sign-in. It is registered in advance and must match exactly.
+- term: authorization code
+  definition: A one-time, short-lived ticket the identity provider sends back through the browser after a sign-in. The app swaps it for tokens on the back channel.
+- term: PKCE
+  definition: Proof Key for Code Exchange. The app sends the hash of a random secret with its sign-in request and reveals the secret when it swaps the code, so a stolen code is useless.
+- term: discovery document
+  definition: The JSON page in which an OpenID Connect provider lists its own addresses and abilities, at its issuer name plus `/.well-known/openid-configuration`.
+- term: ID token
+  definition: A signed token for the app that says who signed in, when and how. Its audience is the app's own client ID, and the app validates it.
+- term: access token
+  definition: A short-lived token an app sends to an API with each request. Its audience is the API, which validates it. The app carries it and doesn't read it.
+- term: refresh token
+  definition: A longer-lived token an app keeps to itself and shows only to the identity provider, to get new access tokens without the person signing in again.
+- term: bearer token
+  definition: A token that works for whoever holds it, like cash. Nothing ties it to the holder, which is why it is short-lived and sent only over TLS.
+- term: JWT
+  aliases: [JSON Web Token]
+  definition: A token made of three base64url pieces joined by dots, a header, a payload of claims and a signature. Anyone can read it. Only the issuer's key can sign it.
+- term: JWKS
+  aliases: [JSON Web Key Set]
+  definition: The public halves of an identity provider's signing keys, published as JSON at an address its discovery document names. A verifier picks one by the token's key ID.
+- term: leeway
+  definition: The few seconds a verifier allows either side of a token's times, for clocks that don't quite agree. A minute is typical. It never covers a clock that is minutes out.
+- term: client credentials
+  definition: The OAuth grant for a program with no person behind it. The program proves who it is with its own secret or key and gets an access token for itself.
+- term: device grant
+  aliases: [device authorization grant]
+  definition: The OAuth grant for a device with no browser. It shows a short code, the person approves it on another device, and the device asks for its tokens until they do.
+- term: confidential client
+  definition: An OAuth client that can keep a secret, because it runs on a server its owner controls, and proves who it is when it asks for tokens.
+- term: public client
+  definition: An OAuth client that can't keep a secret, because it ships to people's own devices, such as a phone app or a command-line tool. PKCE protects its sign-ins.
+- term: SAML
+  definition: Security Assertion Markup Language. The older single sign-on standard, from 2005, in which the identity provider posts a signed XML assertion to a web app through the browser.
+- term: SAML assertion
+  definition: The signed XML statement a SAML identity provider issues about a person, saying who they are, who the statement is for, where it may be delivered and for how long it holds.
+- term: entity ID
+  definition: The name by which a SAML app or identity provider is known to the other side, usually a URL. An assertion's audience is the app's entity ID.
+- term: SAML metadata
+  definition: The XML file in which a SAML party describes itself (its entity ID, its addresses and its signing certificate), handed to the other side when the two are connected.
+- term: account provisioning
+  definition: Creating, updating and switching off people's accounts in each app as they join, move and leave, driven by one source of truth.
+- term: source of truth
+  definition: The one system whose records the others are made to match. For who works at a company, that is the HR system or the identity provider.
+- term: SCIM
+  definition: System for Cross-domain Identity Management. A standard web API, with `/Users` and `/Groups`, through which a source of truth creates, changes and deactivates accounts in an app.
+- term: realm
+  definition: In Keycloak, one self-contained set of people, groups, registered apps and signing keys, with its own issuer name. Other products say tenant or directory.
+- term: NTP
+  aliases: [Network Time Protocol]
+  definition: Network Time Protocol. How a machine asks a time server for the time, over UDP port 123, so that its own clock can be corrected.
+- term: time server
+  definition: A machine that others ask for the time over NTP. A server's time sync service names one or more in its settings.
+- term: time sync
+  definition: The service on a machine that keeps its clock right by asking time servers again and again, such as chrony or systemd-timesyncd on Linux.

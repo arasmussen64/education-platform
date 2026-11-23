@@ -1,0 +1,22 @@
+id: scim-read-errors
+type: mcq
+rev: 1
+prompt: |
+  A provisioning script sends `POST /Users` for Carla, a joiner. The lab's identity provider answers `409`, with this body:
+
+  ```
+  {"schemas":["urn:ietf:params:scim:api:messages:2.0:Error"],"status":"409","scimType":"uniqueness","detail":"A resource with the same unique attribute already exists"}
+  ```
+
+  What should the script do next?
+choices:
+  - "Send the same `POST` again, in case the server was busy"
+  - "Delete the account with that name, then create Carla again"
+  - "Create her under another name, such as `carla2`"
+  - "Find the account by its user name, and update that one"
+answer: 3
+explanation: |
+  `409` with `uniqueness` means an account with that user name is already there. Most often the script itself made it: an earlier run got as far as creating Carla and died before it wrote that down. The safe move is the one a careful script makes first anyway: look the account up (`GET /Users?filter=userName eq "carla"`), and bring it in line with what the HR file says.
+
+  Sending the `POST` again gets the same `409` for ever. Deleting and recreating throws away the account's id and whatever is attached to it, and if the existing `carla` is someone else, it destroys their account. A second name gives one person two accounts, which is how leavers end up with one that nobody switches off.
+skills: [scim-provisioning]

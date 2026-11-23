@@ -1,0 +1,29 @@
+id: fill-hr-sync
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Sync the HR file"
+prompt: |
+  Single sign-on decides who can sign in. Something still has to create an account when someone joins, move it when they change team, and switch it off the day they leave. At the shop that something is a small connector, `~/bin/hr-sync`: it reads the HR system's staff file and makes the identity provider's accounts match, through the provider's SCIM API. It is written, with five gaps.
+
+  Three machines: `office` (10.0.5.2); `idp` (10.0.5.10), the identity provider at `https://login.shop.test`, realm `shop`, whose SCIM API is at `https://login.shop.test/realms/shop/scim/v2`; and `hr` (10.0.5.50), the HR server, where the connector runs. The connector is an OAuth client of its own, `hr-sync`: it signs in as itself (client credentials) with the secret in `/etc/hr-sync/secret` on `hr`, and its token is good for the SCIM API and nothing else. All of that is set up. The identity labs' basics are in this topic's first lab, `example-trace-a-sign-in`.
+
+  The staff file is `/srv/hr/staff.csv`: `username,first,last,email,team,status`, where `status` is `active` or `left` and `team` is a group's name (`staff`, `warehouse` or `finance`). Today it says: Ana and Ben as they are; Carla and Farid have joined; Dan has left; Eve has moved from staff to the warehouse.
+
+  Open the connector with `nano ~/bin/hr-sync` and read it through before you change anything: it gets a token, then for each line of the file finds the account, and creates it, switches it off or fixes its group only when something needs changing. Each gap is marked `GAP`, with a comment that says what belongs there:
+
+  1. the SCIM **filter** that finds the account with exactly this user name (an attribute's name, an operator, and the value in double quotes);
+  2. the **PatchOp** operation that switches a leaver's account off: its `op`, the `path` of the attribute to change, and the new `value` (`true` or `false`, without quotes). A leaver is never deleted;
+  3. one more attribute in a joiner's new account: without it, this server stores the account switched off. Replace the whole `"...": "..."` pair with the attribute's name, a colon and `true`;
+  4. the `op` that takes one member out of a group;
+  5. the `op` that puts a member into a group.
+
+  Run it from the HR server, as `on hr ~/bin/hr-sync /srv/hr/staff.csv`. It prints a line for each change it makes, and stops with the server's own words if a request is refused (`400 invalidFilter`, say). Run it a second time: it should print nothing, because there is nothing left to change.
+
+  To look at what it did: `sudo kc get shop/users | jq -r '.[] | "\(.username) \(.enabled)"'` lists the accounts and whether each can still sign in (Dan's should say `false`, and still be there).
+
+  The checks run your connector on a staff file of their own, about people they make and remove again, so it has to read the file it is given. Don't change the realm file or the staff file. Then run the checks.
+skills: [scim-provisioning]

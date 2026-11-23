@@ -1,17 +1,344 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.federation
 kind: topic
-status: planned
+status: ready
 title: SAML, OAuth 2.0 and OIDC
-summary: Trace a single sign-on and an OAuth flow.
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "How an app signs you in without ever seeing your password. Federation and single sign-on; the authorization code flow message by message, with PKCE, state and nonce; ID, access and refresh tokens, and a JWT taken apart and checked by hand; the checks a token must pass, and what a wrong clock does to them; which flow fits a web app, a job and a device with no browser; SAML as the same promise in XML; and SCIM, which creates accounts and switches them off."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections 2,
+# 3, 4.1 and 5) and its designer's brief (csa.sec.federation.md), with what
+# building the identity lab base found (BUILD-NOTES.md and
+# content/lab-bases/id/README.md). It builds on csa.sec.authn-authz
+# (authentication, authorization, credential, MFA, sign-in session, token,
+# claim in one sentence, 401 against 403) and csa.sec.crypto (hash, HMAC,
+# signature), and through them on Module 1 (curl, cut, tr, grep -o, sed,
+# awk, jq in csa.linux.shell/write-jq-answers, scripts, ShellCheck) and
+# Module 3 (HTTP, cookies, base64, TLS, certificates, the network labs).
+# Not prerequisites: csa.sec.pki (which owns "relying party") and
+# csa.sec.strong-auth, which comes after this topic.
+#
+# This topic defines, for the module (the plan's 3.5): federation, identity
+# provider, single sign-on, front and back channel, redirect URI, OAuth's
+# roles, the grants, access, refresh and ID token, bearer token, PKCE,
+# state, JWT, JWKS, kid, leeway, SAML's words, SCIM's words, realm, client,
+# and where a machine's time comes from (NTP, a time server, time sync).
+# "Drift" was to be this topic's too; csa.linux.packages already defines
+# "configuration drift", so the lesson uses that. It also owns the
+# identity-lab onboarding, the "Before your first identity lab" note in
+# example-trace-a-sign-in's prompt.
+prerequisites: [csa.sec.authn-authz, csa.sec.crypto]
+# Worked out: the lesson about 40 minutes (5,200 words with its tables and
+# reference blocks), the puzzle and the story 3, 26 practice recall items
+# at 1.5 each 39, then the worked example 35, the first fill-in 20, the
+# write 35, the second fill-in 20, the build 60, the debug 45 and the
+# explain 15: about 312. The plan's 320 is kept. No reading is assigned:
+# every resource is an optional link.
+estimated_minutes: 320
 rev: 1
 objectives:
-- Trace a single sign-on and an OAuth flow.
-- 'Choose the right flow for an app: authorization code with PKCE, client credentials, or device code.'
-- Validate a token, on machines whose clocks agree.
-- Provision accounts with SCIM.
+  - "Trace an OpenID Connect sign-in message by message: what the browser carries (the front channel) and what it never sees (the back channel), what the redirect address, the state, the nonce and PKCE each protect, and which message failed, from the browser's last answer and the two sides' logs."
+  - "Choose the right flow for an app and register it with only that flow: the authorization code flow with PKCE for anyone with a browser, client credentials for a program with no person, the device grant for a device with no browser, and never the implicit or password grant."
+  - "Validate a token: decode a JWT by hand, find the signing key by its `kid` in the provider's published key set, check the signature, the issuer, the audience, the times with a small leeway and the nonce; say who validates which token and why a copy of a key is a fault waiting; and recognise and mend a wrong clock, so that the machines agree about the time."
+  - "Read a SAML sign-on: the request, the signed response posted through the browser, and the assertion's issuer, name, audience, recipient, `InResponseTo` and time window; and say when SAML is the right choice."
+  - "Provision accounts with SCIM: find, create, change, deactivate a leaver without deleting, change group membership, page through a list, and make a sync that changes nothing on its second run; and say how Entra ID, IAM Identity Center and Google's Workforce Identity Federation each expect people to arrive."
+# Facts the lesson and the items rely on, each read on 2026-11-22.
+# - RFC 9700, "Best Current Practice for OAuth 2.0 Security", January 2025,
+#   BCP 240: authorization servers "utilize exact string matching" of
+#   redirect URIs (2.1); "Public clients MUST use PKCE", RECOMMENDED for
+#   confidential clients (2.1.1); clients "SHOULD NOT use the implicit
+#   grant" (2.1.2); the password grant "MUST NOT be used" (2.4); public
+#   clients' refresh tokens "MUST be sender-constrained or use refresh
+#   token rotation" (2.2.2): rfc-editor.org/rfc/rfc9700.html.
+# - RFC 7636 (PKCE, September 2015): the verifier is 43 to 128 characters;
+#   S256 is BASE64URL-ENCODE(SHA256(ASCII(code_verifier))); 32 octets
+#   recommended, 43 characters; "plain" "SHOULD NOT be used in new
+#   implementations": rfc-editor.org/rfc/rfc7636.html.
+# - RFC 8628 (device grant, August 2019): interval defaults to 5; on
+#   slow_down the interval "MUST be increased by 5 seconds for this and all
+#   subsequent requests"; section 5.4 on remote phishing:
+#   rfc-editor.org/rfc/rfc8628.html.
+# - RFC 8725 (JWT best practices, February 2020, BCP 225): "Libraries MUST
+#   enable the caller to specify a supported set of algorithms"; RS256 to
+#   HS256 confusion and "none" (2.1): rfc-editor.org/rfc/rfc8725.html.
+# - OpenID Connect Core 1.0 incorporating errata set 2 (15 December 2023),
+#   3.1.3.7: the issuer "MUST exactly match"; aud "contains its client_id
+#   value"; "The current time MUST be before the time represented by the
+#   exp Claim"; the nonce checked when sent:
+#   openid.net/specs/openid-connect-core-1_0.html.
+# - RFC 7643 and 7644 (SCIM, September 2015): userName "is REQUIRED and is
+#   case insensitive"; active: "The definitive meaning of this attribute is
+#   determined by the service provider"; a User's groups are read-only;
+#   application/scim+json; 201 on create, 409 with scimType uniqueness, 204
+#   on delete, 400 invalidFilter; startIndex is 1-based; PatchOp's add,
+#   remove, replace: rfc-editor.org/rfc/rfc7643.html and rfc7644.html.
+# - Microsoft, "Access tokens in the Microsoft identity platform" (ms.date
+#   2025-05-14): a lifetime "ranging between 60-90 minutes (75 minutes on
+#   average)", which "improves service resilience by spreading access token
+#   demand over a time"; clients "should treat them as opaque strings";
+#   APIs "must only accept tokens containing one of their AppId URIs as the
+#   aud claim"; "A reasonable frequency to check for updates to the public
+#   keys ... is every 24 hours":
+#   learn.microsoft.com/en-us/entra/identity-platform/access-tokens.
+# - Microsoft, "Understand how Application Provisioning in Microsoft Entra
+#   ID" (ms.date 2026-11-03): a disable is "a request to set the active
+#   property to false"; "users are hard-deleted 30 days after they're
+#   soft-deleted", and the DELETE is sent then:
+#   learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works.
+#   The first-cycle formula, "Minimum minutes = 0.01 x", "Maximum minutes =
+#   0.08 x [Number of assigned users, groups, and group members]" (ms.date
+#   2025-03-04): .../application-provisioning-when-will-provisioning-finish-specific-user.
+# - AWS IAM Identity Center: "The SAML protocol does not provide a way to
+#   query the IdP to learn about users and groups":
+#   docs.aws.amazon.com/singlesignon/latest/userguide/manage-your-identity-source-idp.html.
+#   "SCIM access tokens are generated with a validity of one year";
+#   reminders from 90 days; when it expires "the synchronization ... stops";
+#   the SAML NameID must be the attribute mapped to Username: "If they
+#   differ, sign-in fails": .../provision-automatically.html.
+#   AWS CLI: "Proof Key for Code Exchange (PKCE) authorization is used by
+#   default for the AWS CLI starting with version 2.22.0", with
+#   --use-device-code for device authorization:
+#   docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html.
+# - Google Cloud, Workforce Identity Federation: "you don't need to use
+#   tools to synchronize user identities from your IdP"; OIDC or SAML 2.0;
+#   attributes mapped with CEL: docs.cloud.google.com/iam/docs/workforce-identity-federation.
+# - The story: Microsoft, "Results of Major Technical Investigations for
+#   Storm-0558 Key Acquisition" (6 September 2023, with an addendum of 12
+#   March 2024 saying no crash dump with the key was found), for the shared
+#   key address, the missing check and the fix; and the Cyber Safety Review
+#   Board's "Review of the Summer 2023 Microsoft Exchange Online Intrusion"
+#   (20 March 2024; read 2026-11-23) for who found it and what is known
+#   about the key: the State Department "detected anomalies" on 15 June
+#   2023 and "contacted Microsoft" on 16 June; "22 organizations and over
+#   500 individuals"; "Microsoft does not know how or when Storm-0558
+#   obtained the signing key". Microsoft's post alone says neither who
+#   found the intrusion nor how many were affected.
+# - Not confirmed, so not in the lesson: Entra's client-secret and SAML
+#   certificate lifetimes, its device-code and password-grant pages, and
+#   Google's session lengths (the designer's facts E6 to E9 and G2): those
+#   pages weren't opened today.
+# Tried in this topic's labs on the identity base (Keycloak 26.8.2,
+# mod_auth_openidc 2.4.15.1, mod_auth_mellon 0.19.0, mod_oauth2 3.3.1),
+# 2026-11-22: every message, token, log line and refusal the lesson, the
+# items and the labs show, among them SAML with the provider's metadata
+# written at image build and the user name as NameID, SCIM with a service
+# client's token (the realm attribute scimApiEnabled, an audience of the
+# SCIM address, the roles manage-users and view-realm), the device grant,
+# a POST without "active" stored as inactive, and mod_oauth2 serving a
+# token it had accepted after its expiry.
+# The build's and the debug's checks sign changed copies of a real token
+# with the realm's own key (each lab's resign-token, root only): an
+# audience made up as the check runs, a name that only starts with the
+# right one, an expiry in the past, last year's key. Tried with them on
+# 2026-11-23: mod_oauth2 with the plain "jwks_uri" line refuses each of
+# those, serves a token signed with either published key, and also serves
+# a token whose "nbf" is in the future and a token with no "exp" at all.
+# No check shows it those two, and no lab says the API checks "nbf".
+#
+# Licences, each read on 2026-11-22. RFCs are under the IETF Trust's
+# licence ("Copyright (c) 2025 IETF Trust and the persons identified as the
+# document authors. All rights reserved."). OWASP's Cheat Sheet Series is
+# CC BY-SA 4.0 (the page's footer). OpenID Connect Core's notices are in
+# its Appendix C, which was beyond the part of the page read. The Entra
+# pages are under Microsoft Learn's terms of use. AWS's documentation is
+# (c) Amazon Web Services. Google Cloud's documentation is CC BY 4.0
+# "except as otherwise noted" (Google's site policies; the footer wasn't in
+# the text fetched). Microsoft's MSRC post shows no licence: linked only.
+# The review board's report is a work of the US government (17 U.S.C. 105:
+# no copyright in the United States); it is linked, and quoted only in the
+# comment above.
+resources:
+  - title: "RFC 9700, Best Current Practice for OAuth 2.0 Security: section 2, the rules for redirect addresses, PKCE, the implicit and password grants, refresh tokens and audiences"
+    url: https://www.rfc-editor.org/rfc/rfc9700.html#section-2
+    type: reading
+    use: link
+    optional: true
+    license: "IETF Trust (the document's copyright notice); linked, not copied"
+  - title: "OpenID Connect Core 1.0: section 2 (the ID token's claims) and section 3.1.3.7 (how a client validates an ID token)"
+    url: https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
+    type: reading
+    use: link
+    optional: true
+    license: "OpenID Foundation (the specification's own notices); linked, not copied"
+  - title: "RFC 7636, Proof Key for Code Exchange by OAuth Public Clients: the verifier, the challenge and the S256 method"
+    url: https://www.rfc-editor.org/rfc/rfc7636.html
+    type: reading
+    use: link
+    optional: true
+    license: "IETF Trust (the document's copyright notice); linked, not copied"
+  - title: "RFC 8628, OAuth 2.0 Device Authorization Grant: the device's requests, the polling rules and the remote-phishing warning"
+    url: https://www.rfc-editor.org/rfc/rfc8628.html
+    type: reading
+    use: link
+    optional: true
+    license: "IETF Trust (the document's copyright notice); linked, not copied"
+  - title: "RFC 8725, JSON Web Token Best Current Practices: the known attacks on JWTs and the rules that stop them"
+    url: https://www.rfc-editor.org/rfc/rfc8725.html
+    type: reading
+    use: link
+    optional: true
+    license: "IETF Trust (the document's copyright notice); linked, not copied"
+  - title: "SAML Security Cheat Sheet (OWASP): every check a SAML app must make on a response, and unsolicited (IdP-initiated) responses"
+    url: https://cheatsheetseries.owasp.org/cheatsheets/SAML_Security_Cheat_Sheet.html
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY-SA 4.0; linked, not copied"
+  - title: "RFC 7644, System for Cross-domain Identity Management: Protocol: SCIM's requests, filters, paging, PATCH operations and errors"
+    url: https://www.rfc-editor.org/rfc/rfc7644.html
+    type: reading
+    use: link
+    optional: true
+    license: "IETF Trust (the document's copyright notice); linked, not copied"
+  - title: "Access tokens in the Microsoft identity platform (Microsoft Learn): token lifetimes, who validates a token, and checking the issuer and the signing keys"
+    url: https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens
+    type: reading
+    use: link
+    optional: true
+    license: "Microsoft Learn's terms of use; linked, not copied"
+  - title: "Understand how Application Provisioning in Microsoft Entra ID works (Microsoft Learn): SCIM provisioning cycles, disabling against deleting, and the 30 days before a hard delete"
+    url: https://learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works
+    type: reading
+    use: link
+    optional: true
+    license: "Microsoft Learn's terms of use; linked, not copied"
+  - title: "Provision users and groups from an external identity provider using SCIM (AWS IAM Identity Center User Guide): what to check first, and the access token's one-year life"
+    url: https://docs.aws.amazon.com/singlesignon/latest/userguide/provision-automatically.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Workforce Identity Federation (Google Cloud): signing another identity provider's people in to Google Cloud without copying them"
+    url: https://docs.cloud.google.com/iam/docs/workforce-identity-federation
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "Review of the Summer 2023 Microsoft Exchange Online Intrusion (Cyber Safety Review Board, a PDF): how Storm-0558 was found, what its stolen signing key opened, and what is still not known"
+    url: https://www.cisa.gov/sites/default/files/2025-03/CSRBReviewOfTheSummer2023MEOIntrusion508.pdf
+    type: reading
+    use: link
+    optional: true
+    license: "A work of the US government (public domain in the United States); linked, not copied"
+# The recall items follow a sign-in on real captured messages, take a token
+# apart, do the sums of tokens, clocks, polling and provisioning, and place
+# the three clouds. Five labs run on the identity lab base
+# (content/lab-bases/id): a real Keycloak, Apache sites and APIs, a
+# scripted browser. The write lab is a plain lab with an issuer of its own.
+practice:
+  - example-trace-a-sign-in
+  - oidc-redirect-params
+  - mcq-back-channel
+  - mcq-pkce-protects
+  - oidc-error-where
+  - saml-read-assertion
+  - mcq-saml-windows
+  - mcq-idp-initiated
+  - mcq-flow-nightly-job
+  - mcq-flow-scanner
+  - mcq-why-not-ropc
+  - typed-pkce-method
+  - est-device-polls
+  - est-device-slow-down
+  - est-pkce-length
+  - fill-register-the-app
+  - jwt-decode-header
+  - est-token-lifetime
+  - mcq-which-check-fails
+  - mcq-unknown-kid
+  - est-leeway-left
+  - est-key-overlap
+  - mcq-whose-clock
+  - est-clock-ahead
+  - write-check-token
+  - scim-read-errors
+  - mcq-leaver
+  - typed-scim-active
+  - est-scim-pages
+  - est-reconcile-requests
+  - fill-hr-sync
+prove:
+  build: build-stock-sign-in
+  debug: debug-monday-sign-ins
+  explain:
+    prompt: |
+      The shop is moving four apps to single sign-on: the orders site (a web app on a server), a new phone app that calls the stock API, the warehouse scanners (no browser), and an old HR system that speaks only SAML. A colleague who has only ever used passwords asks you to explain it. In your own words: what happens, message by message, when someone signs in to the orders site, and which messages the browser carries and which it never sees; which flow each of the four apps should use and why, and which two flows nobody should use; what the stock API must check about every token before trusting it, why it must not keep its own copy of the identity provider's key, and what a wrong clock on the API's server would look like; how the HR system's SAML sign-in differs; and how accounts get created in each app and switched off the day someone leaves. Say one way the three clouds differ.
+    rubric:
+      - id: code-flow
+        required: true
+        description: "The browser is redirected to the identity provider with the client, the redirect address, a state, a nonce and a PKCE challenge; the person signs in at the provider only; a one-time code comes back through the browser; the app swaps the code and the verifier for tokens directly with the provider, which the browser never sees (the back channel); the app checks the state and the nonce."
+      - id: flow-choice
+        required: true
+        description: "Orders site: the code flow with PKCE, as a confidential client. Phone app: the code flow with PKCE, as a public client with no secret. Scanners: the device grant, approved on another device (and only a code you started yourself). HR system: SAML. Never the implicit grant (tokens in addresses) or the password grant (the app holds the password, and no second factor can take part)."
+      - id: token-checks
+        required: true
+        description: "The API checks the signature with the key the token's `kid` names, from the provider's published key set; the issuer, exactly; that the audience is the API itself; and that the token hasn't expired, with a small leeway. Keys rotate, so they are fetched by address: a copy works until the next rotation and then refuses everyone."
+      - id: clocks
+        required: true
+        description: "A token's times are read against the reader's clock: on a server whose clock is wrong, fresh tokens look expired (or issued in the future) and every caller is refused there alone. The fix is the server's time sync and its time server, not longer tokens or a wide leeway."
+      - id: saml
+        required: true
+        description: "A signed XML assertion posted through the browser in a form, with no back-channel exchange; the app checks the signature, the issuer, the audience, the recipient, that it answers the app's own request, and the time window. SAML has no access tokens for APIs and nothing for devices."
+      - id: provisioning
+        required: true
+        description: "Accounts are created and changed by provisioning from one source of truth, with SCIM (or created at first sign-in, which never removes them); a leaver is deactivated at once (`active` false) and deleted only later; the sync writes only what differs, so running it twice changes nothing."
+      - id: clouds-differ
+        required: false
+        description: "Any correct difference: Entra ID is an identity provider and a SCIM client; IAM Identity Center takes SAML in and needs people provisioned first, with a token that lasts a year; Workforce Identity Federation needs no copies of people; Entra's access tokens last 60 to 90 minutes."
+    model_answer: |
+      With single sign-on the orders site never sees a password. When Ana opens it, the site sends her browser to the shop's identity provider with a note: which app is asking, where to send her back, two random values called state and nonce, and the hash of a secret the site just made up (that last part is PKCE). She signs in at the provider, and only there. The provider sends her browser back to the site with a one-time code. Those are the messages her browser carries. Then the site calls the provider directly, shows the code and the secret behind the hash, and gets tokens. Her browser never sees that call. The site checks that the state and nonce are its own, checks the ID token, and starts its session.
+
+      The orders site and the phone app both use that code flow with PKCE; the site also has a client secret, and the phone app can't keep one, so PKCE is its protection. The scanners have no browser, so they use the device grant: the scanner shows a code, and the person approves it on their phone. Only ever approve a code you started yourself. The HR system gets SAML, because that is all it speaks. Nobody uses the implicit grant, which puts tokens in web addresses, or the password grant, where the app handles the password and MFA can't happen.
+
+      The stock API trusts a token only if its signature verifies with the key the token names, taken from the keys the provider publishes; the issuer is exactly our provider; the audience is the stock API itself; and it hasn't expired, give or take a minute. It fetches the keys by address, because the provider changes its key from time to time: an API with its own copy works until that day and then refuses everybody. Expiry is judged by the API server's own clock, so if that clock is minutes out, brand-new tokens look expired and every caller is refused there and nowhere else. You fix the server's time sync, not the tokens.
+
+      SAML is the same promise in XML: the provider posts a signed assertion to the HR system through the browser, and the HR system checks the signature, who issued it, that it is for the HR system and was sent to the right address, that it answers its own request, and its one-minute window. SAML can't give an app a token for an API.
+
+      Accounts come from provisioning. The HR file is the source of truth, and a connector uses SCIM to create an account when someone joins, change their groups when they move, and switch the account off the day they leave. Off, not deleted: the history stays and a mistake can be undone. It only sends what changed, so running it twice is harmless.
+
+      The clouds differ in how they want people delivered: Entra ID pushes accounts into apps with SCIM, AWS's IAM Identity Center needs people pushed into it before SAML sign-in works, and Google's Workforce Identity Federation needs no copies at all.
+review_pool:
+  - mcq-back-channel
+  - mcq-state-mismatch
+  - locate-the-hop
+  - oidc-redirect-params
+  - saml-read-assertion
+  - mcq-saml-or-oidc
+  - mcq-nameid-mismatch
+  - mcq-idp-initiated
+  - mcq-why-not-ropc
+  - mcq-flow-cli
+  - discovery-grants
+  - typed-pkce-method
+  - est-device-slow-down
+  - est-pkce-length-40
+  - jwt-which-aud
+  - mcq-who-validates
+  - mcq-issuer-exact
+  - mcq-alg-confusion
+  - mcq-unknown-kid
+  - typed-kid
+  - mcq-whose-clock
+  - est-clock-ahead
+  - est-leeway-left
+  - est-token-traffic
+  - est-key-overlap
+  - mcq-active-omitted
+  - mcq-scim-token-expired
+  - mcq-who-is-scim-server
+  - typed-scim-active
+  - est-reconcile-requests
+  - est-entra-initial-cycle
+# Labs short enough for a hands-on refresher in a review (ADR-0009,
+# amended 2026-11-16): the review asks one in place of a quick question.
+review_labs:
+  - write-check-token
+  - fill-register-the-app
+skills:
+  - id: trace-oidc
+    description: "OAuth's roles and the OpenID Connect code flow, message by message: the authorization request's parameters, the sign-in at the provider, the redirect back with the code, state and issuer, the back-channel token request with the verifier, the token response, the discovery document; front channel against back channel; where an error arrives (in the redirect, or as the token endpoint's JSON); reading the browser's last answer and the two sides' logs to say which step failed"
+  - id: trace-saml
+    description: "SAML's sign-on through the browser: the request in a redirect, the signed response posted back in a form; the assertion's issuer, NameID, audience, recipient, InResponseTo and time windows; signatures checked against the provider's metadata; IdP-initiated sign-on and its risk; single sign-on across the two protocols; SAML or OpenID Connect for a given app; the name an assertion carries against the name provisioning wrote"
+  - id: choose-flow
+    description: "The grants and when: the code flow with PKCE (S256) for anyone with a browser, client credentials for a program with no person, the device grant for a device with no browser (and its polling rules and phishing risk); never the implicit or password grant; public and confidential clients; exact redirect addresses; registering a client with only the grant it needs; the sums of polling and PKCE lengths"
+  - id: validate-token
+    description: "A JWT's three pieces and base64url; the checks in order and what each stops (the expected algorithm, the key by kid from the published key set, the signature, the issuer exactly, the audience, the times with a leeway, the nonce); which token is whose; key rotation, fetching keys by address and never keeping a copy; token times against the reader's clock, a wrong clock's signs, and time sync as the fix; doing it by hand with jq and openssl; the sums of lifetimes, leeway, key overlap and clock skew"
+  - id: scim-provisioning
+    description: "Joiners, movers and leavers from one source of truth; SCIM's requests (a filter, POST, PATCH, deactivating with active false, DELETE, group membership), its status codes and paging; deactivate before delete; a sync that writes only the differences; the connector as a client with its own narrow token; each cloud's place (Entra ID a SCIM client, IAM Identity Center a SCIM server with a one-year token, Workforce Identity Federation needing none); the sums of pages and requests"

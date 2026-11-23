@@ -1,0 +1,39 @@
+#!/bin/bash
+# saml-setup MACHINE NAME: run at image build, after "idlab key".
+# SAML has no discovery address to fetch keys from at run time: each side
+# is given the other's metadata as a file. This writes, for the Apache on
+# MACHINE that signs people in with SAML (mod_auth_mellon):
+#   /etc/apache2/saml/idp-metadata.xml   the identity provider's metadata:
+#       its name (entityID), its sign-on address, and the certificate of
+#       the key that signs its assertions (the realm's active key)
+#   /etc/apache2/saml/sp.key, sp.crt     the site's own SAML key pair
+set -euo pipefail
+m=$1
+. /etc/idlab/idp
+dir=/etc/netns/$m/apache2/saml
+keys=/etc/netns/$IDP_MACHINE/keycloak/keys/shop
+mkdir -p "$dir"
+# The realm's signing key: the last active one by name, as realm-apply picks.
+for crt in $(ls "$keys"/*.crt | sort); do
+  [[ -e ${crt%.crt}.passive ]] || signing=$crt
+done
+cert=$(grep -v -- '-----' "$signing" | tr -d '\n')
+cat > "$dir/idp-metadata.xml" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="$IDP_URL/realms/shop">
+  <IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <KeyDescriptor use="signing">
+      <KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+        <X509Data>
+          <X509Certificate>$cert</X509Certificate>
+        </X509Data>
+      </KeyInfo>
+    </KeyDescriptor>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="$IDP_URL/realms/shop/protocol/saml"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>
+EOF
+(umask 077; openssl genrsa -out "$dir/sp.key" 2048 2> /dev/null)
+faketime -f '-2d' openssl req -x509 -new -key "$dir/sp.key" -subj "/CN=SAML key of $2" -days 825 -out "$dir/sp.crt"
+# Apache reads its key as root when it starts; nobody else may.
+chmod 600 "$dir/sp.key"

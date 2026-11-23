@@ -1,0 +1,16 @@
+id: mcq-whose-clock
+type: mcq
+rev: 1
+prompt: |
+  A site refuses every sign-in. Its log says each ID token "expired 240 seconds ago", though the identity provider issued each one a second earlier, with ten minutes to live. The provider's clock is right. What is the first thing to look at?
+choices:
+  - "The token lifetime at the provider, which must be set too short"
+  - "The provider's signing key, which may have been rotated today"
+  - "The site's own clock, and whether its time sync is running"
+  - "The site's leeway setting, which should be raised to ten minutes"
+answer: 2
+explanation: |
+  `exp` is a time of day, and "expired" means "past `exp` by my clock". A token with ten minutes to live can only look four minutes dead if the reader's clock is about fourteen minutes ahead. So look at the site's clock (`date -u` beside a machine you trust; `on app clock` in the labs), then at why it is wrong: its time sync isn't running, or can't reach a time server.
+
+  The lifetime is fine: ten minutes is generous. A rotated key would fail the signature check, with a different message. And a leeway of minutes hides a broken clock while widening the time a stolen token stays useful: leeway is for clocks a few seconds apart.
+skills: [validate-token]

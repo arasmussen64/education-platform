@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""hr-check: the checks' own scenario for the connector, run by the first
+check as root on the lab machine. It makes people of its own at the
+identity provider (their names start chk-, with random letters), writes a
+staff file about them, runs the learner's ~/bin/hr-sync on it from the HR
+server, reads the result back through the admin API, runs the connector a
+second time to see that nothing more is written, and removes its people.
+
+It writes one line for each later check to /run/hr-check/verdicts
+("joiners ok", or "joiners" and what was wrong), and prints "ran" when the
+connector itself finished without an error.
+"""
+
+import json
+import os
+import random
+import secrets
+import subprocess
+import sys
+import time
+
+SCRIPT = "/home/learner/bin/hr-sync"
+OUT = "/run/hr-check"
+
+
+def sh(*args, stdin=None, timeout=60):
+    return subprocess.run(
+        args, input=stdin, capture_output=True, text=True, timeout=timeout
+    )
+
+
+def kc(path):
+    done = sh("kc", "get", path)
+    try:
+        return json.loads(done.stdout)
+    except ValueError:
+        return None
+
+
+def person(name):
+    """(the account, the names of its groups), or (None, None)."""
+    found = kc(f"shop/users?username={name}&exact=true")
+    if not found:
+        return None, None
+    groups = kc(f"shop/users/{found[0]['id']}/groups") or []
+    return found[0], sorted(group["name"] for group in groups)
+
+
+def journal_cursor():
+    done = sh(
+        "journalctl", "-u", "keycloak@idp", "-n", "1", "--show-cursor", "-o", "cat"
+    )
+    for line in done.stdout.splitlines():
+        if line.startswith("-- cursor: "):
+            return line[len("-- cursor: ") :]
+    return None
+
+
+def writes_since(cursor):
+    """Lines Keycloak logged for a change in the realm since the cursor:
+    each account or group written through its API leaves one."""
+    done = sh(
+        "journalctl",
+        "-u",
+        "keycloak@idp",
+        "--after-cursor",
+        cursor,
+        "-o",
+        "cat",
+        "--no-pager",
+    )
+    return [
+        line
+        for line in done.stdout.splitlines()
+        if "operationType=" in line and 'realmName="shop"' in line
+    ]
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    verdicts = {
+        name: "the connector didn't finish, so this wasn't looked at"
+        for name in ("joiners", "movers", "leavers", "untouched", "again")
+    }
+    r = secrets.token_hex(3)
+    joiner, mover, leaver, same, other, gone = (
+        f"chk-{k}{r}" for k in ("j", "m", "l", "u", "o", "g")
+    )
+    # A second joiner's name starts with the first's: a filter that matches
+    # part of a name finds the wrong account for one of them.
+    joiner2 = joiner + "x"
+    made = {
+        mover: "warehouse",
+        leaver: "staff",
+        same: "staff",
+        other: "warehouse",
+        gone: "finance",
+        # Not in the file, with a name that contains the first joiner's.
+        joiner + "-old": "warehouse",
+    }
+    rows = [
+        (joiner, "Jo", "Iner" + r, f"{joiner}@shop.test", "staff", "active"),
+        (joiner2, "Jay", "Second" + r, f"{joiner2}@shop.test", "warehouse", "active"),
+        (mover, "Mo", "Ver", f"{mover}@shop.test", "finance", "active"),
+        (leaver, "Lee", "Ver", f"{leaver}@shop.test", "staff", "left"),
+        (same, "Sam", "Same", f"{same}@shop.test", "staff", "active"),
+        (gone, "Gon", "Already", f"{gone}@shop.test", "finance", "left"),
+    ]
+    random.shuffle(rows)
+    # In /srv, which every machine shares: /run is each machine's own.
+    staff = f"/srv/hr/check-{r}.csv"
+    try:
+        for name, group in made.items():
+            sh("idp-user", "add", "shop", name, "pw" + secrets.token_hex(8), group)
+        sh("idp-user", "disable", "shop", gone)
+        with open(staff, "w", newline="\n") as handle:
+            handle.write("username,first,last,email,team,status\n")
+            for row in rows:
+                handle.write(",".join(row) + "\n")
+        if not os.access(SCRIPT, os.X_OK):
+            print("there is no ~/bin/hr-sync that can be run")
+            return
+        try:
+            first = sh("on", "hr", SCRIPT, staff, timeout=90)
+        except subprocess.TimeoutExpired:
+            print("the connector was still running after 90 seconds")
+            return
+        if first.returncode != 0:
+            said = (
+                first.stderr.strip() or first.stdout.strip() or "nothing"
+            ).splitlines()[-1][:160]
+            print(
+                f"the connector stopped with an error on a staff file made for this check: {said}"
+            )
+            return
+
+        # What the first run left.
+        problems = []
+        rows_by = {row[0]: row for row in rows}
+        for name, first_name, last_name, email, team, _ in (
+            rows_by[joiner],
+            rows_by[joiner2],
+        ):
+            account, groups = person(name)
+            if account is None:
+                problems.append("a joiner in the file has no account")
+            elif not account.get("enabled"):
+                problems.append("a joiner's new account is switched off")
+            elif groups != [team]:
+                problems.append(
+                    "a joiner isn't in their team's group, and only that one"
+                )
+            elif (
+                account.get("firstName"),
+                account.get("lastName"),
+                account.get("email"),
+            ) != (first_name, last_name, email):
+                problems.append("a joiner's name or email isn't the file's")
+        verdicts["joiners"] = problems[0] if problems else "ok"
+
+        account, groups = person(mover)
+        if account is None or not account.get("enabled"):
+            verdicts["movers"] = (
+                "someone who changed team lost their account, or had it switched off"
+            )
+        elif groups != ["finance"]:
+            verdicts["movers"] = (
+                "someone who changed team isn't in the new team's group, and only that one"
+            )
+        else:
+            verdicts["movers"] = "ok"
+
+        account, _ = person(leaver)
+        if account is None:
+            verdicts["leavers"] = "a leaver's account is gone"
+        elif account.get("enabled"):
+            verdicts["leavers"] = "a leaver can still sign in"
+        else:
+            verdicts["leavers"] = "ok"
+
+        problems = []
+        account, groups = person(same)
+        if account is None or not account.get("enabled") or groups != ["staff"]:
+            problems.append("someone the file says nothing new about was changed")
+        for name in (other, joiner + "-old"):
+            account, groups = person(name)
+            if account is None or not account.get("enabled") or groups != ["warehouse"]:
+                problems.append("an account that isn't in the file was changed")
+        account, _ = person(gone)
+        if account is None or account.get("enabled"):
+            problems.append("someone who had already left was changed")
+        for name in ("ana", "ben"):
+            account, _ = person(name)
+            if account is None or not account.get("enabled"):
+                problems.append("an account that isn't in the file was changed")
+        verdicts["untouched"] = problems[0] if problems else "ok"
+
+        # A second run must write nothing.
+        cursor = journal_cursor()
+        try:
+            second = sh("on", "hr", SCRIPT, staff, timeout=90)
+        except subprocess.TimeoutExpired:
+            verdicts["again"] = "a second run was still going after 90 seconds"
+        else:
+            time.sleep(1)
+            if second.returncode != 0:
+                verdicts["again"] = (
+                    "a second run on the same file stopped with an error"
+                )
+            elif cursor is None:
+                verdicts["again"] = (
+                    "the check couldn't read the identity provider's journal"
+                )
+            else:
+                count = len(writes_since(cursor))
+                verdicts["again"] = (
+                    "ok"
+                    if count == 0
+                    else f"a second run on the same file wrote to the identity provider {count} times"
+                )
+        print("ran")
+    finally:
+        for name in list(made) + [joiner, joiner2]:
+            sh("idp-user", "del", "shop", name)
+        if os.path.exists(staff):
+            os.remove(staff)
+        with open(f"{OUT}/verdicts", "w") as handle:
+            for name, verdict in verdicts.items():
+                handle.write(f"{name} {verdict}\n")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,16 @@
+id: mcq-who-validates
+type: mcq
+rev: 1
+prompt: |
+  After a sign-in, the orders site holds two tokens: an ID token, and an access token for the stock API. Which should the site itself validate?
+choices:
+  - "The access token: the site is about to send it to the API"
+  - "Both: a careful app validates every token it is ever given"
+  - "Neither: the site got them over TLS straight from the provider"
+  - "The ID token: it is the one that was issued for the site"
+answer: 3
+explanation: |
+  Each token has one reader. The ID token's audience is the site: it says who signed in, and the site validates it (signature, issuer, audience, expiry, nonce) before it starts a session. The access token's audience is the API: the site passes it along unread, and the API validates it. Microsoft's guidance for Entra says the same of its own tokens: a client should treat an access token as an opaque string and not try to validate it (read 2026-11-22).
+
+  Validating a token meant for someone else isn't extra care. Its format is the API's business and can change without notice, and a site that starts trusting what it reads there is making decisions on a statement addressed to another party.
+skills: [validate-token]

@@ -1,0 +1,22 @@
+id: typed-kid
+type: typed
+rev: 1
+prompt: |
+  An identity provider publishes several signing keys at once. A token's header has a field that names the one key that signed it, so that a verifier can pick that key out of the set. Type the field's name, as it appears in the header.
+kind: text
+case: sensitive
+answers:
+  - kid
+mistakes:
+  - id: alg
+    answers: [alg]
+    why: "That field names the signing algorithm, such as RS256. It says how the token was signed, not with which key."
+  - id: issuer
+    answers: [iss]
+    why: "That is a claim in the payload: who issued the token. The key's name is in the header."
+  - id: cert
+    answers: [x5c, jwk, jwks]
+    why: "That belongs to the key set: `x5c` is a key's certificate there, and a JWK is one key. The header field that points at a key is three letters, short for key ID."
+explanation: |
+  `kid`, the key ID. The verifier fetches the provider's key set (the `jwks_uri` from the discovery document) and takes the key whose `kid` equals the header's: never the first key, and never a key kept in a file of its own. If no key has that `kid`, it fetches the set once more, in case the provider has just started using a new key, and refuses the token if it is still missing.
+skills: [validate-token]

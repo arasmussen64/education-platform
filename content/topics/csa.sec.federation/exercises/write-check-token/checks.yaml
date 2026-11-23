@@ -1,0 +1,58 @@
+# The checks of "Check a token": the script is there, runnable, clean and
+# does its own work; then token-cases starts an issuer of its own on a port
+# of its own, with three keys (two published, in a random order, and one
+# that never is), an issuer name, an audience, subjects, nonces and times
+# all made up as the check runs, and puts every kind of token to the
+# script, in a random order. A script that knows answers by heart, or
+# skips a step, gets one of them wrong.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/check-token exists, is executable, starts with a shebang, ShellCheck has nothing to say about it (with no warning switched off), and it decides for itself, with the shell, curl, jq and openssl, without Python or the lab's own tools."
+    command: |
+      f=/home/learner/bin/check-token
+      [ -f "$f" ] || { echo "there is no ~/bin/check-token"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/check-token isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/check-token's first line isn't a shebang"; exit 0; }
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/check-token switches ShellCheck's warnings off"; exit 0; fi
+      if grep -E 'python|perl|token-cases|sample-token|/usr/local/lib/lab|/var/lib/lab' "$f" > /dev/null; then
+        echo "~/bin/check-token hands the work to another program: the shell, curl, jq and openssl are this lab's tools"
+        exit 0
+      fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say: $(echo "$said" | grep -m 1 'SC[0-9]')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: practice-tokens
+    description: "On the lab's practice issuer it accepts the good sample token and names the right reason for the other four."
+    command: |
+      f=/home/learner/bin/check-token
+      [ -x "$f" ] || { echo "there is no ~/bin/check-token to run"; exit 0; }
+      iss=http://127.0.0.1:8090/realms/practice
+      aud=https://stock.shop.test
+      # The practice issuer makes its keys when the lab starts: give it a moment.
+      for _ in $(seq 1 30); do curl -s -m 2 -o /dev/null "$iss/keys" && break; sleep 0.5; done
+      try() { sample-token "$1" | runuser -u learner -- timeout 10 "$f" "$iss" "$aud" | head -n 1; }
+      [ "$(try good)" = "valid sub=ana" ] || { echo "the good sample token: $(try good | cut -c1-60)"; exit 0; }
+      [ "$(try expired)" = "invalid: expired" ] || { echo "the expired sample token: $(try expired | cut -c1-60)"; exit 0; }
+      [ "$(try other-audience)" = "invalid: audience" ] || { echo "the sample token for another API: $(try other-audience | cut -c1-60)"; exit 0; }
+      [ "$(try tampered)" = "invalid: signature" ] || { echo "the sample token that was changed: $(try tampered | cut -c1-60)"; exit 0; }
+      [ "$(try unsigned)" = "invalid: alg" ] || { echo "the unsigned sample token: $(try unsigned | cut -c1-60)"; exit 0; }
+      echo right
+    expect:
+      equals: right
+  - id: every-case
+    description: "On an issuer made up for this check, with its own keys, names and times, it gives the right line and the right exit status for every kind of token: good ones, and ones that fail each of the nine reasons."
+    timeout: 120
+    command: |
+      python3 /usr/local/lib/lab/token-cases run /home/learner/bin/check-token
+    expect:
+      matches: "^all [0-9]+ right$"
+  - id: every-case-again
+    description: "And again, with new keys, names and times, so nothing was right by luck."
+    timeout: 120
+    command: |
+      python3 /usr/local/lib/lab/token-cases run /home/learner/bin/check-token
+    expect:
+      matches: "^all [0-9]+ right$"

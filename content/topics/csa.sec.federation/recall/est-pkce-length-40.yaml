@@ -1,0 +1,30 @@
+id: est-pkce-length-40
+type: estimate
+rev: 1
+prompt: |
+  An app makes its PKCE verifier from 40 random bytes, written in base64url with the `=` padding dropped. Base64 writes every 3 bytes as 4 characters, and a last single byte as 2 characters and two `=`.
+
+  How many characters long is that verifier? Exactly.
+unit: characters
+answer: 54
+tolerance: { absolute: 0 }
+given: { bytes: 40 }
+working: ceil(bytes * 4 / 3)
+mistakes:
+  - id: padded
+    value: 56
+    working: ceil(bytes / 3) * 4
+    why: That is the length with the two `=` still on the end. Base64url for PKCE drops the padding.
+  - id: bytes
+    value: 40
+    working: bytes
+    why: That is the number of bytes. Written in base64, 3 bytes take 4 characters.
+  - id: hex
+    value: 80
+    working: bytes * 2
+    why: That would be hexadecimal, two characters a byte.
+explanation: |
+  39 of the 40 bytes make 13 full groups, 52 characters. The last byte makes 2 characters and two `=`, which are dropped: 54.
+
+  The standard allows a verifier of 43 to 128 characters (RFC 7636), so 54 is fine. Whatever the verifier's length, the S256 challenge made from it is always the same length, because a SHA-256 hash is always 32 bytes.
+skills: [choose-flow]

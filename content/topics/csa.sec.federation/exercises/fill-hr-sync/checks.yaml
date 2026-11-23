@@ -1,0 +1,82 @@
+# The first check is the scenario (hr-check): people of the check's own at
+# the identity provider, a staff file about them written as it runs, the
+# learner's connector run on it from the HR server, the result read back
+# through the admin API, a second run, and the check's people removed. It
+# leaves a line for each of the next five checks, which only read it. The
+# last two look at what the learner's own run on the shop's file left, and
+# at the scenery.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: connector-runs
+    description: "`~/bin/hr-sync`, run from the HR server on a staff file made for this check, about people made for this check, finishes without an error."
+    timeout: 240
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      rm -f /run/hr-check/verdicts
+      # The connector's own work is SCIM requests with curl: not the admin
+      # API, the realm file or the checks' tools.
+      if grep -E 'kcadm|idp-user|realm-apply|kcapi|admin\.env|hr-check|python|/admin/realms' /home/learner/bin/hr-sync > /dev/null 2>&1; then
+        echo "the connector hands its work to another tool: it should make its changes through the SCIM API, with curl"
+        exit 0
+      fi
+      python3 /usr/local/lib/shop/hr-check
+    expect:
+      equals: ran
+  - id: joiners-created
+    description: "Each joiner in that file has an account they can sign in with, with the file's name and email, in their team's group and no other."
+    command: |
+      awk '$1 == "joiners" { $1 = ""; print substr($0, 2); found = 1 } END { if (!found) print "the connector hasn\047t been run by the first check" }' /run/hr-check/verdicts 2> /dev/null || echo "the first check didn't run"
+    expect:
+      equals: ok
+  - id: movers-moved
+    description: "Someone whose team changed is in the new team's group and out of the old one, with the same account."
+    command: |
+      awk '$1 == "movers" { $1 = ""; print substr($0, 2); found = 1 } END { if (!found) print "the connector hasn\047t been run by the first check" }' /run/hr-check/verdicts 2> /dev/null || echo "the first check didn't run"
+    expect:
+      equals: ok
+  - id: leavers-switched-off
+    description: "A leaver's account is still there and can no longer sign in."
+    command: |
+      awk '$1 == "leavers" { $1 = ""; print substr($0, 2); found = 1 } END { if (!found) print "the connector hasn\047t been run by the first check" }' /run/hr-check/verdicts 2> /dev/null || echo "the first check didn't run"
+    expect:
+      equals: ok
+  - id: others-untouched
+    description: "Nobody else was changed: people the file says nothing new about, people who had already left, and accounts that aren't in the file at all."
+    command: |
+      awk '$1 == "untouched" { $1 = ""; print substr($0, 2); found = 1 } END { if (!found) print "the connector hasn\047t been run by the first check" }' /run/hr-check/verdicts 2> /dev/null || echo "the first check didn't run"
+    expect:
+      equals: ok
+  - id: second-run-writes-nothing
+    description: "Run a second time on the same file, the connector changes nothing at the identity provider."
+    command: |
+      awk '$1 == "again" { $1 = ""; print substr($0, 2); found = 1 } END { if (!found) print "the connector hasn\047t been run by the first check" }' /run/hr-check/verdicts 2> /dev/null || echo "the first check didn't run"
+    expect:
+      equals: ok
+  - id: shop-file-synced
+    description: "The shop's own accounts match `/srv/hr/staff.csv`: its joiners can sign in and are in their teams, its leaver is switched off and still there, and the person who changed team is in the new one only."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      who() { kc get "shop/users?username=$1&exact=true" | json "(lambda u: (str(u[0]['enabled']).lower() + ' ' + u[0]['id']) if u else 'none none')(d)"; }
+      teams() { kc get "shop/users/$1/groups" | json "' '.join(sorted(g['name'] for g in d))"; }
+      tail -n +2 /srv/hr/staff.csv | tr -d '\r' | while IFS=, read -r name first last email team status; do
+        read -r enabled id <<< "$(who "$name")"
+        if [ "$status" = left ]; then
+          [ "$enabled" = false ] || { echo "$name left, and their account is ${enabled/none/gone}"; exit 1; }
+        else
+          [ "$enabled" = true ] || { echo "$name has no account they can sign in with"; exit 1; }
+          [ "$(teams "$id")" = "$team" ] || { echo "$name isn't in the $team group and no other"; exit 1; }
+        fi
+      done && echo synced
+    expect:
+      equals: synced
+  - id: scenery-untouched
+    description: "The realm is the one its file builds, and the staff file is as the HR system wrote it."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      [ "$(intact)" = intact ] || { intact; exit 0; }
+      kc_saved shop
+    expect:
+      equals: saved

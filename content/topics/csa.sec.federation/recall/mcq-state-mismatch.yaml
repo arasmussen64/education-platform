@@ -1,0 +1,16 @@
+id: mcq-state-mismatch
+type: mcq
+rev: 1
+prompt: |
+  The orders site sent Ana's browser to the identity provider with `state=a41e9c07`. A moment later a request arrives at the site's callback address, from Ana's browser, with a code and `state=9f2c11d8`. What should the site do?
+choices:
+  - "Swap the code for tokens, and sign Ana in if the provider accepts the code"
+  - "Sign Ana in, and write a warning about the state to its own log"
+  - "Ask the provider's token endpoint whether that state is a valid one"
+  - "Refuse the answer, and send the browser to start the sign-in again"
+answer: 3
+explanation: |
+  The state ties an answer to the request this browser sent. An answer with another state didn't come from the sign-in Ana started: the likeliest reason is that someone planted a link in her browser carrying a code from their own sign-in, hoping the site would sign Ana in as them (a login CSRF), so that what she then types lands in their account. The site refuses and starts again.
+
+  Trying the code first misses the point: the code may be perfectly valid, for the attacker's sign-in. A warning in a log protects nobody. And the provider can't judge the state: it only echoes back what the request carried.
+skills: [trace-oidc]

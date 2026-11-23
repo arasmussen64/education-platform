@@ -1,0 +1,16 @@
+id: mcq-pkce-protects
+type: mcq
+rev: 1
+prompt: |
+  A phone app is a public client: it has no secret. Malware on the phone reads every redirect address, so it sees the authorization code the moment it arrives. Why can't the malware swap that code for tokens?
+choices:
+  - "The code is tied to the phone's IP address, which the malware can't use"
+  - "The provider takes a code only from the app's registered domain name"
+  - "It lacks the verifier, which the app made and has shown to nobody yet"
+  - "The code is encrypted with the app's public key, held by the provider"
+answer: 2
+explanation: |
+  PKCE. Before the sign-in the app made a random verifier and sent only its SHA-256 hash, the challenge, with the authorization request. The token endpoint hands out tokens only to a caller who presents the verifier that hashes to that challenge. The malware saw the challenge and the code, both of which crossed the front channel; the verifier never did, and a hash can't be run backwards.
+
+  A code isn't tied to an address or a domain name: the token request comes from wherever the app runs. And nothing in the code is encrypted for the app; it is a random reference to a sign-in the provider remembers.
+skills: [trace-oidc]

@@ -1,0 +1,22 @@
+id: locate-the-hop
+type: mcq
+rev: 1
+prompt: |
+  A sign-in through a command-line tool fails. The browser was sent back to the tool with a `code` and the right `state`. Then the tool printed the answer it got from the identity provider:
+
+  ```
+  {"error":"invalid_grant","error_description":"PKCE verification failed: Code mismatch"}
+  ```
+
+  and the provider's journal has a line with `type="CODE_TO_TOKEN_ERROR"` and `error="pkce_verification_failed"`. Which step of the flow failed?
+choices:
+  - "The sign-in page: the provider didn't accept the person's password"
+  - "The redirect back: the provider sent the browser to the wrong address"
+  - "The state check: the answer belonged to another browser's request"
+  - "The token request: the verifier sent doesn't match the challenge"
+answer: 3
+explanation: |
+  Read the evidence in order. A code came back, so the authorization request was accepted and the person signed in: the first three messages worked. The state matched, so the answer belongs to this request. What failed is the back-channel call that swaps the code for tokens: a JSON error from the token endpoint, and the provider's own name for the event, `CODE_TO_TOKEN_ERROR`. The provider hashed the verifier it was shown, compared it with the challenge that came with the sign-in request, and they differ.
+
+  For a real app the browser would show only a bare error page at the callback address. The reason is never in the browser for a back-channel failure: it is in the app's log and the provider's.
+skills: [trace-oidc]

@@ -1,0 +1,17 @@
+id: jwt-decode-header
+type: predict_shell
+rev: 1
+prompt: |
+  `header.txt` holds the first of the three pieces of an access token, captured in the worked example: everything before the token's first dot. The command pads it with `=` to a multiple of four characters, turns base64url's `-` and `_` back into `+` and `/`, and decodes it. What does it print?
+files:
+  header.txt: |
+    eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJvYjdzOUYwRFdTS2ZxSjJ2SkZZcGhXSVhkQXI2RUI3ODhWY2RPNW5MRXlNIn0
+command: |
+  h=$(cat header.txt); while [ $(( ${#h} % 4 )) -ne 0 ]; do h="$h="; done; printf '%s' "$h" | tr '_-' '/+' | base64 -d; echo
+expected_output: |
+  {"alg":"RS256","typ" : "JWT","kid" : "ob7s9F0DWSKfqJ2vJFYphWIXdAr6EB788VcdO5nLEyM"}
+explanation: |
+  A token's header is JSON, written in base64url: no encryption, no key, readable by anyone who holds the token. This one is exactly as the identity provider wrote it, odd spacing and all, which matters: the signature covers these bytes as they were sent, so a verifier never tidies them first.
+
+  Three fields. `alg` says how the token was signed: `RS256`, an RSA signature over a SHA-256 hash. `typ` says it is a JWT. `kid` is the name of the key that signed it, which a verifier looks up in the provider's published key set. A verifier reads `kid` to find the key, and treats `alg` only as something to compare with the one algorithm it expects.
+skills: [validate-token]

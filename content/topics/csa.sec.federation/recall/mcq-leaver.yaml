@@ -1,0 +1,16 @@
+id: mcq-leaver
+type: mcq
+rev: 1
+prompt: |
+  Ben's last day at the shop is Friday. What should provisioning do to his account in each app?
+choices:
+  - "Switch it off on Friday (`active` false), and delete it later, by policy"
+  - "Delete it on Friday, so that nothing of his is left behind in any app"
+  - "Take him out of all his groups on Friday, and leave the account as it is"
+  - "Leave it until it has gone unused for 90 days, then switch it off"
+answer: 0
+explanation: |
+  A leaver is deactivated the day they leave: a `PATCH` that sets `active` to false. From that moment he can't sign in, and nothing else is lost: the orders he approved still carry a name, an audit can still find him, and if HR made a mistake, one more `PATCH` puts it right. Deleting comes much later, when policy says his records may go. Microsoft Entra works this way: a removed person is disabled in each app at once, and the `DELETE` is sent only when the account is removed for good, 30 days later (read 2026-11-22).
+
+  Deleting on Friday loses the history and can't be undone. Emptying his groups leaves an account that can still sign in, to every app that lets any signed-in person through. Waiting for 90 quiet days gives a former employee three months of access.
+skills: [scim-provisioning]

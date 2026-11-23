@@ -1,0 +1,16 @@
+id: mcq-unknown-kid
+type: mcq
+rev: 1
+prompt: |
+  An API fetched the identity provider's key set an hour ago and kept it. A token arrives whose header names a `kid` that isn't in the copy. What should the API do?
+choices:
+  - "Try each key it has, and serve the token if any of them verifies it"
+  - "Refuse the token at once, and page whoever is on call"
+  - "Fetch the key set again, once; refuse if the key still isn't there"
+  - "Serve the token if its issuer and its audience are the right ones"
+answer: 2
+explanation: |
+  The usual reason for an unknown `kid` is ordinary: the provider has started signing with a new key since the API last looked. So the API fetches the key set again, once. If the key is there now, it carries on with the signature check. If it still isn't, no key the provider publishes signed this token, and it is refused.
+
+  Refusing at once turns every key rotation into an outage for as long as the copy is kept. Trying every key ignores what `kid` is for, and can't succeed anyway when the right key isn't among them. And issuer and audience are only claims inside the token: without a verified signature anyone could have written them.
+skills: [validate-token]

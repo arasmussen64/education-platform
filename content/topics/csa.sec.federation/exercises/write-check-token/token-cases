@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+"""token-cases: the write lab's issuer and its test cases. The checks' tool
+and the lab's scenery: it makes tokens and never judges one, so it is no
+help to a script that must decide for itself.
+
+  token-cases serve PORT        the practice issuer: keys made now, a discovery
+                                document and a key set on 127.0.0.1:PORT
+  token-cases sample KIND       a token from the practice issuer (see KINDS)
+  token-cases run SCRIPT        the check: an issuer of its own, on a port of
+                                its own, with keys, names and times made up
+                                now; runs SCRIPT (as the learner) on every
+                                case, in a random order; prints "all N right"
+                                or the first case SCRIPT got wrong
+
+Python's standard library and the openssl command only.
+"""
+
+import base64
+import hashlib
+import hmac
+import http.server
+import json
+import os
+import random
+import secrets
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+
+STATE = "/var/lib/lab/issuer"
+PRACTICE_PATH = "/realms/practice"
+PRACTICE_AUDIENCE = "https://stock.shop.test"
+
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def openssl(*args, data=None):
+    return subprocess.run(
+        ["openssl", *args], input=data, capture_output=True, check=True
+    ).stdout
+
+
+class Key:
+    """An RSA key with a self-signed certificate, as an issuer publishes it."""
+
+    def __init__(self, folder, name):
+        self.kid = name
+        self.path = os.path.join(folder, name + ".key")
+        self.crt = os.path.join(folder, name + ".crt")
+        if not os.path.exists(self.path):
+            openssl("genrsa", "-out", self.path, "2048")
+            openssl(
+                "req",
+                "-x509",
+                "-new",
+                "-key",
+                self.path,
+                "-subj",
+                f"/CN={name}",
+                "-days",
+                "30",
+                "-out",
+                self.crt,
+            )
+
+    def sign(self, text):
+        return openssl("dgst", "-sha256", "-sign", self.path, data=text.encode())
+
+    def public_pem(self):
+        return openssl("x509", "-in", self.crt, "-pubkey", "-noout")
+
+    def jwk(self):
+        pem = open(self.crt).read()
+        body = "".join(line for line in pem.splitlines() if "-----" not in line)
+        modulus = (
+            openssl("x509", "-in", self.crt, "-noout", "-modulus")
+            .decode()
+            .strip()
+            .split("=", 1)[1]
+        )
+        return {
+            "kid": self.kid,
+            "kty": "RSA",
+            "alg": "RS256",
+            "use": "sig",
+            "n": b64url(bytes.fromhex(modulus)),
+            "e": "AQAB",
+            "x5c": [body],
+        }
+
+
+def token(key, header, payload, sign="rs256", secret=b""):
+    signed = (
+        b64url(json.dumps(header).encode()) + "." + b64url(json.dumps(payload).encode())
+    )
+    if sign == "none":
+        return signed + "."
+    if sign == "hmac":
+        return (
+            signed
+            + "."
+            + b64url(hmac.new(secret, signed.encode(), hashlib.sha256).digest())
+        )
+    return signed + "." + b64url(key.sign(signed))
+
+
+def serve(port, path, keys, others=()):
+    """An issuer's two public documents, on 127.0.0.1:port. With others, a
+    second key set at /elsewhere/keys, which is no issuer's: the place a
+    forged token's own header points to."""
+    issuer = f"http://127.0.0.1:{port}{path}"
+    documents = {
+        path + "/.well-known/openid-configuration": {
+            "issuer": issuer,
+            "jwks_uri": issuer + "/keys",
+        },
+        path + "/keys": {"keys": [key.jwk() for key in keys]},
+    }
+    if others:
+        documents["/elsewhere/keys"] = {"keys": [key.jwk() for key in others]}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            found = documents.get(self.path)
+            body = json.dumps(
+                found if found is not None else {"error": "not found"}
+            ).encode()
+            self.send_response(200 if found is not None else 404)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    return issuer, server
+
+
+def practice_keys():
+    os.makedirs(STATE, exist_ok=True)
+    return [Key(STATE, "practice-2025"), Key(STATE, "practice-2026")]
+
+
+KINDS = {
+    "good": "a valid token",
+    "expired": "one that ran out ten minutes ago",
+    "other-audience": "a valid token for another API",
+    "tampered": "a token whose payload was changed after it was signed",
+    "unsigned": 'one with "alg": "none" and no signature',
+}
+
+
+def sample(kind):
+    if kind not in KINDS:
+        sys.exit(
+            "token-cases sample KIND, where KIND is one of:\n"
+            + "\n".join(f"  {k:15} {v}" for k, v in KINDS.items())
+        )
+    port = int(open(os.path.join(STATE, "port")).read())
+    key = practice_keys()[1]
+    now = int(time.time())
+    header = {"alg": "RS256", "typ": "JWT", "kid": key.kid}
+    payload = {
+        "iss": f"http://127.0.0.1:{port}{PRACTICE_PATH}",
+        "sub": "ana",
+        "aud": PRACTICE_AUDIENCE,
+        "iat": now,
+        "exp": now + 300,
+        "nonce": "n-0S6_WzA2Mj",
+    }
+    if kind == "expired":
+        payload.update(iat=now - 900, exp=now - 600)
+    if kind == "other-audience":
+        payload["aud"] = "https://payroll.shop.test"
+    if kind == "unsigned":
+        header["alg"] = "none"
+        print(token(key, header, payload, sign="none"))
+        return
+    made = token(key, header, payload)
+    if kind == "tampered":
+        first, _, signature = made.split(".")
+        payload["sub"] = "ben"
+        made = first + "." + b64url(json.dumps(payload).encode()) + "." + signature
+    print(made)
+
+
+def cases(issuer, audience, published, hidden, other_keys_uri):
+    """(what the case is, a function that makes the token when it is called,
+    the nonce argument or None). The function returns the token and the line
+    a right script prints. Tokens are made one at a time, just before each is
+    put to the script, so their times are right however slow the machine is.
+    Subjects, audiences and nonces are made up now."""
+    old, new = published
+    out = []
+
+    def add(
+        what,
+        expect,
+        key=new,
+        nonce_arg=None,
+        sign="rs256",
+        header=None,
+        raw=None,
+        **claims,
+    ):
+        """A claim given as ("now", SECONDS) is a time: now plus that many."""
+
+        def make():
+            now = int(time.time())
+            sub = "u" + secrets.token_hex(4)
+            head = {"alg": "RS256", "typ": "JWT", "kid": key.kid}
+            head.update(header or {})
+            payload = {
+                "iss": issuer,
+                "sub": sub,
+                "aud": audience,
+                "iat": now - 5,
+                "exp": now + 300,
+            }
+            for name, value in claims.items():
+                if isinstance(value, tuple) and value[0] == "now":
+                    value = now + value[1]
+                payload[name] = value
+            payload = {k: v for k, v in payload.items() if v is not None}
+            secret = new.public_pem() if sign == "hmac" else b""
+            made = token(key, head, payload, sign=sign, secret=secret)
+            if raw is not None:
+                made = raw(made, payload)
+            want = f"valid sub={sub}" if expect == "valid" else f"invalid: {expect}"
+            return made, want
+
+        out.append((what, make, nonce_arg))
+
+    other = "https://" + secrets.token_hex(4) + ".shop.test"
+    nonce = secrets.token_hex(8)
+    add("a good token, signed with the issuer's newer key", "valid")
+    add(
+        "a good token, signed with the issuer's older key, which is still published",
+        "valid",
+        key=old,
+    )
+    add(
+        "a good token whose audience is a list that includes yours",
+        "valid",
+        aud=[other, audience],
+    )
+    add(
+        "a good token whose audience is a list that doesn't include yours",
+        "audience",
+        aud=[other, other + "/v2"],
+    )
+    add("a good token for another audience", "audience", aud=other)
+    add(
+        "a good token for an audience that only starts with yours",
+        "audience",
+        aud=audience + "-admin",
+    )
+    add("a token that ran out 30 seconds ago", "valid", exp=("now", -30))
+    add(
+        "a token that ran out 90 seconds ago",
+        "expired",
+        iat=("now", -400),
+        exp=("now", -90),
+    )
+    add(
+        "a token that ran out five minutes ago",
+        "expired",
+        iat=("now", -900),
+        exp=("now", -300),
+    )
+    add("a token that becomes valid in 30 seconds", "valid", nbf=("now", 30))
+    add(
+        "a token that becomes valid in 90 seconds",
+        "not-yet-valid",
+        nbf=("now", 90),
+    )
+    add(
+        "a token that becomes valid in five minutes",
+        "not-yet-valid",
+        nbf=("now", 300),
+    )
+    add(
+        "a token with no nbf, issued five minutes from now",
+        "not-yet-valid",
+        iat=("now", 300),
+        exp=("now", 900),
+    )
+    add(
+        "a good token that carries the nonce you were given",
+        "valid",
+        nonce_arg=nonce,
+        nonce=nonce,
+    )
+    add(
+        "a good token that carries another nonce than the one you were given",
+        "nonce",
+        nonce_arg=nonce,
+        nonce=secrets.token_hex(8),
+    )
+    add("a good token with no nonce, when you were given one", "nonce", nonce_arg=nonce)
+    add(
+        "a good token that carries a nonce, when you were given none",
+        "valid",
+        nonce=secrets.token_hex(8),
+    )
+    add(
+        "a token from an issuer whose name only starts with yours",
+        "issuer",
+        iss=issuer + "-test",
+    )
+    add(
+        "a token from another issuer, which has also run out",
+        "issuer",
+        iss=issuer.replace("127.0.0.1", "127.0.0.2"),
+        exp=("now", -300),
+    )
+    add(
+        "a token signed by a key the issuer never published, under a name it never published",
+        "key",
+        key=hidden,
+    )
+    # The token brings its own key: the address of a key set that does hold
+    # the key that signed it (jku), and that key's certificate (x5c). Both
+    # are only the token's word. The key set to believe is the issuer's.
+    add(
+        "a token signed by an unpublished key, which its own header carries and points to",
+        "key",
+        key=hidden,
+        header={"jku": other_keys_uri, "x5c": hidden.jwk()["x5c"]},
+    )
+    add(
+        "a token that names a published key and was signed by another",
+        "signature",
+        key=hidden,
+        header={"kid": new.kid},
+    )
+    add(
+        "a token with no signature, whose header says none",
+        "alg",
+        sign="none",
+        header={"alg": "none"},
+    )
+    add("a token whose header says HS256", "alg", sign="hmac", header={"alg": "HS256"})
+
+    def changed(made, payload):
+        first, _, signature = made.split(".")
+        payload = dict(payload, sub="admin")
+        return first + "." + b64url(json.dumps(payload).encode()) + "." + signature
+
+    add(
+        "a token whose payload was changed after it was signed",
+        "signature",
+        raw=changed,
+    )
+    add(
+        "a line that isn't a token at all",
+        "format",
+        raw=lambda made, payload: "hello-" + secrets.token_hex(6),
+    )
+    add(
+        "a token with only two parts",
+        "format",
+        raw=lambda made, payload: ".".join(made.split(".")[:2]),
+    )
+    random.shuffle(out)
+    return out
+
+
+def run(script):
+    if not os.path.isfile(script):
+        print(f"there is no {script}")
+        return 0
+    with tempfile.TemporaryDirectory() as folder:
+        names = ["k" + secrets.token_hex(3) for _ in range(3)]
+        keys = [Key(folder, name) for name in names]
+        published, hidden = keys[:2], keys[2]
+        in_set = published[:]
+        random.shuffle(in_set)
+        # Below 32768: Linux hands out its own ports from there up.
+        for _ in range(20):
+            port = random.randint(20000, 29999)
+            try:
+                issuer, server = serve(
+                    port, "/realms/" + secrets.token_hex(4), in_set, [hidden]
+                )
+                break
+            except OSError:
+                continue
+        else:
+            print("the check couldn't start its issuer")
+            return 0
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        audience = "https://" + secrets.token_hex(4) + ".shop.test"
+        elsewhere = f"http://127.0.0.1:{port}/elsewhere/keys"
+        all_cases = cases(issuer, audience, published, hidden, elsewhere)
+        for what, make, nonce in all_cases:
+            made, want = make()
+            args = ["runuser", "-u", "learner", "--", script, issuer, audience] + (
+                [nonce] if nonce else []
+            )
+            try:
+                done = subprocess.run(
+                    args,
+                    input=made + "\n",
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd="/home/learner",
+                )
+            except subprocess.TimeoutExpired:
+                print(f"on {what}: the script was still running after 10 seconds")
+                return 0
+            except OSError as error:
+                print(f"the script couldn't be run: {error}")
+                return 0
+            said = done.stdout.strip()
+            if said != want:
+                shown = said.splitlines()[0][:80] if said else "(nothing)"
+                kind = "valid sub=..." if want.startswith("valid") else want
+                print(
+                    f"on {what}: the script printed '{shown}', where '{kind}' was expected"
+                )
+                return 0
+            if (done.returncode == 0) != want.startswith("valid"):
+                print(
+                    f"on {what}: the script printed the right line and exited {done.returncode}"
+                )
+                return 0
+        server.shutdown()
+        print(f"all {len(all_cases)} right")
+    return 0
+
+
+def main(argv):
+    if len(argv) == 3 and argv[1] == "serve":
+        port = int(argv[2])
+        keys = practice_keys()
+        for name in os.listdir(STATE):
+            os.chmod(os.path.join(STATE, name), 0o644)
+        open(os.path.join(STATE, "port"), "w").write(str(port))
+        _, server = serve(port, PRACTICE_PATH, keys)
+        server.serve_forever()
+    if len(argv) == 3 and argv[1] == "sample":
+        sample(argv[2])
+        return 0
+    if len(argv) == 3 and argv[1] == "run":
+        return run(argv[2])
+    sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

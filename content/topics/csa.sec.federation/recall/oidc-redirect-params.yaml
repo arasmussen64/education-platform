@@ -1,0 +1,20 @@
+id: oidc-redirect-params
+type: predict_shell
+rev: 1
+prompt: |
+  Ana has just typed her password at the identity provider, and the provider answered her browser with a redirect. `location.txt` holds that answer's `Location` header, captured in the worked example. The command cuts the address at its `?` and its `&`s, drops the part before the `?`, and keeps each parameter's name. What does it print?
+files:
+  location.txt: |
+    http://127.0.0.1:8400/callback?state=274e1b4c657cf0b1&session_state=ErZLsJvUsqPnXyAhxb2nI_Gr&iss=https%3A%2F%2Flogin.shop.test%2Frealms%2Fshop&code=2e57e1d6-46fa-5d49-e6cf-85b28f258091.ErZLsJvUsqPnXyAhxb2nI_Gr.cc83f486-ecc1-4915-9301-8d8c42faf1bd
+command: |
+  tr '?&' '\n\n' < location.txt | tail -n +2 | cut -d= -f1
+expected_output: |
+  state
+  session_state
+  iss
+  code
+explanation: |
+  Four parameters ride back to the app on the browser's redirect. `state` is the random value the app sent with its request: the app compares the two, and an answer with another state belongs to a sign-in this browser never started. `session_state` is the provider's name for Ana's session there. `iss` says which provider is answering, for an app that uses more than one. `code` is the authorization code.
+
+  No token is in the address. The code is useless by itself to anyone who reads this line: it works once, for about a minute, and only together with the PKCE verifier, which never left the app. The tokens come next, on the back channel.
+skills: [trace-oidc]

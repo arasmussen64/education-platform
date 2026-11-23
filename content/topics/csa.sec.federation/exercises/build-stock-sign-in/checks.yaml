@@ -1,0 +1,210 @@
+# Real sign-ins from the office laptop and the job's own run; the two
+# clients as the running identity provider has them, with redirect
+# addresses, secrets and people made up as the check runs; tokens the
+# check gets or makes itself, put to the API; and the lasting places (the
+# realm files, the API's own files, the sealed scenery). Keycloak answers
+# before the boot counts as finished; the checks that need an Apache wait
+# a few seconds for it.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: site-client-narrow
+    description: "The stock site's client has the one way of getting tokens that a web app with a signed-in person needs and none of the others, and has to prove who it is: a token request for it without the right secret is refused."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      got=$(kc get 'shop/clients?clientId=stock-web' 2> /dev/null | json "(lambda c: [c.get('standardFlowEnabled'), c.get('implicitFlowEnabled'), c.get('directAccessGrantsEnabled'), c.get('serviceAccountsEnabled'), c.get('attributes', {}).get('oauth2.device.authorization.grant.enabled', 'false'), c.get('publicClient')])(d[0])" 2> /dev/null)
+      case $got in "["*) ;; *) echo "the running realm has no client called stock-web"; exit 0 ;; esac
+      [ "$got" = '[true, false, false, false, "false", false]' ] || { echo "the site's client isn't as narrow as that"; exit 0; }
+      redirect=$(client_field shop stock-web "(d.get('redirectUris') or [''])[0]")
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      got=$(on office signin --code stock-web "$redirect" https://login.shop.test/realms/shop ben --secret="wrong$r" | tail -n 1)
+      case $got in "refused at the token endpoint"*) echo narrow ;; *) echo "a token request with a wrong secret: ${got:0:80}" ;; esac
+    expect:
+      equals: narrow
+  - id: site-redirect-exact
+    description: "The identity provider sends a sign-in for the stock site back to one address on the site and nowhere else."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      uris=$(client_field shop stock-web "' '.join(d.get('redirectUris') or [])" 2> /dev/null)
+      case $uris in
+        "json: "*) echo "the running realm has no client called stock-web"; exit 0 ;;
+        "https://stock.shop.test/"*" "* | *"*"* | "") echo "registered: ${uris:-nothing}"; exit 0 ;;
+        "https://stock.shop.test/"?*) ;;
+        *) echo "registered: $uris"; exit 0 ;;
+      esac
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      for other in "$uris/x$r" "https://stock.shop.test/other$r" "https://stock$r.shop.test/${uris#https://stock.shop.test/}" "https://evil$r.test/${uris#https://stock.shop.test/}"; do
+        got=$(on office signin --code stock-web "$other" https://login.shop.test/realms/shop ben --secret=x | tail -n 1)
+        case $got in "refused: Invalid parameter: redirect_uri"*) ;; *) echo "$other was not refused: ${got:0:80}"; exit 0 ;; esac
+      done
+      echo exact
+    expect:
+      equals: exact
+  - id: site-code-protected
+    description: "The identity provider refuses to start a sign-in for the stock site unless the request protects its code the strong way."
+    timeout: 20
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      redirect=$(client_field shop stock-web "(d.get('redirectUris') or [''])[0]" 2> /dev/null)
+      auth="https://login.shop.test/realms/shop/protocol/openid-connect/auth?client_id=stock-web&response_type=code&scope=openid&redirect_uri=$redirect&state=s"
+      ask() { on office curl -s -m 10 -o /dev/null -w '%{http_code} %{redirect_url}' "$auth$1"; }
+      v=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+      c=$(printf '%s' "$v" | openssl dgst -sha256 -binary | base64 -w0 | tr '+/' '-_' | tr -d '=')
+      good=$(ask "&code_challenge=$c&code_challenge_method=S256")
+      [ "${good%% *}" = 200 ] || { echo "a well-made sign-in request didn't reach the sign-in page"; exit 0; }
+      for weak in "" "&code_challenge=$v&code_challenge_method=plain" "&code_challenge=$v"; do
+        got=$(ask "$weak")
+        case $got in "302 "*error=invalid_request*) ;; *) echo "a request with weaker protection, or none, was accepted"; exit 0 ;; esac
+      done
+      echo required
+    expect:
+      equals: required
+  - id: warehouse-signs-in
+    description: "Ben, who works in the warehouse, signs in to the stock site from the office laptop and it knows him; so does a warehouse worker made up for this check."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      wait_for 15 on office curl -s -m 2 -o /dev/null https://stock.shop.test/
+      got=$(on office signin https://stock.shop.test/stock/me ben)
+      echo "$got" | grep -x 'user=ben' > /dev/null || { echo "ben: $(echo "$got" | tail -n 1 | cut -c1-100)"; exit 0; }
+      echo "$got" | grep '^typed the password at https://login.shop.test' > /dev/null || { echo "ben reached the page without signing in at the identity provider"; exit 0; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      trap 'idp-user del shop chk-w$r > /dev/null 2>&1' EXIT
+      idp-user add shop "chk-w$r" "pw$r$r" warehouse > /dev/null
+      got=$(on office signin https://stock.shop.test/stock/me "chk-w$r" --password "pw$r$r")
+      echo "$got" | grep -x "user=chk-w$r" > /dev/null || { echo "a new warehouse worker: $(echo "$got" | tail -n 1 | cut -c1-100)"; exit 0; }
+      echo in
+    expect:
+      equals: in
+  - id: others-refused
+    description: "Ana, who isn't in the warehouse group, signs in at the identity provider and is still refused by the stock site; so is someone made up for this check who is in no group; and any address under `/stock/` sends someone who hasn't signed in to the identity provider."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      got=$(on office signin https://stock.shop.test/stock/me ana | tail -n 1)
+      case $got in "refused: 401"*) ;; *) echo "ana: ${got:0:100}"; exit 0 ;; esac
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      got=$(on office curl -s -m 5 -o /dev/null -w '%{http_code} %{redirect_url}' -H 'Accept: text/html' "https://stock.shop.test/stock/x$r")
+      case $got in "302 https://login.shop.test/realms/shop/"*) ;; *) echo "another address under /stock/ doesn't ask for a sign-in: it answered ${got%% *}"; exit 0 ;; esac
+      trap 'idp-user del shop chk-n$r > /dev/null 2>&1' EXIT
+      idp-user add shop "chk-n$r" "pw$r$r" > /dev/null
+      got=$(on office signin https://stock.shop.test/stock/me "chk-n$r" --password "pw$r$r" | tail -n 1)
+      case $got in "refused: 401"*) echo refused ;; *) echo "someone in no group: ${got:0:100}" ;; esac
+    expect:
+      equals: refused
+  - id: job-reorders
+    description: "The nightly job, run on the jobs server, gets a token as itself and the stock API places its reorder."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      wait_for 10 on office curl -s -m 2 -o /dev/null https://api.shop.test/
+      got=$(on jobs reorder | tail -n 1)
+      [ "$got" = "reorder: placed as reorder-job" ] && echo placed || echo "the job: ${got:0:100}"
+    expect:
+      equals: placed
+  - id: job-client-narrow
+    description: "The job's client can get tokens only as itself, with its secret: it has no way that involves a person or a browser."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      got=$(kc get 'shop/clients?clientId=reorder-job' 2> /dev/null | json "(lambda c: [c.get('serviceAccountsEnabled'), c.get('standardFlowEnabled'), c.get('implicitFlowEnabled'), c.get('directAccessGrantsEnabled'), c.get('attributes', {}).get('oauth2.device.authorization.grant.enabled', 'false'), c.get('publicClient')])(d[0])" 2> /dev/null)
+      case $got in "["*) ;; *) echo "the running realm has no client called reorder-job"; exit 0 ;; esac
+      [ "$got" = '[true, false, false, false, "false", false]' ] || { echo "the job's client isn't as narrow as that"; exit 0; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      got=$(on office curl -s -m 10 https://login.shop.test/realms/shop/protocol/openid-connect/token -d grant_type=client_credentials -d client_id=reorder-job -d "client_secret=wrong$r" | json "d.get('error', 'a token')")
+      [ "$got" = unauthorized_client ] || { echo "a token request for the job with a wrong secret got: $got"; exit 0; }
+      # Each client has the secret made for it: the job's client takes
+      # REORDER_JOB_SECRET's value, and not the stock site's.
+      ask() { on office curl -s -m 10 https://login.shop.test/realms/shop/protocol/openid-connect/token -d grant_type=client_credentials -d client_id=reorder-job -d "client_secret=$(secret_of "$1")" | json "'a token' if d.get('access_token') else d.get('error', 'no answer')"; }
+      [ "$(ask REORDER_JOB_SECRET)" = "a token" ] || { echo "the job's client doesn't take the secret made for it (REORDER_JOB_SECRET)"; exit 0; }
+      [ "$(ask STOCK_WEB_SECRET)" = unauthorized_client ] && echo narrow || echo "the job's client takes the stock site's secret: each client needs a secret of its own"
+    expect:
+      equals: narrow
+  - id: api-refuses-the-rest
+    description: "The stock API refuses a request with no token anywhere under `/stock/`, a token signed by anyone else, a token with no signature, the identity provider's token for another audience (the stock site's own), and a token from another issuer that signs with the same key."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop
+      ask() { on office curl -s -m 5 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $1" https://api.shop.test/stock/reorder; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      [ "$(on office curl -s -m 5 -o /dev/null -w '%{http_code}' https://api.shop.test/stock/reorder)" = 401 ] || { echo "a request with no token didn't get 401"; exit 0; }
+      [ "$(on office curl -s -m 5 -o /dev/null -w '%{http_code}' "https://api.shop.test/stock/x$r")" = 401 ] || { echo "a request with no token, for another address under /stock/, didn't get 401"; exit 0; }
+      [ "$(ask "$(mint-token --iss=$iss --aud=https://api.shop.test)")" = 401 ] || { echo "a token signed by someone else was served"; exit 0; }
+      [ "$(ask "$(mint-token --iss=$iss --aud=https://api.shop.test --alg=none)")" = 401 ] || { echo "an unsigned token was served"; exit 0; }
+      other=$(on office curl -s -m 10 https://login.shop.test/realms/partners/protocol/openid-connect/token -d grant_type=client_credentials -d client_id=supplier-portal -d "client_secret=$(secret_of SUPPLIER_PORTAL_SECRET)" | json "d['access_token']")
+      case $other in ey*) ;; *) echo "the check couldn't get a token from the partners realm"; exit 0 ;; esac
+      [ "$(ask "$other")" = 401 ] || { echo "a token from another issuer was served"; exit 0; }
+      redirect=$(client_field shop stock-web "(d.get('redirectUris') or [''])[0]" 2> /dev/null)
+      site=$(on office signin --code stock-web "$redirect" $iss ben --secret="$(secret_of STOCK_WEB_SECRET)" | json "d['access_token']")
+      case $site in ey*) ;; *) echo "the check couldn't finish a sign-in of its own through stock-web"; exit 0 ;; esac
+      [ "$(ask "$site")" = 401 ] || { echo "the stock site's own token, which isn't for the API, was served"; exit 0; }
+      echo refused
+    expect:
+      equals: refused
+  - id: api-checks-every-token
+    description: "The stock API serves a token only when it is for the API and still valid, whoever it was issued to: it refuses tokens that carry the identity provider's own signature and the job's own name but another audience, a longer audience that starts with the API's, another issuer's name, or a time that has run out; and it serves a token signed with either of the provider's published keys."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      # The check takes the job's own token and signs changed copies of it
+      # with the realm's own key (resign-token): tokens the provider could
+      # have issued and never did, which no real client could ask for.
+      ask() { on office curl -s -m 5 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $1" https://api.shop.test/stock/reorder; }
+      job=$(on office curl -s -m 10 https://login.shop.test/realms/shop/protocol/openid-connect/token -d grant_type=client_credentials -d client_id=reorder-job -d "client_secret=$(secret_of REORDER_JOB_SECRET)" | json "d['access_token']" 2> /dev/null)
+      case $job in ey*) ;; *) echo "the check couldn't get a token for reorder-job with its own secret"; exit 0 ;; esac
+      again() { echo "$job" | python3 /usr/local/lib/shop/resign-token "$@"; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      [ "$(ask "$job")" = 200 ] || { echo "the job's own token was refused"; exit 0; }
+      [ "$(ask "$(again)")" = 200 ] || { echo "a copy of the job's token, signed with the provider's key, was refused"; exit 0; }
+      [ "$(ask "$(again --key 2025)")" = 200 ] || { echo "a token signed with the provider's other published key was refused"; exit 0; }
+      [ "$(ask "$(again --set "aud=\"https://x$r.shop.test\"")")" = 401 ] || { echo "a token the provider's key signed for another API, issued to the job, was served"; exit 0; }
+      [ "$(ask "$(again --set "aud=\"https://api.shop.test-$r\"")")" = 401 ] || { echo "a token for an audience that only starts with the API's was served"; exit 0; }
+      [ "$(ask "$(again --drop aud)")" = 401 ] || { echo "a token with no audience at all was served"; exit 0; }
+      [ "$(ask "$(again --set "iss=\"https://login.shop.test/realms/shop-$r\"")")" = 401 ] || { echo "a token from an issuer whose name only starts with the shop's was served"; exit 0; }
+      [ "$(ask "$(again --set iat=now-600 --set exp=now-300)")" = 401 ] || { echo "a token that ran out five minutes ago was served"; exit 0; }
+      echo checked
+    expect:
+      equals: checked
+  - id: api-keys-by-address
+    description: "The stock API checks signatures with the keys the identity provider publishes, fetched from the provider's own address, and in no other way."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      files=$(on api bash -c '. /etc/apache2/envvars; apache2 -t -D DUMP_INCLUDES' 2> /dev/null | grep -o '/etc/apache2/[^ ]*')
+      [ -n "$files" ] || { echo "the API's Apache files don't load"; exit 0; }
+      lines=$(for f in $files; do on api cat "$f"; done | tr -d '\r' | grep -i '^[[:space:]]*OAuth2TokenVerify' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\{1,\}/ /g' | sort -u)
+      [ -n "$lines" ] || { echo "the API checks no signature at all"; exit 0; }
+      [ "$lines" = "OAuth2TokenVerify jwks_uri https://login.shop.test/realms/shop/protocol/openid-connect/certs" ] && echo published || echo "the API has another way of checking a signature than the provider's published keys"
+    expect:
+      equals: published
+  - id: secrets-private
+    description: "Each client's secret is where its own program reads it, in a file only root can read, and in no file anyone else can."
+    timeout: 15
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      for name in STOCK_WEB_SECRET REORDER_JOB_SECRET; do
+        secret=$(secret_of "$name")
+        # Every machine's files, the realm files among them: a realm file
+        # names a secret as ${NAME} and never holds its value.
+        leak=$(grep -rlF "$secret" /etc/netns /home/learner /tmp /var/tmp /srv 2> /dev/null | while read -r file; do [ -n "$(find "$file" -perm /044)" ] && echo "$file"; done | head -n 1)
+        [ -z "$leak" ] || { echo "a client's secret is in a file others can read: ${leak#/etc/netns/}"; exit 0; }
+      done
+      f=/etc/netns/jobs/reorder/client
+      case $(stat -c '%a %U' "$f" 2> /dev/null) in
+        "600 root" | "400 root") ;;
+        *) echo "the job's file can be read by others than root, or isn't there"; exit 0 ;;
+      esac
+      grep -rlF "$(secret_of STOCK_WEB_SECRET)" /etc/netns/stock/apache2 > /dev/null 2>&1 || { echo "the site has no copy of its client's secret"; exit 0; }
+      echo private
+    expect:
+      equals: private
+  - id: realm-saved
+    description: "Each running realm is the one its file builds, so both clients are still there after the next apply, and the lab's scenery is as it was."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      [ "$(intact)" = intact ] || { intact; exit 0; }
+      [ "$(kc_saved partners 2>&1)" = saved ] || { echo "the partners realm was changed"; exit 0; }
+      kc_saved shop 2>&1
+    expect:
+      equals: saved

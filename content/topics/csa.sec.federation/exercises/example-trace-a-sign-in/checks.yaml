@@ -1,0 +1,89 @@
+# The worked example's checks: what the walkthrough saved, checked against
+# the identity provider itself, and the one thing it mends (app's clock).
+# Keycloak answers before the boot counts as finished, so no check waits for
+# it; the sign-in check waits a few seconds for Apache, which starts after.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: issuer-saved
+    description: "`~/example/issuer.txt` holds the issuer the identity provider's discovery document names."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      want=$(on office curl -s -m 10 https://login.shop.test/realms/shop/.well-known/openid-configuration | json "d['issuer']")
+      [ -s /home/learner/example/issuer.txt ] || { echo "there is no issuer.txt yet"; exit 0; }
+      [ -n "$want" ] && [ "$(tr -d '\r\n ' < /home/learner/example/issuer.txt)" = "$want" ] && echo same || echo "issuer.txt doesn't hold the discovery document's issuer"
+    expect:
+      equals: same
+  - id: pkce-pair
+    description: "`challenge.txt` is the S256 challenge of the verifier in `verifier.txt`, and the verifier is 43 to 128 characters long."
+    command: |
+      cd /home/learner/example || exit 0
+      [ -s verifier.txt ] && [ -s challenge.txt ] || { echo "verifier.txt or challenge.txt is missing"; exit 0; }
+      v=$(tr -d '\r\n' < verifier.txt)
+      [ ${#v} -ge 43 ] && [ ${#v} -le 128 ] || { echo "the verifier is ${#v} characters long"; exit 0; }
+      want=$(printf '%s' "$v" | openssl dgst -sha256 -binary | base64 -w0 | tr '+/' '-_' | tr -d '=')
+      [ "$(tr -d '\r\n' < challenge.txt)" = "$want" ] && echo pair || echo "challenge.txt isn't the SHA-256 of verifier.txt in base64url"
+    expect:
+      equals: pair
+  - id: id-token-saved
+    description: "`id-token.jwt` is an ID token the identity provider signed, for the client `trace-cli`, in answer to the request that carried the nonce in `nonce.txt`."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      cd /home/learner/example || exit 0
+      [ -s id-token.jwt ] && [ -s nonce.txt ] || { echo "id-token.jwt or nonce.txt is missing"; exit 0; }
+      # A year of leeway: the token was right when it was saved, and this
+      # check may run long after its five minutes are over.
+      got=$(on office jwt verify --issuer=https://login.shop.test/realms/shop --audience=trace-cli --nonce="$(tr -d '\r\n' < nonce.txt)" --leeway=31536000 "$PWD/id-token.jwt")
+      case $got in "valid sub="*) echo valid ;; *) echo "the saved token is $got" ;; esac
+    expect:
+      equals: valid
+  - id: assertion-saved
+    description: "`response.xml` is a SAML response whose assertion the identity provider signed, about Ana, for the HR pages."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      cd /home/learner/example || exit 0
+      [ -s response.xml ] || { echo "there is no response.xml yet"; exit 0; }
+      for crt in /etc/netns/idp/keycloak/keys/shop/*.crt; do
+        [ -e "${crt%.crt}.passive" ] || signing=$crt
+      done
+      xmlsec1 --verify --pubkey-cert-pem "$signing" --id-attr:ID urn:oasis:names:tc:SAML:2.0:assertion:Assertion response.xml > /dev/null 2>&1 \
+        || { echo "the assertion's signature doesn't verify with the identity provider's key"; exit 0; }
+      grep '<saml:Audience>https://app.shop.test/hr</saml:Audience>' response.xml > /dev/null || { echo "the assertion is for another audience"; exit 0; }
+      grep '<saml:NameID[^>]*>ana</saml:NameID>' response.xml > /dev/null || { echo "the assertion isn't about ana"; exit 0; }
+      echo signed
+    expect:
+      equals: signed
+  - id: clock-right
+    description: "The app server keeps the right time, set by its time sync from the shop's time server, and will after a restart."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      off=$(clock_offset app)
+      [ "${off#-}" -le 2 ] || { echo "app's clock is $off seconds off"; exit 0; }
+      [ "$(systemctl is-enabled timesync@app 2> /dev/null)" = enabled ] || { echo "app's clock is right now, but its time sync won't start at boot"; exit 0; }
+      [ "$(systemctl is-active timesync@app 2> /dev/null)" = active ] || { echo "app's clock is right now, but its time sync isn't running"; exit 0; }
+      synced=$(clock_synced app) || { echo "app's clock is right now, but its time sync can't keep it right: $synced"; exit 0; }
+      echo right
+    expect:
+      equals: right
+  - id: both-sign-ins
+    description: "Ana, from the office laptop, signs in to the orders pages (OpenID Connect) and to the HR pages (SAML), and each knows her."
+    timeout: 120
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      wait_for 15 on office curl -s -m 2 -o /dev/null https://app.shop.test/
+      got=$(on office signin https://app.shop.test/orders/me ana)
+      echo "$got" | grep -x 'user=ana' > /dev/null || { echo "the orders pages: $(echo "$got" | tail -n 1)"; exit 0; }
+      got=$(on office signin https://app.shop.test/hr/me ana)
+      echo "$got" | grep -x 'user=ana' > /dev/null || { echo "the HR pages: $(echo "$got" | tail -n 1)"; exit 0; }
+      echo both
+    expect:
+      equals: both
+  - id: nothing-else-changed
+    description: "The realm is the one its file builds, and the lab's scenery is as it was."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      [ "$(intact)" = intact ] || { intact; exit 0; }
+      kc_saved shop
+    expect:
+      equals: saved

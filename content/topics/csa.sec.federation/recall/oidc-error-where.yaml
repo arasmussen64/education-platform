@@ -1,0 +1,22 @@
+id: oidc-error-where
+type: mcq
+rev: 1
+prompt: |
+  Someone sends the lab's identity provider a sign-in request for the client `trace-cli` with `response_type=token`. The provider answers with a redirect to:
+
+  ```
+  http://127.0.0.1:8400/callback#error=unauthorized_client&error_description=Client+is+not+allowed+to+initiate+browser+login+with+given+response_type.+Implicit+flow+is+disabled+for+the+client.&state=x1
+  ```
+
+  What happened, and where did the error arrive?
+choices:
+  - "The token endpoint refused a code, and said so in a JSON answer to the app"
+  - "The provider refused the implicit flow, and said so in the redirect back"
+  - "The app's callback page failed, and reported it to the provider"
+  - "The provider refused the redirect address, and showed an error page"
+answer: 1
+explanation: |
+  `response_type=token` asks for the implicit flow: tokens straight back in the redirect. This client is registered for the code flow only, so the provider refuses, and tells the app the way it tells an app anything at this stage: on the front channel, in a redirect to the registered address, with `error` and `error_description` in place of a code. (Here they follow a `#`, because that is where the implicit flow's answer would have gone.)
+
+  Where an error arrives tells you which step failed. An error in the redirect means the authorization request was refused. A JSON error from the token endpoint means the code exchange was refused. And when the redirect address itself is wrong, the provider can't safely redirect anywhere, so it shows its own error page and the app hears nothing.
+skills: [trace-oidc]
