@@ -1,0 +1,11 @@
+#!/bin/bash
+# At base build: starts Keycloak once, with an administrator whose password
+# is made now, so the image holds a ready database. No lab machine exists
+# yet, so it listens on this build container's 127.0.0.1 only.
+set -euo pipefail
+umask 077
+printf 'KC_ADMIN=admin\nKC_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 16)" > /etc/idlab/admin.env
+. /etc/idlab/admin.env
+KC_BOOTSTRAP_ADMIN_USERNAME=$KC_ADMIN KC_BOOTSTRAP_ADMIN_PASSWORD=$KC_ADMIN_PASSWORD \
+  /usr/local/lib/idlab/kc-build-run true
+chown -R keycloak:keycloak /opt/keycloak/data

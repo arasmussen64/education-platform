@@ -1,0 +1,21 @@
+#!/bin/bash
+# kc-build-run COMMAND...: at image build, runs Keycloak on 127.0.0.1:8080
+# (plain HTTP, inside this build container only), waits until it answers,
+# runs COMMAND with KC_URL pointing at it, and stops it cleanly so the file
+# database is closed properly.
+set -euo pipefail
+export JAVA_OPTS_APPEND="-XX:TieredStopAtLevel=1"
+/opt/keycloak/bin/kc.sh start --optimized --http-enabled=true --http-host=127.0.0.1 --http-port=8080 \
+  --hostname-strict=false --cache=local --log-level=warn > /tmp/keycloak-build.log 2>&1 &
+pid=$!
+trap 'kill $pid 2> /dev/null; wait $pid 2> /dev/null || true' EXIT
+for i in $(seq 1 600); do
+  curl -fs -o /dev/null http://127.0.0.1:8080/realms/master && break
+  kill -0 $pid 2> /dev/null || { cat /tmp/keycloak-build.log >&2; exit 1; }
+  sleep 0.5
+done
+KC_URL=http://127.0.0.1:8080 "$@"
+kill $pid
+wait $pid 2> /dev/null || true
+trap - EXIT
+rm -f /tmp/keycloak-build.log

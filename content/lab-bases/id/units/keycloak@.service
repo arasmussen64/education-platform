@@ -1,0 +1,31 @@
+# Keycloak, the identity provider, on one of the lab's machines:
+# "systemctl status keycloak@idp". Its settings are the machine's
+# /etc/keycloak: keycloak.conf, realms/REALM.json (the realm's
+# configuration, the file that lasts) and secrets.env.
+# "systemctl reload keycloak@idp" rebuilds every realm from its file.
+[Unit]
+Description=Keycloak (the identity provider) on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+Type=simple
+# The fast compiler only (Keycloak answers sooner; it runs for minutes here,
+# not months), and a heap cap so four labs at once fit a CI runner.
+Environment=JAVA_OPTS_APPEND=-XX:TieredStopAtLevel=1
+Environment="JAVA_OPTS_KC_HEAP=-Xms64m -Xmx384m"
+# Keycloak is not root, and serves HTTPS on port 443 of its machine.
+ExecStartPre=/usr/sbin/ip netns exec %i /usr/sbin/sysctl -qw net.ipv4.ip_unprivileged_port_start=0
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/setpriv --reuid keycloak --regid keycloak --init-groups /opt/keycloak/bin/kc.sh --config-file=/etc/keycloak/keycloak.conf start --optimized
+# Started means answering, with every realm file that changed since it was
+# last applied applied: the boot (and labcheck's wait for it) covers both.
+ExecStartPost=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/lib/idlab/kc-wait
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/python3 /usr/local/lib/idlab/kcapi.py apply
+TimeoutStartSec=300
+SuccessExitStatus=143
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

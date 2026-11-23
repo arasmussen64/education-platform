@@ -1,0 +1,11 @@
+#!/bin/bash
+# Apache inside a machine: its run and lock folders are in the machine's own
+# /run, which starts empty at every boot.
+set -e
+. /etc/apache2/envvars
+mkdir -p /run/lock
+mkdir -p "$APACHE_RUN_DIR/socks" "$APACHE_LOCK_DIR"
+chown "$APACHE_RUN_USER" "$APACHE_LOCK_DIR" "$APACHE_RUN_DIR/socks"
+chmod 700 "$APACHE_RUN_DIR/socks"
+if [[ $1 == configtest ]]; then exec /usr/sbin/apache2 -t; fi
+exec /usr/sbin/apache2 "$@"

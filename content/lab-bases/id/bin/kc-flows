@@ -1,0 +1,13 @@
+#!/bin/bash
+# kc-flows REALM [FLOW] [--file]: a sign-in flow as a tree, one step a line,
+# each with its requirement (REQUIRED, ALTERNATIVE, CONDITIONAL, DISABLED)
+# and, for a step that has settings (a condition's role, say), the settings.
+# Without FLOW it shows the flow a browser sign-in goes through.
+#
+#   kc-flows shop            the flow as the running realm has it
+#   kc-flows shop --file     the flow as /etc/keycloak/realms/shop.json writes it
+#
+# The two differ when someone changed the flow in the running server only
+# (realm-saved says so too) or edited the file and hasn't applied it.
+. /etc/idlab/idp
+exec on "$IDP_MACHINE" python3 /usr/local/lib/idlab/kcapi.py flows "$@"

@@ -1,0 +1,30 @@
+#!/bin/bash
+# plain-units: run once, at image build, as the network base's script of the
+# same name does for its daemons. Apache and chrony run on a machine, as
+# apache2@MACHINE and chrony@MACHINE, never on the lab machine itself. Their
+# packages' plain units are replaced here by units that never start the
+# daemon: started, they run the network base's not-here, which says what to
+# type instead and fails.
+#
+# For chrony this is more than a courtesy. Its own service runs chronyd
+# without -x, which sets the clock, and a lab container's clock is the real
+# clock of Docker's whole machine. (chronyd.service is the package's other
+# name for the same unit.)
+set -euo pipefail
+for unit in apache2 chrony chronyd; do
+  daemon=$unit
+  if [[ $unit == chronyd ]]; then daemon=chrony; fi
+  rm -f "/etc/systemd/system/$unit.service"
+  cat > "/etc/systemd/system/$unit.service" << EOF
+# Written by the identity base's plain-units at image build (content/lab-bases/id).
+[Unit]
+Description=Not on this lab machine: $daemon runs on a machine, as $daemon@MACHINE
+# Forgotten as soon as it has run, so a habit-typed command leaves no
+# failed unit behind.
+CollectMode=inactive-or-failed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/netlab/not-here $daemon
+EOF
+done
