@@ -32,13 +32,17 @@ const topicFiles = import.meta.glob<Partial<Topic>>(
 )
 const bundledCloudFiles = import.meta.glob<Partial<Topic>>(
   [
-    // Modules 1 to 3 and their checkpoints: the cloud track's content so far.
+    // Modules 1 to 4 and their checkpoints: the cloud track's content so
+    // far, written or being written. (`csa.sec.*` is Module 4; the dot after
+    // `sec` keeps the later `csa.secarch.*` outlines out.)
     '../../../content/topics/csa.linux.*/topic.yaml',
     '../../../content/topics/csa.m1.checkpoint/topic.yaml',
     '../../../content/topics/csa.hw.*/topic.yaml',
     '../../../content/topics/csa.m2.checkpoint/topic.yaml',
     '../../../content/topics/csa.net.*/topic.yaml',
     '../../../content/topics/csa.m3.checkpoint/topic.yaml',
+    '../../../content/topics/csa.sec.*/topic.yaml',
+    '../../../content/topics/csa.m4.checkpoint/topic.yaml',
   ],
   { eager: true, import: 'default' },
 )
