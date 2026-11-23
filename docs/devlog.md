@@ -37,7 +37,8 @@ The plan's section 7 lists what must exist before any topic is written. Four hel
 - _No seventh pin._ A newer libfaketime would fix the `sleep` fault; I left Ubuntu's and kept the workaround, since one more download from outside the archive is a cost and the workaround is three lines.
 - _The helper tests grew a lot:_ 801 Python tests pass on the combined branch, up from about 530.
 - _Each builder ran on this machine only._ The lab run on the pull request is the first time the `id`, `pay`, `policy` and `tm` bases run on a GitHub runner, and the first time the changed network base does.
-- _Four draft probe topics_ sit in Module 4's list in the track file (only a dev server shows them). They go when the topics that replace them are written, as Module 3's probe topic did.
+- _The identity base landed without its probe lab._ On CI's machines the probe's time-sync stand-in (`timesync@app`) failed to start, which never happened on this PC, not even with the lab's time server stopped by hand. The other three bases' probes passed there. The identity probe goes up alone, printing the services' logs when that step fails, so that CI shows the cause. No lab uses the identity base until it does.
+- _Three draft probe topics_ sit in Module 4's list in the track file (only a dev server shows them). They go when the topics that replace them are written, as Module 3's probe topic did.
 
 ## 2026-11-22, cloud Module 4: the plan
 
