@@ -14,7 +14,7 @@ checks:
     expect:
       equals: ready
   - id: admins-key-only
-    description: "An admin can only finish signing in with a security key: one with a password and an app code can't, one with a password alone can't, and one with a key gets in with a token that records the key."
+    description: "An admin can only finish signing in with a security key: one with a password and an app code can't, one with a password alone can't and isn't offered a page to set up a key of their own, and one with a key gets in with a token that records the key."
     timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
@@ -26,6 +26,10 @@ checks:
       case $got in "{"*) echo "an admin finished signing in with a password and an app code"; exit 0 ;; esac
       got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r")
       case $got in "{"*) echo "an admin finished signing in with a password alone"; exit 0 ;; esac
+      # Refused outright, not offered a page to set up a key of their own.
+      case $got in *required-action*) echo "an admin with no key was offered a page to set up a new credential after a password alone"; exit 0 ;; esac
+      open=$(kc get shop/authentication/required-actions | python3 -c "import json,sys; print(' '.join(a['alias'] for a in json.load(sys.stdin) if a['enabled'] and a['alias'] in ('webauthn-register', 'webauthn-register-passwordless', 'CONFIGURE_TOTP')))")
+      [ -z "$open" ] || { echo "the running realm lets a person set up a new key or code at sign-in: $open"; exit 0; }
       toks=$(on office signin --code trace-cli "$red" "$iss" alice --key /etc/idlab/keys/alice.key)
       case $toks in "{"*) ;; *) echo "alice couldn't sign in with her key: $(echo "$toks" | tail -n 1)"; exit 0 ;; esac
       amr=$(printf '%s' "$toks" | python3 -c "import sys,json,base64; d=json.load(sys.stdin); p=d['id_token'].split('.')[1]; p+='='*(-len(p)%4); print(','.join(sorted(json.loads(base64.urlsafe_b64decode(p)).get('amr',[]))))")

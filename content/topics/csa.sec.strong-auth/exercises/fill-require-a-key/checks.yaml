@@ -12,7 +12,7 @@ checks:
     expect:
       equals: ready
   - id: admins-need-a-key
-    description: "An admin can only finish signing in with a security key, which the flow makes a must rather than one choice among several: an admin who has only a password and an app code can't finish, and one with a key gets in and the token records the key."
+    description: "An admin can only finish signing in with a security key, which the flow makes a must rather than one choice among several: an admin who has only a password and an app code can't finish, and isn't offered a page to set up a key of their own, and one with a key gets in and the token records the key."
     timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
@@ -25,6 +25,10 @@ checks:
       otp=$(cat /etc/idlab/otp/"$u")
       got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "pw$r" --otp-secret "$otp")
       case $got in "{"*) echo "an admin with only a password and an app code got in"; exit 0 ;; esac
+      # Refused outright, not offered a page to set up a key of their own.
+      case $got in *required-action*) echo "an admin with no key was offered a page to set up a new credential after a password alone"; exit 0 ;; esac
+      open=$(kc get shop/authentication/required-actions | python3 -c "import json,sys; print(' '.join(a['alias'] for a in json.load(sys.stdin) if a['enabled'] and a['alias'] in ('webauthn-register', 'webauthn-register-passwordless', 'CONFIGURE_TOTP')))")
+      [ -z "$open" ] || { echo "the running realm lets a person set up a new key or code at sign-in: $open"; exit 0; }
       toks=$(on office signin --code trace-cli "$red" "$iss" alice --key /etc/idlab/keys/alice.key)
       case $toks in "{"*) ;; *) echo "alice couldn't sign in with her key: $(echo "$toks" | tail -n 1)"; exit 0 ;; esac
       amr=$(printf '%s' "$toks" | python3 -c "import sys,json,base64; d=json.load(sys.stdin); p=d['id_token'].split('.')[1]; p+='='*(-len(p)%4); print(','.join(sorted(json.loads(base64.urlsafe_b64decode(p)).get('amr',[]))))")
