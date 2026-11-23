@@ -76,6 +76,24 @@ checks:
       on idp /usr/local/lib/lab-checks/policies-enforced
     expect:
       equals: enforced
+  - id: nothing-else-weaker
+    description: "What already held still holds: brute-force detection locks after five failed passwords or fewer, both emergency accounts are still watched, and neither gets in with a password alone."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      bf=$(kc get shop | python3 -c "import json,sys; d=json.load(sys.stdin); print('on' if d.get('bruteForceProtected') and 1 <= d.get('failureFactor', 0) <= 5 else 'off')")
+      [ "$bf" = on ] || { echo "brute-force detection no longer locks an account after five failed passwords or fewer"; exit 0; }
+      for u in bg-1 bg-2; do
+        tr -d ' \t\r' < /etc/shop/watched-accounts 2> /dev/null | grep -qx "$u" || { echo "$u is no longer on the watcher's list"; exit 0; }
+      done
+      iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
+      for u in bg-1 bg-2; do
+        got=$(on office signin --code trace-cli "$red" "$iss" "$u" --password "$(password_of "$u")")
+        case $got in "{"*) echo "$u got in with a password alone"; exit 0 ;; esac
+      done
+      echo held
+    expect:
+      equals: held
   - id: lasts
     description: "The running realm is the one its file builds."
     timeout: 90
