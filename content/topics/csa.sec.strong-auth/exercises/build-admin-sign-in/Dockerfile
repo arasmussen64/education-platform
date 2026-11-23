@@ -1,9 +1,10 @@
 FROM lab-base-id
-# The staff laptop and the identity provider. The realm already has the
-# strong sign-in flow (admins a key, others a code), but brute-force
-# detection is off, the two emergency accounts are in no group, there are no
-# conditional-access policies and nobody is watched. The people, their keys
-# and their app secrets are made here at build.
+# The staff laptop and the identity provider. The realm writes no sign-in
+# flow of its own, so Keycloak's built-in one runs (a password, and a code
+# only for someone who has set one up); brute-force detection is off, the two
+# emergency accounts are in no group, there are no conditional-access
+# policies and nobody is watched. The people, their keys and their app
+# secrets are made here at build.
 COPY topology /etc/netlab/topology
 COPY machines/ /etc/netns/
 COPY --chmod=755 bin/signin-watch /usr/local/bin/signin-watch
