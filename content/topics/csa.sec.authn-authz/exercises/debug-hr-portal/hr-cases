@@ -184,11 +184,16 @@ def cases_for(rule, names):
                 )
             )
     elif rule == "requests":
+        # Supporting a department gives no right to request a raise in it:
+        # an HR partner is tried with the department supported and not.
         for c in combine(
             roles=SINGLE + [["manager", "hr-partner"]],
             same_dept=[True, False],
             own=[True, False],
+            supported=[True, False],
         ):
+            if c["supported"] and "hr-partner" not in c["roles"]:
+                continue
             cases.append(
                 request(
                     names,
@@ -196,6 +201,7 @@ def cases_for(rule, names):
                     "requestRaise",
                     own=c["own"],
                     same_dept=c["same_dept"],
+                    supported=c["supported"],
                 )
             )
     elif rule == "approval":
@@ -229,6 +235,23 @@ def cases_for(rule, names):
             for roles in ([], ["manager"], ["hr-partner"]):
                 cases.append(request(names, roles, action))
         cases.append(request(names, [], "approveRaise", requested_self=True))
+        # ...and two roles in one person add up to what each allows and
+        # nothing more. An auditor who is also a payroll clerk is left
+        # out: whether "auditors change nothing" outranks "payroll clerks
+        # edit" is a fair question the rules don't settle.
+        pairs = [
+            [first, second]
+            for i, first in enumerate(ROLES)
+            for second in ROLES[i + 1 :]
+            if {first, second} != {"auditor", "payroll"}
+        ]
+        for roles in pairs:
+            supports = [True, False] if "hr-partner" in roles else [False]
+            for c in combine(same_dept=[True, False], supported=supports):
+                for action in ("viewSalary", "requestRaise", "approveRaise"):
+                    cases.append(request(names, roles, action, **c))
+            for action in ("readPayrollLog", "editPayrollLog"):
+                cases.append(request(names, roles, action))
     else:
         sys.exit(f"hr-cases: no rule called {rule}")
     return cases
