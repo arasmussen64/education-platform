@@ -2,6 +2,43 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-22, cloud Module 4: the platform work
+
+The plan's section 7 lists what must exist before any topic is written. Four helpers built it in parallel, each in its own worktree, and each piece landed as its own pull request so that CI's machines, where nothing in this design had run, judged it. This entry grows as the pieces land.
+
+**The `vault` base** (keys and secrets). OpenBao 2.7.2, PostgreSQL, git, gitleaks and podman in one image. A draft probe lab with seven checks and eight wrong fixes kept its contract three times on this machine, restart trial included, at about 110 MB of memory and three to five minutes a run.
+
+- _Image size is 885 MB, not the plan's "about 570":_ the designer's total left out the layers every lab shares.
+- _Podman inside the lab container works as root only,_ with the simplest storage and the host's network. That is enough for the secrets topic, which builds an image to look inside its layers. CI's kernel has AppArmor where this machine's has none; the base asks for no confinement as a precaution, and the lab run on the pull request is the test.
+- _The newest OpenBao was three days old,_ so the one before it is pinned, by the two-week rule.
+- _Untried:_ key rotation, the sign-in methods for machines, and gitleaks as a hook, which the topics that use them will try.
+- _Its first run on CI passed:_ the probe lab kept its contract on a GitHub runner in 148 seconds, the container build inside the lab included. That was the open question.
+- _The same run failed on an older lab, by chance._ The CORS audit lab's check starts a small server of its own on a random port between 30000 and 39999, and Linux gives out ports from 32768 up for its own connections; this once the port was taken, the server didn't start, and the reference solution was marked wrong. One other lab (the probe script in network troubleshooting) picked from the same range. Both now pick from 10000 to 19999. Both kept their contracts locally afterwards.
+
+**The other four bases and the checker change,** landed together so that CI ran its long lab check once for all of them.
+
+- _The lab checker builds a base on a base._ `id` starts from the network base, so the checker now reads a base's own `Dockerfile` and builds what it names first. A base that names itself, or a parent that doesn't exist, is refused by name. ADR-0018 has a fourth amendment, Proposed, which also says a check may make people and devices of its own at a lab's identity provider and remove them, and lists the module's pinned downloads.
+- _The network base changed, and was shown not to disturb what stands on it._ It learned five services, per-machine folders for Apache and chrony, a clock for each machine, and a `date` that refuses `-s`. Six Module 3 labs of different kinds kept their contracts on it, restart trials included.
+- _The `id` base._ Keycloak 26.8.2 at `login.shop.test`. Its probe lab kept its contract every time: 174 seconds alone, 366 each with four at once, about 620 MB of memory. Keycloak answered 8 to 13 seconds after boot alone and 20 to 24 with four at once, on a machine with twice a CI runner's processors.
+- _The `pay` base._ A payments server. Its probe lab (a sealed journal that a check tampers with and catches, the vulnerability scanner offline, a patch) kept its contract four times: 157 to 276 seconds, 196 MB.
+- _The `policy` and `tm` bases._ Small. Their probe labs kept their contracts in about a minute each. `tm-check` passes its 64-line reference and fails each of 25 wrong models for the right reason.
+
+**What building them found** is in the plan's [build notes](plans/cloud-module-4/BUILD-NOTES.md), for the topic writers. The ones that change a topic's design:
+
+- An `openssh` upgrade restarts the service by itself on the `pay` base, so the vulnerabilities topic's "patched but not restarted" trap needs another service.
+- One compliance rule the plan chose as the accepted exception reports "not applicable", so the compliance build needs another.
+- The compliance scanner hung once in 28 whole-profile runs; labs run named rules only, and the helper stops a stuck run.
+- Python's `sleep` fails on a lab machine with a shifted clock, so the base's time service runs outside the shift.
+- The API module keeps serving a token it has already accepted after the token expires.
+
+**Author notes:**
+
+- _Two newest releases were too young to pin_ (the two-week rule), so OSV-Scanner and OpenBao are one release behind the plan's. OSV-Scanner's older release needs a small workaround at build, noted in the base.
+- _No seventh pin._ A newer libfaketime would fix the `sleep` fault; I left Ubuntu's and kept the workaround, since one more download from outside the archive is a cost and the workaround is three lines.
+- _The helper tests grew a lot:_ 801 Python tests pass on the combined branch, up from about 530.
+- _Each builder ran on this machine only._ The lab run on the pull request is the first time the `id`, `pay`, `policy` and `tm` bases run on a GitHub runner, and the first time the changed network base does.
+- _Four draft probe topics_ sit in Module 4's list in the track file (only a dev server shows them). They go when the topics that replace them are written, as Module 3's probe topic did.
+
 ## 2026-11-22, cloud Module 4: the plan
 
 **The owner said** "Keep building the cloud track". Module 4, security and identity foundations, was next, and its design had been paused half-done on 2026-11-12: the eleven topic briefs existed on a local-only branch; the shared lab base, the checkpoint and the critic's review had never run.

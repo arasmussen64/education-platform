@@ -1,0 +1,19 @@
+id: probe-keys-and-secrets
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Probe: keys, a database password, an image and a leak"
+prompt: |
+  A probe for the vault lab base's CI spike, not a lesson: the Module 4 topics Applied cryptography and Secrets will teach this.
+
+  One server, the shop's. OpenBao, a key and secrets service, runs on it as `openbao.service`; your admin token is in `~/.vault-token`, so `bao` commands work as they are. PostgreSQL runs too, with a database called `shop`. Four jobs:
+
+  1. **Seal the export.** `~/orders/export.csv` holds card numbers. OpenBao's transit engine has a key called `orders`. Ask it for a data key (`transit/datakey/wrapped/orders`), save that wrapped key as `~/orders/export.csv.key`, encrypt the export under the data key with `gcm seal` as `~/orders/export.csv.sealed` (`gcm` reads the key, in base64, from standard input), and delete `export.csv`. The data key itself must not be left in any file.
+  2. **A password that expires.** OpenBao is connected to the database as `shop` (`database/config/shop`). Make a role there called `report`: an account OpenBao creates on request, which can only read the `orders` table and lasts at most 10 seconds.
+  3. **An image without the token.** `~/shop-api/` holds `app.sh`. Build an image called `shop-api:1` with `sudo podman build`, starting `FROM busybox`. The build fetches `http://127.0.0.1:8099/shop-lib.txt` into the image; that server wants `Authorization: Bearer TOKEN`, and the token is in `/etc/shop/pkg.token`. The token must be nowhere in the image: not in a layer, not in its history.
+  4. **Find the leak.** A cloud access key was once committed to `~/shop-web`. Scan the repository's history with `gitleaks detect` and save its report as `~/leak-report.json`.
+
+  Then run the checks.

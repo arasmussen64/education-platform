@@ -1,0 +1,19 @@
+#!/bin/bash
+# lab-seal FILE...: records the checksum of scenery files a learner mustn't
+# change, while a lab's image is built ("RUN lab-seal /srv/shop/app.py").
+# The checks' sealed_ok (checklib-sec.sh) compares the files with the record,
+# /root/lab-sums, which only root can read or change.
+set -euo pipefail
+
+[ $# -gt 0 ] || {
+  echo "usage: lab-seal FILE..." >&2
+  exit 2
+}
+for file in "$@"; do
+  [ -f "$file" ] || {
+    echo "lab-seal: no file $file" >&2
+    exit 1
+  }
+done
+umask 077
+sha256sum -- "$@" >> /root/lab-sums
