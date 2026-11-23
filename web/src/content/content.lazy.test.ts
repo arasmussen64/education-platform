@@ -11,7 +11,7 @@ import {
 
 // Vitest gives each test file a fresh copy of content.ts, so this file sees
 // the app as it first loads: with the main track's outlines bundled in, the
-// cloud track's Modules 1 to 3 and their checkpoints bundled in too, and the
+// cloud track's Modules 1 to 4 and their checkpoints bundled in too, and the
 // rest of the cloud track not yet downloaded. Keep these tests in order; each
 // builds on the one before.
 
@@ -23,7 +23,9 @@ const isBundled = (id: string) =>
   id.startsWith('csa.hw.') ||
   id === 'csa.m2.checkpoint' ||
   id.startsWith('csa.net.') ||
-  id === 'csa.m3.checkpoint'
+  id === 'csa.m3.checkpoint' ||
+  id.startsWith('csa.sec.') ||
+  id === 'csa.m4.checkpoint'
 
 describe('topic outlines that load on demand', () => {
   it('bundles the main track and the module being written, and leaves the outlines out', () => {

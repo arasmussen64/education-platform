@@ -15,6 +15,8 @@ The plan's section 7 lists what must exist before any topic is written. Four hel
 - _Its first run on CI passed:_ the probe lab kept its contract on a GitHub runner in 148 seconds, the container build inside the lab included. That was the open question.
 - _The same run failed on an older lab, by chance._ The CORS audit lab's check starts a small server of its own on a random port between 30000 and 39999, and Linux gives out ports from 32768 up for its own connections; this once the port was taken, the server didn't start, and the reference solution was marked wrong. One other lab (the probe script in network troubleshooting) picked from the same range. Both now pick from 10000 to 19999. Both kept their contracts locally afterwards.
 
+**The app bundles Module 4.** The first topic's writer found that a ready `csa.sec.*` topic fails one web test: the app loads the cloud track's unwritten topics only on demand, and names the written modules by pattern. Module 4's pattern and its checkpoint are added in the three places Module 3's are (the bundle, the on-demand outlines' exclusion, the test). The pattern is `csa.sec.*`, and the dot keeps Module 20's `csa.secarch.*` outlines out.
+
 ## 2026-11-22, cloud Module 4: the plan
 
 **The owner said** "Keep building the cloud track". Module 4, security and identity foundations, was next, and its design had been paused half-done on 2026-11-12: the eleven topic briefs existed on a local-only branch; the shared lab base, the checkpoint and the critic's review had never run.
