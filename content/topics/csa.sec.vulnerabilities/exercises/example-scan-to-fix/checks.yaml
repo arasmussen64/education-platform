@@ -1,0 +1,79 @@
+# The checks of the worked example. What the learner saved is compared with
+# what the checks work out themselves from the image's original package
+# list and the lab's data (vuln-truth, in /usr/local/lib/lab-vuln); the fix
+# is read from a fresh scan and from what is running.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sudo-and-rsync-fixed
+    description: "sudo and rsync are at fixed versions, sudo still works, and a fresh scan no longer lists a finding in either."
+    command: |
+      lib=/usr/local/lib/lab-pay
+      original=$($lib/scan-tsv dpkg-status:/usr/share/lab-pay/original-dpkg-status 2> /dev/null)
+      [ "$(echo "$original" | grep -c .)" -eq 7 ] || { echo "the check couldn't read the image's original findings"; exit 0; }
+      now=$($lib/scan-tsv 2> /dev/null) || { echo "the scanner didn't run"; exit 0; }
+      for package in sudo rsync; do
+        if echo "$now" | awk -F'\t' -v p="$package" '$2 == p { found = 1 } END { exit !found }'; then
+          echo "a fresh scan still lists a finding in $package"; exit 0
+        fi
+        fixed=$(echo "$original" | awk -F'\t' -v p="$package" '$2 == p {print $4}' | sort -V | tail -n 1)
+        have=$(dpkg-query -W -f '${Version}' "$package" 2> /dev/null)
+        dpkg --compare-versions "${have:-0}" ge "$fixed" || { echo "$package is at ${have:-no version}"; exit 0; }
+      done
+      su learner -c 'sudo -n true' > /dev/null 2>&1 || { echo "sudo no longer works for the learner"; exit 0; }
+      echo "patched"
+    expect:
+      equals: patched
+  - id: kev-list
+    description: "~/example/kev.txt holds exactly the CVEs of the server's original scan that are in the lab's KEV file, one a line."
+    command: |
+      f=/home/learner/example/kev.txt
+      [ -f "$f" ] || { echo "there is no ~/example/kev.txt"; exit 0; }
+      want=$(/usr/local/lib/lab-pay/scan-tsv dpkg-status:/usr/share/lab-pay/original-dpkg-status 2> /dev/null | cut -f1 | sort -u \
+        | while read -r cve; do grep "^$cve," /usr/share/lab-pay/kev-2026.11.10.csv > /dev/null && echo "$cve"; done)
+      [ -n "$want" ] || { echo "the check couldn't work the list out"; exit 0; }
+      [ "$(grep . "$f" | tr -d ' \r' | sort -u)" = "$want" ] || { echo "~/example/kev.txt isn't the scan's CVEs that are in KEV"; exit 0; }
+      echo "the KEV entries"
+    expect:
+      equals: "the KEV entries"
+  - id: register-lines
+    description: "~/example/register.tsv has sudo's two findings, each with the due date and forensic triage the policy gives it, the status a scan gives it today, and the server's owner."
+    command: |
+      truth=/usr/local/lib/lab-vuln/vuln-truth
+      f=/home/learner/example/register.tsv
+      said=$($truth due "$f" CVE-2025-32463 CVE-2025-32462)
+      [ "$said" = right ] || { echo "$said"; exit 0; }
+      said=$($truth status "$f" CVE-2025-32463 CVE-2025-32462)
+      [ "$said" = right ] || { echo "$said"; exit 0; }
+      echo "right"
+    expect:
+      equals: right
+  - id: no-old-code
+    description: "Nothing on the server still runs a program that an upgrade replaced, and the settlement sync is running and answering on port 873."
+    command: |
+      for p in /proc/[0-9]*; do
+        exe=$(readlink "$p/exe" 2> /dev/null) || continue
+        case $exe in
+          *' (deleted)') echo "a process is still running a program file that has been replaced on disk: $(cat "$p/comm" 2> /dev/null)"; exit 0 ;;
+        esac
+      done
+      [ "$(systemctl is-enabled shop-sync 2> /dev/null)" = enabled ] || { echo "shop-sync is no longer enabled"; exit 0; }
+      answers() { nc -w 3 127.0.0.1 873 < /dev/null 2> /dev/null | grep '^@RSYNCD:' > /dev/null; }
+      ok=no
+      for try in 1 2 3 4 5; do
+        if systemctl is-active --quiet shop-sync && answers; then ok=yes; break; fi
+        sleep 1
+      done
+      [ "$ok" = yes ] || { echo "the settlement sync isn't answering on port 873"; exit 0; }
+      echo "current"
+    expect:
+      equals: current
+  - id: scanner-untouched
+    description: "The scanner, its advisory records, the lab's data, the asset list and the policy are as the image shipped them."
+    command: |
+      said=$(/usr/local/lib/lab-pay/base-intact 2>&1 | head -n 3)
+      [ "$said" = intact ] || { echo "$said"; exit 0; }
+      sha256sum --quiet -c /usr/local/lib/lab-vuln/SHA256SUMS > /dev/null 2>&1 || { echo "one of the lab's input files has changed"; exit 0; }
+      echo "intact"
+    expect:
+      equals: intact
