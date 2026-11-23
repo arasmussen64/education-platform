@@ -1,0 +1,36 @@
+# The checks of "An evidence report for any control". The script is run as
+# the learner on a crosswalk made up as the check runs (a framework and
+# control numbers nobody has seen, over real rules whose results are read
+# from the server at that moment), then on the lab's own crosswalk. The
+# expected answers are worked out by evidence-cases, in this folder, which
+# only root can read or run.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/evidence exists, is executable, starts with a shebang, and does its own work with the shell, awk and oscap-rules."
+    command: |
+      f=/home/learner/bin/evidence
+      [ -f "$f" ] || { echo "there is no ~/bin/evidence"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/evidence isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/evidence's first line isn't a shebang"; exit 0; }
+      if grep -E 'python|perl|lab-comp' "$f" > /dev/null; then
+        echo "~/bin/evidence hands the work to another program: the shell, awk and oscap-rules are this lab's tools"
+        exit 0
+      fi
+      /usr/local/lib/lab-pay/base-intact > /dev/null 2>&1 || { echo "the benchmark, the crosswalk or the scanner has changed"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: any-crosswalk
+    description: "On a crosswalk made up for the check, given as the third argument, it prints each rule mapped to exactly that framework and control with its result, then the right last line: met, not met or no automated evidence."
+    timeout: 120
+    command: /usr/local/lib/lab-comp/evidence-cases made-up
+    expect:
+      equals: same
+  - id: lab-crosswalk
+    description: "With two arguments it reads the lab's own crosswalk and gets three of its controls right."
+    timeout: 90
+    command: /usr/local/lib/lab-comp/evidence-cases real
+    expect:
+      equals: same

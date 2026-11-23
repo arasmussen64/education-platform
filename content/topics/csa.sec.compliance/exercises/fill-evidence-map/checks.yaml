@@ -1,0 +1,25 @@
+# The checks of "Scope the café, map the evidence". Both files are compared
+# with answers the lab holds: the scoping with its own list, and the pack
+# with the base's sealed crosswalk (a control is matched whole, never as a
+# piece of text) and the lab's reference for the controls that no rule
+# tests. Nothing is listed "to be safe": a line that doesn't belong fails.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: lab-intact
+    description: "The crosswalk, the list of systems, the scope and the collectors' list are as the lab shipped them."
+    command: |
+      . /usr/local/lib/lab-comp/comply.sh
+      lab_intact
+    expect:
+      equals: intact
+  - id: scope-right
+    description: "~/evidence/scope.txt has one scope line for each of the café's six systems, each with the right word and a reason of at least five words."
+    command: /usr/local/lib/lab-comp/pack-check scope /home/learner/evidence/scope.txt
+    expect:
+      equals: right
+  - id: pack-maps-right
+    description: "~/evidence/pack.tsv gives every control in scope exactly its evidence: every rule the crosswalk maps to it and no other, or, where no rule maps, the collector or two that show what the assessor checks."
+    command: /usr/local/lib/lab-comp/pack-check map
+    expect:
+      equals: right

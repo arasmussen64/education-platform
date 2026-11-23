@@ -1,0 +1,363 @@
+#!/usr/bin/python3
+"""pack-check: is the learner's evidence pack right, and is it true today?
+
+For the checks of Compliance basics' server labs. The pack is
+~/evidence/pack.tsv, one line for each piece of evidence:
+
+    FRAMEWORK CONTROL KIND SOURCE
+
+KIND is "rule" (SOURCE is a rule of the benchmark, whose result is saved in
+~/evidence/rules.txt as oscap-rules prints it) or "config" or "report"
+(SOURCE is one of the shop's collectors, whose output is saved as
+~/evidence/SOURCE.txt).
+
+    pack-check map [--no-names]   every control in scope has exactly its
+                                  evidence: for a control the benchmark's
+                                  crosswalk maps rules to, exactly those
+                                  rules; for any other, the collectors that
+                                  show what the assessor checks, and no rule
+    pack-check current            every saved result and output is what the
+                                  same rule or collector gives now
+    pack-check met                every rule of every control in scope
+                                  passes now, or is the one excepted rule
+    pack-check exception          ~/evidence/exception.txt is a whole
+                                  exception for the one rule that may have one
+    pack-check scope FILE         a scoping file's lines are right
+
+It never trusts the learner's files for the truth: the crosswalk is the
+base's sealed refs.tsv, the scope, the collectors' commands and the
+reference are this lab's sealed copies, and results come from a fresh run.
+It prints "right", or one sentence about the first thing that is wrong, and
+always exits 0, so the checker shows the sentence.
+"""
+
+import datetime
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+REFS = Path("/usr/share/lab-pay/refs.tsv")
+SEALED = Path("/usr/local/lib/lab-comp")
+OSCAP_RULES = "/usr/local/lib/lab-pay/oscap-rules"
+EVIDENCE = Path("/home/learner/evidence")
+KINDS = ("rule", "config", "report")
+
+
+def say(sentence: str) -> None:
+    print(sentence)
+    sys.exit(0)
+
+
+def table(path: Path) -> list[list[str]]:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return [line.split("\t") for line in lines if line.strip() and line[0] != "#"]
+
+
+def crosswalk() -> dict[tuple[str, str], set[str]]:
+    """The benchmark's crosswalk: (framework, control) to its rules. The
+    control is compared whole, never as a piece of text."""
+    found: dict[tuple[str, str], set[str]] = {}
+    for rule, framework, control in table(REFS):
+        found.setdefault((framework, control), set()).add(rule)
+    return found
+
+
+def reference() -> dict[tuple[str, str], str]:
+    """This lab's scope: (framework, control) to "rule", or to the
+    collectors that evidence it ("a,b?": b may be listed, a must be)."""
+    return {(row[0], row[1]): row[2] for row in table(SEALED / "reference.tsv")}
+
+
+def collectors() -> dict[str, tuple[str, str]]:
+    """The shop's collectors: name to (kind, command). A lab with none
+    has no list."""
+    if not (SEALED / "collectors.tsv").is_file():
+        return {}
+    return {row[0]: (row[1], row[2]) for row in table(SEALED / "collectors.tsv")}
+
+
+def pack() -> list[tuple[str, str, str, str]]:
+    path = EVIDENCE / "pack.tsv"
+    if not path.is_file():
+        say("there is no ~/evidence/pack.tsv")
+    rows = []
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for number, line in enumerate(text.splitlines(), 1):
+        fields = line.split()
+        if not fields or fields[0].startswith("#"):
+            continue
+        if "..." in fields:
+            say("~/evidence/pack.tsv still has a gap to fill")
+        if len(fields) != 4:
+            say(f"line {number} of ~/evidence/pack.tsv has {len(fields)} fields, not 4")
+        if fields[2] not in KINDS:
+            say(
+                f"line {number} of ~/evidence/pack.tsv has a kind that isn't one of {', '.join(KINDS)}"
+            )
+        rows.append((fields[0], fields[1], fields[2], fields[3]))
+    if len(set(rows)) != len(rows):
+        say("~/evidence/pack.tsv has the same line twice")
+    return rows
+
+
+def fresh(rules: list[str]) -> dict[str, str]:
+    """The named rules' results now, from one OpenSCAP run."""
+    if not rules:
+        return {}
+    out = subprocess.run(
+        [OSCAP_RULES, *rules], capture_output=True, text=True, check=False
+    ).stdout
+    return dict(line.split()[:2] for line in out.splitlines() if len(line.split()) >= 2)
+
+
+def check_map(names: bool) -> None:
+    rows = pack()
+    walk = crosswalk()
+    scope = reference()
+    known = collectors()
+    for framework, control, _kind, _source in rows:
+        if (framework, control) not in scope:
+            say(
+                "a line of the pack is for a control that isn't in this assessment's scope"
+            )
+    for (framework, control), wanted in scope.items():
+        where = f"{framework} {control}" if names else "one control in scope"
+        mine = [row for row in rows if row[:2] == (framework, control)]
+        if not mine:
+            say(f"{where} has no evidence in the pack")
+        rules = {source for _f, _c, kind, source in mine if kind == "rule"}
+        others = {(kind, source) for _f, _c, kind, source in mine if kind != "rule"}
+        if wanted == "rule":
+            if others or rules != walk.get((framework, control), set()):
+                say(
+                    f"{where}: its lines aren't exactly the rules the crosswalk maps to that control"
+                )
+            continue
+        if rules:
+            say(
+                f"{where}: the crosswalk maps no rule to that control, and the pack gives it one"
+            )
+        must = {name for name in wanted.split(",") if not name.endswith("?")}
+        may = must | {name[:-1] for name in wanted.split(",") if name.endswith("?")}
+        listed = {source for _kind, source in others}
+        for kind, source in others:
+            if source not in known:
+                say(f"{where}: a source that isn't one of the shop's collectors")
+            if kind != known[source][0]:
+                say(
+                    f"{where}: a collector's kind isn't the kind the collectors' list gives it"
+                )
+        if not must <= listed or not listed <= may:
+            say(
+                f"{where}: its evidence isn't what shows what the assessor checks, and only that"
+            )
+    print("right")
+
+
+def text_of(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def tidy(text: str) -> list[str]:
+    """Lines without carriage returns and trailing spaces, and without
+    blank lines at the end."""
+    lines = [line.rstrip() for line in text.replace("\r", "").split("\n")]
+    while lines and not lines[-1]:
+        lines.pop()
+    return lines
+
+
+def scan_says(text: str) -> tuple[bool, frozenset[str], bool]:
+    """What a saved vertical scan says: is it this server's package list,
+    which advisories, and does it say there are none."""
+    return (
+        "Scanned /var/lib/dpkg/status file" in text,
+        frozenset(re.findall(r"UBUNTU-CVE-\d+-\d+", text)),
+        "No issues found" in text,
+    )
+
+
+def check_current() -> None:
+    rows = pack()
+    known = collectors()
+    rules = sorted({source for _f, _c, kind, source in rows if kind == "rule"})
+    if rules:
+        saved_text = text_of(EVIDENCE / "rules.txt")
+        if saved_text is None:
+            say("there is no ~/evidence/rules.txt")
+        saved = {}
+        for line in tidy(saved_text):
+            fields = line.split()
+            if len(fields) == 2:
+                saved[fields[0]] = fields[1]
+        now = fresh(rules)
+        for rule in rules:
+            if rule not in saved:
+                say("~/evidence/rules.txt has no result for a rule the pack names")
+            if saved[rule] != now.get(rule, "unknown"):
+                say(
+                    "~/evidence/rules.txt has a result that isn't what the same rule gives now"
+                )
+    for _f, _c, kind, source in rows:
+        if kind == "rule" or source not in known:
+            continue
+        saved_text = text_of(EVIDENCE / f"{source}.txt")
+        if saved_text is None:
+            say("a collector the pack names has no saved output in ~/evidence")
+        done = subprocess.run(
+            ["bash", "-c", known[source][1]],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if source == "vuln-rescan":
+            same = scan_says(saved_text) == scan_says(done.stdout + done.stderr)
+            same = same and scan_says(saved_text)[0]
+        else:
+            same = tidy(saved_text) == tidy(done.stdout) and bool(tidy(done.stdout))
+        if not same:
+            say("a collector's saved output isn't what the same collector prints now")
+    print("right")
+
+
+def exception() -> dict[str, str] | None:
+    text = text_of(EVIDENCE / "exception.txt")
+    if text is None:
+        return None
+    found = {}
+    for line in text.splitlines():
+        key, colon, value = line.partition(":")
+        if colon and key.strip() and not key.startswith("#"):
+            found[key.strip().lower()] = value.strip()
+    return found
+
+
+def excepted_rule() -> tuple[str, str, str]:
+    """The one rule that may have an exception here, its control and its
+    system's owner ("" three times in a lab with none)."""
+    path = SEALED / "exception-rule"
+    if not path.is_file():
+        return "", "", ""
+    rule, control, owner = table(path)[0]
+    return rule, control, owner
+
+
+def check_met() -> None:
+    walk = crosswalk()
+    rules = sorted(
+        {
+            rule
+            for key, wanted in reference().items()
+            if wanted == "rule"
+            for rule in walk.get(key, set())
+        }
+    )
+    now = fresh(rules)
+    allowed, _control, _owner = excepted_rule()
+    written = exception() or {}
+    for rule in rules:
+        result = now.get(rule, "unknown")
+        if result == "pass":
+            continue
+        if rule == allowed and written.get("rule") == rule:
+            continue
+        say(
+            "a rule of a control in scope doesn't pass, and has no exception that may stand"
+        )
+    print("right")
+
+
+def check_exception() -> None:
+    allowed, control, owner = excepted_rule()
+    written = exception()
+    if written is None:
+        say("there is no ~/evidence/exception.txt")
+    for key in (
+        "control",
+        "rule",
+        "reason",
+        "compensating-control",
+        "owner",
+        "expires",
+    ):
+        if not written.get(key):
+            say(f"the exception has no {key}")
+    if written["rule"] != allowed or " ".join(written["control"].split()) != control:
+        say(
+            "the exception is for a rule that the server can be made to pass, or names the wrong control"
+        )
+    if fresh([allowed]).get(allowed) != "fail":
+        say("the exception is for a rule that doesn't fail")
+    for key in ("reason", "compensating-control"):
+        if len(written[key].split()) < 5:
+            say(f"the exception's {key} is fewer than five words")
+    if written["owner"] != owner:
+        say("the exception's owner isn't the team that owns this server")
+    try:
+        expires = datetime.date.fromisoformat(written["expires"])
+    except ValueError:
+        say("the exception's expiry isn't a date written YYYY-MM-DD")
+    today = datetime.date.today()
+    if expires <= today:
+        say("the exception has already expired")
+    if expires > today + datetime.timedelta(days=365):
+        say("the exception lasts more than a year")
+    print("right")
+
+
+def check_scope(path: str) -> None:
+    """A scoping file: one "scope SYSTEM cde|impacting|out REASON" line for
+    each system in the lab's sealed list, the reason at least five words."""
+    wanted = {row[0]: row[1] for row in table(SEALED / "scope-answers.tsv")}
+    text = text_of(Path(path))
+    shown = path.replace("/home/learner", "~")
+    if text is None:
+        say(f"there is no {shown}")
+    seen: dict[str, str] = {}
+    for number, line in enumerate(text.splitlines(), 1):
+        fields = line.split()
+        if not fields or fields[0].startswith("#"):
+            continue
+        if "..." in fields:
+            say(f"{shown} still has a gap to fill")
+        if fields[0] != "scope" or len(fields) < 3:
+            say(f"line {number} of {shown} isn't a scope line")
+        if fields[2] not in ("cde", "impacting", "out"):
+            say(f"line {number} of {shown}: the scope word isn't cde, impacting or out")
+        if len(fields) < 8:
+            say(f"line {number} of {shown}: the reason is fewer than five words")
+        if fields[1] in seen:
+            say(f"{shown} has two lines for {fields[1]}")
+        seen[fields[1]] = fields[2]
+    for system in seen:
+        if system not in wanted:
+            say(f"{shown} has a line for something that isn't on the list of systems")
+    for system, word in wanted.items():
+        if system not in seen:
+            say(f"{shown} has no line for {system}")
+        if seen[system] != word:
+            say(f"{shown}: {system} isn't {seen[system]}")
+    print("right")
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    if args[:1] == ["map"]:
+        check_map(names="--no-names" not in args)
+    elif args == ["current"]:
+        check_current()
+    elif args == ["met"]:
+        check_met()
+    elif args == ["exception"]:
+        check_exception()
+    elif len(args) == 2 and args[0] == "scope":
+        check_scope(args[1])
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,199 @@
+#!/usr/bin/python3
+"""evidence-cases: tries the learner's ~/bin/evidence, for the checks.
+
+    evidence-cases made-up    a crosswalk made up now, with a framework and
+                              controls nobody has seen, over real rules whose
+                              results on this server are read now
+    evidence-cases real       the lab's own crosswalk, with no third argument
+
+The learner's script is "evidence FRAMEWORK CONTROL [CROSSWALK]". For the
+rules the crosswalk maps to exactly that framework and control it prints
+"rule result" for each (in any order) and then one last line: "not met"
+when any rule fails, "met" when none fails and at least one passes, and
+"no automated evidence" when no rule maps or none of them passes or fails.
+
+Every expected answer is worked out here, from the crosswalk file and one
+OpenSCAP run through the base's oscap-rules, never by a tool the learner's
+script could call. It prints "same", or one sentence about the first case
+that differs, and always exits 0, so the checker shows the sentence.
+"""
+
+import os
+import secrets
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+OSCAP_RULES = "/usr/local/lib/lab-pay/oscap-rules"
+REFS = Path("/usr/share/lab-pay/refs.tsv")
+SCRIPT = "/home/learner/bin/evidence"
+# Real rules of the benchmark. Which of them pass, fail and don't apply is
+# read from the server each time, so nothing here is an answer.
+POOL = [
+    "sshd_disable_root_login",
+    "accounts_password_pam_minlen",
+    "file_permissions_sshd_private_key",
+    "package_telnet_removed",
+    "package_sudo_installed",
+    "sshd_enable_pam",
+    "file_owner_etc_passwd",
+    "no_empty_passwords_etc_shadow",
+    "accounts_password_pam_dcredit",
+    "accounts_password_pam_lcredit",
+    "journald_storage",
+    "package_rsync_removed",
+    "sshd_set_max_auth_tries",
+    "accounts_tmout",
+    "partition_for_tmp",
+    "service_ufw_enabled",
+    "grub2_password",
+    "mount_option_tmp_noexec",
+]
+
+
+def say(sentence: str) -> None:
+    print(sentence)
+    sys.exit(0)
+
+
+def fresh(rules: list[str]) -> dict[str, str]:
+    out = subprocess.run(
+        [OSCAP_RULES, *rules], capture_output=True, text=True, check=False
+    ).stdout
+    return dict(line.split()[:2] for line in out.splitlines() if len(line.split()) >= 2)
+
+
+def expected(rules: list[str], results: dict[str, str]) -> tuple[set[str], str]:
+    lines = {f"{rule} {results.get(rule, 'unknown')}" for rule in rules}
+    said = {results.get(rule) for rule in rules}
+    if "fail" in said:
+        verdict = "not met"
+    elif "pass" in said:
+        verdict = "met"
+    else:
+        verdict = "no automated evidence"
+    return lines, verdict
+
+
+def run(arguments: list[str]) -> list[str] | None:
+    """What the learner's script prints, run as the learner; None when it
+    doesn't finish in 20 seconds."""
+    try:
+        done = subprocess.run(
+            ["runuser", "-u", "learner", "--", SCRIPT, *arguments],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+            cwd="/home/learner",
+            env={**os.environ, "HOME": "/home/learner", "USER": "learner"},
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    return [line.strip() for line in done.stdout.splitlines() if line.strip()]
+
+
+def compare(
+    what: str, arguments: list[str], rules: list[str], results: dict[str, str]
+) -> None:
+    lines, verdict = expected(rules, results)
+    got = run(arguments)
+    if got is None:
+        say(f"for {what}, the script didn't finish in 20 seconds")
+    if not got:
+        say(f"for {what}, the script printed nothing")
+    if got[-1] != verdict:
+        say(f'for {what}, the last line was "{got[-1][:40]}"')
+    if set(got[:-1]) != lines or len(got) - 1 != len(lines):
+        say(
+            f"for {what}, the lines before the last weren't exactly that control's rules, each with its result"
+        )
+
+
+def made_up() -> None:
+    results = fresh(POOL)
+    passing = [rule for rule in POOL if results.get(rule) == "pass"]
+    failing = [rule for rule in POOL if results.get(rule) == "fail"]
+    neither = [rule for rule in POOL if results.get(rule) == "notapplicable"]
+    if len(passing) < 4 or len(failing) < 4 or len(neither) < 3:
+        say(
+            "the check couldn't find enough rules of each kind on this server: has the server been changed a great deal?"
+        )
+    rng = secrets.SystemRandom()
+    rng.shuffle(passing)
+    rng.shuffle(failing)
+    rng.shuffle(neither)
+    framework = "chk-" + secrets.token_hex(3)
+    other = "chk-" + secrets.token_hex(3)
+    a, b = rng.randint(2, 9), rng.randint(2, 9)
+    control = f"{a}.{b}"
+    quiet = f"{a + 10}.{b}.7"
+    rows = {
+        (framework, control): [passing[0], passing[1], neither[0]],
+        (framework, f"{control}.1"): [passing[2], failing[0]],
+        (framework, f"1{control}"): [failing[1]],
+        (framework, f"{control}0"): [failing[2]],
+        (framework, f"{a}x{b}"): [failing[3]],
+        (other, control): [failing[1], failing[2]],
+        (framework, quiet): [neither[1], neither[2]],
+    }
+    lines = [f"{rule}\t{fw}\t{c}" for (fw, c), rules in rows.items() for rule in rules]
+    # Real lines around them, so the file reads like the real crosswalk.
+    real = REFS.read_text(encoding="utf-8").splitlines()
+    lines += rng.sample(real, 150)
+    rng.shuffle(lines)
+    with tempfile.TemporaryDirectory() as folder:
+        os.chmod(folder, 0o755)
+        path = Path(folder) / "crosswalk.tsv"
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.chmod(path, 0o644)
+
+        def case(what: str, fw: str, c: str) -> None:
+            compare(what, [fw, c, str(path)], rows.get((fw, c), []), results)
+
+        case("a control whose rules pass or don't apply", framework, control)
+        case(
+            "a control with a rule that fails beside one that passes",
+            framework,
+            f"{control}.1",
+        )
+        case(
+            "a control whose number is also the number of a control in another framework",
+            other,
+            control,
+        )
+        case("a control whose rules all don't apply here", framework, quiet)
+        case("a control the crosswalk maps no rule to", framework, f"{a}.{b + 20}")
+    print("same")
+
+
+def real() -> None:
+    walk: dict[tuple[str, str], list[str]] = {}
+    for line in REFS.read_text(encoding="utf-8").splitlines():
+        rule, fw, c = line.split("\t")
+        walk.setdefault((fw, c), []).append(rule)
+    cases = [
+        ("pci-dss-4.0", "8.3.6"),
+        ("nist-800-53r4", "AC-6(2)"),
+        ("pci-dss-4.0", "10.5.1"),
+    ]
+    needed = sorted({rule for key in cases for rule in walk.get(key, [])})
+    results = fresh(needed)
+    for fw, c in cases:
+        compare(
+            f"{fw} {c} in the lab's own crosswalk",
+            [fw, c],
+            walk.get((fw, c), []),
+            results,
+        )
+    print("same")
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["made-up"]:
+        made_up()
+    elif sys.argv[1:] == ["real"]:
+        real()
+    else:
+        sys.exit(__doc__)
