@@ -1,0 +1,29 @@
+id: fill-register-the-app
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Register the app"
+prompt: |
+  The shop's new orders site isn't in single sign-on yet. It is a web app on a server, used by staff with a browser, so it gets the authorization code flow and nothing else. Registering it takes two halves that must agree: a **client** at the identity provider, and the site's own settings. Both files are written already, with gaps.
+
+  Three machines: `office` (10.0.5.2), a staff laptop; `idp` (10.0.5.10), the identity provider at `https://login.shop.test`, realm `shop`, with two people, `ana` (in the group `staff`) and `ben` (in `warehouse`); and `orders` (10.0.5.21), which runs Apache for `https://orders.shop.test/orders/`. The identity labs' basics (the realm file, `realm-apply`, `realm-saved`, `signin`) are in this topic's first lab, `example-trace-a-sign-in`.
+
+  **1. The client, in the realm file.** `on idp nano /etc/keycloak/realms/shop.json`, and find the block for `orders-web`. Five values are `"..."`:
+
+  - three switches, one for each way of getting tokens that a person's browser can be part of. Turn on the one this site needs and turn the other two off. A switch is `true` or `false`, written without quotes;
+  - `redirectUris`: the one address the provider may send a sign-in for this client back to. The site's callback is its own address followed by `/oidc/callback`;
+  - `pkce.code.challenge.method`: the PKCE method the provider will insist on for this client.
+
+  The other settings in the block are right as they are: the client is confidential (`"publicClient": false`), and its secret is `${ORDERS_WEB_SECRET}`, a name the provider fills in from `/etc/keycloak/secrets.env` when the file is applied. Then `sudo realm-apply`. It refuses a file that still has a gap, and says which line.
+
+  **2. The site's copy of the secret.** The two sides share one secret. `on idp grep ORDERS_WEB_SECRET /etc/keycloak/secrets.env` shows it. It goes in `/etc/apache2/oidc-secret.conf` on `orders`, a file only root can read, in place of the dots after `OIDCClientSecret` (`on orders nano /etc/apache2/oidc-secret.conf`), and nowhere else.
+
+  **3. The site.** `on orders nano /etc/apache2/sites-available/orders.conf`. Four settings are `...`, each with a comment above it: where the provider's discovery document is, the site's callback address, the PKCE method, and the rule for who may open the orders pages. That rule is `Require claim` followed by a claim's name, a colon and the value it must have: the token's `groups` claim lists the person's groups, and the orders pages are for the `staff` group.
+
+  Apache on `orders` can't start while its file is unfinished (`systemctl status apache2@orders` shows it trying). When the file is done: `sudo systemctl restart apache2@orders`.
+
+  **Try it.** `on office signin https://orders.shop.test/orders/me ana -v` should end with `user=ana`, and the same for `ben` with `refused: 401`. If a sign-in fails, read where it stopped: the provider's own page (`refused: Invalid parameter: redirect_uri`), or the site's log (`on orders tail /var/log/apache2/error.log`), and the provider's journal (`journalctl -u keycloak@idp -n 5`). `realm-saved` should say `saved`. Then run the checks.
+skills: [choose-flow, trace-oidc]

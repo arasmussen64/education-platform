@@ -1,0 +1,75 @@
+id: example-trace-a-sign-in
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Trace a sign-in"
+prompt: |
+  **Before your first identity lab.** An identity lab is a network lab (machines, `on MACHINE COMMAND`, services named `name@machine`: Layers and packets' first lab, `example-follow-a-request`, has the basics) with a real identity provider in it. Four things are new, and every identity lab from here on uses them.
+
+  - **The identity provider** is Keycloak, an open-source one, on the machine `idp`, at `https://login.shop.test`. It holds one **realm**, `shop`: the shop's people, groups and registered apps. It needs about 0.8 GB of memory and the lab's image about 1.4 GB of disk, and it takes ten to twenty seconds to start, which the lab waits for.
+  - **The realm is a file.** Everything the realm holds is written in `/etc/keycloak/realms/shop.json` on `idp`. `sudo realm-apply` rebuilds the running realm from that file, and `realm-saved` says whether the two still match. A change made only in the running provider is **drift**: it works until the next apply and is then gone, as a router's `vtysh` change was before `write memory`. So you change the file, then apply. There is no admin console here.
+  - **`signin` is the lab's scripted browser.** `on office signin URL PERSON` opens a page as that person's browser would: it follows redirects, keeps cookies and fills in the sign-in form with the person's password, then prints `signed in:` and the page, or `refused:` and why. `-v` shows every request. It is a stand-in for a person at a browser and nothing more; in this lab you first do by hand, with `curl`, everything it does.
+  - **The test people** and their passwords are in `/etc/idlab/accounts`, made new in every lab. `jwt show` and `jwt verify` read and check a token, once you have done that by hand too.
+
+  **The shop.** `office` (10.0.5.2) is a staff laptop. `idp` (10.0.5.10) is the identity provider. `app` (10.0.5.20) runs Apache with two sets of pages: the orders pages, `https://app.shop.test/orders/`, which sign staff in with OpenID Connect, and the HR pages, `https://app.shop.test/hr/`, which use SAML. `api` (10.0.5.30) is the stock API, which wants an access token. `ntp` (10.0.5.40) is the shop's time server, `time.shop.test`.
+
+  The walkthrough signs Ana in to a command-line tool by hand, message by message; opens the tokens and checks one signature with `openssl`; shows the API which token is its own; finds out why the orders pages refuse a sign-in that worked a minute ago, and mends it; and then reads a SAML sign-on to the HR pages that asks for no password at all. Type each line yourself and read what it prints before you type the next. The shell remembers the names you set (`iss`, `token` and the rest) only until you leave it: if you come back later, type lines 3 to 4, 8 to 9, 13, 24 and 29 again first.
+steps:
+  - label: "The machines and the people"
+    lines: "1-3"
+    note: "Five machines on one switch; `netlab show` says what each runs. `/etc/idlab/accounts` has two people, `ana` and `ben`, each with a password made for this lab. Everything you save goes in `~/example`."
+  - label: "The provider's map"
+    lines: "4-8"
+    note: "An OpenID Connect provider describes itself in a **discovery document**, always at the issuer's address plus `/.well-known/openid-configuration`. `jq '{...}'` prints five of its fields: the **issuer** (the provider's name, which every token will carry), the `authorization_endpoint` (where a browser is sent to sign in), the `token_endpoint` (where an app swaps a code for tokens), the `jwks_uri` (where the provider publishes its signing keys) and the PKCE methods it knows. `jq -r .issuer` prints one field without its quotes. Line 8 keeps three of the addresses in shell variables."
+  - label: "A PKCE pair, a state and a nonce"
+    lines: "9-12"
+    note: "`b64url` is a small function: base64, with `+` and `/` swapped for `-` and `_` and the `=` padding dropped. The **verifier** is 32 random bytes written that way, 43 characters, and it stays here. The **challenge** is the SHA-256 of the verifier, written the same way: that is the method `S256`. Only the challenge goes into the request. `state` and `nonce` are two more random values this side makes and will look for in the answers."
+  - label: "The authorization request (front channel)"
+    lines: "13-14"
+    note: "This is the request an app would send Ana's browser off with: which client is asking (`client_id=trace-cli`), what it wants back (`response_type=code`), where to send the browser afterwards (`redirect_uri`), and the state, nonce and challenge. `curl` plays the browser: `-c jar -b jar` keeps cookies in the file `jar`, and `-o login.html` saves what came back, which is the provider's sign-in page. Nothing has reached the app yet, and the app never sees this page."
+  - label: "Sign in, and read the redirect"
+    lines: "15-19"
+    note: "The sign-in form's `action` is the address the browser posts the password to (it has `&amp;` where a URL has `&`, which `sed` puts back). Line 17 posts Ana's name and password, to the provider and nowhere else. `-D headers.txt` saves the answer's headers: a `302` whose `Location` is the redirect address with four things added. Line 18 prints them one a line: `state` (compare it with `cat state.txt`: the same, so this answer belongs to the request you sent), `session_state`, `iss` (which provider is answering) and `code`, the **authorization code**. A real browser would now go to that address, and so hand the code to the app. Here the app is you."
+  - label: "The token request (back channel)"
+    lines: "20-22"
+    note: "The app sends the code straight to the provider's token endpoint, with the same redirect address and the **verifier**, and gets JSON back: `access_token`, `id_token`, `refresh_token`, with `expires_in: 300` (five minutes) and `token_type: Bearer`. No browser carried this request or saw its answer. The provider hashed the verifier and compared it with the challenge from line 14. Line 22 sends the same request again: `invalid_grant`, `Code not valid`. A code works once."
+  - label: "Open the ID token"
+    lines: "23-26"
+    note: "A token is three pieces joined by dots. `d64` decodes one piece: it turns `-` and `_` back, pads to a multiple of four, and runs `base64 -d`. The first piece, the **header**: `alg` `RS256` (an RSA signature over a SHA-256 hash) and `kid`, the name of the key that signed. The second, the **payload**, is the claims: `iss` (who issued it), `aud` (`trace-cli`: who it is for), `sub` (Ana's permanent id), `exp` and `iat` (seconds since 1970; `exp - iat` is 300), `nonce` (compare with `cat nonce.txt`), `azp` (the client it was issued to), and Ana's name and email. Anyone can read all of this: it is encoded, not encrypted."
+  - label: "Check the signature by hand"
+    lines: "27-33"
+    note: "The provider's key set lists two keys; line 28 prints their `kid`s, and the token's header named one of them. Line 30 picks that key by its `kid` (`select(.kid == $k)`, with `--arg k` passing the shell's value in), takes its certificate (`x5c`), wraps it as a PEM file with the small `pem` function, and has `openssl x509` pull out the public key. The signature covers the first two pieces exactly as they arrived, dot included (`signed.txt`); the third piece decoded is the signature itself (`sig.bin`). `openssl dgst -sha256 -verify` says `Verified OK`. Change one letter of what was signed and it says `Verification failure`: nobody can alter a claim without the provider's private key."
+  - label: "The same, with the lab's tool"
+    lines: "34"
+    note: "`jwt verify` does the steps you just did, and the ones after: the key by `kid`, the signature, the issuer, the audience, the times and the nonce. `valid sub=...`. From now on it is a tool you can trust, because you know what is inside it."
+  - label: "The access token is the API's"
+    lines: "35-38"
+    note: "The second token in the answer has another audience: `https://api.shop.test`. Sent to the stock API in an `Authorization: Bearer` header it gets `200`. The ID token sent the same way gets `401`, and the API's journal says why: `audience 'trace-cli' doesn't include 'https://api.shop.test'`. Same signature, same issuer, same person, and still refused: each token is for one reader."
+  - label: "All of that in one line"
+    lines: "39"
+    note: "`signin --code` is the app's side and the browser's side of lines 9 to 20 in one command, with its own verifier, state and nonce; `-v` prints each request. You'll use it from here on, and checks do too."
+  - label: "The orders pages refuse Ana"
+    lines: "40-43"
+    note: "Now a real app: Apache on `app`, which does the app's side itself. Ana's password is accepted (`typed the password`), the browser comes back to `/oidc/callback` with a code, and the site answers `400 Bad Request`. A failure after the code came back is on the back channel, so the evidence is in the app's log: `\"exp\" validation failure ... JWT expired 180 seconds ago`. A token issued a second ago, expired three minutes ago? Line 42 shows your saved token's `exp` by two clocks: this machine's, and app's, which differ by eight minutes. `on app clock` says it outright: app's clock is `8 min 0 s ahead of the real time`, and its time sync is `inactive (disabled)`. A token's times are read against the reader's clock, and this reader's clock is wrong."
+  - label: "Mend the clock at its cause"
+    lines: "44-46"
+    note: "A server gets its time from a time server, through a time sync service that asks again and again. App's was never switched on. `enable --now` starts it now and at every boot; its journal says `synchronized to time server 10.0.5.40:123 (time.shop.test): clock stepped by -480.0 s`, and `on app clock` says `right`. (In this lab the time sync is a stand-in that reads the same file a real one does, `/etc/chrony/chrony.conf`: every machine here shares one real clock, which a lab must never set.) The fix that isn't one: making tokens last longer, or telling the site to tolerate eight minutes."
+  - label: "Sign in to the orders pages"
+    lines: "47"
+    note: "`user=ana`, `groups=staff`. `--jar browser.jar` keeps this browser's cookies in a file, so the next line is the same browser, still open."
+  - label: "Single sign-on, into a SAML app"
+    lines: "48"
+    note: "The HR pages speak SAML. Read the `-v` lines: the site redirects to the provider with a `SAMLRequest` in the address; the provider answers `200` at once, with no sign-in page, because this browser already has the provider's session cookie from line 47; and the browser carries a `SAMLResponse` form back to the site. There is no `typed the password` line. That is single sign-on."
+  - label: "Read the assertion"
+    lines: "49-51"
+    note: "The same by hand, with the `curl` browser of lines 14 to 17 (its jar has the provider's cookie too; if more than half an hour has passed the provider has ended that session, and `response.xml` comes out empty: do lines 14 to 17 again). `-L` follows the redirects; the page saved is the form, and its `SAMLResponse` field is the whole answer in base64. Decoded, it is XML. Line 51 puts one element on a line and keeps seven: the `Issuer` (the provider's name), the `NameID` (`ana`), `InResponseTo` (the id of the request this answers) and `Recipient` (the one address that may receive it), the `Conditions` (valid for one minute), the `Audience` (`https://app.shop.test/hr`: who it is for) and the `email` attribute. The same promises as an ID token, in another format."
+  - label: "Check the assertion's signature"
+    lines: "52-55"
+    note: "A SAML provider publishes its signing certificates in its **metadata**; line 53 fetches it and takes the certificate whose key name the signature gives. `xmlsec1 --verify` checks the signature inside the XML: `OK`, `SignedInfo References (ok/all): 1/1`. Change `ana` to `ben` and it says `FAIL`, `0/1`."
+  - label: "Where the settings live"
+    lines: "56-59"
+    note: "`trace-cli`'s block in the realm file: a public client (it has no secret to keep), with one redirect address. `kc get` asks the running provider for the same client: the same settings. `realm-saved` says `saved`: the running realm is the one the file builds. Then run the checks: they verify what you saved against the provider itself, and look at app's clock and both sign-ins."
+skills: [trace-oidc, trace-saml, validate-token]

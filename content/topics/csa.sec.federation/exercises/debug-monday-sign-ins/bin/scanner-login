@@ -1,0 +1,46 @@
+#!/bin/bash
+# scanner-login: what a warehouse scanner does at the start of a shift. A
+# scanner has a small screen and no browser, so it asks the identity
+# provider for a code (the device authorization grant), shows it, and
+# keeps asking for its tokens until someone has approved the code on
+# another device. Then it asks the stock API for the level.
+#   on scanner scanner-login
+# To approve the code as a person, from the office laptop, in a second
+# terminal:  on office signin --approve-device CODE ben
+idp=https://login.shop.test/realms/shop
+answer=$(curl -s -m 10 "$idp/protocol/openid-connect/auth/device" -d client_id=scanner)
+device_code=$(echo "$answer" | jq -r '.device_code // empty')
+if [[ -z $device_code ]]; then
+  echo "scanner: can't start a sign-in: $(echo "$answer" | jq -r '"\(.error): \(.error_description)"')"
+  exit 1
+fi
+interval=$(echo "$answer" | jq -r .interval)
+echo "scanner: open $(echo "$answer" | jq -r .verification_uri) and type the code $(echo "$answer" | jq -r .user_code)"
+# Ask every "interval" seconds, for at most two minutes.
+for _ in $(seq 1 $((120 / interval))); do
+  sleep "$interval"
+  answer=$(curl -s -m 10 "$idp/protocol/openid-connect/token" \
+    -d grant_type=urn:ietf:params:oauth:grant-type:device_code -d client_id=scanner -d "device_code=$device_code")
+  token=$(echo "$answer" | jq -r '.access_token // empty')
+  [[ -n $token ]] && break
+  case $(echo "$answer" | jq -r .error) in
+    authorization_pending) ;;
+    slow_down) interval=$((interval + 5)) ;;
+    *)
+      echo "scanner: sign-in failed: $(echo "$answer" | jq -r '"\(.error): \(.error_description)"')"
+      exit 1
+      ;;
+  esac
+done
+if [[ -z $token ]]; then
+  echo "scanner: nobody approved the code in time"
+  exit 1
+fi
+reply=$(curl -s -m 10 -w '\n%{http_code}' -H "Authorization: Bearer $token" https://api.shop.test/stock/level)
+status=${reply##*$'\n'}
+if [[ $status == 200 ]]; then
+  echo "scanner: signed in as $(echo "${reply%$'\n'*}" | jq -r .caller), level=$(echo "${reply%$'\n'*}" | jq -r .level)"
+else
+  echo "scanner: signed in, and the stock API answered $status"
+  exit 1
+fi

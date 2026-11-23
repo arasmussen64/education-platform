@@ -1,0 +1,108 @@
+# The checks read the client as the running identity provider has it, try
+# what it must refuse with addresses and people made up on the spot, sign
+# in for real from the office laptop, and compare the running realm with
+# its file. Keycloak answers before the boot counts as finished; the
+# sign-in check waits a few seconds for Apache.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: one-flow-only
+    description: "The identity provider gives the orders site's client the one way of getting tokens that a web app with a signed-in person needs, and none of the others."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      got=$(kc get 'shop/clients?clientId=orders-web' 2> /dev/null | json "(lambda c: [c.get('standardFlowEnabled'), c.get('implicitFlowEnabled'), c.get('directAccessGrantsEnabled'), c.get('serviceAccountsEnabled'), c.get('attributes', {}).get('oauth2.device.authorization.grant.enabled', 'false')])(d[0])" 2> /dev/null)
+      [ -n "$got" ] || { echo "the running realm has no client called orders-web"; exit 0; }
+      [ "$got" = '[true, false, false, false, "false"]' ] && echo one || echo "the client's ways of getting tokens aren't right"
+    expect:
+      equals: one
+  - id: client-keeps-a-secret
+    description: "The client is one that proves who it is: a token request for it without the right secret is refused."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      [ "$(client_field shop orders-web "d.get('publicClient')" 2> /dev/null)" = False ] || { echo "the client doesn't have to prove who it is"; exit 0; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      got=$(on office signin --code orders-web https://orders.shop.test/oidc/callback https://login.shop.test/realms/shop ana --secret="wrong$r" | tail -n 1)
+      case $got in "refused at the token endpoint"*) echo refused ;; *) echo "a token request with a wrong secret: ${got:0:80}" ;; esac
+    expect:
+      equals: refused
+  - id: redirect-exact
+    description: "The identity provider sends a sign-in for the orders site back to the site's one callback address and nowhere else."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      uris=$(client_field shop orders-web "' '.join(d['redirectUris'])" 2> /dev/null)
+      [ "$uris" = "https://orders.shop.test/oidc/callback" ] || { echo "registered: ${uris:-nothing}"; exit 0; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      for other in "https://orders.shop.test/oidc/callback/x$r" "https://orders.shop.test/other$r" "https://orders$r.shop.test/oidc/callback" "https://evil$r.test/oidc/callback"; do
+        got=$(on office signin --code orders-web "$other" https://login.shop.test/realms/shop ana --secret=x | tail -n 1)
+        case $got in "refused: Invalid parameter: redirect_uri"*) ;; *) echo "$other was not refused: ${got:0:80}"; exit 0 ;; esac
+      done
+      echo exact
+    expect:
+      equals: exact
+  - id: code-protected
+    description: "The identity provider refuses to start a sign-in for the orders site unless the request protects its code the strong way."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      auth="https://login.shop.test/realms/shop/protocol/openid-connect/auth?client_id=orders-web&response_type=code&scope=openid&redirect_uri=https://orders.shop.test/oidc/callback&state=s"
+      ask() { on office curl -s -m 10 -o /dev/null -w '%{http_code} %{redirect_url}' "$auth$1"; }
+      v=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+      c=$(printf '%s' "$v" | openssl dgst -sha256 -binary | base64 -w0 | tr '+/' '-_' | tr -d '=')
+      good=$(ask "&code_challenge=$c&code_challenge_method=S256")
+      [ "${good%% *}" = 200 ] || { echo "a well-made sign-in request didn't reach the sign-in page"; exit 0; }
+      for weak in "" "&code_challenge=$v&code_challenge_method=plain" "&code_challenge=$v"; do
+        got=$(ask "$weak")
+        case $got in "302 "*error=invalid_request*) ;; *) echo "a request with weaker protection, or none, was accepted"; exit 0 ;; esac
+      done
+      echo required
+    expect:
+      equals: required
+  - id: secret-private
+    description: "The site's copy of the client secret is in the file only root can read, and in no file anyone else can."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      secret=$(secret_of ORDERS_WEB_SECRET)
+      f=/etc/netns/orders/apache2/oidc-secret.conf
+      grep -x "OIDCClientSecret \"\?$secret\"\?" "$f" > /dev/null || { echo "the site's secret file doesn't hold the client's secret"; exit 0; }
+      [ "$(stat -c '%a %U' "$f")" = "600 root" ] || { echo "the site's secret file can be read by others than root"; exit 0; }
+      leak=$(grep -rlF "$secret" /etc/netns/orders /home/learner /tmp /var/tmp /srv 2> /dev/null | while read -r file; do [ -n "$(find "$file" -perm /044)" ] && echo "$file"; done | head -n 1)
+      [ -z "$leak" ] || { echo "the secret is also in a file others can read"; exit 0; }
+      echo private
+    expect:
+      equals: private
+  - id: staff-sign-in
+    description: "Ana, from the office laptop, signs in to the orders site and it knows her; so does a staff member made up for this check."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      wait_for 6 on office curl -s -m 2 -o /dev/null https://orders.shop.test/
+      got=$(on office signin https://orders.shop.test/orders/me ana)
+      echo "$got" | grep -x 'user=ana' > /dev/null || { echo "ana: $(echo "$got" | tail -n 1 | cut -c1-100)"; exit 0; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      trap 'idp-user del shop chk-s$r > /dev/null 2>&1' EXIT
+      idp-user add shop "chk-s$r" "pw$r$r" staff > /dev/null
+      got=$(on office signin https://orders.shop.test/orders/me "chk-s$r" --password "pw$r$r")
+      echo "$got" | grep -x "user=chk-s$r" > /dev/null || { echo "a new member of staff: $(echo "$got" | tail -n 1 | cut -c1-100)"; exit 0; }
+      echo in
+    expect:
+      equals: in
+  - id: others-refused
+    description: "Ben, who works in the warehouse, signs in at the identity provider and is still refused by the orders site; so is someone made up for this check who is in no group."
+    timeout: 60
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      got=$(on office signin https://orders.shop.test/orders/me ben | tail -n 1)
+      case $got in "refused: 401"*) ;; *) echo "ben: ${got:0:100}"; exit 0 ;; esac
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      trap 'idp-user del shop chk-n$r > /dev/null 2>&1' EXIT
+      idp-user add shop "chk-n$r" "pw$r$r" > /dev/null
+      got=$(on office signin https://orders.shop.test/orders/me "chk-n$r" --password "pw$r$r" | tail -n 1)
+      case $got in "refused: 401"*) echo refused ;; *) echo "someone in no group: ${got:0:100}" ;; esac
+    expect:
+      equals: refused
+  - id: realm-saved
+    description: "The identity provider's running realm is the one its file builds, so the client is still there after the next apply."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_saved shop 2>&1
+    expect:
+      equals: saved

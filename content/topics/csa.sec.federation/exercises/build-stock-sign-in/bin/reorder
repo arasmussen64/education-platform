@@ -1,0 +1,29 @@
+#!/bin/bash
+# reorder: the nightly reorder job. No person is involved: it signs in as
+# itself, with the client and secret in /etc/reorder/client, by the client
+# credentials grant, and asks the stock API to place the reorder.
+#   on jobs reorder
+# /etc/reorder/client is two lines:
+#   client_id=NAME
+#   client_secret=SECRET
+if [[ ! -r /etc/reorder/client ]]; then
+  echo "reorder: there is no /etc/reorder/client"
+  exit 1
+fi
+. /etc/reorder/client
+idp=https://login.shop.test/realms/shop
+answer=$(curl -s -m 10 "$idp/protocol/openid-connect/token" -d grant_type=client_credentials \
+  -d "client_id=$client_id" -d "client_secret=$client_secret")
+token=$(echo "$answer" | jq -r '.access_token // empty')
+if [[ -z $token ]]; then
+  echo "reorder: no token: $(echo "$answer" | jq -r '"\(.error): \(.error_description)"')"
+  exit 1
+fi
+reply=$(curl -s -m 10 -w '\n%{http_code}' -H "Authorization: Bearer $token" https://api.shop.test/stock/reorder)
+status=${reply##*$'\n'}
+if [[ $status == 200 ]]; then
+  echo "reorder: $(echo "${reply%$'\n'*}" | jq -r .reorder) as $(echo "${reply%$'\n'*}" | jq -r .client)"
+else
+  echo "reorder: the stock API answered $status"
+  exit 1
+fi

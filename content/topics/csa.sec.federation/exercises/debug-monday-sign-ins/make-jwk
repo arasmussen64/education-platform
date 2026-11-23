@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""make-jwk CERTIFICATE.crt: prints the certificate's public key as a JWK,
+on one line, with the kid Keycloak gives that key (the SHA-256 of the
+public key, in base64url). Run at image build, to write a copy of one of
+the realm's keys into a file: no key is in the repository.
+"""
+
+import base64
+import hashlib
+import json
+import sys
+
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
+
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+certificate = x509.load_pem_x509_certificate(open(sys.argv[1], "rb").read())
+public = certificate.public_key()
+numbers = public.public_numbers()
+der = public.public_bytes(
+    serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+)
+print(
+    json.dumps(
+        {
+            "kty": "RSA",
+            "kid": b64url(hashlib.sha256(der).digest()),
+            "use": "sig",
+            "alg": "RS256",
+            "n": b64url(numbers.n.to_bytes((numbers.n.bit_length() + 7) // 8, "big")),
+            "e": b64url(numbers.e.to_bytes((numbers.e.bit_length() + 7) // 8, "big")),
+        },
+        separators=(",", ":"),
+    )
+)

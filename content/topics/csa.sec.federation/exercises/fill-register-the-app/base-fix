@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""base-fix: run once at image build, in this topic's identity labs.
+
+The identity base's realm-saved (kcapi.py, "saved") compares the running
+realm with a throwaway copy built from the realm's file. Three things made
+it report a difference nobody made:
+
+- Keycloak's export lists each service account (a client that signs in as
+  itself) as a user, with the moment it was created, and that moment is
+  never the same in the copy;
+- the copy was built without the file's users, so roles the file gives a
+  service account were missing from it;
+- a SAML client is given a "client.secret.creation.time" of its own, again
+  never the same twice.
+
+And at a boot, a realm file that couldn't be applied (a gap still to fill
+in, a slip in its JSON) made Keycloak's unit fail and start again, for ever.
+
+This changes the lab's own copies of kcapi.py and kc-wait: the two times
+are left out of the comparison, the copy keeps the file's service accounts
+(and only those), and a file that can't be applied at boot is reported in
+the journal while Keycloak carries on with the realm it had. Each change
+is made only if the line it replaces is still there, so once the base
+itself is fixed this does nothing. The same file is in every identity lab
+of the topic.
+"""
+
+import pathlib
+
+LIB = pathlib.Path("/usr/local/lib/idlab")
+SAY = "keycloak: a realm file couldn't be applied, so its realm is as it was before; 'sudo realm-apply' says why"
+changes = [
+    (
+        "kcapi.py",
+        'DROPPED = ("id", "containerId", "subComponents")\n',
+        'DROPPED = ("id", "containerId", "subComponents", "createdTimestamp", "client.secret.creation.time")\n',
+    ),
+    (
+        "kcapi.py",
+        '    data.pop("users", None)\n',
+        '    data["users"] = [u for u in data.get("users", []) if u.get("serviceAccountClientId")]\n',
+    ),
+    (
+        "kc-wait",
+        "exec python3 /usr/local/lib/idlab/kcapi.py apply-if-changed\n",
+        f'python3 /usr/local/lib/idlab/kcapi.py apply-if-changed || echo "{SAY}" >&2\nexit 0\n',
+    ),
+]
+for name, old, new in changes:
+    path = LIB / name
+    text = path.read_text(encoding="utf-8")
+    if old in text:
+        path.write_bytes(text.replace(old, new).encode("utf-8"))

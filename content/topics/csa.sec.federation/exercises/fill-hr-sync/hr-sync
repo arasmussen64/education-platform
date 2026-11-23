@@ -1,0 +1,107 @@
+#!/bin/bash
+# hr-sync STAFF.csv: make the identity provider's accounts match the HR
+# system's staff file, through the provider's SCIM API.
+#
+# The file's columns: username,first,last,email,team,status
+# where status is "active" or "left", and team is the name of a group.
+#
+# It only sends a change when something needs changing, so running it
+# twice is the same as running it once. It never touches an account that
+# isn't in the file.
+#
+# Five places are still to fill in: each is marked GAP.
+set -euo pipefail
+file=$1
+idp=https://login.shop.test/realms/shop
+scim=$idp/scim/v2
+patch=urn:ietf:params:scim:api:messages:2.0:PatchOp
+
+# The connector signs in as itself, with its own client and secret (the
+# client credentials grant), and gets a token for the SCIM API.
+secret=$(cat /etc/hr-sync/secret)
+token=$(curl -s "$idp/protocol/openid-connect/token" -d grant_type=client_credentials \
+  -d client_id=hr-sync -d "client_secret=$secret" | jq -r .access_token)
+
+# api METHOD PATH [BODY]: one SCIM request. Prints the answer; if the
+# answer is a SCIM error, says so and stops the script.
+api() {
+  local method=$1 path=$2 body=${3:-} answer
+  if [[ -n $body ]]; then
+    answer=$(curl -s -X "$method" -H "Authorization: Bearer $token" -H 'Content-Type: application/scim+json' -d "$body" "$scim$path")
+  else
+    answer=$(curl -s -X "$method" -H "Authorization: Bearer $token" "$scim$path")
+  fi
+  if echo "$answer" | grep 'api:messages:2.0:Error' > /dev/null; then
+    echo "hr-sync: $method $path was refused: $(echo "$answer" | jq -r '"\(.status) \(.scimType // "") \(.detail)"')" >&2
+    exit 1
+  fi
+  echo "$answer"
+}
+
+# find USERS|GROUPS FILTER: the first resource the filter finds, as one
+# line of JSON, or nothing when it finds none.
+find() {
+  local answer
+  answer=$(curl -s -G -H "Authorization: Bearer $token" "$scim/$1" --data-urlencode "filter=$2")
+  if echo "$answer" | grep 'api:messages:2.0:Error' > /dev/null; then
+    echo "hr-sync: the filter '$2' was refused: $(echo "$answer" | jq -r '"\(.status) \(.scimType // "") \(.detail)"')" >&2
+    exit 1
+  fi
+  echo "$answer" | jq -c '.Resources[0] // empty'
+}
+
+# Every group's id and name, read once: "ID NAME" a line.
+groups=$(api GET /Groups | jq -r '.Resources[] | "\(.id) \(.displayName)"')
+
+# in_group GROUP-ID USER-ID: is the user a member? (This server lists a
+# group's members only when asked for them by name.)
+in_group() {
+  api GET "/Groups/$1?attributes=members" | jq -e --arg id "$2" '[.members[]?.value] | index($id) != null' > /dev/null
+}
+
+tail -n +2 "$file" | tr -d '\r' | while IFS=, read -r username first last email team status; do
+  [[ -n $username ]] || continue
+
+  # GAP 1: the SCIM filter that finds the account with exactly this user name.
+  user=$(find Users "... \"$username\"")
+
+  if [[ $status == left ]]; then
+    # A leaver. The account is switched off, never deleted: its history
+    # stays, and a mistake can be undone.
+    if [[ -n $user && $(echo "$user" | jq -r .active) == true ]]; then
+      id=$(echo "$user" | jq -r .id)
+      # GAP 2: the operation that switches the account off.
+      api PATCH "/Users/$id" "{\"schemas\":[\"$patch\"],\"Operations\":[{\"op\":\"...\",\"path\":\"...\",\"value\":\"...\"}]}" > /dev/null
+      echo "switched off $username"
+    fi
+    continue
+  fi
+
+  if [[ -z $user ]]; then
+    # A joiner.
+    # GAP 3: one more attribute, or this server stores the new account
+    # switched off. Replace the whole "...": "..." pair.
+    body=$(jq -n --arg u "$username" --arg f "$first" --arg l "$last" --arg e "$email" \
+      '{schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"], userName: $u, name: {givenName: $f, familyName: $l}, emails: [{value: $e, primary: true}], "...": "..."}')
+    user=$(api POST /Users "$body" | jq -c .)
+    echo "created $username"
+  fi
+  id=$(echo "$user" | jq -r .id)
+
+  # Teams: a member of the file's team, and of no other group.
+  echo "$groups" | while read -r gid group; do
+    if in_group "$gid" "$id"; then
+      if [[ $group != "$team" ]]; then
+        # GAP 4: the operation that takes this one member out of the group.
+        body=$(jq -n --arg p "$patch" --arg id "$id" '{schemas: [$p], Operations: [{op: "...", path: ("members[value eq \"" + $id + "\"]")}]}')
+        api PATCH "/Groups/$gid" "$body" > /dev/null
+        echo "took $username out of $group"
+      fi
+    elif [[ $group == "$team" ]]; then
+      # GAP 5: the operation that puts this member into the group.
+      body=$(jq -n --arg p "$patch" --arg id "$id" '{schemas: [$p], Operations: [{op: "...", path: "members", value: [{value: $id}]}]}')
+      api PATCH "/Groups/$gid" "$body" > /dev/null
+      echo "put $username into $group"
+    fi
+  done
+done

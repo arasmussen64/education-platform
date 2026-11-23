@@ -1,0 +1,153 @@
+{
+  "realm": "shop",
+  "enabled": true,
+  "sslRequired": "all",
+  "accessTokenLifespan": 300,
+  "eventsEnabled": true,
+  "groups": [{ "name": "staff" }, { "name": "warehouse" }],
+  "users": [
+    {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "username": "ana",
+      "enabled": true,
+      "firstName": "Ana",
+      "lastName": "Lima",
+      "email": "ana@shop.test",
+      "emailVerified": true,
+      "groups": ["/staff"],
+      "credentials": [{ "type": "password", "value": "${ANA_PASSWORD}", "temporary": false }]
+    },
+    {
+      "id": "0a000000-0000-4000-8000-000000000002",
+      "username": "ben",
+      "enabled": true,
+      "firstName": "Ben",
+      "lastName": "Okoro",
+      "email": "ben@shop.test",
+      "emailVerified": true,
+      "groups": ["/warehouse"],
+      "credentials": [{ "type": "password", "value": "${BEN_PASSWORD}", "temporary": false }]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "shop-web",
+      "name": "The orders site",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${SHOP_WEB_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": ["https://app.shop.test/oidc/callback"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "multivalued": "true",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "stock-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "https://api.shop.test",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "stock-job",
+      "name": "The nightly stock job",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${STOCK_JOB_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "attributes": { "oauth2.device.authorization.grant.enabled": "false" },
+      "protocolMappers": [
+        {
+          "name": "stock-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "https://api.shop.test",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "uptime-probe",
+      "name": "The monitoring probe (its tokens last a few seconds)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${UPTIME_PROBE_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "attributes": {
+        "access.token.lifespan": "3",
+        "oauth2.device.authorization.grant.enabled": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "stock-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "https://api.shop.test",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "scanner",
+      "name": "The warehouse scanners",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "attributes": { "oauth2.device.authorization.grant.enabled": "false" },
+      "protocolMappers": [
+        {
+          "name": "stock-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "https://api.shop.test",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ]
+}
