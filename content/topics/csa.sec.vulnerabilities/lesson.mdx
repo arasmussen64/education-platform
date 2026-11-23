@@ -29,7 +29,7 @@ Two things follow. A scanner is only as good as its database: a flaw with no adv
 
 <Check item="mcq-what-a-scanner-does" />
 
-**Backports: why the distribution's advisories are the ones to read.** The sudo project fixed CVE-2025-32463 in its release 1.9.17p1, so its notice says "Sudo before 1.9.17p1". Ubuntu 24.04 ships sudo 1.9.15p5 and will for the life of the release: Ubuntu doesn't move a released system to each new upstream version, because new versions bring new behaviour. It takes the fix alone and applies it to the version it ships. That is a **backport**. The fixed Ubuntu package is `1.9.15p5-3ubuntu5.24.04.1`: upstream's old number, with the part after it changed.
+**Backports: why the distribution's advisories are the ones to read.** The sudo project fixed CVE-2025-32463 in its release 1.9.17p1, so its notice says "Sudo before 1.9.17p1". Ubuntu 24.04 ships sudo 1.9.15p5 and will for the life of the release: Ubuntu doesn't move a released system to each new **upstream** version (upstream is the software's own project, here sudo's), because new versions bring new behaviour. It takes the fix alone and applies it to the version it ships. That is a **backport**. The fixed Ubuntu package is `1.9.15p5-3ubuntu5.24.04.1`: upstream's old number, with the part after it changed.
 
 A scanner that compared upstream version numbers would call that package vulnerable for ever. So for a distribution's packages a scanner must read the distribution's own advisories, which say exactly which of its package versions are fixed. The labs' scanner, OSV-Scanner, does, and so does Trivy, another common one.
 
@@ -73,13 +73,13 @@ Three cautions. **A base score is about the flaw in general**, the same number f
 
 <Check item="mcq-cvss-is-severity" />
 
-**EPSS: how likely.** **EPSS** (Exploit Prediction Scoring System, also FIRST's) is a model's estimate of the probability that a published CVE will be exploited in the wild in the next 30 days. It is a number from 0 to 1, worked out again every day for every CVE, so an EPSS always has a date. It comes with a percentile, its rank among all CVEs: sudo's CVE-2025-32463 had 0.563 on 10 November 2026, a higher probability than 99.059% of all CVEs.
+**EPSS: how likely.** **EPSS** (Exploit Prediction Scoring System, also FIRST's) is a model's estimate of the probability that a published CVE will be exploited in the wild (against real systems, not in a researcher's test) in the next 30 days. It is a number from 0 to 1, worked out again every day for every CVE, so an EPSS always has a date. It comes with a percentile, its rank among all CVEs: sudo's CVE-2025-32463 had 0.563 on 10 November 2026, a higher probability than 99.059% of all CVEs.
 
-Most flaws are never exploited, and most EPSS scores are tiny. That is the use of it: among a thousand findings with frightening CVSS scores, it points at the few that attackers are likely to pick up. A probability also adds up. A backlog of 200 findings at 0.02 each means about four of those flaws are expected to be used in attacks this month, and you can't say which four.
+Most flaws are never exploited, and most EPSS scores are tiny. That is the use of it: among a thousand findings with frightening CVSS scores, it points at the few that attackers are likely to pick up. A probability also adds up. A backlog of 300 findings at 0.01 each means about three of those flaws are expected to be used in attacks this month, and you can't say which three.
 
 <Check item="mcq-epss-means" />
 
-**KEV: it is happening.** The United States' cybersecurity agency, CISA, keeps the Known Exploited Vulnerabilities catalog, **KEV**: a public list of flaws for which it has reliable evidence of exploitation in the wild. A flaw goes in when it has a CVE ID, that evidence, and a clear way to fix it. A published proof of concept isn't enough, and neither is someone scanning for the flaw: it has to have been used against a system. On 22 November 2026 the catalog held 1,790 entries, each with the date it was added.
+**KEV: it is happening.** The United States' cybersecurity agency, CISA, keeps the Known Exploited Vulnerabilities catalog, **KEV**: a public list of flaws for which it has reliable evidence of exploitation in the wild. A flaw goes in when it has a CVE ID, that evidence, and a clear way to fix it. A published proof of concept (code that shows the flaw can be used) isn't enough, and neither is someone scanning for the flaw: it has to have been used against a system. On 22 November 2026 the catalog held 1,790 entries, each with the date it was added.
 
 Here are the lab's seven findings with all three signals (EPSS of 10 November 2026):
 
@@ -126,7 +126,7 @@ Read down it and its reasoning shows. Every KEV row is 14 days or less. An autom
 
 The catalog's own entries carry a due date and a forensic-triage flag too. Those are CISA's answer for the typical place that software runs, and entries from before June 2026 still show the dates of the older rule. The directive leaves the last word to whoever owns the asset: you apply the table to each of your machines, with that machine's exposure.
 
-**Forensic triage** is the extra duty on three rows: a flaw that is known to be exploited and hands over the whole machine. There a patch isn't enough, because someone may have got in before you patched, and a patch does nothing about an intruder already inside. Triage is the look for signs of that: in the audit trail, in accounts and keys nobody remembers adding, in programs that shouldn't be running.
+**Forensic triage** is the extra duty on three rows: a flaw that is known to be exploited and hands over the whole machine, either on an exposed machine or by an attack that can be automated. (The same flaw on an internal machine, when the attack can't be automated, is the eleventh row: 14 days and no triage.) On those three rows a patch isn't enough, because someone may have got in before you patched, and a patch does nothing about an intruder already inside. Triage is the look for signs of that: in the audit trail, in accounts and keys nobody remembers adding, in programs that shouldn't be running.
 
 <Check item="mcq-forensic-triage" />
 
@@ -164,15 +164,15 @@ The patch existed all along. What failed was the loop around it: knowing who own
 2. **Does a scan agree?** Scan again. A finding is fixed when a fresh scan no longer lists it, not before.
 3. **Is the running program the installed one?** An upgrade replaces files on disk and doesn't touch what is already running. A process that started before the upgrade keeps running the program it loaded, with the old flaw, until it is restarted. A package's upgrade restarts the services that the package itself ships. It knows nothing about a unit of your own that runs the same program, so that one is yours to restart.
 
-Three ways to see the third. `sudo lsof +L1` (Disks and filesystems' "deleted but open") lists files that are open and have no name left on the disk; a line ending `/usr/bin/rsync (deleted)` is a process still running the replaced rsync. `sudo ls -l /proc/PID/exe` shows the exact file a process is running. And some services announce their version to whoever connects: an SSH server's first line is `SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.20`, which should name the version that is installed. If what a server announces and what its package database says disagree, believe neither until you have looked at the process. Then `sudo systemctl restart NAME`, and look again.
+Three ways to see the third. `sudo lsof +L1` (Disks and filesystems' "deleted but open") lists files that are open and have no name left on the disk; a line ending `/usr/bin/rsync (deleted)` is a process still running the replaced rsync. `sudo ls -l /proc/PID/exe` shows the exact file a process is running. And some services announce their version to whoever connects: an SSH server's first line looks like `SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.20` (the last part is the package's version, and yours may be later), which should name the version that is installed. If what a server announces and what its package database says disagree, believe neither until you have looked at the process. Then `sudo systemctl restart NAME`, and look again.
 
 On servers that are built from an image and replaced, never changed (Packages and patching's immutable servers), the image has the vulnerability. The fix is a new image with the fixed package and new servers from it. Patching the running ones by hand fixes today's servers only: the next one made from the old image brings the flaw back.
 
 **Track it.** The **register** is the loop's memory: one line for each finding on each machine, with the CVE, the machine, the package, the due date, whether it needs forensic triage, the status and the owner. A finding on a machine you don't own is still in your register, with its owner's name, and stays open until a scan of that machine says otherwise. Three numbers come out of a register:
 
-- **MTTR**, mean time to remediate: the average days from found to fixed. Five findings fixed after 2, 5, 9, 1 and 13 days have an MTTR of 6 days.
-- **SLA compliance**: the share of fixes made on or before their due date. 34 on time out of 40 fixed is 85%.
-- **The backlog's direction**: findings open, and whether more are fixed each week than arrive. 120 open, with 35 arriving and 40 fixed a week, empties in 120 / (40 - 35) = 24 weeks. At 35 fixed a week it never empties.
+- **MTTR**, mean time to remediate: the average days from found to fixed. Four findings fixed after 3, 7, 10 and 20 days have an MTTR of 40 / 4 = 10 days.
+- **SLA compliance**: the share of fixes made on or before their due date. 45 on time out of 50 fixed is 90%.
+- **The backlog's direction**: findings open, and whether more are fixed each week than arrive. 90 open, with 20 arriving and 30 fixed a week, empties in 90 / (30 - 20) = 9 weeks. At 20 fixed a week it never empties.
 
 The first two count only what was fixed, so they are always read beside the third. A team can score 100% on time by fixing three easy findings and leaving three hundred.
 
