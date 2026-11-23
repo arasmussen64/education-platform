@@ -1,0 +1,26 @@
+id: est-gcm-api-days
+type: estimate
+rev: 1
+prompt: |
+  An API encrypts 5,000 messages a second, all under one AES-GCM key, each with a fresh random 96-bit nonce. NIST's limit for that is 4,294,967,296 (2^32) encryptions under one key. After how many days must the key be retired? There are 86,400 seconds in a day. Within 5%.
+unit: days
+answer: 9.94
+tolerance: { percent: 5 }
+given: { rate: 5000, limit: 4294967296, day: 86400 }
+# NIST SP 800-38D, section 8.3: "The total number of invocations of the
+# authenticated encryption function shall not exceed 2^32 ... with the
+# given key" (nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf,
+# read 2026-11-22).
+working: limit / rate / day
+mistakes:
+  - id: seconds
+    value: 858993.46
+    working: limit / rate
+    why: That is the time in seconds. Divide by 86,400 for days.
+  - id: hours
+    value: 238.61
+    working: limit / rate / 3600
+    why: That is the time in hours (it divides by 3,600). Divide by 24 more for days.
+explanation: |
+  4,294,967,296 ÷ 5,000 is about 859,000 seconds, and ÷ 86,400 that is 9.9 days. A busy API uses up a GCM key's safe number of random nonces in under ten days, which is one more reason for envelope encryption: when every object or every session has a data key of its own, no single key ever comes near the limit.
+skills: [authenticated-encryption]

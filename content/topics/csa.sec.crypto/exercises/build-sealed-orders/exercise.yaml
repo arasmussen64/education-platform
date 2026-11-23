@@ -1,0 +1,20 @@
+id: build-sealed-orders
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Sealed orders"
+prompt: |
+  The shop must keep its orders encrypted at rest, under a key it can rotate and can take away. One server, with OpenBao running on it (its basics are in this topic's first lab). OpenBao's transit engine already has the key `orders`, made so that it can never be exported. `/srv/orders/archive` holds 14 orders that an older script sealed with `gcm`, each `order-N.txt.sealed` with its data key, wrapped by `orders`, beside it as `order-N.txt.key`; the key was rotated once on the way, so seven keys are wrapped by its version 1 and seven by version 2. `/srv/orders/new` has two orders that aren't sealed yet, to try things on.
+
+  Build this:
+
+  1. **The key looks after itself.** `orders` rotates itself every 30 days, and it stays impossible to take out of OpenBao.
+  2. **Two policies.** `order-writer` may make data keys from `orders` and do nothing else. `order-reader` may unwrap with `orders` and do nothing else.
+  3. **Two scripts.** `~/bin/seal-order FILE` writes `FILE.sealed`, the file encrypted by `gcm seal` under a new data key of its own, and `FILE.key`, that data key wrapped by `orders`. It leaves the data key itself in no file, anywhere. `~/bin/open-order FILE.sealed` prints the order. `seal-order` must work with a token that has only `order-writer`, and `open-order` with one that has only `order-reader`; a sealed file that has been changed must be refused, not printed.
+  4. **The archive moves forward.** Rotate `orders` now. Bring every archived order's key to the new latest version, without unwrapping any of them and without changing any `.sealed` file. Then make every version of `orders` older than the latest unusable.
+
+  `bao read transit/keys/orders` describes the key, and `bao write transit/keys/orders/config NAME=VALUE` changes a setting of it. A script uses the token in `BAO_TOKEN` when there is one, and yours when there isn't: `BAO_TOKEN=$(bao token create -policy=order-writer -ttl=10m -field=token) ~/bin/seal-order /srv/orders/new/order-6101.txt` runs one the way the shop will. Then run the checks.
+skills: [envelope-encryption, authenticated-encryption, choose-the-primitive]

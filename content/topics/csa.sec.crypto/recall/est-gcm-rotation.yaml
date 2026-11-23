@@ -1,0 +1,22 @@
+id: est-gcm-rotation
+type: estimate
+rev: 1
+prompt: |
+  A log pipeline encrypts 2,500 records a second under one AES-GCM key with random 96-bit nonces, and rotates the key every whole number of days. NIST's limit is 4,294,967,296 (2^32) encryptions under one key, and a day has 86,400 seconds. What is the largest whole number of days between rotations that stays under the limit? Exactly.
+unit: days
+answer: 19
+tolerance: { absolute: 0 }
+given: { rate: 2500, limit: 4294967296, day: 86400 }
+working: floor(limit / rate / day)
+mistakes:
+  - id: rounded-up
+    value: 20
+    working: ceil(limit / rate / day)
+    why: That rounds 19.9 up. By the end of day 20 the key would have gone past the limit, so round down.
+  - id: hours
+    value: 477
+    working: floor(limit / rate / 3600)
+    why: That is whole hours (it divides by 3,600), not whole days.
+explanation: |
+  4,294,967,296 ÷ 2,500 ÷ 86,400 is 19.88 days. A limit is a ceiling, so round down: rotate every 19 days at most, and in practice well before. OpenBao's own guidance for its transit keys is the same sum: work out how many encryptions a key version does a day, and rotate before it reaches 2^32.
+skills: [authenticated-encryption]

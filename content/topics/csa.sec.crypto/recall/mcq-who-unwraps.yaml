@@ -1,0 +1,16 @@
+id: mcq-who-unwraps
+type: mcq
+rev: 1
+prompt: |
+  The shop's web front end seals each new order in an envelope. A nightly report opens them all. Both use one key in the key service. Which permissions should the two programs have on it?
+choices:
+  - "Front end: make data keys only. Report: unwrap only"
+  - "Both: every operation, so that a rotation never breaks them"
+  - "Front end: unwrap only. Report: make data keys only"
+  - "Both: unwrap only, with an admin making the data keys"
+answer: 0
+explanation: |
+  Whoever may unwrap can read every order ever sealed, so that permission goes only to the program whose job is reading. The front end faces the internet and is the likeliest to be broken into; if all it can do is ask for new data keys, an intruder there gets the orders passing through at that moment and none from the archive. This is least privilege and separation of duties, and in envelope encryption it is the control that matters: the algorithm is the same for everyone, the policy decides who reads.
+
+  Every operation for both means the front end can open the archive, rotate the key and change its settings. Unwrap for the front end is the split backwards. A front end that can't make data keys can't seal anything.
+skills: [envelope-encryption]

@@ -1,0 +1,89 @@
+# The build's checks. The four about the two scripts make an order file of
+# their own, with a marker and a length made up on the spot, and run the
+# scripts on it as the learner, each with a token that has only its own
+# policy (sealcheck.sh). The four about the key and the archive read
+# OpenBao, the archive and OpenBao's audit log against what the lab
+# started with (archivecheck.sh). A check that finds something wrong
+# prints what it found.
+checks:
+  - id: bao-up
+    description: "OpenBao is set up and has unsealed itself."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      bao_root || { echo "OpenBao was never set up on this machine"; exit 0; }
+      ready() { bao status > /dev/null 2>&1; }
+      wait_for 20 ready
+      bao status -format=json | json "'%s %s' % (d['initialized'], d['sealed'])"
+    timeout: 60
+    expect:
+      equals: "True False"
+  - id: key-ok
+    description: "The orders key is an AES-256-GCM key that rotates itself every 30 days and can't be taken out of OpenBao."
+    command: |
+      . /usr/local/lib/lab/archivecheck.sh
+      check_key
+    expect:
+      equals: "rotates, stays in"
+  - id: least-privilege
+    description: "order-writer may only make data keys from the orders key, and order-reader may only unwrap with it."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_policies
+    expect:
+      equals: "least privilege"
+  - id: roundtrip
+    description: "seal-order seals an order it has never seen, and open-order prints it back, each with a token of its own policy."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_roundtrip
+    expect:
+      equals: "sealed and opened"
+  - id: envelope
+    description: "The sealed file is the order encrypted by gcm under a data key, FILE.key is that key wrapped by the orders key, and a sealed file that was changed is refused."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_envelope
+    expect:
+      equals: "an envelope"
+  - id: fresh-key
+    description: "Two files sealed one after the other have a data key each."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_fresh_key
+    expect:
+      equals: "a key each"
+  - id: no-key-on-disk
+    description: "After sealing, the data key is in no file under /home, /tmp, /srv, /var/tmp, /etc, /run or /var/log."
+    command: |
+      . /usr/local/lib/lab/sealcheck.sh
+      check_no_key_on_disk
+    expect:
+      equals: clean
+  - id: archive-current
+    description: "Every archived order's key is wrapped by the latest version of the orders key, rotated since the archive was sealed, and still opens its order."
+    command: |
+      . /usr/local/lib/lab/archivecheck.sh
+      check_archive_current
+    expect:
+      equals: "all current"
+  - id: archive-sealed-untouched
+    description: "No archived .sealed file is changed."
+    command: |
+      . /usr/local/lib/lab/archivecheck.sh
+      check_archive_sealed
+    expect:
+      equals: untouched
+  - id: archive-rewrapped
+    description: "Each archived key was brought forward by OpenBao's own rewrap, as its audit log shows."
+    command: |
+      . /usr/local/lib/lab/archivecheck.sh
+      check_archive_rewrapped
+    expect:
+      equals: "rewrapped by OpenBao"
+  - id: old-retired
+    description: "No version of the orders key older than the latest can be used to unwrap."
+    command: |
+      . /usr/local/lib/lab/archivecheck.sh
+      check_old_retired
+    expect:
+      equals: retired

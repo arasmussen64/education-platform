@@ -1,0 +1,16 @@
+id: mcq-nonce-reuse
+type: mcq
+rev: 1
+prompt: |
+  A program encrypts two different orders with AES-GCM under the same key and, by a bug, the same nonce. An attacker has both ciphertexts. What has gone wrong?
+choices:
+  - "The attacker learns how the two plaintexts differ, and can forge tags"
+  - "Nothing has, as long as the key itself is still kept secret"
+  - "Only the second message's tag stops working; the first is fine"
+  - "The attacker can work out the key from either message alone"
+answer: 0
+explanation: |
+  GCM encrypts like CTR mode: it XORs the data with a stream of bytes made from the key and the nonce. The same key and nonce make the same stream, so XORing the two ciphertexts cancels it and leaves the XOR of the two plaintexts: know or guess one order and you have the other. Worse, a repeated nonce gives away the value GCM uses to make its tags, so the attacker can change messages and give them valid tags.
+
+  The key staying secret doesn't save it: nothing here needed the key. Both tags still verify, which is why nobody notices. The AES key itself isn't recovered. The rule: a nonce never repeats under one key. Use a fresh random one each time (and at most 2^32 of those per key), or a fresh key per object.
+skills: [authenticated-encryption]
