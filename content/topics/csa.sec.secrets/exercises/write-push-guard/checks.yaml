@@ -4,7 +4,7 @@
 # cloud access key ID, a code-hosting token, a private key, payment
 # gateway keys). The hook reads /etc/gitleaks/server.toml where the
 # learner wrote it. guardcheck.sh, beside this file, is the trial; it runs
-# once for all eight checks. The real repository never receives a push.
+# once for all nine checks. The real repository never receives a push.
 checks:
   - id: clean-accepted
     description: "Pushes with no secret in them are accepted: commits to main, a new branch, and a branch's removal."
@@ -35,6 +35,14 @@ checks:
     command: |
       . /usr/local/lib/lab/guardcheck.sh
       guard_finding new-branch
+    timeout: 60
+    expect:
+      equals: ok
+  - id: every-ref
+    description: "Every branch and tag a push brings is scanned: a secret on any one of them refuses the whole push."
+    command: |
+      . /usr/local/lib/lab/guardcheck.sh
+      guard_finding every-ref
     timeout: 60
     expect:
       equals: ok

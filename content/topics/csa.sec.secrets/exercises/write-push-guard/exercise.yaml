@@ -15,20 +15,21 @@ prompt: |
 
   1. gitleaks' built-in rules stay on;
   2. one more rule, with the id `paygate-key`, finds the payment gateway's keys: `pg_live_` followed by exactly 32 letters and digits;
-  3. files under `tests/fixtures/` are allowed to hold key-shaped values, and no other path is.
+  3. files under `tests/fixtures/`, the folder at the top of the repository, are allowed to hold key-shaped values, and no other path is: not `tests/data/`, not `app/tests/fixtures/`.
 
-  **`/srv/git/shop.git/hooks/pre-receive`**, a bash script (`nano` it, start it with `#!/bin/bash`, and `chmod +x` it). git runs it on the server once for each push, before anything is accepted, in the repository's folder. On its standard input it gets one line for each branch being pushed: `OLD NEW REF`, the commit the branch pointed at before, the commit it will point at, and the branch's full name. If the script exits with anything but 0, the whole push is refused, and whatever the script printed is shown to the person pushing. It must:
+  **`/srv/git/shop.git/hooks/pre-receive`**, a bash script (`nano` it, start it with `#!/bin/bash`, and `chmod +x` it). git runs it on the server once for each push, before anything is accepted, in the repository's folder. On its standard input it gets one line for each branch or tag being pushed, and one push can bring several: `OLD NEW REF`, the commit the branch pointed at before, the commit it will point at, and the branch's full name (`refs/heads/main`; a tag's is `refs/tags/NAME`). If the script exits with anything but 0, the whole push is refused, and whatever the script printed is shown to the person pushing. It must:
 
   1. refuse the push if **any commit it brings** adds a secret, even one that a later commit in the same push takes out again;
   2. scan with gitleaks and **the server's settings**, never with settings that arrive in the push;
-  3. cope with a **new branch**, where `OLD` is 40 zeros (there is no earlier commit: scan the commits the server doesn't have yet, which `git log NEW --not --all` lists), and with a **deleted branch**, where `NEW` is 40 zeros (nothing to scan: let it through);
-  4. show the person pushing, for each finding, **the rule and the commit**, and never the secret itself.
+  3. scan **every line**, branches and tags alike, and refuse the whole push if any one of them brings a secret;
+  4. cope with a **new branch** or tag, where `OLD` is 40 zeros (there is no earlier commit: scan the commits the server doesn't have yet, which `git log NEW --not --all` lists), and with a **deleted branch**, where `NEW` is 40 zeros (nothing to scan on that line: go on to the next);
+  5. show the person pushing, for each finding, **the rule and the commit**, and never the secret itself.
 
   What you need from gitleaks 8.16: `gitleaks detect --source . --config FILE --log-opts="RANGE"` scans the commits that `git log RANGE` would list (`OLD..NEW` is "the commits in NEW that aren't in OLD") and exits 1 when it finds something; `-v` prints each finding, `--redact` blanks the secret in what it prints, and `--no-banner` leaves out the logo.
 
   Try it from `~/shop`: make a commit, `git push origin main`, and read what comes back. A value that looks like a gateway key is easy to make: `echo "pg_live_$(openssl rand -hex 16)"`. The checks never push to the real repository: they copy it, with your hook, and push to the copy, clean commits and commits with secrets made up on the spot, each kind of push in the list above.
 hints:
-  - "The settings file is TOML. `[extend]` with `useDefault = true` under it keeps the built-in rules. Each rule of your own is a `[[rules]]` block with `id`, `description` and `regex`; write the regular expression between three single quotes on each side, so that nothing in it needs escaping. `[allowlist]` with `paths = [ ... ]` takes a list of regular expressions matched against each file's path."
-  - "Read the lines with `while read -r old new ref; do ... done`. Keep a variable for the result, set it to 1 when a scan finds something, and `exit` with it after the loop, so that every branch in the push is scanned. A string of 40 zeros is easiest to compare with if you put it in a variable first."
+  - "The settings file is TOML. `[extend]` with `useDefault = true` under it keeps the built-in rules. Each rule of your own is a `[[rules]]` block with `id`, `description` and `regex`; write the regular expression between three single quotes on each side, so that nothing in it needs escaping. `[allowlist]` with `paths = [ ... ]` takes a list of regular expressions matched against each file's path from the top of the repository (`app/charge.sh`); as with `grep`, a `^` at the start of an expression ties it to the start of the path."
+  - "Read the lines with `while read -r old new ref; do ... done`. Keep a variable for the result, set it to 1 when a scan finds something, and `exit` with it after the loop, so that every line of the push is scanned: an `exit` inside the loop, for a deleted branch say, would let the lines after it through unread (`continue` goes on to the next line). A string of 40 zeros is easiest to compare with if you put it in a variable first."
   - "For a branch that exists, the range is `\"$old..$new\"`. For a new branch it is `\"$new --not --all\"`: everything reachable from the new commit, minus everything any branch on the server already has. Hand either to gitleaks as `--log-opts=\"$range\"`."
 skills: [scan-for-leaks]

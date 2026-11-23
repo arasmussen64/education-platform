@@ -11,10 +11,10 @@
 # learner wrote them, /etc/gitleaks/server.toml. Nothing of the learner's
 # is changed: the real repository never receives a push.
 #
-# All eight checks ask about one hook and one settings file, so the trial
-# runs once for the eight: its findings are kept for a minute in
-# /run/lab-guard, under the checksum of the two files. A changed file, or
-# a minute gone by, means a new trial.
+# All nine checks ask about one hook and one settings file, so the trial
+# runs once for the nine: its findings are kept in /run/lab-guard, under
+# the checksum of the two files, for a minute after the trial ends. A
+# changed file, or a minute gone by, means a new trial.
 . /usr/local/lib/lab/checklib-sec.sh
 
 server=/srv/git/shop.git
@@ -30,7 +30,7 @@ note() {
 
 all_aspects() {
   local aspect
-  for aspect in clean-accepted secret-refused buried-refused new-branch fixtures-only own-rule pushed-config-ignored no-secret-printed; do
+  for aspect in clean-accepted secret-refused buried-refused new-branch every-ref fixtures-only own-rule pushed-config-ignored no-secret-printed; do
     note "$aspect" "$1"
   done
 }
@@ -46,7 +46,7 @@ lower=abcdefghijklmnopqrstuvwxyz
 digits=0123456789
 
 run_trial() {
-  local work clone aws hub pem pay pay2 pay3 odd n before added
+  local work clone aws hub hub2 hub3 hub4 hub5 pem pay pay2 pay3 odd n before added
 
   : > "$findings.new"
   chmod 600 "$findings.new"
@@ -116,12 +116,16 @@ run_trial() {
   # the shop's rule, find by pattern.
   aws="AKIA$(pick "${upper}234567" 16)"
   hub="ghp_$(pick "$upper$lower$digits" 36)"
+  hub2="ghp_$(pick "$upper$lower$digits" 36)"
+  hub3="ghp_$(pick "$upper$lower$digits" 36)"
+  hub4="ghp_$(pick "$upper$lower$digits" 36)"
+  hub5="ghp_$(pick "$upper$lower$digits" 36)"
   pem=$(openssl genpkey -algorithm ed25519 2> /dev/null)
   pay="pg_live_$(pick "$upper$lower$digits" 32)"
   pay2="pg_live_$(pick "$upper$lower$digits" 32)"
   pay3="pg_live_$(pick "$upper$lower$digits" 32)"
   odd="d$(openssl rand -hex 3)"
-  printf '%s\n' "$aws" "$hub" "$pay" "$pay2" "$pay3" > "$work/secrets"
+  printf '%s\n' "$aws" "$hub" "$hub2" "$hub3" "$hub4" "$hub5" "$pay" "$pay2" "$pay3" > "$work/secrets"
   echo "$pem" | sed -n 2p >> "$work/secrets"
 
   # 1. Clean work is accepted: two commits to main, a new branch, and the
@@ -186,6 +190,46 @@ run_trial() {
   fi
   back
 
+  # 4b. Every line of a push is scanned. A push can bring several
+  # branches and tags at once, one line each: two new branches with the
+  # token on the second, then on the first; a branch's removal together
+  # with a new branch that adds a token; and a tag on a commit that adds
+  # one. The tokens have a shape gitleaks' own rules know.
+  # branch NAME FILE: a new branch off main with standard input as FILE.
+  branch() {
+    as_learner git checkout -q -f main
+    as_learner git checkout -q -b "$1"
+    put "$2"
+    commit "Work on $1"
+    as_learner git checkout -q main
+  }
+  echo "echo weighed" | branch "aa-$odd" "app/weigh-$odd.sh"
+  printf 'token: %s\n' "$hub2" | branch "zz-$odd" "ci-zz.yaml"
+  printf 'token: %s\n' "$hub3" | branch "ab-$odd" "ci-ab.yaml"
+  echo "echo wrapped" | branch "zy-$odd" "app/wrap-$odd.sh"
+  echo "echo sorted" | branch "ac-$odd" "app/sort-$odd.sh"
+  printf 'token: %s\n' "$hub4" | branch "zx-$odd" "ci-zx.yaml"
+  if push "aa-$odd" "zz-$odd" || [ -n "$(at_server "zz-$odd")" ]; then
+    note every-ref "a push of two branches at once was accepted though one of them adds a token"
+  fi
+  if push "ab-$odd" "zy-$odd" || [ -n "$(at_server "ab-$odd")" ]; then
+    note every-ref "a push of two branches at once was accepted though one of them adds a token"
+  fi
+  if push "ac-$odd"; then
+    if push ":ac-$odd" "zx-$odd" || [ -n "$(at_server "zx-$odd")" ]; then
+      note every-ref "a push that removes one branch and brings another was accepted though the other adds a token"
+    fi
+  fi
+  printf 'token: %s\n' "$hub5" | put "ci-tag.yaml"
+  commit "Settings for the release"
+  as_learner git tag "v-$odd"
+  if push "refs/tags/v-$odd" || git -C "$work/server.git" rev-parse -q --verify "refs/tags/v-$odd" > /dev/null 2>&1; then
+    note every-ref "a tag was accepted though its commit adds a token"
+  fi
+  as_learner git tag -d "v-$odd" > /dev/null 2>&1
+  note every-ref ok
+  back
+
   # 5. The shop's own key format, on a line with no word a general rule
   # looks for.
   printf 'charge with %s\n' "$pay" | put "notes-$odd.txt"
@@ -216,6 +260,12 @@ run_trial() {
     commit "Not a fixture either"
     if push main; then
       note fixtures-only "a gateway key in a folder called fixtures, outside tests/fixtures/, was accepted"
+    fi
+    back
+    printf 'charge with %s\n' "$pay3" | put "app-$odd/tests/fixtures/gateway.txt"
+    commit "Another folder's fixture"
+    if push main; then
+      note fixtures-only "a gateway key under another folder's tests/fixtures/, not the one at the top of the repository, was accepted"
     fi
     note fixtures-only ok
   fi
@@ -252,7 +302,7 @@ guard_finding() {
     (run_trial)
     {
       echo "files: $sum"
-      echo "at: $now"
+      echo "at: $(date +%s)"
     } >> "$findings.new"
     mv "$findings.new" "$findings"
   fi
