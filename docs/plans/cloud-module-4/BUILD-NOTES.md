@@ -24,6 +24,18 @@ Read these before writing a lab; each was a shortcut that passed, or a fault tha
 - **`~/bin` is not on `PATH` in the checker's shells:** prompts say `~/bin/NAME`.
 - **A unit that keeps running a deleted program** (`lsof +L1`) is the honest way to show "patched but not restarted" on the `pay` base: an `openssh` upgrade restarts itself, the shop's own rsync daemon unit does not.
 
+## What wave 2's reviews added
+
+- **A server-side push guard can be got round** (an allow comment, a vendored path, a rename, a merge commit, a split or encoded secret). Say what it catches; do not promise more.
+- **`runuser` and similar write their whole command line to the journal.** A secret on a command line is a secret in the log, in a lab's own set-up scripts too.
+- **A check that holds a key can prove what a behaviour test can't:** the PKI checks hold the root's key and present root-signed certificates; the federation checks re-sign real tokens with the realm's key (`resign-token`). If a writer says "a check can't prove this", look for the key first.
+- **Feedback that names the wrong element lets a learner guess.** A scope or mapping check in a proof says right or wrong, not which part.
+- **openssl's OCSP responder hangs after a bare port probe** (`nc -z`). Never probe its port; cap its unit (`CPUQuota`, `RuntimeMaxSec`).
+- **A timer enabled within about 45 s of boot does not fire at once;** a solution starts the service itself. `OnCalendar` alone never runs after a boot.
+- **cloud-init rewrites apt's sources at first boot** unless `apt: preserve_sources_list: true`.
+- **Under load, identity checks take two to three times as long:** `realm-saved` and an Apache file check each took 21 s against a 30 s limit. Give them 45 to 90 s.
+- **`realm-saved` does not compare people in the realm file** (one lab's solution edits them). A check about a person asks Keycloak and the file.
+
 ## Every base
 
 - **Format base scripts for Python 3.12, not the repository's 3.14.** The lab images run Ubuntu 24.04's Python 3.12. `ruff format` at the repository's target rewrote `except (A, B):` into a form 3.12 rejects, and every helper died at import. Scripts that run inside a lab are formatted with `--target-version py312`; a test parses them as 3.12.
