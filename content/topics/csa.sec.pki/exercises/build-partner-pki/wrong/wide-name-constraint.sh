@@ -77,7 +77,7 @@ sudo systemctl enable --now ocsp-responder@ca
 #    root, checked against both CAs' CRLs; a script that fetches the CRLs
 #    and reloads nginx, and a timer that runs it every half hour.
 on web sh -c 'cat /home/learner/transfer/partners.pem /home/learner/transfer/root.pem > /etc/nginx/tls/partners-bundle.pem'
-on web sed -i 's#^    root /srv/www/api;#    ssl_client_certificate /etc/nginx/tls/partners-bundle.pem;\n    ssl_verify_client on;\n    ssl_crl /etc/nginx/tls/crls.pem;\n    root /srv/www/api;#' /etc/nginx/sites-available/partner-api
+on web sed -i 's#^    root /srv/www/api;#    ssl_client_certificate /etc/nginx/tls/partners-bundle.pem;\n    ssl_verify_client on;\n    ssl_crl /etc/nginx/tls/crls.pem;\n    if ($ssl_client_i_dn != "CN=Shop Partners CA") { return 403; }\n    root /srv/www/api;#' /etc/nginx/sites-available/partner-api
 sudo tee /usr/local/bin/fetch-crls > /dev/null <<'EOF'
 #!/bin/bash
 set -e
@@ -101,7 +101,7 @@ WantedBy=timers.target
 EOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now crl-fetch@web.timer
-sleep 2
+sudo systemctl start crl-fetch@web.service
 
 # 6. The courier's laptop has gone: revoke its certificate, publish, fetch.
 on ca openssl ca -config /etc/shop-ca/ca.cnf -revoke /home/learner/transfer/courier.pem -crl_reason keyCompromise
