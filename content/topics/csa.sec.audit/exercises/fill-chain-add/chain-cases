@@ -3,7 +3,7 @@
 
     chain-cases add first|continues|exact|lines
         runs the learner's ~/bin/chain-add on logs and records made up now
-    chain-cases verify intact|edited|deleted|swapped|truncated|rewritten|exit
+    chain-cases verify intact|edited|deleted|swapped|truncated|emptied|rewritten|exit
         runs the learner's ~/bin/chain-verify on logs made up now, some of
         them tampered with, and compares its verdict with the truth
 
@@ -274,6 +274,9 @@ def verify(case: str) -> None:
             )
         elif case == "truncated":
             judged(lines[: count - 1 - secrets.randbelow(3)], anchor, "anchor")
+        elif case == "emptied":
+            # The whole log wiped: no line is wrong, and the end isn't the anchor.
+            judged([], anchor, "anchor")
         elif case == "rewritten":
             at = min(at, count - 1)
             changed = edited_at(lines, at)
