@@ -9,19 +9,21 @@
 checks:
   - id: staff-sign-in
     description: "Ana, from the office laptop, signs in to the orders site and it knows her."
-    timeout: 60
+    timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
-      wait_for 6 on office curl -s -m 2 -o /dev/null https://app.shop.test/
+      wait_for 15 on office curl -s -m 2 -o /dev/null https://app.shop.test/
       got=$(on office signin https://app.shop.test/orders/me ana)
       echo "$got" | grep -x 'user=ana' || echo "$got" | tail -n 1 | cut -c1-120
     expect:
       equals: user=ana
   - id: orders-confidential
-    description: "The orders site's client still has to prove who it is: a token request for it without the right secret is refused."
+    description: "The orders site's client still has to prove who it is, with the secret last week's rotation gave it: a token request for it with that secret is accepted, and one with any other is refused."
     command: |
       . /usr/local/lib/idlab/idlib.sh
       [ "$(client_field shop shop-web "d.get('publicClient')" 2> /dev/null)" = False ] || { echo "the orders site's client doesn't have to prove who it is"; exit 0; }
+      got=$(on office signin --code shop-web https://app.shop.test/oidc/callback https://login.shop.test/realms/shop ana --secret="$(secret_of SHOP_WEB_SECRET)" | json "d['id_token']" 2> /dev/null)
+      case $got in ey*) ;; *) echo "the orders site's client no longer takes the secret that last week's rotation gave it"; exit 0 ;; esac
       r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
       got=$(on office signin --code shop-web https://app.shop.test/oidc/callback https://login.shop.test/realms/shop ana --secret="wrong$r" | tail -n 1)
       case $got in "refused at the token endpoint"*) echo refused ;; *) echo "a token request with a wrong secret: ${got:0:80}" ;; esac
@@ -29,12 +31,14 @@ checks:
       equals: refused
   - id: secret-private
     description: "The orders site's copy of its client secret is in the file only root can read, and in no file anyone else can."
+    timeout: 15
     command: |
       . /usr/local/lib/idlab/idlib.sh
       secret=$(secret_of SHOP_WEB_SECRET)
       f=/etc/netns/app/apache2/oidc-secret.conf
       [ "$(stat -c '%a %U' "$f" 2> /dev/null)" = "600 root" ] || { echo "the site's secret file can be read by others than root, or is gone"; exit 0; }
-      leak=$(grep -rlF "$secret" /etc/netns/app /etc/netns/api /home/learner /tmp /var/tmp /srv 2> /dev/null | while read -r file; do [ -n "$(find "$file" -perm /044)" ] && echo "$file"; done | head -n 1)
+      # Every machine's files, the realm files among them.
+      leak=$(grep -rlF "$secret" /etc/netns /home/learner /tmp /var/tmp /srv 2> /dev/null | while read -r file; do [ -n "$(find "$file" -perm /044)" ] && echo "$file"; done | head -n 1)
       [ -z "$leak" ] || { echo "the secret is in a file others can read"; exit 0; }
       echo private
     expect:
@@ -44,7 +48,7 @@ checks:
     timeout: 60
     command: |
       . /usr/local/lib/idlab/idlib.sh
-      wait_for 6 on office curl -s -m 2 -o /dev/null https://api.shop.test/
+      wait_for 10 on office curl -s -m 2 -o /dev/null https://api.shop.test/
       got=$(on jobs stock-job | tail -n 1)
       [ "$got" = "stock-job: level=42" ] || { echo "the nightly job: ${got:0:100}"; exit 0; }
       got=$(on office signin https://app.shop.test/orders/stock ana)
@@ -53,17 +57,13 @@ checks:
     expect:
       equals: served
   - id: api-refuses-the-rest
-    description: "The stock API refuses a token signed by anyone else, a token with no signature, the identity provider's token for another audience, a token from another issuer that signs with the same key, and a token that has run out."
-    timeout: 60
+    description: "The stock API refuses a token signed by anyone else, a token with no signature, the identity provider's token for another audience (an ID token, and a token made up for this check), a token from another issuer that signs with the same key, and a token that has run out."
+    timeout: 45
     command: |
       . /usr/local/lib/idlab/idlib.sh
       iss=https://login.shop.test/realms/shop
       ask() { on office curl -s -m 5 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $1" https://api.shop.test/stock/level; }
-      tok() { on office curl -s -m 10 "https://login.shop.test/realms/$1/protocol/openid-connect/token" -d grant_type=client_credentials -d "client_id=$2" -d "client_secret=$(secret_of "$3")" | json "d['access_token']"; }
-      # A token the API has never seen, three seconds from its end: it is
-      # shown only once it has run out.
-      short=$(tok shop uptime-probe UPTIME_PROBE_SECRET)
-      started=$(date +%s)
+      tok() { on office curl -s -m 10 "https://login.shop.test/realms/$1/protocol/openid-connect/token" -d grant_type=client_credentials -d "client_id=$2" -d "client_secret=$(secret_of "$3")" | json "d['access_token']" 2> /dev/null; }
       [ "$(ask "$(mint-token --iss=$iss --aud=https://api.shop.test)")" = 401 ] || { echo "a token signed by someone else was served"; exit 0; }
       [ "$(ask "$(mint-token --iss=$iss --aud=https://api.shop.test --alg=none)")" = 401 ] || { echo "an unsigned token was served"; exit 0; }
       id=$(on office signin --code shop-web https://app.shop.test/oidc/callback $iss ana --secret="$(secret_of SHOP_WEB_SECRET)" | json "d['id_token']")
@@ -72,21 +72,39 @@ checks:
       other=$(tok partners supplier-portal SUPPLIER_PORTAL_SECRET)
       case $other in ey*) ;; *) echo "the check couldn't get a token from the partners realm"; exit 0 ;; esac
       [ "$(ask "$other")" = 401 ] || { echo "a token from another issuer was served"; exit 0; }
-      case $short in ey*) ;; *) echo "the check couldn't get a short-lived token"; exit 0 ;; esac
-      while [ $(($(date +%s) - started)) -lt 6 ]; do sleep 1; done
-      [ "$(ask "$short")" = 401 ] || { echo "a token that had run out was served"; exit 0; }
+      # The nightly job's own token, changed and signed again with the
+      # realm's own key (resign-token): tokens the provider could have
+      # issued and never did, each one new to the API.
+      job=$(tok shop stock-job STOCK_JOB_SECRET)
+      case $job in ey*) ;; *) echo "the check couldn't get a token for the nightly job"; exit 0 ;; esac
+      again() { echo "$job" | python3 /usr/local/lib/shop/resign-token "$@"; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      [ "$(ask "$(again --set "aud=\"https://x$r.shop.test\"")")" = 401 ] || { echo "a token the provider's key signed for another API was served"; exit 0; }
+      [ "$(ask "$(again --set "aud=\"https://api.shop.test-$r\"")")" = 401 ] || { echo "a token for an audience that only starts with the API's was served"; exit 0; }
+      [ "$(ask "$(again --set "iss=\"https://login.shop.test/realms/shop-$r\"")")" = 401 ] || { echo "a token from an issuer whose name only starts with the shop's was served"; exit 0; }
+      [ "$(ask "$(again --set iat=now-600 --set exp=now-300)")" = 401 ] || { echo "a token that had run out was served"; exit 0; }
       echo refused
     expect:
       equals: refused
   - id: api-keys-by-address
-    description: "The stock API checks signatures with the keys the identity provider publishes, fetched from the provider's own address, and in no other way."
+    description: "The stock API checks signatures with the keys the identity provider publishes, fetched from the provider's own address, and in no other way: it serves a token signed with either published key."
+    timeout: 45
     command: |
       . /usr/local/lib/idlab/idlib.sh
       files=$(on api bash -c '. /etc/apache2/envvars; apache2 -t -D DUMP_INCLUDES' 2> /dev/null | grep -o '/etc/apache2/[^ ]*')
       [ -n "$files" ] || { echo "the API's Apache files don't load"; exit 0; }
       lines=$(for f in $files; do on api cat "$f"; done | tr -d '\r' | grep -i '^[[:space:]]*OAuth2TokenVerify' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\{1,\}/ /g' | sort -u)
       [ -n "$lines" ] || { echo "the API checks no signature at all"; exit 0; }
-      [ "$lines" = "OAuth2TokenVerify jwks_uri https://login.shop.test/realms/shop/protocol/openid-connect/certs" ] && echo published || echo "the API has another way of checking a signature than the provider's published keys"
+      [ "$lines" = "OAuth2TokenVerify jwks_uri https://login.shop.test/realms/shop/protocol/openid-connect/certs" ] || { echo "the API has another way of checking a signature than the provider's published keys"; exit 0; }
+      # The nightly job's token, signed again by the check with each of the
+      # realm's two keys: an API that picks the key the token names serves both.
+      ask() { on office curl -s -m 5 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $1" https://api.shop.test/stock/level; }
+      job=$(on office curl -s -m 10 https://login.shop.test/realms/shop/protocol/openid-connect/token -d grant_type=client_credentials -d client_id=stock-job -d "client_secret=$(secret_of STOCK_JOB_SECRET)" | json "d['access_token']" 2> /dev/null)
+      case $job in ey*) ;; *) echo "the check couldn't get a token for the nightly job"; exit 0 ;; esac
+      for key in 2026 2025; do
+        [ "$(ask "$(echo "$job" | python3 /usr/local/lib/shop/resign-token --key $key)")" = 200 ] || { echo "a token signed with one of the provider's published keys was refused"; exit 0; }
+      done
+      echo published
     expect:
       equals: published
   - id: signing-key
@@ -110,7 +128,7 @@ checks:
       trap 'rm -f "$out"' EXIT
       on scanner scanner-login > "$out" 2>&1 &
       code=
-      for _ in 1 2 3 4 5 6 7 8; do
+      for _ in $(seq 1 20); do
         sleep 1
         code=$(grep -o 'code [A-Z-]*$' "$out" | cut -d' ' -f2)
         [ -n "$code" ] && break
@@ -124,6 +142,7 @@ checks:
       equals: in
   - id: grants-kept-narrow
     description: "None of the shop's clients can use the password grant or the implicit flow, and the device grant is the scanners' alone."
+    timeout: 15
     command: |
       . /usr/local/lib/idlab/idlib.sh
       kc get shop/clients | json "(lambda own: 'narrow' if [c['clientId'] for c in own if c.get('directAccessGrantsEnabled') or c.get('implicitFlowEnabled')] == [] and [c['clientId'] for c in own if c.get('attributes', {}).get('oauth2.device.authorization.grant.enabled') == 'true'] == ['scanner'] else 'a client has a way of getting tokens it should not have, or the scanners lack theirs')([c for c in d if c['clientId'] not in ('account', 'account-console', 'admin-cli', 'broker', 'realm-management', 'security-admin-console')])"
@@ -131,6 +150,7 @@ checks:
       equals: narrow
   - id: realm-saved
     description: "Each running realm is the one its file builds, and the lab's scenery, the rotated secrets among it, is as it was."
+    timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
       [ "$(intact)" = intact ] || { intact; exit 0; }

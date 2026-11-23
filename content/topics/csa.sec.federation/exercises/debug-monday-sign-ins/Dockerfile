@@ -5,7 +5,10 @@ COPY topology /etc/netlab/topology
 COPY machines/ /etc/netns/
 COPY shop/ /usr/local/lib/shop/
 COPY bin/ /usr/local/bin/
-COPY base-fix make-jwk /usr/local/lib/shop/
+COPY base-fix make-jwk resign-token /usr/local/lib/shop/
+# resign-token is the checks' own tool (root only): it signs a token with
+# the realm's own key, to show the API tokens no real client could ask for.
+#
 # Everything secret or signed is made here, at build, so none of it is in
 # the repository: the lab's CA and the two servers' certificates, each
 # client's secret, the two people's passwords and the realm's two signing
@@ -18,6 +21,7 @@ COPY base-fix make-jwk /usr/local/lib/shop/
 # a copy of a signing key (make-jwk writes it from the key's certificate);
 # and the nightly job's own file has its client and secret.
 RUN chmod 755 /usr/local/lib/shop/orders/* /usr/local/lib/shop/stock/* /usr/local/bin/stock-job /usr/local/bin/scanner-login \
+ && chmod 700 /usr/local/lib/shop/resign-token \
  && python3 /usr/local/lib/shop/base-fix \
  && netlab enable \
  && idlab idp idp https://login.shop.test \
