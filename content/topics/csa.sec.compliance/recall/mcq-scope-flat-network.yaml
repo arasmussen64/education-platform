@@ -1,0 +1,16 @@
+id: mcq-scope-flat-network
+type: mcq
+rev: 1
+prompt: |
+  A shop's payments server and its label printer's server sit on one subnet, with nothing filtering traffic between them. No card number is ever sent to the print server. Is the print server in PCI DSS scope?
+choices:
+  - "No: scope follows the card data, and none ever reaches the print server"
+  - "No: only servers that the payments team itself administers are in scope"
+  - "Yes: it has unrestricted connectivity to a system that handles card data"
+  - "Yes: every server a business owns is in scope once it accepts cards"
+answer: 2
+explanation: |
+  The cardholder data environment is the systems that store, process or transmit card data **and** the systems with unrestricted connectivity to them. On an unfiltered subnet the print server is one step from the card numbers: whoever takes it over can attack the payments server directly. So the standard's requirements apply to it too.
+
+  Scope is not "everything the business owns" either. A system that is properly segmented, so that taking it over couldn't affect card data, is out. That is the reason to segment: without it (a "flat network") everything is in scope, and with it the expensive rules apply to a small, well-guarded corner.
+skills: [pci-scope]

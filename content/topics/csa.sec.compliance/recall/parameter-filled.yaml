@@ -1,0 +1,26 @@
+id: parameter-filled
+type: predict_shell
+rev: 1
+prompt: |
+  `ac7.txt` holds the statement of NIST SP 800-53's control AC-7, "Unsuccessful Logon Attempts", in NIST's own words. `policy.txt` is how the shop filled it in. The first command prints every piece of the statement that matches `[Assignment: ...]`, one to a line, and counts them. The second prints what follows the `=` on each line of the policy. What do the two commands print?
+files:
+  ac7.txt: |
+    a. Enforce a limit of [Assignment: organization-defined number] consecutive invalid logon attempts by a user during a [Assignment: organization-defined time period]; and
+    b. Automatically [Selection (one or more): lock the account or node for [Assignment: organization-defined time period]; lock the account or node until released by an administrator; delay next logon prompt per [Assignment: organization-defined delay algorithm]; notify system administrator; take other [Assignment: organization-defined action]] when the maximum number of unsuccessful attempts is exceeded.
+  policy.txt: |
+    attempts=5
+    within=15 minutes
+    then=lock the account for 20 minutes
+command: |
+  grep -o '\[Assignment: [^]]*\]' ac7.txt | wc -l
+  cut -d= -f2 policy.txt
+expected_output: |
+  5
+  5
+  15 minutes
+  lock the account for 20 minutes
+explanation: |
+  The statement has **five** `[Assignment: ...]` brackets: a number and a time period in part a, and three more inside part b's list of choices. Each is a **parameter**: a blank NIST leaves for the organisation, because the right number for a bank isn't the right number for a school. `[Selection ...]` is a list to choose from, and `grep` doesn't count it, since the pattern asks for `[Assignment`.
+
+  The policy fills three of the five: 5 attempts, within 15 minutes, then a 20-minute lock. The other two belong to choices the shop didn't select, so they stay empty. A control with its parameters filled in is something a server can be measured against. Until then it is a sentence with holes.
+skills: [read-a-control]

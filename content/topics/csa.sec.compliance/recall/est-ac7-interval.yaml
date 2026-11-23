@@ -1,0 +1,24 @@
+id: est-ac7-interval
+type: estimate
+rev: 1
+prompt: |
+  NIST's AC-7 leaves two numbers to the organisation. The shop's policy fills them in as "4 invalid attempts within 15 minutes". In `faillock.conf` the window is `fail_interval`, in seconds. What value does the policy need? Exactly.
+unit: seconds
+answer: 900
+tolerance: { absolute: 0 }
+given: { attempts: 4, minutes: 15 }
+working: minutes * 60
+mistakes:
+  - id: left-in-minutes
+    value: 15
+    working: minutes
+    why: That leaves the window in minutes. The setting is in seconds, so 15 would count only failures within the same quarter of a minute.
+  - id: multiplied-attempts
+    value: 3600
+    working: attempts * minutes * 60
+    why: That multiplies by the number of attempts as well. The window is 15 minutes whatever the count is; the count is a separate setting, deny.
+explanation: |
+  15 minutes x 60 = **900** seconds: `fail_interval = 900`, beside `deny = 4`. The control's statement has two blanks, a number and a time period, and the policy fills each one; each becomes its own setting. The 4 doesn't enter the window's arithmetic.
+
+  900 happens to be `fail_interval`'s default. Write it down anyway: evidence that a parameter is met is a setting someone can read, not a default they have to know.
+skills: [read-a-control]

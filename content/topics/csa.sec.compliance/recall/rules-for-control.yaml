@@ -1,0 +1,34 @@
+id: rules-for-control
+type: predict_shell
+rev: 1
+prompt: |
+  `refs.tsv` is 14 real lines of the benchmark's crosswalk from this topic's labs: a rule, a framework and a control, separated by tabs. The first command prints the rules mapped to PCI DSS 8.3.6, comparing the whole third column. The second counts the lines that `grep 8.3` finds. What do they print?
+files:
+  refs.tsv: |
+    accounts_password_pam_dcredit	pci-dss-4.0	8.3.6
+    accounts_password_pam_lcredit	pci-dss-4.0	8.3.6
+    accounts_password_pam_minlen	pci-dss-4.0	8.3.6
+    accounts_passwords_pam_faillock_deny	nist-800-53r4	AC-7(a)
+    accounts_passwords_pam_faillock_deny	pci-dss-4.0	8.3.4
+    accounts_passwords_pam_faillock_unlock_time	nist-800-53r4	AC-7(b)
+    accounts_passwords_pam_faillock_unlock_time	pci-dss-4.0	8.3.4
+    accounts_tmout	pci-dss-4.0	8.6.1
+    sshd_disable_root_login	cis-ubuntu-24.04	5.1.20
+    sshd_disable_root_login	hipaa	164.312(e)(1)
+    sshd_disable_root_login	nist-800-171	3.1.5
+    sshd_disable_root_login	nist-800-53r4	AC-6(2)
+    sshd_disable_root_login	pci-dss-4.0	2.2
+    sshd_disable_root_login	pci-dss-4.0	2.2.6
+command: |
+  awk -F'\t' '$2 == "pci-dss-4.0" && $3 == "8.3.6" { print $1 }' refs.tsv
+  grep -c 8.3 refs.tsv
+expected_output: |
+  accounts_password_pam_dcredit
+  accounts_password_pam_lcredit
+  accounts_password_pam_minlen
+  5
+explanation: |
+  Three rules are mapped to 8.3.6: a digit, a lower-case letter and the minimum length. A control often needs **several** rules, and it is met only when all of them pass.
+
+  `grep 8.3` finds five lines, not three: it matches a piece of text anywhere in a line, so it takes 8.3.4's two lines as well. In the full crosswalk the same command finds 44 lines. To ask about a control, compare the whole column, as the `awk` does with `$3 == "8.3.6"`. A pack built from the `grep` would claim five rules for a control that has three.
+skills: [crosswalks]

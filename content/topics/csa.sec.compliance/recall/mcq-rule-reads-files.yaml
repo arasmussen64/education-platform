@@ -1,0 +1,16 @@
+id: mcq-rule-reads-files
+type: mcq
+rev: 1
+prompt: |
+  An engineer adds `PermitRootLogin no` to SSH's settings and runs the benchmark's rule for it, which passes. Nobody reloads the SSH server. A minute later a login as root with an authorised key succeeds. Why did the rule pass?
+choices:
+  - "The rule reads the settings files, and the running server hasn't read them yet"
+  - "The rule tests password logins only, and says nothing about logins with a key"
+  - "The rule's result is cached for an hour, so it showed an older, passing run"
+  - "The rule passes whenever the file exists, whatever value the setting has"
+answer: 0
+explanation: |
+  A benchmark rule reads **files**. A running server read those files once, when it started or was last reloaded, and carries on with what it read then. Between an edit and a reload the two disagree, and the rule sides with the file.
+
+  So for a control that matters, look at the behaviour as well as the setting: try the login, send the request, read the live value. And reload after you edit, then collect the evidence. The rule here does look at the setting's value, tests nothing about keys or passwords separately, and is run fresh each time.
+skills: [control-to-evidence]

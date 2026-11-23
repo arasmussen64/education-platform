@@ -1,0 +1,25 @@
+id: oscap-read
+type: predict_shell
+rev: 1
+prompt: |
+  `rules.txt` is what `oscap-rules` printed for seven rules of the CIS benchmark on the payments server, captured in this topic's build lab on 2026-11-22: each line is a rule and OpenSCAP's result for it. The first command counts the lines that end in ` pass`. The second prints the first field of every line whose second field is not `pass`. What do they print?
+files:
+  rules.txt: |
+    sshd_disable_root_login pass
+    accounts_password_pam_minlen pass
+    accounts_password_pam_dcredit pass
+    accounts_password_pam_lcredit pass
+    journald_storage pass
+    package_rsync_removed fail
+    service_rsyncd_disabled pass
+command: |
+  grep -c ' pass$' rules.txt
+  awk '$2 != "pass" { print $1 }' rules.txt
+expected_output: |
+  6
+  package_rsync_removed
+explanation: |
+  Six rules pass. One doesn't: `package_rsync_removed`, the benchmark's rule that rsync should not be installed. The second command asks for "not pass" and not for "fail", on purpose: a rule can also come back `notapplicable`, `error` or `unknown`, and a report that looks only for the word `fail` reads all of those as fine.
+
+  A failing rule in a report is a question, not yet an answer. This server runs an rsync daemon that the bank fetches settlement files from, so the rule can't pass here. What happens next is a written exception, which the lesson's last part covers.
+skills: [read-a-control]
