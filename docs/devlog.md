@@ -19,6 +19,19 @@ Each topic is written by one helper from the plan, the build notes and its desig
 - _Nothing is copied in:_ the reading importer doesn't know this topic's sources, so all ten resources are optional links.
 - _CI time:_ the build and the debug take about five minutes each on a quiet machine, more than the plan's estimate for the whole topic.
 - _For the base, later:_ its "is the key on disk" helper still misses a key saved as raw bytes, or outside the folders it lists.
+## 2026-11-23, cloud Module 4: the identity base on CI
+
+**The failure.** The identity base's probe lab failed on GitHub's runners and never on the PC it was built on. A draft pull request (#364) that printed the services' own logs showed why: libfaketime, the tool that gives one lab machine a shifted clock, said `sem_open failed ... Permission denied` for a small semaphore file it keeps under `/dev/shm`, and exited. Every program started on a machine with its own clock loads the tool, so every one of them died at start; the time service was only the first to be reported.
+
+**What is and isn't known.** From the tool's source: the first program of a command creates the file and tells its children its name; each child must open it or make its own, and exits if it can do neither. **Why the runner refuses is not established.** A stricter kernel setting for shared files was the first guess, and this PC turned out to have the same setting. The base's own clean-up of old files was ruled out too.
+
+**The fix removes the code path.** A 70-line preload (`faketime-noshm.c`, compiled in a throwaway build stage) makes the tool's attempt to open that semaphore fail in the way the tool is written to shrug off, so no file is made and no name is passed on. The time service, which must read the real clock anyway, is started without the tool. Six Module 3 labs kept their contracts on the changed network base, and the probe kept its own alone and two at once.
+
+**Author notes:**
+
+- _This fixes a mechanism, not a diagnosed cause,_ so the lab run on the pull request is the only proof. If the runner refuses `/dev/shm` to these processes in general, Apache's own semaphore fails next, and the probe's solution prints what is needed to see that.
+- _The probe's solution keeps its diagnostic lines_ until an identity lab has passed on CI more than once.
+- _It held._ On the pull request's lab run the identity probe kept its contract on a GitHub runner in 208 seconds, among four labs at once, with every other lab green. That is inside the plan's limit, so the switch that counts an identity lab as two jobs (P6) stays off for now; the first topics on this base will show whether several identity labs in one share change that.
 
 ## 2026-11-22, cloud Module 4: the platform work
 

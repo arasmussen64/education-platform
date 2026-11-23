@@ -261,7 +261,7 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 | `netlab` | the engine: the topology's words, `up`, `down`, `restart`, `show`, `link`, `verify`, `enable`, `seal`, `intact` |
 | `network-up` | runs a machine's `/etc/network/up` and names the line that fails |
 | `machine-state` | a machine's network configuration, normalised, for `netlab verify` |
-| `lab-enter` | what makes a namespace a machine: its `/run`, state folders, hostname and no domain name (so FRR never writes `domainname localdomain`); and, only for a machine with its own `/etc/faketimerc` in an image that has libfaketime (the identity-lab base's clock labs), its own clock |
+| `lab-enter` | what makes a namespace a machine: its `/run`, state folders, hostname and no domain name (so FRR never writes `domainname localdomain`); and, only for a machine with its own `/etc/faketimerc` in an image that has libfaketime (the identity-lab base's clock labs), its own clock (libfaketime, behind the identity base's `faketime-noshm`); `NETLAB_REAL_CLOCK=1` leaves the clock out for one program |
 | `on` | `on MACHINE [COMMAND...]` |
 | `checklib.sh` | the check helpers |
 | `cors-verdict` | the Fetch standard's CORS check and preflight rules, for checks (its cases are `tools/tests/test_cors_verdict.py`; `csa.net.http-semantics`' write lab keeps an identical copy) |

@@ -14,6 +14,9 @@ PartOf=netlab.service
 [Service]
 SyslogIdentifier=%p@%i
 Type=simple
+# It reads the real time and adds the machine's offset itself, so it
+# runs without libfaketime (lab-enter leaves it out when asked this way).
+Environment=NETLAB_REAL_CLOCK=1
 ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/lib/idlab/timesync
 # Started means it has had its chance: up to ten seconds for a time server
 # that is still starting, no wait at all when the file names none that

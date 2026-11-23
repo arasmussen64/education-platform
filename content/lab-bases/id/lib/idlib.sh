@@ -38,7 +38,9 @@ clock_offset() { /usr/local/lib/idlab/machine-clock offset "$1"; }
 # and MACHINE's clock agrees with it; otherwise prints why not and exits 1.
 # It asks the server itself, so a clock set right by hand beside a time
 # sync that can't reach its server fails.
-clock_synced() { on "$1" /usr/local/lib/idlab/timesync --check; }
+clock_synced() {
+  NETLAB_REAL_CLOCK=1 ip netns exec "$1" /usr/local/lib/netlab/lab-enter "$1" /usr/local/lib/idlab/timesync --check
+}
 
 # client_field REALM CLIENT EXPR: a field of a client as the running server
 # has it; EXPR is Python over the client as d ("d['redirectUris']").
