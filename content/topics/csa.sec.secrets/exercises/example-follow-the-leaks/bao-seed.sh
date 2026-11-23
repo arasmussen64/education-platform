@@ -22,8 +22,8 @@ sql() { runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -d "$1" <<< "$2"; }
 # --- The payment gateway: its admin key, kept in OpenBao, and the shop's
 # key, k1.
 bao secrets enable -path=secret -version=2 kv > /dev/null
-admin=$(/usr/local/bin/paygate admin-key)
-bao kv put secret/paygate/admin key="$admin" > /dev/null
+# (The admin key goes to bao down a pipe, "key=-", never as an argument.)
+/usr/local/bin/paygate admin-key | tr -d '\n' | bao kv put secret/paygate/admin key=- > /dev/null
 read -r _ key < <(/usr/local/bin/paygate add-key)
 echo "$key" > "$truth/leaked-key"
 chmod 600 "$truth/leaked-key"
@@ -39,6 +39,22 @@ done
 for minute in 12 13 15; do
   /usr/local/bin/paygate note-use k1 charge ok 203.0.113.50 "$(day '1 day ago')T23:$minute:41Z"
 done
+
+# The gateway's own date for the key, to match that record and the
+# repository: it was made the day its settings file was committed.
+# (add-key stamps a key with the moment it runs.)
+python3 - "2026-05-12T09:58:21Z" << 'PY'
+import json
+import sys
+
+path = "/var/lib/paygate/keys.json"
+with open(path, encoding="utf-8") as file:
+    keys = json.load(file)
+for key, created in zip(keys, sys.argv[1:]):
+    key["created"] = created
+with open(path, "w", encoding="utf-8") as file:
+    json.dump(keys, file, indent=1)
+PY
 
 # --- Leak 1: the repository. Five commits; the third adds a settings file
 # with the key in it, and the fourth deletes the file again. The dates

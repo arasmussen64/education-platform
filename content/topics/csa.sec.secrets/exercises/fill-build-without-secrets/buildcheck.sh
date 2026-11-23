@@ -13,9 +13,10 @@
 # like; the image is the one the learner's own script built.
 #
 # All six checks ask about one script and one recipe, so the trial runs
-# once for the six: its findings are kept for a minute in /run/lab-build,
-# under the checksum of the two files. A changed file, or a minute gone
-# by, means a new trial.
+# once for the six: its findings are kept in /run/lab-build, under the
+# checksum of the two files, for a minute after the trial ends (a slow
+# machine's trial can itself take most of a minute). A changed file, or
+# a minute gone by, means a new trial.
 . /usr/local/lib/lab/checklib-sec.sh
 
 script=/home/learner/bin/build-shop
@@ -72,7 +73,7 @@ run_trial() {
   version="shop-lib 2.4.$((RANDOM % 900 + 100))"
   echo "$token" > "$state/token"
   echo "$version" > "$state/library"
-  bao kv put secret/ci/pkg-token token="$token" > /dev/null
+  printf '%s' "$token" | bao kv put secret/ci/pkg-token token=- > /dev/null
   job=$(token_for ci-build)
   lines=$(wc -l < /var/log/openbao/audit.log)
 
@@ -121,7 +122,7 @@ run_trial() {
 
   # The token, in any spelling, in any file the build left: the usual
   # places, and podman's own storage.
-  found=$(grep -rlF -f <(echo "$spelled") /home /tmp /var/tmp /srv /etc /run /var/log /var/lib/containers 2> /dev/null | head -n 1)
+  found=$(grep -rlF -f <(echo "$spelled") /home /tmp /var/tmp /dev/shm /srv /etc /run /var/log /var/lib/containers 2> /dev/null | head -n 1)
   if [ -n "$found" ]; then
     note token-not-left "the package token is in a file after the build: $found"
   else
@@ -153,7 +154,7 @@ build_finding() {
     (run_trial)
     {
       echo "files: $sum"
-      echo "at: $now"
+      echo "at: $(date +%s)"
     } >> "$findings.new"
     mv "$findings.new" "$findings"
   fi

@@ -11,7 +11,8 @@ echo "$token" > /var/lib/pkg-server/token
 chmod 600 /var/lib/pkg-server/token
 
 bao secrets enable -path=secret -version=2 kv > /dev/null
-bao kv put secret/ci/pkg-token token="$token" > /dev/null
+# (It goes to bao down a pipe, "token=-", never as an argument.)
+printf '%s' "$token" | bao kv put secret/ci/pkg-token token=- > /dev/null
 
 # What the build job's own token may do: read that one secret. (In the
 # key-value store, version 2, the secret "secret/ci/pkg-token" is read at
