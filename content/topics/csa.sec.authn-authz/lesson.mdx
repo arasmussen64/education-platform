@@ -114,7 +114,7 @@ The clouds automate the observing with tools usually called **access analyzers**
 
 | | What it tells you | Looks back | Costs |
 | --- | --- | --- | --- |
-| AWS IAM Access Analyzer, **unused access** | roles, access keys and passwords nobody uses, and services and actions a role is granted and never uses | it watches continuously | $0.20 for each role or user analyzed, each month (roles that belong to AWS's own services, called service-linked roles, aren't counted) |
+| AWS IAM Access Analyzer, **unused access** | roles, access keys and passwords nobody uses, and services and actions a role is granted and never uses | a tracking period you set, from 1 to 365 days; it watches continuously and reports what went unused for that long | $0.20 for each role or user analyzed, each month (roles that belong to AWS's own services, called service-linked roles, aren't counted) |
 | AWS IAM Access Analyzer, **policy generation** | a draft policy made from what an identity actually did, read from CloudTrail, AWS's log of API calls | up to 90 days | nothing extra |
 | AWS **last accessed information** | when an identity last tried to use each service, whether or not the attempt succeeded | at least 400 days for services | part of IAM |
 | Google Cloud **role recommendations** | a smaller role to replace a broad one, from the permissions used; it never suggests more access | 90 days (30 or 60 for a project, if you choose) | nothing for the broad "basic" roles; a paid tier for the rest |
@@ -164,7 +164,7 @@ Write it as a forbid for a reason. Permits pile up over the years, each one reas
 
 AWS adds one more kind of rule, which can only limit. An organization's **service control policies** (SCPs) and resource control policies, and a **permissions boundary** set on one identity, mark out the most that the ordinary policies may grant. An action has to be allowed by the identity's own policies and fall inside every limit as well (an intersection), and the limits grant nothing themselves: in AWS's words, "No permissions are granted by SCPs and RCPs." Google Cloud's principal access boundary policies are limits of the same sort, on which resources a principal may reach at all.
 
-Three things follow that catch people out. In Azure and Google Cloud, a broad role granted high up can't be narrowed by a smaller role granted lower down: grants only add, so Contributor on a subscription plus Reader on one resource group in it is still Contributor there. In AWS, an SCP that "allows" an action gives nobody that action: it only says the account's own policies are permitted to grant it. And in all three, the only thing that takes access away is removing the grant or writing a deny.
+Three things follow that catch people out. In Azure and Google Cloud, a broad role granted high up can't be narrowed by a smaller role granted lower down: grants only add, so Contributor (a role that can change things) on a subscription plus Reader (a role that can only look) on one resource group in it is still Contributor there. In AWS, an SCP that "allows" an action gives nobody that action: it only says the account's own policies are permitted to grant it. And in all three, the only thing that takes access away is removing the grant or writing a deny.
 
 Module 10 uses each cloud's real tools. What this topic gives you is the model they all share, and the right question to ask of any of them: where are the allows, how do they add up, and what can say no?
 
