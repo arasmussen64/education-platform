@@ -12,10 +12,12 @@ checks:
     expect:
       equals: ready
   - id: admins-need-a-key
-    description: "An admin can only finish signing in with a security key: one who has only a password and an app code can't, and one with a key gets in and the token records the key."
-    timeout: 60
+    description: "An admin can only finish signing in with a security key, which the flow makes a must rather than one choice among several: an admin who has only a password and an app code can't finish, and one with a key gets in and the token records the key."
+    timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
+      must=$(python3 -c "import json; d=json.load(open('/etc/netns/idp/keycloak/realms/shop.json')); print(' '.join(s.get('requirement', '') for f in d.get('authenticationFlows', []) for s in f['authenticationExecutions'] if s.get('authenticator') == 'webauthn-authenticator'))" 2> /dev/null)
+      [ "$must" = REQUIRED ] || { echo "in the realm file, the security-key step's requirement is \"$must\", which doesn't make the key a must"; exit 0; }
       iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
       r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n'); u=chk-a$r
       idp-user add shop "$u" "pw$r" --otp admins > /dev/null || { echo "couldn't make a test admin"; exit 0; }
@@ -32,7 +34,7 @@ checks:
       equals: keyed
   - id: staff-need-two
     description: "A staff member needs a password and a second factor: one with only a password can't sign in, one who adds an app code can."
-    timeout: 60
+    timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
       iss=https://login.shop.test/realms/shop; red=http://127.0.0.1:8400/callback
