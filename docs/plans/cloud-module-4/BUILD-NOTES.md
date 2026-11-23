@@ -49,4 +49,13 @@ Each base's README under `content/lab-bases/` is the reference for its helpers. 
 
 ## `id` (Keycloak)
 
-_Filled in when the identity base lands._
+- **Pinned:** Keycloak 26.8.2, by checksum.
+- **Measured on the owner's PC** (the probe lab, full contract with the restart trial): 174 seconds alone on a quiet machine, 366 seconds each with four at once; Keycloak answers 8 to 13 seconds after boot alone, 20 to 24 seconds with four at once; about 620 MB of memory a lab. On a loaded machine a boot took up to 77 seconds. A GitHub runner has half this machine's processors, so the plan's step P6 (an identity lab counts as two of a machine's four jobs) is likely to be needed; the lab run decides.
+- **Python's `time.sleep` fails under Ubuntu 24.04's libfaketime** (`OSError: [Errno 22]`) on a machine that has its own clock. The base's `timesync` runs outside libfaketime for that reason. **A lab's own Python on a machine with a shifted clock must not sleep;** the README says how to wait instead.
+- **A realm is always the lab's own file.** There is no "starting realm" in the base, and no `amr` mapper: a sign-in shows `acr` and no `amr`. The strong-authentication topic's first writer adds the mapper, with the flow reference values it needs, and tries a flow written in a realm file before any lab depends on it.
+- **`mod_oauth2` keeps serving a token it has already accepted after that token expires** (still `200` 46 seconds after a 20-second token ran out). A lab that teaches expiry at the API must not rely on it noticing. Two `Require` lines need `<RequireAll>`.
+- **`jwtlib` checks RS256 signatures with Python's standard library,** so its tests need no extra package and no key in the repository.
+- **`ca-whatif` lives in the policy base** with a byte-identical copy in this base's `bin/`. Change the policy base's and copy it over; a test fails if they differ.
+- **`date -s` is refused** in every network-based lab: a lab must never set the real clock. Clocks are shifted per machine with `clock` (the README has it).
+- **The probe topic holds one lab.** Nothing has yet run four identity labs at once on a GitHub runner.
+- **Untried on the final base:** a flow in a realm file and `amr`; SAML's NameID and metadata made at build; a SCIM token for a service client; oauth2-proxy; the relay host for the phishing lab; Keycloak itself under a shifted clock; whether sign-in events appear without `eventsEnabled`. The topic that needs one tries it first.

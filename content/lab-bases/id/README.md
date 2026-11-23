@@ -286,7 +286,7 @@ Each is small, and belongs to the first writer who needs it (Module 4 brief, sec
 - `signin` through oauth2-proxy, and the size of its cookie;
 - Keycloak's sign-in events as a watching unit reads them;
 - a page on a second host asking for a key (the relay): `signin`'s refusal is written and was not run against one;
-- `ca-whatif`: it has one source, in the policy-lab base, and a byte-identical copy here in `bin/`. Neither exists yet; `tools/tests/test_idlab_helpers.py` fails once one exists without the other, or they differ.
+- `ca-whatif`: it has one source, in the policy-lab base (`content/lab-bases/policy/bin/ca-whatif`), and a byte-identical copy here in `bin/`. Change the policy base's, then copy it over this one; `tools/tests/test_idlab_helpers.py` fails if the two differ.
 
 ## Files here
 
