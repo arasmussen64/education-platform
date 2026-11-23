@@ -12,6 +12,8 @@ The plan's section 7 lists what must exist before any topic is written. Four hel
 - _Podman inside the lab container works as root only,_ with the simplest storage and the host's network. That is enough for the secrets topic, which builds an image to look inside its layers. CI's kernel has AppArmor where this machine's has none; the base asks for no confinement as a precaution, and the lab run on the pull request is the test.
 - _The newest OpenBao was three days old,_ so the one before it is pinned, by the two-week rule.
 - _Untried:_ key rotation, the sign-in methods for machines, and gitleaks as a hook, which the topics that use them will try.
+- _Its first run on CI passed:_ the probe lab kept its contract on a GitHub runner in 148 seconds, the container build inside the lab included. That was the open question.
+- _The same run failed on an older lab, by chance._ The CORS audit lab's check starts a small server of its own on a random port between 30000 and 39999, and Linux gives out ports from 32768 up for its own connections; this once the port was taken, the server didn't start, and the reference solution was marked wrong. One other lab (the probe script in network troubleshooting) picked from the same range. Both now pick from 10000 to 19999. Both kept their contracts locally afterwards.
 
 ## 2026-11-22, cloud Module 4: the plan
 
