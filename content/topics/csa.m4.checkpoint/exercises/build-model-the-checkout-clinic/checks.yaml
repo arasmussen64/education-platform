@@ -77,6 +77,19 @@ checks:
       REF
     expect:
       equals: ok
+  - id: chosen-not-listed
+    description: "The model chooses: at most twenty threats in all, and at most ten of them with a risk of 6 or more."
+    timeout: 10
+    command: |
+      awk '
+        $1 == "threat" { threats++; if ($5 * $6 >= 6) high++ }
+        END {
+          if (threats > 20 || high > 10) print "the model lists where it should choose: it has more than twenty threats, or more than ten with a risk of 6 or more"
+          else print "ok"
+        }
+      ' /home/learner/model.tm
+    expect:
+      equals: ok
   - id: answered-a
     description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
     timeout: 10
