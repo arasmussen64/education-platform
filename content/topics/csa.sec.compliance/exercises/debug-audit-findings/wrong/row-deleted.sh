@@ -7,15 +7,12 @@
 # drop-in for the unit, and "systemctl cat" shows what it does: it starts
 # sshd with "-o PermitRootLogin=yes", which beats every file. Remove it,
 # have systemd read its unit files again, and restart the server.
-sudo root-login
-sudo oscap-rules sshd_disable_root_login
 sudo sshd -T | grep -i permitrootlogin
 systemctl status ssh --no-pager | head -n 6
 systemctl cat ssh
 sudo rm /etc/systemd/system/ssh.service.d/20-support.conf
 sudo systemctl daemon-reload
 sudo systemctl restart ssh
-sudo root-login
 
 # 2. The journal. Its file is under /run, which is memory. The settings in
 # force show two Storage= lines, and for journald the last one read wins:
@@ -24,12 +21,10 @@ sudo root-login
 # the disk at the next boot, or at once when asked with --flush.
 sudo journalctl --header | grep 'File path'
 systemd-analyze cat-config systemd/journald.conf | grep -E '^# |Storage'
-sudo oscap-rules journald_storage
 sudo rm /etc/systemd/journald.conf.d/90-wear.conf
 sudo systemctl restart systemd-journald
 sudo journalctl --flush
 sudo journalctl --header | grep 'File path'
-sudo oscap-rules journald_storage
 
 sed -i '/accounts_password_pam_maxrepeat/d' ~/evidence/pack.tsv
 # 4. Collect again, after the last fix: the pack's seven rules, and the

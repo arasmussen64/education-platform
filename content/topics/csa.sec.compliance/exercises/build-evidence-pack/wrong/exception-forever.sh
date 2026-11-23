@@ -9,7 +9,6 @@ awk -F'\t' '$2 == "cis-ubuntu-24.04" && ($3 == "6.1.2.4" || $3 == "2.1.13") { pr
 awk -F'\t' '$2 == "pci-dss-4.0" && ($3 == "10.2.1" || $3 == "10.5.1" || $3 == "6.3.3")' /usr/share/lab-pay/refs.tsv
 # Four controls have rules (seven in all). The last command prints nothing:
 # the crosswalk maps no rule to the other three.
-sudo oscap-rules sshd_disable_root_login accounts_password_pam_minlen accounts_password_pam_dcredit accounts_password_pam_lcredit journald_storage package_rsync_removed service_rsyncd_disabled
 
 # 2. Root over SSH. sshd uses the first value it reads, and the hosting
 # company's drop-in is read first, so that file has to go. Then check the

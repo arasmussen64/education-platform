@@ -17,7 +17,7 @@ checks:
     expect:
       equals: intact
   - id: earlier-work-stands
-    description: "The audit policy is untouched, the audit trail is still kept 365 to 400 days, and a fresh scan of the server finds no vulnerability."
+    description: "The earlier work stands: the audit policy is untouched and its writer running, the audit trail is still on disk, sealed (with the auditors' key where it was left) and kept 365 to 400 days, and a fresh scan of the server finds no vulnerability."
     command: |
       . /usr/local/lib/lab-comp/comply.sh
       earlier_work_stands
@@ -31,33 +31,33 @@ checks:
     expect:
       equals: kept
   - id: root-login-off
-    description: "The benchmark's rule for root logging in over SSH passes, a real login as root with an authorised key is turned away, and it would be after a reboot too."
+    description: "A real login as root with an authorised key is turned away, and it would be after a reboot too."
     command: |
       . /usr/local/lib/lab-comp/comply.sh
-      root_login_off
+      root_login_off behaviour
     expect:
       equals: "off"
   - id: passwords-met
-    description: "The three password rules pass, and the password library asks for at least 14 characters with a digit and a lower-case letter."
+    description: "The password library, read the way the sign-in programs read it, asks for at least 14 characters with a digit and a lower-case letter, and refuses a password that falls short."
     command: |
       . /usr/local/lib/lab-comp/comply.sh
-      passwords_met
+      passwords_met behaviour
     expect:
       equals: met
   - id: journal-on-disk
-    description: "The benchmark's rule for the journal's storage passes, the settings that outlast a reboot keep it on disk, and a line logged a moment ago can be read from the journal's files on disk."
+    description: "The journal's settings that outlast a reboot keep it on disk, and a line logged a moment ago can be read from the journal's files on disk."
     command: |
       . /usr/local/lib/lab-comp/comply.sh
-      journal_on_disk
+      journal_on_disk behaviour
     expect:
       equals: "on disk"
   - id: met-or-excepted
-    description: "Every rule of every control in scope passes now, except the one rule the business can't pass, which has an exception."
+    description: "Every rule of every control in scope passes now, except the one rule the business can't pass, which has an exception. The check runs each of those rules again."
     command: /usr/local/lib/lab-comp/pack-check met
     expect:
       equals: right
   - id: one-exception
-    description: "~/evidence/exception.txt is an exception for the one rule that can't pass: its control, why, a compensating control, the team that owns the server, and an expiry within a year."
+    description: "~/evidence/exception.txt is an exception for the one rule that can't pass: its control, why, a compensating control that names a limit the service's own settings put on it, the team that owns the server, and an expiry within a year."
     command: /usr/local/lib/lab-comp/pack-check exception
     expect:
       equals: right

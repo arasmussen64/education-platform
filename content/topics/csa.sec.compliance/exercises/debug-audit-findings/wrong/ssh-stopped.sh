@@ -8,7 +8,6 @@
 # sshd with "-o PermitRootLogin=yes", which beats every file. Remove it,
 # have systemd read its unit files again, and restart the server.
 sudo root-login || true
-sudo oscap-rules sshd_disable_root_login
 sudo sshd -T | grep -i permitrootlogin
 systemctl status ssh --no-pager | head -n 6
 systemctl cat ssh
@@ -22,12 +21,10 @@ sudo root-login || true
 # the disk at the next boot, or at once when asked with --flush.
 sudo journalctl --header | grep 'File path'
 systemd-analyze cat-config systemd/journald.conf | grep -E '^# |Storage'
-sudo oscap-rules journald_storage
 sudo rm /etc/systemd/journald.conf.d/90-wear.conf
 sudo systemctl restart systemd-journald
 sudo journalctl --flush
 sudo journalctl --header | grep 'File path'
-sudo oscap-rules journald_storage
 
 # 3. The pack. Compare each control's rule lines with the crosswalk. For
 # PCI DSS 8.3.6 the crosswalk has three rules, and the pack has two of them

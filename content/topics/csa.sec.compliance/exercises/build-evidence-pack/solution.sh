@@ -59,7 +59,11 @@ EOF
 
 # 6. The evidence, collected after the last fix. Six rules pass. One fails:
 # package_rsync_removed, because the bank's settlement sync is an rsync
-# daemon.
+# daemon. (Look at the other rule of that control: service_rsyncd_disabled
+# passes while an rsync daemon is running. The rule looks at the package's
+# own unit, rsync.service, and the shop's unit has another name. A rule
+# tests what its author thought of, which is why the exception is written
+# for the control and says what really runs.)
 sudo oscap-rules sshd_disable_root_login accounts_password_pam_minlen accounts_password_pam_dcredit accounts_password_pam_lcredit journald_storage package_rsync_removed service_rsyncd_disabled > ~/evidence/rules.txt
 cat ~/evidence/rules.txt
 cat /etc/shop/audit.conf > ~/evidence/audit-policy.txt

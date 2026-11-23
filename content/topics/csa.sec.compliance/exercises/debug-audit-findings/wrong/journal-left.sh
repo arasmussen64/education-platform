@@ -6,15 +6,12 @@
 # drop-in for the unit, and "systemctl cat" shows what it does: it starts
 # sshd with "-o PermitRootLogin=yes", which beats every file. Remove it,
 # have systemd read its unit files again, and restart the server.
-sudo root-login
-sudo oscap-rules sshd_disable_root_login
 sudo sshd -T | grep -i permitrootlogin
 systemctl status ssh --no-pager | head -n 6
 systemctl cat ssh
 sudo rm /etc/systemd/system/ssh.service.d/20-support.conf
 sudo systemctl daemon-reload
 sudo systemctl restart ssh
-sudo root-login
 
 # 3. The pack. Compare each control's rule lines with the crosswalk. For
 # PCI DSS 8.3.6 the crosswalk has three rules, and the pack has two of them

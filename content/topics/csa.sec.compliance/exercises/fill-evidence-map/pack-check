@@ -170,14 +170,12 @@ def tidy(text: str) -> list[str]:
     return lines
 
 
-def scan_says(text: str) -> tuple[bool, frozenset[str], bool]:
-    """What a saved vertical scan says: is it this server's package list,
-    which advisories, and does it say there are none."""
-    return (
-        "Scanned /var/lib/dpkg/status file" in text,
-        frozenset(re.findall(r"UBUNTU-CVE-\d+-\d+", text)),
-        "No issues found" in text,
-    )
+def scan_lines(text: str) -> list[str]:
+    """A vertical scan as the scanner printed it, without the one line
+    that differs from run to run (how long the scan took), and in an order
+    that doesn't depend on how its two output streams were joined."""
+    lines = [line.strip() for line in tidy(text)]
+    return sorted(line for line in lines if line and not line.startswith("End status:"))
 
 
 def check_current() -> None:
@@ -188,11 +186,23 @@ def check_current() -> None:
         saved_text = text_of(EVIDENCE / "rules.txt")
         if saved_text is None:
             say("there is no ~/evidence/rules.txt")
-        saved = {}
+        # The file is what oscap-rules printed for the pack's rules: a
+        # rule and its result on each line, each rule once, and nothing
+        # else. (A file that gave a rule two results would never be wrong.)
+        saved: dict[str, str] = {}
         for line in tidy(saved_text):
             fields = line.split()
-            if len(fields) == 2:
-                saved[fields[0]] = fields[1]
+            if not fields:
+                continue
+            if len(fields) != 2:
+                say(
+                    "~/evidence/rules.txt has a line that isn't a rule and its result, as oscap-rules prints them"
+                )
+            if fields[0] in saved:
+                say("~/evidence/rules.txt has two results for one rule")
+            saved[fields[0]] = fields[1]
+        if set(saved) - set(rules):
+            say("~/evidence/rules.txt has a result for a rule the pack doesn't name")
         now = fresh(rules)
         for rule in rules:
             if rule not in saved:
@@ -214,8 +224,10 @@ def check_current() -> None:
             check=False,
         )
         if source == "vuln-rescan":
-            same = scan_says(saved_text) == scan_says(done.stdout + done.stderr)
-            same = same and scan_says(saved_text)[0]
+            now_lines = scan_lines(done.stdout + "\n" + done.stderr)
+            same = scan_lines(saved_text) == now_lines and any(
+                "Scanned /var/lib/dpkg/status file" in line for line in now_lines
+            )
         else:
             same = tidy(saved_text) == tidy(done.stdout) and bool(tidy(done.stdout))
         if not same:
@@ -235,14 +247,15 @@ def exception() -> dict[str, str] | None:
     return found
 
 
-def excepted_rule() -> tuple[str, str, str]:
-    """The one rule that may have an exception here, its control and its
-    system's owner ("" three times in a lab with none)."""
+def excepted_rule() -> tuple[str, str, str, str]:
+    """The one rule that may have an exception here, its control, its
+    system's owner, and a pattern for the limits that really are on what
+    the rule forbids ("" four times in a lab with none)."""
     path = SEALED / "exception-rule"
     if not path.is_file():
-        return "", "", ""
-    rule, control, owner = table(path)[0]
-    return rule, control, owner
+        return "", "", "", ""
+    rule, control, owner, limits = table(path)[0]
+    return rule, control, owner, limits
 
 
 def check_met() -> None:
@@ -256,7 +269,7 @@ def check_met() -> None:
         }
     )
     now = fresh(rules)
-    allowed, _control, _owner = excepted_rule()
+    allowed, _control, _owner, _limits = excepted_rule()
     written = exception() or {}
     for rule in rules:
         result = now.get(rule, "unknown")
@@ -265,13 +278,13 @@ def check_met() -> None:
         if rule == allowed and written.get("rule") == rule:
             continue
         say(
-            "a rule of a control in scope doesn't pass, and has no exception that may stand"
+            f"the rule {rule}, of a control in scope, doesn't pass, and has no exception that may stand"
         )
     print("right")
 
 
 def check_exception() -> None:
-    allowed, control, owner = excepted_rule()
+    allowed, control, owner, limits = excepted_rule()
     written = exception()
     if written is None:
         say("there is no ~/evidence/exception.txt")
@@ -294,6 +307,13 @@ def check_exception() -> None:
     for key in ("reason", "compensating-control"):
         if len(written[key].split()) < 5:
             say(f"the exception's {key} is fewer than five words")
+    # A compensating control has to exist. The check can't judge prose, so
+    # it asks for the least: that it names one of the limits the service's
+    # own settings really put on it.
+    if not re.search(limits, written["compensating-control"], re.IGNORECASE):
+        say(
+            "the exception's compensating control doesn't name a limit that the service's own settings put on it"
+        )
     if written["owner"] != owner:
         say("the exception's owner isn't the team that owns this server")
     try:
