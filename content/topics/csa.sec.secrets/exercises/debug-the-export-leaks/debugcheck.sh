@@ -11,7 +11,8 @@
 # as the timer's runs do.
 #
 # All six checks ask about one state of the machine, so the trial runs
-# once for the six: its findings are kept for a minute in /run/lab-leaks,
+# once for the six: its findings are kept, for a minute after the trial
+# ends, in /run/lab-leaks,
 # under a checksum of the unit, the job's settings and the gateway's keys.
 . /usr/local/lib/lab/checklib-sec.sh
 
@@ -159,6 +160,11 @@ for key in json.load(open(sys.argv[1])):
     note journal-clean "an operator in the group adm can no longer read the export's lines in the journal"
   elif grep -F -f <(echo "$spelled") "$work/journal" > /dev/null; then
     note journal-clean "the journal shows the key the export pays with"
+  elif [ "$(sed -n 's/^log_level *= *//p' /etc/shop/export.conf | head -n 1)" = debug ]; then
+    # The cause, not the symptom: a job that still writes its key out,
+    # with something between it and the journal taking the lines away,
+    # leaks again the day that something changes.
+    note journal-clean "the export is still set to log at debug level, key and all: the lines are only kept out of the journal on their way there"
   else
     note journal-clean ok
   fi
@@ -175,7 +181,27 @@ for key in json.load(open(sys.argv[1])):
     if [ -n "$found" ]; then
       note key-private "an ordinary user can read the key the export pays with, in $found"
     else
-      note key-private ok
+      # And nobody but the job's own user (and root): audit is one
+      # ordinary user, and a file that a group can read is read by every
+      # member of it. Every file that holds the key, wherever it is, must
+      # be export's or root's, with a mode that lets nobody else in.
+      found=""
+      while IFS= read -r value; do
+        [ -n "$value" ] || continue
+        case "$(stat -c '%U %a' "$value" 2> /dev/null)" in
+          "export 400" | "export 600" | "root 400" | "root 600") ;;
+          *)
+            found=$value
+            break
+            ;;
+        esac
+      done < <(grep -rlF -f - /etc /home /srv /opt /tmp /var/tmp /dev/shm /var/lib /var/log /run /usr/local /root \
+        --exclude-dir=journal --exclude-dir=paygate 2> /dev/null <<< "$spelled")
+      if [ -n "$found" ]; then
+        note key-private "the key the export pays with is in $found, which others than the export's own user can read ($(stat -c '%U:%G, mode %a' "$found"))"
+      else
+        note key-private ok
+      fi
     fi
   fi
 }
@@ -194,7 +220,7 @@ leak_finding() {
     (run_trial)
     {
       echo "state: $sum"
-      echo "at: $now"
+      echo "at: $(date +%s)"
     } >> "$findings.new"
     mv "$findings.new" "$findings"
   fi

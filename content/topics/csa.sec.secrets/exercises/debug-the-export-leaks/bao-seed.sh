@@ -13,7 +13,8 @@ pay=/usr/local/bin/paygate
 
 # The gateway's admin key, kept in OpenBao.
 bao secrets enable -path=secret -version=2 kv > /dev/null
-bao kv put secret/paygate/admin key="$($pay admin-key)" > /dev/null
+# (The key goes to bao down a pipe, "key=-", never as an argument.)
+$pay admin-key | tr -d '\n' | bao kv put secret/paygate/admin key=- > /dev/null
 
 # The shop's keys at the gateway. k1 is last year's; k2 was added at last
 # month's rotation and is the one the export uses today.
@@ -36,6 +37,22 @@ for ago in 2 1; do
   $pay note-use k1 charge ok 198.51.100.77 "$(day "$ago days ago")T03:41:19Z"
   $pay note-use k1 charge ok 198.51.100.77 "$(day "$ago days ago")T03:41:52Z"
 done
+
+# The gateway's own dates for the two keys, to match that record and the
+# repository: k1 was made the day its unit was committed, k2 at the
+# rotation. (add-key stamps a key with the moment it runs.)
+python3 - "2026-03-09T09:41:07Z" "$(day '31 days ago')T10:03:17Z" << 'PY'
+import json
+import sys
+
+path = "/var/lib/paygate/keys.json"
+with open(path, encoding="utf-8") as file:
+    keys = json.load(file)
+for key, created in zip(keys, sys.argv[1:]):
+    key["created"] = created
+with open(path, "w", encoding="utf-8") as file:
+    json.dump(keys, file, indent=1)
+PY
 
 # The export's key, as the unit reads it.
 printf 'PAYGATE_KEY=%s\n' "$current" > /etc/shop/export.env
