@@ -1,0 +1,51 @@
+id: debug-the-staff-sign-in
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The staff sign-in"
+prompt: |
+  Part 2 of the checkpoint. Last week the shop's orders pages moved off the old admin site (`https://admin.shop.test/orders`) onto a site of their own, `https://orders.shop.test`, and the orders API got a name of its own, `https://orders-api.shop.test`. Since the move, no member of staff can sign in to the orders site.
+
+  The identity labs' basics (`signin`, the realm file, `realm-apply`, `realm-saved`, a machine's clock) are in SAML, OAuth 2.0 and OIDC's first lab, `example-trace-a-sign-in`.
+
+  **The system.** Five machines on one network. Every part is described here, the broken and the working alike.
+
+  - `idp` (10.0.5.10) is the identity provider at `https://login.shop.test`. The realm `shop` is the file `/etc/keycloak/realms/shop.json`, with its secrets in `/etc/keycloak/secrets.env`.
+  - `orders` (10.0.5.20) is the orders site (Apache; client `orders-web`, a confidential client that signs people in with the code flow and PKCE). Its page `/orders/mine` shows who signed in, then asks the orders API for their orders with the access token the identity provider gave the site for them. Its settings are `/etc/apache2/sites-available/orders.conf`, with its client secret in `/etc/apache2/oidc-secret.conf`.
+  - `api` (10.0.5.30) is the orders API, `https://orders-api.shop.test/v1/orders` (Apache; settings in `/etc/apache2/sites-available/orders-api.conf`). It serves a request only with an access token the shop's realm signed, from the realm's issuer, whose audience is the API's own name.
+  - `ntp` (10.0.5.40) is the shop's time server, `time.shop.test`. `orders` and `api` each keep their clock right with a time sync (`timesync@orders`, `timesync@api`) that asks the time servers named on the `server` lines of the machine's `/etc/chrony/chrony.conf`. `on orders clock` shows a machine's clock beside the real time.
+  - `office` (10.0.5.2) is a staff laptop. Ana's test account is in `/etc/idlab/accounts`; `on office signin https://orders.shop.test/orders/mine ana` is her browser (`-v` shows every step).
+  - The realm's other clients are scenery: `kiosk` (the shop-floor kiosk, whose tokens are for `https://kiosk-api.shop.test`), `old-admin-reports` (the old admin site's report job, whose tokens are for `https://admin.shop.test/api`) and `stock-sync` (the stock job, which reads the orders API).
+
+  **The symptom.** Ana's sign-in ends on an error page.
+
+  **There are three faults. Fixing one changes what you see: sign in again after each fix.** Find each from the evidence: what the browser is told, what the identity provider and the two sites logged (`journalctl -u keycloak@idp`, `on orders tail /var/log/apache2/error.log`, `on api tail /var/log/apache2/error.log`), what a token says (`jwt show`), and what each machine's clock says.
+
+  **The rules of the fix.**
+
+  - The identity provider sends a sign-in for the orders site back to the site's own callback and nowhere else.
+  - The orders site stays a confidential client with PKCE, and gets no other way of getting tokens.
+  - The orders API goes on checking every token's signature, issuer, audience and expiry, and answers only tokens issued for it. The site's access tokens name the API and nothing else.
+  - Tokens keep their lifetimes, and nothing accepts a token further from its own clock than it does now.
+  - Every machine's clock is kept right by the shop's time server.
+  - The time server, the network and every machine's names (`/etc/hosts`), and the other clients, are not yours to change.
+  - A change at the identity provider is made in its realm file and applied. Every fix lasts a restart.
+
+  **Time yourself.** A sign-in like this should take about 60 minutes to mend. Note the time when you open the lab's shell (`date`). Nothing stops you at 60 minutes: the target is yours to hold yourself to.
+
+  When Ana's page shows her orders, run the checks.
+test_skills:
+  staff-sign-in: [csa.sec.federation/trace-oidc]
+  redirect-only-to-the-site: [csa.sec.federation/choose-flow]
+  client-kept-strict: [csa.sec.federation/choose-flow]
+  api-serves-staff: [csa.sec.federation/validate-token]
+  api-refuses-other-audiences: [csa.sec.federation/validate-token]
+  api-refuses-bad-tokens: [csa.sec.federation/validate-token]
+  clocks-right: [csa.sec.federation/validate-token]
+  no-extra-leeway: [csa.sec.federation/validate-token]
+  realm-saved: [csa.sec.federation/choose-flow]
+  at-boot: [csa.linux.services/systemctl]
+  scenery-untouched: [csa.net.troubleshooting/prove-and-record]

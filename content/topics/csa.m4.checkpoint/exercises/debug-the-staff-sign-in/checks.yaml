@@ -1,0 +1,172 @@
+# The checks of part 2. A real sign-in from the office laptop; sign-ins the
+# check runs itself, as the orders site would (signin --code, with its own
+# PKCE pair, state and nonce), so one fault doesn't stop the checks of
+# another; tokens the check gets or makes itself, put to the API, some
+# with audiences and issuers made up as it runs; the clients and the
+# lifetimes as the running identity provider has them; and the lasting
+# places (the realm file, every Apache file the two sites load, each
+# machine's time sync, the sealed scenery). Keycloak answers before the
+# boot counts as finished; the first check waits a few seconds for the two
+# Apaches, which start after it.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: staff-sign-in
+    description: "Ana, from the office laptop, signs in to the orders site, and her page shows her orders."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      wait_for 15 on office curl -s -m 2 -o /dev/null https://orders.shop.test/
+      wait_for 15 on office curl -s -m 2 -o /dev/null https://orders-api.shop.test/
+      got=$(on office signin https://orders.shop.test/orders/mine ana 2>&1)
+      echo "$got" | grep -x 'signed in as ana' > /dev/null || { echo "Ana's sign-in ends: $(echo "$got" | tail -n 1 | cut -c1-110)"; exit 0; }
+      echo "$got" | grep '^orders: {"orders"' > /dev/null || { echo "Ana is signed in, and her page doesn't show her orders"; exit 0; }
+      echo "signed in"
+    expect:
+      equals: signed in
+  - id: redirect-only-to-the-site
+    description: "The identity provider sends a sign-in for the orders site back to the site's callback, and refuses every other address."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop
+      cb=https://orders.shop.test/oidc/callback
+      got=$(on office signin --code orders-web "$cb" $iss ana --secret="$(secret_of ORDERS_WEB_SECRET)" 2>&1 | json "d['id_token']" 2> /dev/null)
+      case $got in ey*) ;; *) echo "a sign-in for the orders site isn't sent back to its callback"; exit 0 ;; esac
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      for other in "$cb/x$r" "https://orders.shop.test/x$r" "${cb}x$r" "https://orders.shop.test.x$r.test/oidc/callback" \
+        "http://orders.shop.test/oidc/callback" "https://admin.shop.test/orders/oidc/callback" "https://x$r.shop.test/oidc/callback"; do
+        got=$(on office signin --code orders-web "$other" $iss ana --secret=x 2>&1 | tail -n 1)
+        case $got in "refused: Invalid parameter: redirect_uri"*) ;; *) echo "a sign-in for the orders site would be sent back to an address that isn't its callback"; exit 0 ;; esac
+      done
+      echo "only the callback"
+    expect:
+      equals: only the callback
+  - id: client-kept-strict
+    description: "The orders site is registered as strictly as it was: a confidential client, with PKCE, and the code flow as its only way of getting tokens. A token request for it with any secret but its own is refused."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      got=$(kc get 'shop/clients?clientId=orders-web' 2> /dev/null | json "(lambda c: [c.get('publicClient'), c.get('standardFlowEnabled'), c.get('implicitFlowEnabled'), c.get('directAccessGrantsEnabled'), c.get('serviceAccountsEnabled'), c.get('attributes', {}).get('oauth2.device.authorization.grant.enabled', 'false'), c.get('attributes', {}).get('pkce.code.challenge.method')])(d[0])" 2> /dev/null)
+      case $got in "["*) ;; *) echo "the running realm has no client called orders-web"; exit 0 ;; esac
+      [ "$got" = '[false, true, false, false, false, "false", "S256"]' ] || { echo "the orders site isn't registered as strictly as it was"; exit 0; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      redirect=$(client_field shop orders-web "(d.get('redirectUris') or [''])[0]" 2> /dev/null)
+      got=$(on office signin --code orders-web "$redirect" https://login.shop.test/realms/shop ana --secret="wrong$r" 2>&1 | tail -n 1)
+      case $got in "refused at the token endpoint"*) echo strict ;; *) echo "a token request for the orders site with a wrong secret: ${got:0:80}" ;; esac
+    expect:
+      equals: strict
+  - id: api-serves-staff
+    description: "The orders API answers the access token a sign-in as Ana gives the orders site, and that token names the orders API as its audience, and nothing else."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      wait_for 15 on office curl -s -m 2 -o /dev/null https://orders-api.shop.test/
+      # The check signs in as the site does, to the address the site is
+      # registered with, so this check doesn't depend on the redirect.
+      redirect=$(client_field shop orders-web "(d.get('redirectUris') or [''])[0]" 2> /dev/null)
+      t=$(on office signin --code orders-web "$redirect" https://login.shop.test/realms/shop ana --secret="$(secret_of ORDERS_WEB_SECRET)" 2>&1 | json "d['access_token']" 2> /dev/null)
+      case $t in ey*) ;; *) echo "the check couldn't finish a sign-in of its own"; exit 0 ;; esac
+      code=$(on office curl -s -m 5 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $t" https://orders-api.shop.test/v1/orders)
+      [ "$code" = 200 ] || { echo "the orders API answers that token with $code"; exit 0; }
+      aud=$(printf '%s' "$t" | python3 -c 'import base64, json, sys; p = sys.stdin.read().split(".")[1]; a = json.loads(base64.urlsafe_b64decode(p + "=" * (-len(p) % 4))).get("aud"); print(" ".join(sorted(a if isinstance(a, list) else [a] if a else [])))')
+      [ "$aud" = https://orders-api.shop.test ] && echo served || echo "the site's access token is for: ${aud:-no one}"
+    expect:
+      equals: served
+  - id: api-refuses-other-audiences
+    description: "The orders API refuses a token the identity provider issued for something else: the kiosk's, the old admin site's, and tokens for audiences made up as the check runs."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      ask() { on office curl -s -m 5 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $1" https://orders-api.shop.test/v1/orders; }
+      tok() { on office curl -s -m 10 https://login.shop.test/realms/shop/protocol/openid-connect/token -d grant_type=client_credentials -d "client_id=$1" -d "client_secret=$(secret_of "$2")" | json "d['access_token']" 2> /dev/null; }
+      for pair in "kiosk KIOSK_SECRET" "old-admin-reports REPORTS_SECRET"; do
+        t=$(tok $pair)
+        case $t in ey*) ;; *) echo "the check couldn't get a token for another client"; exit 0 ;; esac
+        [ "$(ask "$t")" = 401 ] || { echo "a token the provider issued for another audience was served"; exit 0; }
+      done
+      job=$(tok stock-sync STOCK_SYNC_SECRET)
+      case $job in ey*) ;; *) echo "the check couldn't get a token for the stock job"; exit 0 ;; esac
+      again() { echo "$job" | /usr/local/lib/shop/resign-token "$@"; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      [ "$(ask "$(again --set "aud=\"https://x$r.shop.test\"")")" = 401 ] || { echo "a token the provider's key signed for another API was served"; exit 0; }
+      [ "$(ask "$(again --set "aud=\"https://orders-api.shop.test-$r\"")")" = 401 ] || { echo "a token for an audience that only starts with the API's name was served"; exit 0; }
+      echo refused
+    expect:
+      equals: refused
+  - id: api-refuses-bad-tokens
+    description: "The orders API serves the stock job's fresh token, and refuses a token signed by anyone else, one with no signature, one from another issuer, and one that has run out."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      iss=https://login.shop.test/realms/shop
+      api=https://orders-api.shop.test
+      ask() { on office curl -s -m 5 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $1" $api/v1/orders; }
+      job=$(on office curl -s -m 10 $iss/protocol/openid-connect/token -d grant_type=client_credentials -d client_id=stock-sync -d "client_secret=$(secret_of STOCK_SYNC_SECRET)" | json "d['access_token']" 2> /dev/null)
+      case $job in ey*) ;; *) echo "the check couldn't get a token for the stock job"; exit 0 ;; esac
+      [ "$(ask "$job")" = 200 ] || { echo "the API refuses the stock job's fresh token"; exit 0; }
+      [ "$(ask "$(mint-token --iss=$iss --aud=$api)")" = 401 ] || { echo "a token signed by someone else was served"; exit 0; }
+      [ "$(ask "$(mint-token --iss=$iss --aud=$api --alg=none)")" = 401 ] || { echo "an unsigned token was served"; exit 0; }
+      # The stock job's token, changed and signed again with the realm's
+      # own key: tokens the provider could have issued and never did, each
+      # one new to the API (which remembers a token it has already served).
+      again() { echo "$job" | /usr/local/lib/shop/resign-token "$@"; }
+      r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+      [ "$(ask "$(again --set "iss=\"$iss-$r\"")")" = 401 ] || { echo "a token from another issuer was served"; exit 0; }
+      [ "$(ask "$(again --set iat=now-600 --set exp=now-300)")" = 401 ] || { echo "a token that had run out was served"; exit 0; }
+      echo refused
+    expect:
+      equals: refused
+  - id: clocks-right
+    description: "The orders site's and the API's clocks are right, each kept right by a time server its time sync reaches, now and at every boot."
+    timeout: 45
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      for m in orders api; do
+        [ "$(systemctl is-enabled "timesync@$m" 2> /dev/null)" = enabled ] || { echo "a machine's time sync won't start at boot"; exit 0; }
+        clock_synced "$m" > /dev/null 2>&1 || { echo "a machine's clock isn't kept right by a time server it reaches"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: no-extra-leeway
+    description: "Nothing accepts a token further from its own clock, or for longer, than before: the orders site's slack on when a token was issued, the API's way of checking tokens, and every token lifetime are as they were."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      files() { on "$1" bash -c '. /etc/apache2/envvars; apache2 -t -D DUMP_INCLUDES' 2> /dev/null | grep -o '/etc/apache2/[^ ]*'; }
+      site=$(files orders)
+      [ -n "$site" ] || { echo "the orders site's Apache files don't load"; exit 0; }
+      slack=$(for f in $site; do on orders cat "$f"; done | tr -d '\r' | awk 'tolower($1) ~ /slack$/ && $2 + 0 > 600 { print }')
+      [ -z "$slack" ] || { echo "the orders site accepts tokens further from its clock than it did"; exit 0; }
+      api=$(files api)
+      [ -n "$api" ] || { echo "the API's Apache files don't load"; exit 0; }
+      verify=$(for f in $api; do on api cat "$f"; done | tr -d '\r' | grep -i '^[[:space:]]*OAuth2TokenVerify' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\{1,\}/ /g' | sort -u)
+      [ "$verify" = "OAuth2TokenVerify jwks_uri https://login.shop.test/realms/shop/protocol/openid-connect/certs" ] || { echo "the API checks tokens in another way than it did"; exit 0; }
+      kc get shop 2> /dev/null | json "'kept' if d.get('accessTokenLifespan') == 300 else 'changed'" | grep -x kept > /dev/null || { echo "the realm's tokens don't last as long as they did"; exit 0; }
+      longer=$(kc get shop/clients 2> /dev/null | json "[c['clientId'] for c in d if int(c.get('attributes', {}).get('access.token.lifespan') or 0) > 300]")
+      [ "$longer" = "[]" ] && echo "as before" || echo "a client's tokens last longer than the realm's"
+    expect:
+      equals: as before
+  - id: realm-saved
+    description: "The identity provider's running realm is the one its file builds."
+    timeout: 90
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      kc_saved shop 2>&1
+    expect:
+      equals: saved
+  - id: at-boot
+    description: "Everything the sign-in needs starts at boot."
+    command: |
+      for u in keycloak@idp apache2@orders apache2@api chrony@ntp timesync@orders timesync@api; do
+        [ "$(systemctl is-enabled "$u" 2> /dev/null)" = enabled ] || { echo "something the sign-in needs won't start at boot"; exit 0; }
+      done
+      echo enabled
+    expect:
+      equals: enabled
+  - id: scenery-untouched
+    description: "The network and every machine's names, the time server, the hardware clocks, the API's pages and the clients' secrets are as they were."
+    command: |
+      . /usr/local/lib/idlab/idlib.sh
+      intact
+    expect:
+      equals: intact
