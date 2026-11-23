@@ -1,0 +1,16 @@
+id: mcq-same-name-20
+type: mcq
+rev: 1
+prompt: |
+  A server sends its certificate and one CA certificate. A client that trusts the root reports `error 20 at 0 depth lookup: unable to get local issuer certificate`. Captured in this topic's lab on 2026-11-22, the server's certificate says `issuer=CN = Shop Issuing CA` with authority key identifier `25:7D:EC:A2:...`, and the CA certificate it sent says `subject=CN = Shop Issuing CA` with subject key identifier `F9:FB:57:FB:...`. What is wrong?
+choices:
+  - "The certificate sent has the issuer's name, but not the key that signed the leaf"
+  - "The leaf's subjectAltName doesn't match the name the client asked the server for"
+  - "The root that signed this issuing CA is missing from the client's trust store"
+  - "The issuing CA's certificate has expired, so openssl no longer counts it at all"
+answer: 0
+explanation: |
+  Error 20 at depth 0 means the client couldn't find the certificate of whoever signed the leaf. Usually that certificate wasn't sent. Here one with the right name was, but the leaf's authority key identifier (a fingerprint of its signer's key) doesn't match that certificate's subject key identifier: same name, different key. The issuing CA was given a new key, the leaf comes from the new one, and the server still sends the old one.
+
+  The fix is on the server: send the CA certificate whose subject key identifier matches. A name mismatch is error 62, at the end of verification. A missing root would show at depth 1 or above, once the issuing CA had been accepted. An expired CA is found and then refused: error 10 at 1.
+skills: [fix-chains, ca-rotation]

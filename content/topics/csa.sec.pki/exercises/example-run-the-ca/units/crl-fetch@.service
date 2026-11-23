@@ -1,0 +1,12 @@
+# What crl-fetch@MACHINE.timer starts: one run of /usr/local/bin/fetch-crls
+# on that machine, which downloads the CRLs the CA serves and has nginx read
+# them. "systemctl status crl-fetch@web" shows the last run.
+[Unit]
+Description=Fetch the CA's CRLs on %i and reload nginx
+After=netlab.service nginx@ca.service unbound@resolver.service nginx@%i.service
+Requires=netlab.service
+
+[Service]
+Type=oneshot
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/fetch-crls

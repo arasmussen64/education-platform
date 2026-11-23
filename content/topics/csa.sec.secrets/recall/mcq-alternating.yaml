@@ -1,0 +1,16 @@
+id: mcq-alternating
+type: mcq
+rev: 1
+prompt: |
+  AWS Secrets Manager can rotate a database password with one user ("single user") or with two that take turns ("alternating users"). Why does the second kind never hand an application a password that the database refuses?
+choices:
+  - "It changes the user that isn't current, so the current pair keeps working"
+  - "It changes both users' passwords in one step, so that they can never disagree with each other"
+  - "The database accepts any password for a minute while rotation runs"
+  - "Applications keep the old password in memory until they restart"
+answer: 0
+explanation: |
+  With one user, rotation changes that user's password in the database and then updates the stored secret, and for a moment the two disagree: AWS's page calls it "a low risk of the database denying calls". With alternating users there are two database users with the same rights. Each rotation changes the password of the one the secret is not pointing at, and then points the secret at it. An application that fetched the secret just before still holds the other user's password, which nobody touched, so, in AWS's words, "the application still gets a valid set of credentials".
+
+  The price is that each password stays valid for two rotation periods, not one. The same idea is behind two active API keys at a payment provider: add the new one, move over, and only then revoke the old.
+skills: [rotate-and-revoke]

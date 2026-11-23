@@ -1,0 +1,16 @@
+# A demo of the shop's export job that somebody left running: it charges a
+# test order at the payment gateway every 20 seconds, as the user export.
+# Its key is set in a drop-in (shop-demo.service.d/key.conf), written when
+# the lab first starts.
+[Unit]
+Description=The export job's demo (left running)
+After=paygate.service lab-bao-init.service
+
+[Service]
+User=export
+ExecStart=/usr/local/bin/shop-demo --api-key=${PAYGATE_KEY}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

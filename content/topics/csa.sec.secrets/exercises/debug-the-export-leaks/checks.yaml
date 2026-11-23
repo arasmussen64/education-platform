@@ -1,0 +1,54 @@
+# The checks state end states. Each run of them is one trial
+# (debugcheck.sh, beside this file): the export runs once through its
+# unit while the process list is read; the
+# gateway's own record says which key the run paid with; and that key is
+# looked for, as text, base64 and hex, in everything an ordinary user can read.
+# The trial runs once for the first five checks.
+checks:
+  - id: job-works
+    description: "The export, started through its unit, charges the day's orders with an active key, and its timer starts at boot."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      leak_finding job-works
+    timeout: 90
+    expect:
+      equals: ok
+  - id: no-leaked-key-works
+    description: "No key that has ever leaked works at the gateway."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      leak_finding no-leaked-key-works
+    timeout: 90
+    expect:
+      equals: ok
+  - id: args-clean
+    description: "While the export runs, an ordinary user can see no gateway key."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      leak_finding args-clean
+    timeout: 90
+    expect:
+      equals: ok
+  - id: journal-clean
+    description: "The operators can still read what the export logs, and the export no longer logs its key."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      leak_finding journal-clean
+    timeout: 90
+    expect:
+      equals: ok
+  - id: key-private
+    description: "Nothing an ordinary user can read or ask systemd for holds the key the export pays with: every file it is in can be read by the export's own user alone."
+    command: |
+      . /usr/local/lib/lab/debugcheck.sh
+      leak_finding key-private
+    timeout: 90
+    expect:
+      equals: ok
+  - id: programs-intact
+    description: "The gateway, payctl and the export program are as they were."
+    command: |
+      . /usr/local/lib/lab/checklib-sec.sh
+      sealed_ok
+    expect:
+      equals: intact

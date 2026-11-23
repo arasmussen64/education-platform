@@ -1,0 +1,51 @@
+#!/bin/bash
+# make-scenery: what exists before the shop has a PKI for its partners,
+# made once, when the lab's image is built. Every key is made here, so none
+# is in the repository.
+#
+#   - The shop's server CA, which signs api.shop.test's own certificate and
+#     which every machine trusts (Module 3's subject, scenery here).
+#   - On root and on ca, an empty CA folder beside each one's ca.cnf: an
+#     empty database, the first CRL number, and a folder for copies of what
+#     is issued. No key and no certificate: making them is the lab.
+#   - The warehouse's key (on depot) and the courier's (on courier), each
+#     on its own machine, with no certificate.
+set -euo pipefail
+ns=/etc/netns
+key() { openssl ecparam -name prime256v1 -genkey -noout -out "$1"; }
+run() {
+  local said
+  said=$("$@" 2>&1) || { printf 'make-scenery: %s\n%s\n' "$*" "$said" >&2; exit 1; }
+}
+
+srv=/var/lib/lab/server-ca
+tls=$ns/web/nginx/tls
+mkdir -p "$srv" "$tls" /etc/ssl/certs
+key "$srv/ca.key"
+run openssl req -x509 -new -key "$srv/ca.key" -subj "/CN=Shop Lab Server CA" -days 7300 -out "$srv/ca.pem" \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+key "$tls/api.key"
+run openssl req -new -key "$tls/api.key" -subj "/CN=api.shop.test" -out "$srv/api.csr"
+printf '%s\n' 'subjectAltName=DNS:api.shop.test' 'extendedKeyUsage=serverAuth' 'keyUsage=critical,digitalSignature' > "$srv/api.ext"
+run openssl x509 -req -in "$srv/api.csr" -CA "$srv/ca.pem" -CAkey "$srv/ca.key" -CAcreateserial -days 3650 -extfile "$srv/api.ext" -out "$tls/api.pem"
+cp "$srv/ca.pem" /etc/ssl/certs/ca-certificates.crt
+
+for m in root ca; do
+  dir=$ns/$m/shop-ca
+  mkdir -p "$dir/newcerts"
+  : > "$dir/index.txt"
+  echo 1000 > "$dir/crlnumber"
+  chmod 755 "$dir"
+done
+mkdir -p "$ns/ca/shop-ca/public"
+chmod 755 "$ns/ca/shop-ca/public"
+
+mkdir -p "$ns/depot/partner" "$ns/courier/partner"
+key "$ns/depot/partner/warehouse.key"
+key "$ns/courier/partner/courier.key"
+
+mkdir -p /home/learner/transfer
+chown learner:learner /home/learner/transfer
+chmod 600 "$srv/ca.key" "$tls/api.key" "$ns/depot/partner/warehouse.key" "$ns/courier/partner/courier.key"
+chmod 755 "$tls"
+chmod 644 "$tls/api.pem" /etc/ssl/certs/ca-certificates.crt

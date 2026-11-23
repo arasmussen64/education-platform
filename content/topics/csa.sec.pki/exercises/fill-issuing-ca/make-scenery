@@ -1,0 +1,41 @@
+#!/bin/bash
+# make-scenery: what exists as this lab begins, made once, when the lab's
+# image is built. Every key is made here, so none is in the repository.
+#
+#   - The root CA, on root: its key, its certificate and an empty database.
+#     Every machine trusts the root, as a company's laptops trust the
+#     company's own root.
+#   - On ca, an empty CA folder beside its ca.cnf, and the public folder
+#     nginx serves. No key and no certificate: make-services-ca makes them.
+#   - On web, the API's key, with no certificate.
+set -euo pipefail
+ns=/etc/netns
+key() { openssl ecparam -name prime256v1 -genkey -noout -out "$1"; }
+
+root=$ns/root/shop-ca
+mkdir -p "$root/newcerts"
+: > "$root/index.txt"
+echo 1000 > "$root/crlnumber"
+key "$root/root.key"
+# ca.cnf names its files by their path inside the machine; at build time
+# there are no machines, so openssl gets a copy whose dir is the folder as
+# the lab machine sees it, and only the part above the section with gaps.
+sed -e "s#^dir .*#dir = $root#" -e '/^\[ v3_services_ca \]/,$d' "$root/ca.cnf" > /tmp/root.cnf
+openssl req -x509 -new -config /tmp/root.cnf -extensions v3_root -key "$root/root.key" -days 7300 -out "$root/root.pem"
+rm /tmp/root.cnf
+
+ca=$ns/ca/shop-ca
+mkdir -p "$ca/newcerts" "$ca/public"
+: > "$ca/index.txt"
+echo 1000 > "$ca/crlnumber"
+openssl x509 -in "$root/root.pem" > "$ca/public/root.pem"
+
+mkdir -p "$ns/web/nginx/tls" /etc/ssl/certs /home/learner/shop-pki /home/learner/transfer
+key "$ns/web/nginx/tls/api.key"
+cp "$ca/public/root.pem" /etc/ssl/certs/ca-certificates.crt
+cp "$ca/public/root.pem" /home/learner/shop-pki/root.pem
+
+chmod 600 "$root/root.key" "$ns/web/nginx/tls/api.key"
+chmod 755 "$root" "$ca" "$ca/public" "$ns/web/nginx/tls"
+chmod 644 "$ca/public/root.pem" /etc/ssl/certs/ca-certificates.crt /home/learner/shop-pki/root.pem
+chown -R learner:learner /home/learner/shop-pki /home/learner/transfer

@@ -1,0 +1,28 @@
+id: est-max-ttl
+type: estimate
+rev: 1
+prompt: |
+  A database role in OpenBao has a default lifetime (TTL) of 60 minutes and a maximum lifetime of 240 minutes. An application gets a credential and, to be safe, renews its lease every 50 minutes for as long as OpenBao lets it. How many minutes after it was issued does the credential stop working? Exactly.
+unit: minutes
+answer: 240
+tolerance: { absolute: 0 }
+given: { ttl: 60, longest: 240, every: 50 }
+working: longest
+mistakes:
+  - id: never-renewed
+    value: 60
+    working: ttl
+    why: That is how long it lasts if it is never renewed. This application renews it every 50 minutes, before the 60 run out.
+  - id: one-more-renewal
+    value: 250
+    working: 5 * every
+    why: That lets the fifth renewal, at 250 minutes, count. A renewal can never take a lease past the maximum, 240 minutes from the issue.
+  - id: added-up
+    value: 300
+    working: ttl + longest
+    why: The maximum is counted from the moment the credential was issued. It isn't added to the first hour.
+explanation: |
+  240 minutes. Each renewal asks for another 60 minutes from now, and OpenBao grants it only up to the maximum, counted from the issue: the renewal at 200 minutes gets 40 minutes, and after 240 the lease ends whatever the application does. The account is dropped, and the application has to ask for a new credential, which is a new account with a new password.
+
+  That ceiling is why a dynamic secret is safe to renew. The default lifetime says how soon a credential dies when its holder vanishes (a crashed copy stops renewing); the maximum says how long a stolen one can be kept alive by someone who keeps renewing it.
+skills: [dynamic-secrets]

@@ -1,0 +1,20 @@
+id: typed-crl-check-all
+type: typed
+rev: 1
+prompt: |
+  A partner's certificate was issued by an issuing CA, which the root signed. You have the root's CRL and the issuing CA's CRL in one file, and want `openssl verify` to check **every** certificate in the chain against its CA's CRL, the issuing CA's certificate as well as the leaf. Which option switches that on? Type the option.
+kind: text
+case: sensitive
+answers:
+  - "-crl_check_all"
+  - "crl_check_all"
+mistakes:
+  - id: leaf-only
+    answers: ["-crl_check", "crl_check"]
+    why: "That checks the leaf alone against its issuer's CRL. A revoked issuing CA would go unseen."
+  - id: crlfile
+    answers: ["-CRLfile", "CRLfile"]
+    why: "That names the file of CRLs. On its own it switches no checking on."
+explanation: |
+  `openssl verify -crl_check_all -CRLfile crls.pem -CAfile root.pem -untrusted chain.pem leaf.pem`. With `-crl_check`, only the leaf is looked up, on its own issuer's CRL; with `-crl_check_all`, every certificate below the root is, each on the CRL of the CA that signed it. Leave the root's CRL out of the file and the answer is `error 3 at 1 depth lookup: unable to get certificate CRL`: nothing to check the issuing CA's certificate against. nginx checks the same way with `ssl_crl`, which is why its file needs a CRL from every CA in the chain, and why it logs `(3:unable to get certificate CRL)` for every client when one is missing.
+skills: [revocation, fix-chains]

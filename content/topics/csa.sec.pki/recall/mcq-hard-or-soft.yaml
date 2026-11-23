@@ -1,0 +1,16 @@
+id: mcq-hard-or-soft
+type: mcq
+rev: 1
+prompt: |
+  The shop's partner API asks the CA's OCSP responder about every client certificate. One night the responder stops answering. What should the API do with a client whose certificate it can't ask about, and what does that choice cost?
+choices:
+  - "Refuse the client: safer, but the responder's outages are now the API's outages too"
+  - "Accept the client, as a browser would: an unanswered question counts as `good`"
+  - "Accept the client for requests that only read, and refuse those that change data"
+  - "Refuse the client, and restart nginx so that it gives up asking the responder"
+answer: 0
+explanation: |
+  Refusing when the answer is missing is **hard fail**, and it is right for an API whose callers are few, known, and trusted with something worth protecting: an attacker holding a revoked certificate must not get in by blocking the way to the responder. The price is that the responder (or, with CRLs, the freshness of the list) becomes part of the API's availability, so it needs the same care: more than one responder, monitoring, short timers.
+
+  Accepting is **soft fail**, which browsers chose for the public web, where a stalled responder would otherwise break every site of that CA; it protects against little, which is why browsers moved to lists they download ahead of time. Read-only requests leak data too. And restarting nginx changes nothing: it will ask again. With `ssl_ocsp`, nginx 1.24 hard-fails.
+skills: [revocation]

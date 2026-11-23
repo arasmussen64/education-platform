@@ -1,0 +1,79 @@
+#!/bin/bash
+# shop-export: charges the day's orders at the payment gateway, one
+# request for each line of the orders file, and logs what it did.
+# Scenery: don't change it.
+#
+#   shop-export --api-key KEY          the gateway key, as an argument
+#   shop-export --api-key-file PATH    the gateway key, read from a file's first line
+#   shop-export --help
+#
+# Settings are read from /etc/shop/export.conf at each run:
+#   log_level = info | debug
+#   orders = FILE
+set -uo pipefail
+
+conf=/etc/shop/export.conf
+gateway=http://127.0.0.1:9440
+
+usage() {
+  sed -n '6,12s/^# \{0,1\}//p' "$0"
+}
+
+key=""
+case "${1:-}" in
+  --api-key)
+    key=${2:-}
+    ;;
+  --api-key-file)
+    key=$(head -n 1 "${2:-}") || {
+      echo "ERROR can't read the key file ${2:-}"
+      exit 1
+    }
+    ;;
+  --help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+[ -n "$key" ] || {
+  echo "ERROR no gateway key was given"
+  exit 1
+}
+
+# setting NAME: the value on the conf file's "NAME = VALUE" line.
+setting() {
+  sed -n "s/^$1 *= *//p" "$conf" | head -n 1
+}
+level=$(setting log_level)
+orders=$(setting orders)
+[ -r "$orders" ] || {
+  echo "ERROR can't read the orders file $orders"
+  exit 1
+}
+
+failed=0
+count=0
+while IFS=, read -r order amount; do
+  [ "$order" = order ] && continue
+  [ "$level" = debug ] && echo "DEBUG POST $gateway/charges order=$order amount=$amount Authorization: Bearer $key"
+  answer=$(printf 'Authorization: Bearer %s' "$key" \
+    | curl -sS -m 5 -H @- -d "order=$order" "$gateway/charges" 2>&1)
+  case "$answer" in
+    201*)
+      count=$((count + 1))
+      echo "INFO charged order $order ($amount)"
+      ;;
+    *)
+      failed=1
+      echo "ERROR order $order was not charged: $answer"
+      ;;
+  esac
+  sleep 1
+done < "$orders"
+
+echo "INFO charged $count orders"
+exit $failed

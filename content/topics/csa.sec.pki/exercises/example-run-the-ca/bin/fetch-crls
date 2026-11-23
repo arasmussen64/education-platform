@@ -1,0 +1,15 @@
+#!/bin/bash
+# fetch-crls: run on web by crl-fetch@web.service. It downloads the two CRLs
+# the CA serves (the partners' CA's, which lists partners' certificates, and
+# the root's, which lists issuing CAs), puts them in the one file nginx
+# reads, and has nginx read it. nginx needs a CRL from every CA in a
+# client's chain, and it reads the file only when it loads its settings, so
+# a new file changes nothing until the reload.
+# If a download fails, the script stops and the old file stays.
+set -euo pipefail
+new=$(mktemp)
+trap 'rm -f "$new"' EXIT
+curl -fsS --max-time 10 http://crl.shop.test/partners.crl >> "$new"
+curl -fsS --max-time 10 http://crl.shop.test/root.crl >> "$new"
+cat "$new" > /etc/nginx/tls/crls.pem
+systemctl reload nginx@web

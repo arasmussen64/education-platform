@@ -1,0 +1,22 @@
+id: mcq-everyone-refused
+type: mcq
+rev: 1
+prompt: |
+  On Monday morning every partner's call to the shop's API gets `400 The SSL certificate error`, the warehouse's included, which worked on Friday. Captured in this topic's lab on 2026-11-22, nginx's error log on web says, for each of them:
+
+  ```
+  client SSL certificate verify error: (12:CRL has expired) while reading client request headers, client: 10.0.9.3, server: api.shop.test
+  ```
+
+  What is the most likely cause?
+choices:
+  - "The CRL file on web passed its `nextUpdate`, so nginx refuses every client's certificate"
+  - "One partner's certificate ran out, and nginx refuses the others until that one is renewed"
+  - "The CA's OCSP responder is down, and nginx refuses every client that it can't ask about"
+  - "The root's own certificate ran out over the weekend, so no partner's chain reaches it"
+answer: 0
+explanation: |
+  Error 12 is about the list, not about any certificate: the CRL nginx holds is past its `nextUpdate`, the date by which a newer one should have replaced it. A client can't tell an old list from a list an attacker is holding back, so a strict one, as nginx is with `ssl_crl`, trusts nothing it would have to check against it. Everybody is locked out at once.
+
+  The cause is upstream of nginx: the CA stopped publishing, or web stopped fetching, or fetched and never reloaded. A CRL has to be republished and refetched well inside its lifetime, on timers, for as long as anything relies on it. An expired certificate is error 10, for that client only; an OCSP failure reads `certificate status request failed`; an expired root would be error 10 at depth 2.
+skills: [revocation]

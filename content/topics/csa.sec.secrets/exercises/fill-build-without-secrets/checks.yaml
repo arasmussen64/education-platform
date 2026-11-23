@@ -1,0 +1,48 @@
+# Each run of the checks is one trial (buildcheck.sh, beside this file):
+# the package server gets a new token and a new library version, made on
+# the spot, the same token goes into OpenBao, the image is removed, and
+# the learner's ~/bin/build-shop runs as the learner with a token for
+# OpenBao that may only read that one secret. Then the trial looks for the
+# package token, in three spellings, in the image and on the machine. It
+# runs once for all five checks.
+checks:
+  - id: image-built
+    description: "build-shop builds shop-export:2 with the package server's token of the moment, and the image runs."
+    command: |
+      . /usr/local/lib/lab/buildcheck.sh
+      build_finding image-built
+    timeout: 120
+    expect:
+      equals: ok
+  - id: token-in-no-layer
+    description: "The package token is nowhere in the image: no layer, no history line, no setting."
+    command: |
+      . /usr/local/lib/lab/buildcheck.sh
+      build_finding token-in-no-layer
+    timeout: 120
+    expect:
+      equals: ok
+  - id: secret-mount
+    description: "The step that fetches the library is shown the token by the build itself, for that step alone, and no step takes a build argument."
+    command: |
+      . /usr/local/lib/lab/buildcheck.sh
+      build_finding secret-mount
+    timeout: 120
+    expect:
+      equals: ok
+  - id: token-not-left
+    description: "After the build, the package token is in no file under /home, /tmp, /var/tmp, /dev/shm, /srv, /etc, /run, /var/log or podman's storage."
+    command: |
+      . /usr/local/lib/lab/buildcheck.sh
+      build_finding token-not-left
+    timeout: 120
+    expect:
+      equals: ok
+  - id: given-token
+    description: "build-shop gets the package token from OpenBao, with the token it was given in BAO_TOKEN."
+    command: |
+      . /usr/local/lib/lab/buildcheck.sh
+      build_finding given-token
+    timeout: 120
+    expect:
+      equals: ok

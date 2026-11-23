@@ -1,0 +1,16 @@
+id: mcq-pushed-allowlist
+type: mcq
+rev: 1
+prompt: |
+  One push to the shop's repository brings two new files: a script with a cloud access key in it, and a `.gitleaks.toml` whose allowlist matches everything. The CI job then clones the repository and runs `gitleaks detect` in the clone. It reports no leaks. In the lab, the same scan run inside the server's bare repository found the key. Why did the CI scan pass?
+choices:
+  - "gitleaks read the `.gitleaks.toml` in the clone, and its allowlist hid the key"
+  - "gitleaks skips any commit that also changes its own settings file"
+  - "The key was in the newest commit, and a scan of a clone starts one commit back"
+  - "A clone holds only file names until a file is opened, so there was nothing to scan"
+answer: 0
+explanation: |
+  With no `--config`, gitleaks looks for `.gitleaks.toml` at the top of the folder it scans and uses it. In a clone that file is whatever the repository holds, so whoever can push can write the scanner's rules, and an allowlist of `.*` silences every finding: the lab's scan of the clone exited 0. A bare repository has no checked-out files, so there is no `.gitleaks.toml` to find, and the pushed file is only a file inside a commit.
+
+  The fix is the same wherever the scan runs: name the settings yourself, `--config /etc/gitleaks/server.toml`, from a place the people being scanned can't write to. gitleaks doesn't skip commits that touch its settings, a scan reads every commit including the newest, and a clone holds full contents.
+skills: [scan-for-leaks]

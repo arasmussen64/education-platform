@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""shop-api: the shop's order API, as far as this lab goes. Scenery: don't change it.
+
+It listens on 127.0.0.1:8080 and answers from the shop database:
+
+    GET  /orders    how many orders there are
+    GET  /whoami    the database account it is connected as
+    POST /orders    add an order
+
+It opens a new database connection for every request, and reads its
+database account afresh each time from a credentials file. Which file is
+set in /etc/shop/shop-api.conf:
+
+    credentials = /etc/shop/db.conf
+
+The credentials file is a PostgreSQL "service file": a section called
+[shop] with host, dbname, user and password lines. The password goes to
+the database's client from that file alone: it is never in this
+program's arguments or environment.
+"""
+
+import http.server
+import subprocess
+
+CONF = "/etc/shop/shop-api.conf"
+
+
+def credentials_file() -> str:
+    with open(CONF, encoding="utf-8") as file:
+        for line in file:
+            name, _, value = line.partition("=")
+            if name.strip() == "credentials":
+                return value.strip()
+    raise OSError(f"{CONF} names no credentials file")
+
+
+def ask(sql: str) -> tuple[bool, str]:
+    """Runs one statement as the account in the credentials file."""
+    try:
+        path = credentials_file()
+        with open(path, encoding="utf-8"):
+            pass
+    except OSError as error:
+        return False, f"can't read the credentials file: {error}"
+    result = subprocess.run(
+        ["psql", "-X", "-A", "-t", "-q", "-c", sql, "service=shop"],
+        env={"PATH": "/usr/bin:/bin", "PGSERVICEFILE": path, "PGCONNECT_TIMEOUT": "3"},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if result.returncode != 0:
+        lines = result.stderr.strip().splitlines()
+        return False, lines[-1] if lines else "the database refused"
+    return True, result.stdout.strip()
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def answer(self, ok: bool, text: str) -> None:
+        body = (text + "\n").encode()
+        self.send_response(200 if ok else 503)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:
+        if self.path == "/orders":
+            ok, text = ask("SELECT count(*) FROM orders")
+            self.answer(ok, f"{text} orders" if ok else text)
+        elif self.path == "/whoami":
+            self.answer(*ask("SELECT current_user"))
+        else:
+            self.send_error(404)
+
+    def do_POST(self) -> None:
+        if self.path == "/orders":
+            ok, text = ask(
+                "INSERT INTO orders SELECT coalesce(max(id), 0) + 1, 25 FROM orders RETURNING id"
+            )
+            self.answer(ok, f"added order {text}" if ok else text)
+        else:
+            self.send_error(404)
+
+    def log_message(self, *args: object) -> None:
+        # Quiet: the journal isn't part of this lab.
+        pass
+
+
+if __name__ == "__main__":
+    http.server.ThreadingHTTPServer(("127.0.0.1", 8080), Handler).serve_forever()

@@ -1,0 +1,21 @@
+# The partners' API on web: api.shop.test, for the shop's partners only.
+server {
+    listen 443 ssl;
+    server_name api.shop.test;
+
+    # The API's own certificate, which its clients check. It comes from the
+    # shop's server CA, as in Module 3, and isn't this lab's subject.
+    ssl_certificate     /etc/nginx/tls/api.pem;
+    ssl_certificate_key /etc/nginx/tls/api.key;
+
+    # A partner proves who it is with a client certificate. nginx accepts
+    # one whose chain ends at a root in this file: the partners' issuing
+    # CA's certificate, then the root's.
+    ssl_client_certificate /etc/nginx/tls/partners-bundle.pem;
+    ssl_verify_client on;
+
+    # ssl_crl /etc/nginx/tls/crls.pem;
+    # if ($ssl_client_i_dn != "CN=Shop Partners CA") { return 403; }
+
+    root /srv/www/api;
+}

@@ -1,0 +1,22 @@
+id: index-revoked
+type: predict_shell
+rev: 1
+prompt: |
+  `index.txt` is the database of a CA run with `openssl ca`, captured in this topic's lab on 2026-11-22 after five certificates were issued and two revoked. Its fields are separated by tabs: the status, when the certificate expires, when and why it was revoked (empty if it wasn't), its serial number, a file name (always `unknown`) and its subject. The command splits each line at the tabs. What is printed?
+files:
+  index.txt: |
+    V	270221054300Z		7D1762F9CC75BC287494654AC3A741BFC8EC8D88	unknown	/CN=warehouse.partners.shop.test
+    R	270221054300Z	261123054301Z,keyCompromise	4C2DC620B66C400A5D63B02B4D2F30116D34BD4E	unknown	/CN=courier.partners.shop.test
+    R	270221054300Z	261123054301Z,cessationOfOperation	0FA2121CEFE3428DAB56FFE4F55FC9FC34B9252E	unknown	/CN=florist.partners.shop.test
+    V	270221054300Z		712B3613A63DE27122BD4F0D09FB057CE237DEFE	unknown	/CN=printer.partners.shop.test
+    V	270221054301Z		7DBEC184B6344256404A6473769B8F74A9244042	unknown	/CN=bakery.partners.shop.test
+command: |
+  awk -F'\t' '$1 == "R" {split($3, r, ","); print $6, r[2]}' index.txt
+expected_output: |
+  /CN=courier.partners.shop.test keyCompromise
+  /CN=florist.partners.shop.test cessationOfOperation
+explanation: |
+  `-F'\t'` splits each line at its tabs, so `$1` is the status: `V` for valid, `R` for revoked (`E`, expired, appears once the CA's database is updated after a certificate's end date). Only the two `R` lines pass the test. `$3` is the revocation field, a time and a reason joined by a comma (`261123054301Z` is 23 November 2026, 05:43:01 UTC); `split` cuts it at the comma, and `r[2]` is the reason. `$6` is the subject.
+
+  The three `V` lines have an empty third field, two tabs in a row, which is why the split has to be on tabs and nothing else. The courier's key was stolen, so the reason is `keyCompromise`; the florist stopped being a partner, `cessationOfOperation`. The database is the CA's memory: a CRL is nothing more than the `R` lines' serial numbers, signed. A certificate signed outside the database, straight from the CA's key, can never be put on a CRL by `openssl ca`.
+skills: [run-a-ca]
