@@ -33,7 +33,7 @@ checks:
     expect:
       equals: staff only
   - id: payroll-policy
-    description: "Payroll answers the group the prompt names, and only from a device that shows a certificate from the shop's device CA."
+    description: "Payroll answers the group the prompt names, and only from a device that shows a certificate from the shop's device CA. A device that shows a certificate from anywhere else is refused at the door, whichever app it asks for."
     timeout: 90
     command: |
       . /usr/local/lib/zt/ztlib.sh
@@ -58,35 +58,59 @@ checks:
           got=$(get laptop nobody "$path" $ours -H "X-User: boss")
           case $got in 200*) echo "a shop device got payroll with nobody signed in"; exit 0 ;; esac
         done
+        # nginx answers 400 by itself to a certificate it can't verify.
+        got=$(get byod "$h" /wiki/ $theirs)
+        case $got in 400*) ;; *) echo "a device that showed a certificate the shop's device CA didn't issue was let in to the wiki: $got"; exit 0 ;; esac
       }
       echo "as the prompt says"
     expect:
       equals: as the prompt says
   - id: access-ends-when-trust-does
-    description: "Someone switched off at the identity provider is turned away within 10 seconds, while a colleague who signed in at the same time carries on working."
+    description: "Someone switched off at the identity provider is turned away within 10 seconds, while a colleague who signed in at the same time carries on working. However soon after a check someone is switched off, the next check comes in time: oauth2-proxy never lets a session that is in use go more than 8 seconds without asking about it again."
     timeout: 120
     command: |
       . /usr/local/lib/zt/ztlib.sh
       zt_begin
       proxy_ready || { echo "the access proxy doesn't answer at $APPS/oauth2/"; exit 0; }
+      cursor=$(journal_cursor)
       a=$(mkuser staff) && b=$(mkuser staff) || { echo "the check couldn't make its people at the identity provider"; exit 0; }
       login byod "$a" && login byod "$b" || { echo "the check's people couldn't sign in"; exit 0; }
       case $(get byod "$a" /wiki/) in 200*) ;; *) echo "the check's person didn't get the wiki after signing in"; exit 0 ;; esac
+      # The colleague works on, a page every half second, for the whole check.
+      : > "$ZT/watch"
+      (while [ -e "$ZT/watch" ]; do get byod "$b" /wiki/ >> "$ZT/colleague"; sleep 0.5; done) &
+      watcher=$!
+      echo "$watcher" >> "$ZT/pids"
       idp-user disable shop "$a" > /dev/null 2>&1 || { echo "the check couldn't switch its person off"; exit 0; }
       start=$(date +%s)
       gone=
       # 12 seconds: the 10 the shop asks for, and room for a slow machine.
       while [ $(($(date +%s) - start)) -le 12 ]; do
         case $(get byod "$a" /wiki/) in 200*) ;; *) gone=yes; break ;; esac
-        case $(get byod "$b" /wiki/) in 200*) ;; *) echo "a colleague who is still staff lost the wiki $(($(date +%s) - start)) seconds on"; exit 0 ;; esac
-        sleep 1
+        sleep 0.5
       done
       [ -n "$gone" ] || { echo "someone switched off at the identity provider still had the wiki 12 seconds later"; exit 0; }
-      # The colleague, for long enough to be asked about again, twice over.
-      while [ $(($(date +%s) - start)) -le 13 ]; do
-        got=$(get byod "$b" /wiki/)
-        [ "$got" = "200 wiki: hello $b" ] || { echo "a colleague who is still staff lost the wiki $(($(date +%s) - start)) seconds after signing in: $got"; exit 0; }
-        sleep 1
+      # The colleague, for long enough to be asked about twice.
+      while [ $(($(date +%s) - start)) -le 13 ]; do sleep 0.5; done
+      rm -f "$ZT/watch"
+      wait "$watcher"
+      bad=$(grep -v -x -m 1 "200 wiki: hello $b" "$ZT/colleague")
+      [ -z "$bad" ] || { echo "a colleague who is still staff lost the wiki: $bad"; exit 0; }
+      # How old the colleague's session was each time oauth2-proxy asked
+      # about it again: 8 seconds is the 5 the prompt asks for, the half
+      # second between pages, and room for a slow machine.
+      ages=$(refresh_ages "$b" "$cursor")
+      [ -n "$ages" ] || { echo "oauth2-proxy never asked the identity provider about a colleague's session again, in 15 seconds of use"; exit 0; }
+      for age in $ages; do
+        # Go writes a duration as 5.07s, 750ms, or 1m5.2s once it is a
+        # minute or more.
+        case $age in
+          *[hm]*[0-9]s) ;;
+          *ms) continue ;;
+          [0-9]*s) [ "$(echo "${age%s}" | awk '{print ($1 <= 8)}')" = 1 ] && continue ;;
+        esac
+        echo "oauth2-proxy let a session in use go $age before asking the identity provider about it again"
+        exit 0
       done
       echo "ends"
     expect:

@@ -10,7 +10,7 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: staff-reach-the-wiki
-    description: "Anyone in the group staff reaches the wiki at `https://apps.shop.test/wiki/` after signing in, from either laptop, and the wiki is told who they really are. Nobody else gets a page."
+    description: "Anyone in the group staff reaches the wiki at `https://apps.shop.test/wiki/` after signing in, from either laptop, and the wiki is told who they really are. Nobody else gets a page, at that address or any other."
     timeout: 90
     command: |
       . /usr/local/lib/zt/ztlib.sh
@@ -20,6 +20,11 @@ checks:
       for path in /wiki/ "/wiki/page-$r" "/wiki/api/$r"; do
         got=$(get byod nobody "$path" -H "X-User: boss" -H "X-Forwarded-User: boss" -H "X-Auth-Request-User: boss" -H "Authorization: Bearer $r")
         case $got in 200*) echo "someone who hasn't signed in got a page of the wiki"; exit 0 ;; esac
+      done
+      # Nor at any other address: no way in that skips the question.
+      for path in / "/$r" "/$r/wiki/" "/apps/$r/"; do
+        got=$(get byod nobody "$path" -H "X-User: boss")
+        case $got in "200 wiki:"* | "200 payroll:"*) echo "someone who hasn't signed in got an app's page at $APPS$path"; exit 0 ;; esac
       done
       u=$(mkuser staff) && w=$(mkuser warehouse) || { echo "the check couldn't make its people at the identity provider"; exit 0; }
       for from in byod laptop; do

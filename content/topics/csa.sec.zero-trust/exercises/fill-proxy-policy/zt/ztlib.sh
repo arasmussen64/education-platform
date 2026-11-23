@@ -70,14 +70,31 @@ EOF
 
 # get FROM USER PATH [curl options]: the page at PATH, asked from FROM by
 # USER's browser (the cookies login kept; "nobody" has none). Prints the
-# status and the page's first line: "200 wiki: hello chk-1a2b3c4d".
+# status and the page's first line: "200 wiki: hello chk-1a2b3c4d". Each
+# person's browser has files of its own, so two can ask at once.
 get() {
   local from=$1 u=$2 path=$3 jar
   shift 3
   jar=$ZT/$u.jar
   [ -e "$jar" ] || : > "$jar"
-  on "$from" curl -s -m 8 -b "$jar" -c "$jar" -o "$ZT/page" -w '%{http_code}' "$@" "$APPS$path" > "$ZT/code" 2> /dev/null
-  echo "$(cat "$ZT/code") $(head -n 1 "$ZT/page" 2> /dev/null | cut -c1-80)"
+  on "$from" curl -s -m 8 -b "$jar" -c "$jar" -o "$ZT/$u.page" -w '%{http_code}' "$@" "$APPS$path" > "$ZT/$u.code" 2> /dev/null
+  echo "$(cat "$ZT/$u.code") $(head -n 1 "$ZT/$u.page" 2> /dev/null | cut -c1-80)"
+}
+
+# refresh_ages USER CURSOR: how old USER's session was each time
+# oauth2-proxy asked the identity provider about it again, as its journal
+# says after CURSOR, one a line ("5.075262273s").
+refresh_ages() {
+  local sub
+  sub=$(kc get "shop/users?username=$1&exact=true" 2> /dev/null | json "d[0]['id']" 2> /dev/null)
+  [ -n "$sub" ] || return 0
+  journalctl -u oauth2-proxy@zt --after-cursor="$2" -o cat 2> /dev/null |
+    sed -n "s/.*Refreshing session - User: $sub; SessionAge: \([^ ]*\).*/\1/p"
+}
+
+# journal_cursor: where oauth2-proxy's journal ends now.
+journal_cursor() {
+  journalctl -u oauth2-proxy@zt -n 0 --show-cursor -o cat 2> /dev/null | sed -n 's/^-- cursor: //p'
 }
 
 # mkdevice NAME [other]: a device certificate and key in $ZT/NAME, from the
