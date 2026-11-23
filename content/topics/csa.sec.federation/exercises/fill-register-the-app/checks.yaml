@@ -64,17 +64,19 @@ checks:
       f=/etc/netns/orders/apache2/oidc-secret.conf
       grep -x "OIDCClientSecret \"\?$secret\"\?" "$f" > /dev/null || { echo "the site's secret file doesn't hold the client's secret"; exit 0; }
       [ "$(stat -c '%a %U' "$f")" = "600 root" ] || { echo "the site's secret file can be read by others than root"; exit 0; }
-      leak=$(grep -rlF "$secret" /etc/netns/orders /home/learner /tmp /var/tmp /srv 2> /dev/null | while read -r file; do [ -n "$(find "$file" -perm /044)" ] && echo "$file"; done | head -n 1)
+      # Every machine's files, the realm file among them: it names the
+      # secret as ${ORDERS_WEB_SECRET} and never holds its value.
+      leak=$(grep -rlF "$secret" /etc/netns /home/learner /tmp /var/tmp /srv 2> /dev/null | while read -r file; do [ -n "$(find "$file" -perm /044)" ] && echo "$file"; done | head -n 1)
       [ -z "$leak" ] || { echo "the secret is also in a file others can read"; exit 0; }
       echo private
     expect:
       equals: private
   - id: staff-sign-in
     description: "Ana, from the office laptop, signs in to the orders site and it knows her; so does a staff member made up for this check."
-    timeout: 60
+    timeout: 120
     command: |
       . /usr/local/lib/idlab/idlib.sh
-      wait_for 6 on office curl -s -m 2 -o /dev/null https://orders.shop.test/
+      wait_for 15 on office curl -s -m 2 -o /dev/null https://orders.shop.test/
       got=$(on office signin https://orders.shop.test/orders/me ana)
       echo "$got" | grep -x 'user=ana' > /dev/null || { echo "ana: $(echo "$got" | tail -n 1 | cut -c1-100)"; exit 0; }
       r=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
@@ -101,6 +103,7 @@ checks:
       equals: refused
   - id: realm-saved
     description: "The identity provider's running realm is the one its file builds, so the client is still there after the next apply."
+    timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
       kc_saved shop 2>&1

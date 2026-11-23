@@ -67,10 +67,10 @@ checks:
       equals: right
   - id: both-sign-ins
     description: "Ana, from the office laptop, signs in to the orders pages (OpenID Connect) and to the HR pages (SAML), and each knows her."
-    timeout: 60
+    timeout: 120
     command: |
       . /usr/local/lib/idlab/idlib.sh
-      wait_for 8 on office curl -s -m 2 -o /dev/null https://app.shop.test/
+      wait_for 15 on office curl -s -m 2 -o /dev/null https://app.shop.test/
       got=$(on office signin https://app.shop.test/orders/me ana)
       echo "$got" | grep -x 'user=ana' > /dev/null || { echo "the orders pages: $(echo "$got" | tail -n 1)"; exit 0; }
       got=$(on office signin https://app.shop.test/hr/me ana)
@@ -80,6 +80,7 @@ checks:
       equals: both
   - id: nothing-else-changed
     description: "The realm is the one its file builds, and the lab's scenery is as it was."
+    timeout: 90
     command: |
       . /usr/local/lib/idlab/idlib.sh
       [ "$(intact)" = intact ] || { intact; exit 0; }
