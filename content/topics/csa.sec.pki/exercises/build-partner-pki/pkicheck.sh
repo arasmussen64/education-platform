@@ -214,15 +214,48 @@ rand_label() { printf '%s%05d' "${1:-n}" $((RANDOM % 100000)); }
 web_workers() { pgrep -P "$(systemctl show nginx@web -p MainPID --value)" 2> /dev/null | sort -n | tr '\n' ' '; }
 
 # holds_key_of CERT: every file outside root's own folder that holds the
-# private key matching CERT's public key, one a line.
+# private key matching CERT's public key, one a line. It looks through the
+# folders a copy could be left in, those that a reboot empties included
+# (/run, /dev/shm), for PEM files and for small files that begin as the
+# binary form (DER) does; openssl reads either. A key hidden some other way
+# (hex, a password-protected file, an archive) isn't found: the check guards
+# the habit of copying the key about, not a determined hider.
+KEY_PLACES="/etc /home /root /tmp /srv /opt /mnt /media /run /dev/shm /var /usr/local"
 holds_key_of() {
   local want f
   want=$(openssl x509 -in "$1" -noout -pubkey 2> /dev/null)
   [ -n "$want" ] || return 0
-  grep -rIl -e 'PRIVATE KEY-----' /etc /home /root /tmp /var/tmp /srv /usr/local /var/lib /var/www /opt /mnt 2> /dev/null |
+  {
+    # shellcheck disable=SC2086
+    grep -rIl -e 'PRIVATE KEY-----' $KEY_PLACES 2> /dev/null
+    # shellcheck disable=SC2086
+    der_like $KEY_PLACES
+  } |
     while read -r f; do
       case $f in "$ROOT_DIR"/*) continue ;; esac
-      [ "$(openssl pkey -in "$f" -pubout 2> /dev/null)" = "$want" ] && echo "$f"
+      [ "$(timeout 5 openssl pkey -in "$f" -pubout -passin pass: 2> /dev/null)" = "$want" ] && echo "$f"
     done
   return 0
+}
+
+# der_like FOLDER...: the files under them of at most 9,000 bytes whose first
+# byte is 0x30, as every DER structure's is.
+der_like() {
+  python3 - "$@" << 'PY'
+import os
+import sys
+
+for top in sys.argv[1:]:
+    for folder, _, names in os.walk(top):
+        for name in names:
+            path = os.path.join(folder, name)
+            try:
+                if os.path.islink(path) or not os.path.isfile(path) or os.path.getsize(path) > 9000:
+                    continue
+                with open(path, "rb") as handle:
+                    if handle.read(1) == b"\x30":
+                        print(path)
+            except OSError:
+                pass
+PY
 }
