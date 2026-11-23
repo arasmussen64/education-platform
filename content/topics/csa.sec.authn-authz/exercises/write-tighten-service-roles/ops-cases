@@ -3,10 +3,10 @@
 requests made up now, with the policy base's check library. Every account
 and every resource has a new random name in every run.
 
-RULE is report-writer, release-deployer, backup-operator, self-approval or
-no-role. Prints "ok" or the first three requests where the learner's
-policy and the jobs disagree. "ops-cases validates" prints "ok" or why
-cedar validate refuses the file.
+RULE is report-writer, release-deployer, backup-operator, release-approver,
+two-roles, self-approval, no-role or holds-later. Prints "ok" or the first
+three requests where the learner's policy and the jobs disagree.
+"ops-cases validates" prints "ok" or why cedar validate refuses the file.
 """
 
 import os
@@ -108,12 +108,27 @@ def everything(names, roles, account=None):
 
 
 def cases_for(rule, names):
-    if rule in ("report-writer", "release-deployer", "backup-operator"):
+    if rule in NEEDS:
+        # Every role, the approvers' too: a role nobody was asked to cut
+        # must not be the one left holding everything.
         return everything(names, [rule])
+    if rule == "two-roles":
+        # An account with two roles can do what either job needs and
+        # nothing else. Narrow permits add up to that by themselves; a
+        # broad permit held back by forbids doesn't, because one role's
+        # forbids take away what the other role needs.
+        cases = []
+        for roles in (
+            ["report-writer", "backup-operator"],
+            ["release-deployer", "report-writer"],
+            ["backup-operator", "release-deployer"],
+        ):
+            cases += everything(names, roles)
+        return cases
     if rule == "no-role":
         cases = everything(names, [])
         # An account gets its access from its role, never from its name.
-        for name in ("reports", "deployer", "backup"):
+        for name in ("reports", "deployer", "backup", "maya"):
             for case in everything(names, [], account=name):
                 case.words = case.words.replace(
                     "an account with no role",
@@ -125,11 +140,24 @@ def cases_for(rule, names):
         cases = []
         for roles in (
             ["release-approver"],
-            ["release-deployer", "release-approver"],
+            ["backup-operator", "release-approver"],
             ["report-writer", "release-approver"],
         ):
             for own in (False, True):
                 cases.append(request(names, roles, "approve", "Change", own))
+        # A deployer who has been made an approver as well: its own change
+        # is refused. Whether it may approve another account's is not
+        # asked: jobs.txt says the deployer never approves, and a forbid
+        # that says so is as right as no rule at all.
+        cases.append(
+            request(
+                names,
+                ["release-deployer", "release-approver"],
+                "approve",
+                "Change",
+                True,
+            )
+        )
         return cases
     sys.exit(f"ops-cases: no rule called {rule}")
 
@@ -137,20 +165,31 @@ def cases_for(rule, names):
 def with_a_broad_permit(names):
     """The same question after someone adds a rule that permits everything:
     approving your own change must still be refused, which only a forbid
-    can promise. Everything else is then allowed, so a forbid that is too
-    wide shows too."""
+    can promise. An approver still approves another account's change, and
+    anyone can then open one, so a forbid that is too wide shows too.
+    Whether a deployer or an account with no role may then approve another
+    account's change is not asked: a forbid that keeps approving to the
+    approvers is a fair reading of jobs.txt."""
     cases = []
     note = ", after a rule that permits everything is added to your file"
     for roles in (["release-approver"], ["release-deployer"], []):
-        for own in (False, True):
-            cases.append(
-                request(
-                    names, roles, "approve", "Change", own, allow=not own, note=note
-                )
-            )
+        cases.append(
+            request(names, roles, "approve", "Change", True, allow=False, note=note)
+        )
         cases.append(
             request(names, roles, "open", "Change", True, allow=True, note=note)
         )
+    cases.append(
+        request(
+            names,
+            ["release-approver"],
+            "approve",
+            "Change",
+            False,
+            allow=True,
+            note=note,
+        )
+    )
     return cases
 
 

@@ -22,7 +22,7 @@ prompt: |
   **Cut.** Rewrite `~/ops/policies.cedar` (`nano ~/ops/policies.cedar`) so that:
 
   1. Each of the three roles is permitted exactly what `jobs.txt` says its job needs, and nothing else in the catalogue. Write each rule for the **role** (`principal in Role::"report-writer"`), never for an account by name: an account gets its access from its role, and the next account given the role must get the same.
-  2. Release approvers still approve changes.
+  2. Release approvers still approve changes, and do nothing else in the catalogue.
   3. Nobody approves a change they made themselves, whatever roles they hold. Write this one as a `forbid`, so that it holds whatever permits are added later.
 
   A rule can name the kind of resource in its scope with `is`: `resource is Order` means any order, and no other kind of thing.
@@ -33,7 +33,7 @@ prompt: |
 
   **Watch.** `cedar validate --schema ops.cedarschema --policies policies.cedar`, then `ask` for a few requests that should now be refused and a few that must still work (`ask reports delete o-1`, `ask -v maya approve c-2`; `entities.json` has one resource of each kind to ask about), and `access-review` again for each service.
 
-  The checks ask your rules about accounts and resources that are made up when the checks run: an account in each role against every line of the catalogue, accounts with no role, and accounts with two roles. One check adds a rule that permits everything to a copy of your file and asks again whether anyone can approve their own change. Change only `policies.cedar`.
+  The checks ask your rules about accounts and resources that are made up when the checks run: an account in each of the four roles against every line of the catalogue, accounts with no role, and accounts with two roles, which must be able to do what either job needs. One check adds a rule that permits everything to a copy of your file and asks again whether anyone can approve their own change. Change only `policies.cedar`.
 hints:
   - "Start from `jobs.txt`, a line of the catalogue at a time: does this job need `read Order`? `delete Order`? Each yes becomes one `permit` with the role, the action and `resource is KIND` in its scope. Each no needs no rule at all: what no permit allows is denied."
   - "`access-review reports` shows `export Summary` as never used in 90 days, and `access-review --days 120 reports` shows it used once. The job runs once a quarter, which is longer than 90 days."
