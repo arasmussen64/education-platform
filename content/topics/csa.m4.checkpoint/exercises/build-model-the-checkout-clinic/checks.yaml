@@ -1,0 +1,142 @@
+# The checks of "the clinic's payment desk": as the build's, with this
+# design's reference. Zones: the internet, PayHub, the clinic's cloud and
+# the office at reception. Scope: the portal is impacting (it decides where
+# patients are sent to pay), billing and the invoices are out, the terminal
+# is cde and the reception PCs are cde by connection. The weaknesses, in
+# --only's order: the paid page (S or T, 3x2: signing), the invoice links
+# (I, 3x2: authz), the terminal's default password (S, 2x3: authn or mfa),
+# its unpatched flaw (I, T or E, 2x3: patch) and billing's database admin
+# account (E, 1x3, which may be accepted).
+checks:
+  - id: model-reads
+    description: "The model reads: every line is one of the format's."
+    timeout: 10
+    command: |
+      tm-check reads /home/learner/model.tm - <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: design-untouched
+    description: "~/design.md is as it was."
+    timeout: 10
+    command: echo 'fd4c636d5ddc8e9be2239dc649768fa657b65be93fc28089c331c452ff1d82e1  /home/learner/design.md' | sha256sum -c --status - && echo same
+    expect:
+      equals: same
+  - id: diagram-matches-design
+    description: "Every part and flow the design names is there, of the right kind, drawn from the side that starts it."
+    timeout: 10
+    command: |
+      tm-check diagram /home/learner/model.tm - <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: zones-where-trust-changes
+    description: "Two parts share a zone exactly when one organisation runs both on one network with nothing filtering between them."
+    timeout: 10
+    command: |
+      tm-check boundaries /home/learner/model.tm - <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: in-pci-scope
+    description: "Every process and store the business runs has the PCI DSS scope the standard's rule gives it."
+    timeout: 10
+    command: |
+      tm-check scope /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: every-crossing-reviewed
+    description: "Every flow that crosses a boundary has all six letters reviewed, and no two threats read the same."
+    timeout: 10
+    command: |
+      tm-check stride /home/learner/model.tm - <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: design-weaknesses-found
+    description: "Everything the design describes as weak has a threat on its flow, rated by the design's scales, and none of it is marked as nothing to record; no flow has more than three threats under one letter."
+    timeout: 10
+    command: |
+      tm-check findings /home/learner/model.tm - --choose <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: ranked-by-risk
+    description: "Each risk is likelihood times impact, and top lists every risk of 6 or more, highest first."
+    timeout: 10
+    command: |
+      tm-check ranking /home/learner/model.tm - <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-a
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 4 --choose <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-b
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 2 --choose <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-c
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 1 --choose <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-d
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 3 --choose <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: nothing-left-open
+    description: "Every other threat has a control of a kind that answers it or an accept line, no risk of 6 or more is accepted, and no threat has more than two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only rest --choose <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: attack-techniques
+    description: "The two threats the task names each carry an ATT&CK technique that fits, and no threat more than two."
+    timeout: 10
+    command: |
+      tm-check attack /home/learner/model.tm - --choose <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok
+  - id: attack-tree
+    description: "A tree for one of the highest risks: three leaves or more, an and node with two steps, and the cheapest path's cost."
+    timeout: 10
+    command: |
+      tm-check tree /home/learner/model.tm - <<'REF'
+      {"elements":{"patient":["external","internet"],"psp":["external","provider"],"portal":["process","cloud"],"billing":["process","cloud"],"invoices-db":["store","cloud"],"terminal":["process","office"],"reception-pc":["process","office"]},"flows":{"f1":["patient","portal"],"f2":["patient","psp"],"f3":["psp","portal"],"f4":["portal","billing"],"f5":["patient","billing"],"f6":["billing","invoices-db"],"f7":["terminal","psp"],"f8":["reception-pc","terminal"]},"weak":[{"flow":"f3","letters":["S","T"],"L":3,"I":2,"controls":["signing"]},{"flow":"f5","letters":["I"],"L":3,"I":2,"controls":["authz"],"attack":["T1190"]},{"flow":"f8","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f8","letters":["I","T","E"],"L":2,"I":3,"controls":["patch"]},{"flow":"f6","letters":["E"],"L":1,"I":3}],"scope":{"portal":"impacting","billing":"out","invoices-db":"out","terminal":"cde","reception-pc":"cde"}}
+      REF
+    expect:
+      equals: ok

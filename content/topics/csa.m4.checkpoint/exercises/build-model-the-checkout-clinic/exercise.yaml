@@ -1,0 +1,55 @@
+# A fresh version of build-model-the-checkout (ADR-0012). What differs from
+# the shop in every part: the provider's hosted page by redirect, not a
+# frame, so the portal is impacting for where it sends patients; a card
+# terminal on a flat office network, so the reception PCs are cde by
+# connection while the cloud is out; weaknesses the shop hasn't (a paid
+# page trusted without asking the provider, guessable invoice links, a
+# default password, an unpatched published flaw), answered by signing,
+# authorisation, a password of its own and a patch, where the shop's
+# answers are mfa, signing, integrity, a secret store and minimising data.
+# wrong/steps-pasted.sh, the shop's model with its names changed, fails.
+id: build-model-the-checkout-clinic
+stage: build
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "The clinic's payment desk"
+prompt: |
+  A fresh version of part 1, in another story: a second try that can't be passed from memory. Westbrook Clinic is moving its patients' payments to a payment provider, PayHub: online through PayHub's own page, and at reception on a card terminal. `~/design.md` describes it as it stands: seven parts, eight flows, the networks, what is already in place, and the scales to rate with. Read it twice (`less ~/design.md`).
+
+  Write the threat model in `~/model.tm` (`nano ~/model.tm`), from a blank file, one fact a line:
+
+  1. The zones, and every element and flow the design names, each element of the right kind and each flow from the side that starts it. Two parts share a zone only when one organisation runs both on one network with nothing filtering between them.
+  2. A `scope` line for every process and store the clinic runs.
+  3. Every flow that crosses a boundary reviewed for all six STRIDE letters: a `threat` line for what can go wrong, written as who can do what, and a `none` line with its reason for the rest. The design states facts and never calls anything weak: what it describes, the model must hold as threats, on the flows where they happen, rated by the design's scales.
+  4. Each threat's risk (likelihood times impact), and a `top` line listing every risk of 6 or more, highest first.
+  5. A `control` of a kind that answers it for every risk of 6 or more, and a control or an `accept` line for every other threat. What is already in place answers nothing new.
+  6. An ATT&CK technique (`attack`) for the threat on the invoice links and for the threat on the terminal's admin password, as ATT&CK version 20.1 names it. The lab can't look one up, so choose from these: `T1078` Valid Accounts, with `T1078.001` Default Accounts; `T1110` Brute Force; `T1190` Exploit Public-Facing Application; `T1566` Phishing; `T1552` Unsecured Credentials; `T1530` Data from Cloud Storage.
+  7. An attack tree (`goal`, `node`, `leaf`, `cheapest`) for one of the highest risks: three leaves or more, and an `and` node with two steps.
+
+  The format is the threat-modeling labs' (`tm-check --help` prints it, with the kinds of control and the letters each answers), with one more line this part needs: `scope ELEMENT cde|impacting|out reason`, for every process and store the business runs and nothing else, with a reason of five words or more. The words are Compliance basics': `cde` when card data is stored on it or passes through it, or it is on a network with such a system with nothing filtering between them; `impacting` when no card data reaches it but whoever took it over could change what happens to card data (it serves the page the card form sits in, decides where shoppers are sent to pay, signs people in to a `cde` system, or administers one); `out` when it is neither, and is kept apart so that taking it over would not put card data at risk.
+
+  **Choose, don't list.** A flow may carry at most three threats under one letter, and a threat at most two controls and two techniques.
+
+  As you go, `tm-check reads ~/model.tm` says whether every line is in the format (and which line isn't), and `tm-check stride`, `ranking`, `controls` and `tree` check the review's coverage and the sums. Whether the model is right for this design, only the checks say: your own `tm-check controls` says `ok` to any kind of control that fits a threat's letter, and the checks ask whether that kind stops this threat. Leave `~/design.md` as it is.
+
+  **Time yourself.** A model like this should take about 75 minutes. Note the time when you open the lab's shell (`date`). Nothing stops you at 75 minutes: the target is yours to hold yourself to. There are no steps and no hints here.
+
+  When the model is whole, run the checks.
+test_skills:
+  model-reads: [csa.sec.threat-modeling/draw-the-system]
+  design-untouched: [csa.linux.shell/navigate]
+  diagram-matches-design: [csa.sec.threat-modeling/draw-the-system]
+  zones-where-trust-changes: [csa.sec.threat-modeling/draw-the-system]
+  in-pci-scope: [csa.sec.compliance/pci-scope]
+  every-crossing-reviewed: [csa.sec.threat-modeling/stride]
+  design-weaknesses-found: [csa.sec.threat-modeling/stride, csa.sec.threat-modeling/rank-risks]
+  ranked-by-risk: [csa.sec.threat-modeling/rank-risks]
+  answered-a: [csa.sec.threat-modeling/respond-to-risk, csa.sec.vulnerabilities/remediate-and-track]
+  answered-b: [csa.sec.threat-modeling/respond-to-risk, csa.sec.authn-authz/access-models]
+  answered-c: [csa.sec.threat-modeling/respond-to-risk, csa.sec.crypto/hash-mac-signature]
+  answered-d: [csa.sec.threat-modeling/respond-to-risk, csa.sec.authn-authz/authn-or-authz]
+  nothing-left-open: [csa.sec.threat-modeling/respond-to-risk]
+  attack-techniques: [csa.sec.threat-modeling/attack-and-abuse]
+  attack-tree: [csa.sec.threat-modeling/attack-trees]

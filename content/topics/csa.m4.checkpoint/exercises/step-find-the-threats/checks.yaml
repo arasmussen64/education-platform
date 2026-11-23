@@ -1,0 +1,164 @@
+# The checks of "Step 2 of the model: the threats": each runs one part of the threat-model
+# base's tm-check on the learner's model, with the design's own answers
+# (the reference) on standard input, so they are never a file in the lab.
+# What a failure says never names a flow, a letter or an element; the scope
+# check says only whether the scoping is right (--quiet), so its answers
+# can't be found by trying one element at a time. --choose caps what a
+# model may list. The five answered checks share one description: each is
+# one high weakness's control, so a wrong choice brings back one skill,
+# and the page never says which weakness is which.
+#
+# The reference: PayPoint, the storefront on the CDN, the shop's subnet,
+# the office and the warehouse are five zones apart from the internet. In
+# scope: the storefront is impacting (it serves the page that holds the
+# card form), the back office is cde (card numbers pass through it), and
+# the orders API, the orders database and the log server are cde (the log
+# server holds card numbers and codes, and all three share the back
+# office's unfiltered subnet); the stock database is out. The weaknesses,
+# in --only's order: the staff sign-in (S, 3x3: mfa, access-proxy or
+# mutual-tls, never authn), the hook (S, 3x2: signing or mutual-tls), the
+# third party's script (T, 2x3: integrity, PCI DSS 6.4.3), the key in the
+# repository (S or I, 2x3: secret-store), card data in the logs (I, 2x3:
+# minimise-data, PCI DSS 3.3.1) and refunds nobody signs (R, 2x2).
+checks:
+  - id: model-reads
+    description: "The model reads: every line is one of the format's."
+    timeout: 10
+    command: |
+      tm-check reads /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: design-untouched
+    description: "~/design.md is as it was."
+    timeout: 10
+    command: echo 'b017f57299347e2dfd83127780e3289cebc87fb66f748008883a42e001147c54  /home/learner/design.md' | sha256sum -c --status - && echo same
+    expect:
+      equals: same
+  - id: diagram-matches-design
+    description: "Every part and flow the design names is there, of the right kind, drawn from the side that starts it."
+    timeout: 10
+    command: |
+      tm-check diagram /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: zones-where-trust-changes
+    description: "Two parts share a zone exactly when one organisation runs both on one network with nothing filtering between them."
+    timeout: 10
+    command: |
+      tm-check boundaries /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: in-pci-scope
+    description: "Every process and store the business runs has the PCI DSS scope the standard's rule gives it."
+    timeout: 10
+    command: |
+      tm-check scope /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: every-crossing-reviewed
+    description: "Every flow that crosses a boundary has all six letters reviewed, and no two threats read the same."
+    timeout: 10
+    command: |
+      tm-check stride /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: design-weaknesses-found
+    description: "Everything the design describes as weak has a threat on its flow, rated by the design's scales, and none of it is marked as nothing to record; no flow has more than three threats under one letter."
+    timeout: 10
+    command: |
+      tm-check findings /home/learner/model.tm - --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: ranked-by-risk
+    description: "Each risk is likelihood times impact, and top lists every risk of 6 or more, highest first."
+    timeout: 10
+    command: |
+      tm-check ranking /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-a
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 3 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-b
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 1 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-c
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 5 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-d
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 2 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-e
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 4 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: nothing-left-open
+    description: "Every other threat has a control of a kind that answers it or an accept line, no risk of 6 or more is accepted, and no threat has more than two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only rest --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: attack-techniques
+    description: "The two threats the task names each carry an ATT&CK technique that fits, and no threat more than two."
+    timeout: 10
+    command: |
+      tm-check attack /home/learner/model.tm - --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: attack-tree
+    description: "A tree for one of the highest risks: three leaves or more, an and node with two steps, and the cheapest path's cost."
+    timeout: 10
+    command: |
+      tm-check tree /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"staff":["external","office"],"psp":["external","provider"],"web":["process","edge"],"orders-api":["process","shop-net"],"backoffice":["process","shop-net"],"orders-db":["store","shop-net"],"app-logs":["store","shop-net"],"stock-db":["store","warehouse"]},"flows":{"f1":["customer","web"],"f2":["customer","psp"],"f3":["web","orders-api"],"f4":["orders-api","psp"],"f5":["psp","orders-api"],"f6":["staff","backoffice"],"f7":["backoffice","psp"],"f8":["orders-api","orders-db"],"f9":["backoffice","app-logs"],"f10":["orders-api","stock-db"]},"weak":[{"flow":"f6","letters":["S"],"L":3,"I":[3],"controls":["mfa","access-proxy","mutual-tls"],"attack":["T1110","T1078"]},{"flow":"f5","letters":["S"],"L":3,"I":[2],"controls":["signing","mutual-tls"]},{"flow":"f1","letters":["T"],"L":2,"I":[3],"controls":["integrity"]},{"flow":"f4","letters":["S","I"],"L":2,"I":[3],"controls":["secret-store"],"attack":["T1552"]},{"flow":"f9","letters":["I"],"L":2,"I":[3],"controls":["minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":[2],"controls":["audit-log"]}],"scope":{"web":"impacting","orders-api":"cde","backoffice":"cde","orders-db":"cde","app-logs":"cde","stock-db":"out"}}
+      REF
+    expect:
+      equals: ok

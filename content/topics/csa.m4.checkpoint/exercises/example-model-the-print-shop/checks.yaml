@@ -1,0 +1,121 @@
+# The checks of the worked example: the checkpoint's part 1 checks,
+# against the print shop's design. Zones: the internet, PayLink, the shop
+# floor and the cloud account. Scope: the till PC cde, the print server cde
+# by connection, the sign-in service impacting, the bucket out. The
+# weaknesses: the open bucket (I, 3x2: authz or least-privilege), the shared
+# PIN (S, 2x3: authn or mfa) and the unchecked print jobs (T or S, 2x1).
+checks:
+  - id: model-reads
+    description: "The model reads: every line is one of the format's."
+    timeout: 10
+    command: |
+      tm-check reads /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: design-untouched
+    description: "~/design.md is as it was."
+    timeout: 10
+    command: echo '4535a90074659d27e58016e4160f7ee76372e5b315d3bc5b429f87f3b6b2d144  /home/learner/design.md' | sha256sum -c --status - && echo same
+    expect:
+      equals: same
+  - id: diagram-matches-design
+    description: "Every part and flow the design names is there, of the right kind, drawn from the side that starts it."
+    timeout: 10
+    command: |
+      tm-check diagram /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: zones-where-trust-changes
+    description: "Two parts share a zone exactly when one organisation runs both on one network with nothing filtering between them."
+    timeout: 10
+    command: |
+      tm-check boundaries /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: in-pci-scope
+    description: "Every process and store the business runs has the PCI DSS scope the standard's rule gives it."
+    timeout: 10
+    command: |
+      tm-check scope /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: every-crossing-reviewed
+    description: "Every flow that crosses a boundary has all six letters reviewed, and no two threats read the same."
+    timeout: 10
+    command: |
+      tm-check stride /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: design-weaknesses-found
+    description: "Everything the design describes as weak has a threat on its flow, rated by the design's scales, and none of it is marked as nothing to record; no flow has more than three threats under one letter."
+    timeout: 10
+    command: |
+      tm-check findings /home/learner/model.tm - --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: ranked-by-risk
+    description: "Each risk is likelihood times impact, and top lists every risk of 6 or more, highest first."
+    timeout: 10
+    command: |
+      tm-check ranking /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-a
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 1 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-b
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 2 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: nothing-left-open
+    description: "Every other threat has a control of a kind that answers it or an accept line, no risk of 6 or more is accepted, and no threat has more than two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only rest --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: attack-techniques
+    description: "The two threats the task names each carry an ATT&CK technique that fits, and no threat more than two."
+    timeout: 10
+    command: |
+      tm-check attack /home/learner/model.tm - --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: attack-tree
+    description: "A tree for one of the highest risks: three leaves or more, an and node with two steps, and the cheapest path's cost."
+    timeout: 10
+    command: |
+      tm-check tree /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"psp":["external","provider"],"till-pc":["process","floor"],"print-server":["process","floor"],"directory":["process","cloud"],"files":["store","cloud"]},"flows":{"f1":["customer","files"],"f2":["till-pc","psp"],"f3":["till-pc","directory"],"f4":["print-server","files"],"f5":["till-pc","print-server"],"f6":["customer","psp"]},"weak":[{"flow":"f1","letters":["I"],"L":3,"I":2,"controls":["authz","least-privilege"],"attack":["T1530","T1619"]},{"flow":"f3","letters":["S"],"L":2,"I":3,"controls":["authn","mfa"],"attack":["T1078"]},{"flow":"f5","letters":["T","S"],"L":2,"I":1}],"scope":{"till-pc":"cde","print-server":"cde","directory":"impacting","files":"out"}}
+      REF
+    expect:
+      equals: ok
