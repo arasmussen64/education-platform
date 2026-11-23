@@ -1,0 +1,30 @@
+id: fill-evidence-map
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Scope the café, map the evidence"
+prompt: |
+  Two files in `~/evidence/` have gaps, written `...`. Fill them with `nano` (for example `nano ~/evidence/scope.txt`). Nothing on the server is fixed or collected in this lab: it is the thinking that comes before.
+
+  **1. `scope.txt`: which of the café's systems do the card rules reach?** The shop has opened a café. `/srv/compliance/cafe-systems.txt` describes its six systems. Give each one a word and a reason:
+
+  - `cde`: card numbers are stored on it or pass through it, or it sits on a network with something they do and nothing filters between them;
+  - `impacting`: no card data reaches it, but if it were taken over it could change what happens to card data: it serves the page that holds the card form or sends shoppers to it, or people sign in to or administer a `cde` system from it;
+  - `out`: neither, and kept apart so that taking it over would not put card data at risk.
+
+  The reason is your own words, five or more. Every system gets exactly one word. "Call everything `cde` to be safe" fails: the word has to be the right one.
+
+  **2. `pack.tsv`: what evidences each control?** `/srv/compliance/scope.tsv` lists five controls for the payments server and what the assessor will check for each. One is done for you. For the others:
+
+  - Look the control up in the crosswalk, `/usr/share/lab-pay/refs.tsv` (rule, framework, control), comparing the whole control. If rules are mapped to it, the control gets one `rule` line for each of them: add lines as you need them. Every rule mapped to it, and no rule that isn't.
+  - If no rule is mapped to it, it gets no `rule` line. Its evidence is one of the shop's collectors in `/srv/compliance/collectors.tsv`: pick the one whose output shows what the assessor checks, and write its kind and its name. One control here may have two collectors; none has more. A collector that shows something nearby, but not what the assessor checks, doesn't belong. (You only choose among the collectors here. Their commands are for the server as this topic's build lab has it, and one of them has nothing to read on this one.)
+
+  Each line has four fields, separated by spaces or tabs: framework, control, kind, source.
+hints:
+  - "Scope: ask three questions of each system, in this order. Does a card number reach it, or get stored on it? Is it on a subnet with such a system, with nothing filtering between them? Could someone who took it over change where cards are typed, or sign in to a system that handles them?"
+  - "The crosswalk: `awk -F'\\t' '$2 == \"pci-dss-4.0\" && $3 == \"8.3.4\" { print $1 }' /usr/share/lab-pay/refs.tsv` prints the rules for one control. `grep 8.3.4` would also match longer numbers, and `.` matches any character."
+  - "No rule: read the last column of `/srv/compliance/collectors.tsv` beside what the assessor checks. Two journals have settings on this server, and only one of them is the audit trail. A list of packages says what is installed, not what is vulnerable."
+skills: [pci-scope, control-to-evidence, crosswalks]

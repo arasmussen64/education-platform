@@ -1,0 +1,72 @@
+# The checks of "The assessor's sample". Each collects its own evidence
+# from the machine: the benchmark's rules are run again (oscap-rules, the
+# base's helper, never a whole profile), a real login as root is tried, a
+# line is logged and looked for on disk, and settings are read from the
+# files that outlast a reboot (comply.sh). The pack is compared with the
+# base's sealed crosswalk and this lab's own reference (pack-check), and
+# every saved result with a fresh run: no file times.
+# Descriptions and messages state the end state, never the fault: a check
+# that finds something wrong prints what the machine does and exits 0.
+checks:
+  - id: lab-intact
+    description: "The benchmark, the crosswalk, the scanners, the scope and the collectors' list are as the lab shipped them."
+    command: |
+      . /usr/local/lib/lab-comp/comply.sh
+      lab_intact
+    expect:
+      equals: intact
+  - id: earlier-work-stands
+    description: "The earlier work stands: the audit policy is untouched and its writer running, the audit trail is still on disk, sealed (with the auditors' key where it was left) and kept 365 to 400 days, and a fresh scan of the server finds no vulnerability."
+    command: |
+      . /usr/local/lib/lab-comp/comply.sh
+      earlier_work_stands
+    expect:
+      equals: stands
+  - id: sync-kept
+    description: "The bank's settlement sync is as it was: rsync installed, the shop's unit enabled and answering on port 873, its settings untouched."
+    command: |
+      . /usr/local/lib/lab-comp/comply.sh
+      sync_kept
+    expect:
+      equals: kept
+  - id: root-login-off
+    description: "A real login as root with an authorised key is turned away while the SSH server still answers, and it would be after a reboot too."
+    command: |
+      . /usr/local/lib/lab-comp/comply.sh
+      root_login_off behaviour
+    expect:
+      equals: "off"
+  - id: passwords-met
+    description: "The password library, read the way the sign-in programs read it, asks for at least 14 characters with a digit and a lower-case letter, and refuses a password that falls short."
+    command: |
+      . /usr/local/lib/lab-comp/comply.sh
+      passwords_met behaviour
+    expect:
+      equals: met
+  - id: journal-on-disk
+    description: "The journal's settings that outlast a reboot keep it on disk, and a line logged a moment ago can be read from the journal's files on disk."
+    command: |
+      . /usr/local/lib/lab-comp/comply.sh
+      journal_on_disk behaviour
+    expect:
+      equals: "on disk"
+  - id: met-or-excepted
+    description: "Every rule of every control in scope passes now, except the one rule the exception covers. The check runs each of those rules again."
+    command: /usr/local/lib/lab-comp/pack-check met
+    expect:
+      equals: right
+  - id: exception-stands
+    description: "~/evidence/exception.txt is still a whole exception for the rule the business can't pass, with an expiry within a year."
+    command: /usr/local/lib/lab-comp/pack-check exception
+    expect:
+      equals: right
+  - id: pack-maps-right
+    description: "~/evidence/pack.tsv gives every control in scope exactly its evidence: every rule the crosswalk maps to it and no other, or, where no rule maps, the collector or two that show what the assessor checks."
+    command: /usr/local/lib/lab-comp/pack-check map --no-names
+    expect:
+      equals: right
+  - id: evidence-current
+    description: "Every result in ~/evidence/rules.txt and every collector's saved output is what the same rule or collector gives now."
+    command: /usr/local/lib/lab-comp/pack-check current
+    expect:
+      equals: right

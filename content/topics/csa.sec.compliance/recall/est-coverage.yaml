@@ -1,0 +1,24 @@
+id: est-coverage
+type: estimate
+rev: 1
+prompt: |
+  An assessment has 48 controls in scope. 30 have an automated check, 12 have evidence of another kind (a configuration reading, a report or a document), and 6 have no evidence yet. What percentage of the controls in scope have evidence? Within 0.1.
+unit: "%"
+answer: 87.5
+tolerance: { absolute: 0.1 }
+given: { total: 48, automated: 30, other: 12, missing: 6 }
+working: (automated + other) / total * 100
+mistakes:
+  - id: automated-only
+    value: 62.5
+    working: automated / total * 100
+    why: That counts only the automated checks. A configuration reading or a report is evidence too; a control doesn't need a scanner rule to be evidenced.
+  - id: the-gaps
+    value: 12.5
+    working: missing / total * 100
+    why: That is the share with no evidence, the gap. The question asks for the share that has evidence.
+explanation: |
+  (30 + 12) / 48 x 100 = **87.5%**. Coverage counts every control that has evidence of any acceptable kind, not only the ones a scanner can test. The other 12.5% are the six gaps, and they are the work list: each needs evidence found or made, or an exception written.
+
+  Report the split as well as the total. "62.5% automated" says how much of the pack can be collected again tonight with one command, which is what keeps it from going stale.
+skills: [gaps-and-exceptions]

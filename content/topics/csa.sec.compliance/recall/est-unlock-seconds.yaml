@@ -1,0 +1,24 @@
+id: est-unlock-seconds
+type: estimate
+rev: 1
+prompt: |
+  The card rules (PCI DSS v4.0.1, requirement 8.3.4) ask that an account locked after too many failed sign-ins stays locked for at least 30 minutes. On Ubuntu the lock's length is `unlock_time` in `/etc/security/faillock.conf`, in seconds. What is the smallest value that meets the rule? Exactly.
+unit: seconds
+answer: 1800
+tolerance: { absolute: 0 }
+given: { minutes: 30 }
+working: minutes * 60
+mistakes:
+  - id: left-in-minutes
+    value: 30
+    working: minutes
+    why: That is the rule's number in the rule's unit. The setting is in seconds, so 30 would unlock the account after half a minute.
+  - id: divided
+    value: 0.5
+    working: minutes / 60
+    why: That divides by 60, which turns minutes into hours. Minutes into seconds is times 60.
+explanation: |
+  30 minutes x 60 = **1800** seconds: `unlock_time = 1800`. A control states its parameter in whatever unit suits a reader. A setting takes it in whatever unit the program's author chose. The step between the two is small and it is where real findings come from: `unlock_time = 30` looks like the rule's number and gives an attacker a new set of guesses every half minute.
+
+  Read the unit in the manual page, not in your head: `faillock.conf`'s own default is 600 seconds.
+skills: [read-a-control]

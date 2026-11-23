@@ -1,0 +1,16 @@
+id: mcq-substring-trap
+type: mcq
+rev: 1
+prompt: |
+  To list the rules for PCI DSS 8.3.6, a colleague runs `grep 8.3 refs.tsv` on the lab's crosswalk and gets 44 lines. The right answer is three rules. What went wrong?
+choices:
+  - "The crosswalk repeats each rule once for every profile, so most lines are copies"
+  - "The crosswalk lists every rule of requirement 8, and 8.3.6 is only one part"
+  - "`grep` needs `-i` here, because the control numbers are stored in upper case"
+  - "`grep` matches text anywhere in a line: 8.3, 8.3.4, 8.3.9 and A.8.3.1 match too"
+answer: 3
+explanation: |
+  `grep 8.3` asks "does this line contain something like 8.3 anywhere?", and the dot stands for any character. So it takes requirement 8.3 itself, 8.3.2, 8.3.4, 8.3.6 and 8.3.9, and ISO lines such as A.8.3.1 as well. Even `grep 8.3.6` would be an accident waiting for an 8.3.60.
+
+  Compare the whole column: `awk -F'\t' '$2 == "pci-dss-4.0" && $3 == "8.3.6"'`. A crosswalk is a table, and a control's identifier is a key in it, to be matched exactly.
+skills: [crosswalks]

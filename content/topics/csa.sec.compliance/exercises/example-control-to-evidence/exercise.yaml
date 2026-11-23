@@ -1,0 +1,49 @@
+id: example-control-to-evidence
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "From a control to evidence"
+prompt: |
+  This lab machine is the shop's payments server, `pay1`, the same server as in Audit logging and Vulnerability management (the note at the top of Audit logging's first lab says how its labs work). Nothing has been hardened on it yet.
+
+  The walkthrough does one control from end to end, the way the rest of this topic's labs do many. First it decides which of the shop's systems the card rules reach at all. Then it reads a control in NIST's own words, finds the benchmark rule that tests it, runs the rule, fixes the server, and saves evidence an assessor could run again. Then it shows that evidence going stale, and a control that no rule tests.
+
+  Three tools are new:
+
+  - **`/usr/share/lab-pay/refs.tsv`** is the benchmark's crosswalk: one line for each rule and each control it supports, as `rule`, `framework`, `control`, separated by tabs.
+  - **`sudo oscap-rules RULE...`** runs the named rules of the CIS benchmark with OpenSCAP and prints `rule result` for each. Line 7 runs OpenSCAP by hand once, so you see what the helper wraps. The helper exists because OpenSCAP sometimes hangs on a long run: it stops a stuck run and tries once more.
+  - **`sudo root-login`** tries a real SSH login as root, with a test key the lab authorised for root, and prints `allowed` or `refused`.
+
+  Type each line yourself and read what it prints before you type the next.
+steps:
+  - label: "Scope first: which systems do the card rules reach?"
+    lines: "1-3"
+    note: "Before any control, decide where the rules apply. Line 1 describes five of the shop's systems. Line 3 writes one `scope` line for each: the name, one of three words, and a reason in your own words. `pay1` is `cde`: card numbers pass through it, so it is in the cardholder data environment. `print1` never sees a card, and is `cde` all the same: it shares a subnet with `pay1` and nothing filters between them, so whoever takes over the print server is next to the card numbers. `jump1` is `impacting`: no card data reaches it, but admins reach `pay1` through it, so taking it over is a way in. `web1` is `impacting` too: it never sees a card, but it decides where the shopper's browser is sent to pay, and an attacker who controls it could send shoppers to a page of their own. `wiki1` is `out`: no card data, no way to administer a card system, and a firewall between. Everything that follows applies to the first four and not to the fifth."
+  - label: "Read the control"
+    lines: "4"
+    note: "`sed -n '/A/,/B/p'` prints a file from the first line matching A to the next line matching B. This is NIST SP 800-53's AC-6, enhancement 2, in NIST's words (the lab carries six controls as text files). The heading gives the identifier: family `AC` (access control), control 6 (least privilege), enhancement `(02)`. Under `Control:` is the statement, the part that must be true. The square brackets are a **parameter**: NIST leaves the list of security functions for the organisation to fill in. Under `Discussion:` is guidance, which explains and doesn't bind. In plain words: people who hold a privileged account use an ordinary account for ordinary work. Root is the most privileged account there is, so nobody should arrive on the server as root."
+  - label: "Find the rule that tests it"
+    lines: "5-6"
+    note: "Line 5 asks the crosswalk for the rules mapped to exactly this control: `$3 == \"AC-6(2)\"` compares the whole third column. One rule: `sshd_disable_root_login`. Note the framework's name, `nist-800-53r4`: the benchmark's authors mapped their rules to **revision 4** of the catalogue, and the text you just read is revision 5. This control kept its identifier between the two; not every control did. Line 6 turns the question round: which controls does that one rule support? CIS 5.1.20, PCI DSS 2.2 and 2.2.6, six HIPAA paragraphs, two of NIST SP 800-171, seven of 800-53 (and thirty-one ISO 27001 lines that the command leaves out). One setting, many frameworks: that is a crosswalk."
+  - label: "Run the rule, and try the door"
+    lines: "7-9"
+    note: "Line 7 is OpenSCAP itself: the profile (CIS Level 1 Server), one rule by its full name, and the benchmark file. It prints three lines for the rule, `Title`, `Rule` and `Result`, and the result is `fail`. (`|| true` is there because `oscap` exits with status 2 when a rule fails.) Line 8 is the same run through the lab's helper: `sshd_disable_root_login fail`. Line 9 doesn't read a file at all. It tries to log in as root: `allowed`."
+  - label: "Fix the files, and see what a rule can't"
+    lines: "10-13"
+    note: "Line 10 writes a drop-in with `PermitRootLogin no` (Module 1's way: your own file in `sshd_config.d`, not an edit to the main file), and line 11 checks SSH's files for mistakes. Line 12 runs the rule again: `pass`. Line 13 tries the door again: still `allowed`. **The rule reads files. The server that is running read them once, when it started,** and goes on with what it read. A report of this moment would say `pass` about a server that lets root in."
+  - label: "Reload, and collect the evidence"
+    lines: "14-18"
+    note: "Line 14 has the running server read its files again, and line 15 shows `refused`. Now the control is met, and lines 16 to 18 make the evidence. `pack.tsv` is the map: this control is evidenced by this rule. `rules.txt` is the rule's result as the tool printed it, not as someone typed it. `collected-at.txt` is the date and time in UTC. Good evidence is the tool's own output, from this system, dated, and something the assessor can run again and get the same answer."
+  - label: "Watch evidence go stale"
+    lines: "19-23"
+    note: "Line 19 plays a hosting company's setup script: it drops in a file that says `PermitRootLogin yes`. Its name sorts before yours, and `sshd` keeps the first value it reads, as Module 1 taught. Line 20: the rule fails again. Line 21: your saved evidence still says `pass`, with yesterday's date on it, so to speak. Nothing in a saved file changes when the server does. That is why an assessor asks for a fresh run and why a pack is collected again before it is handed over. Line 22 removes the file, and line 23 shows `pass` again. (The running server never reloaded in between, so root stayed locked out throughout.)"
+  - label: "A control no rule tests"
+    lines: "24-26"
+    note: "Line 24 asks the crosswalk about AU-11, audit record retention, and prints nothing: no rule of this benchmark tests how long the audit trail is kept. Line 25 is the control: keep audit records for a time the organisation defines. The control still has to be evidenced, so the evidence is of another kind: a **reading of the configuration**. Line 26 prints the audit journal's settings in force, every file and drop-in, as you did in Audit logging. On this server it shows no `MaxRetentionSec=` at all, so this reading is evidence that the control is **not** met yet. Evidence shows what is true, whichever way that goes."
+  - label: "What you made"
+    lines: "27"
+    note: "A scoping of five systems, and for one control: the map, the tool's own result, and the time it was collected. Run the checks. They run the rule and try the login again themselves, and compare your saved result with what they get."
+skills: [pci-scope, read-a-control, control-to-evidence, crosswalks]

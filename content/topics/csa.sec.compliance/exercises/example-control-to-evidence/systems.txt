@@ -1,0 +1,21 @@
+Five of the shop's systems, as they are today.
+
+pay1    The payments server. The tills send it card numbers, and it sends
+        them on to the bank. Subnet 10.30.1.0/24.
+
+print1  A print server for receipts and labels. No card number is ever
+        sent to it. Subnet 10.30.1.0/24, the same as pay1, and nothing
+        filters traffic between machines on that subnet.
+
+jump1   The admins' jump host. Admins sign in to it, and from it to pay1
+        over SSH. Subnet 10.30.9.0/24. A firewall lets jump1, and nothing
+        else there, open SSH connections to pay1.
+
+web1    The shop's website. It shows the basket, then sends the shopper's
+        browser to the bank's own payment page, where the card is typed.
+        No card number reaches web1. Subnet 10.30.5.0/24.
+
+wiki1   The staff wiki, on the office network, 10.40.0.0/16. A firewall
+        drops everything between the office network and the three subnets
+        above, in both directions. Nobody administers a card system from
+        the wiki, and it holds no card data.

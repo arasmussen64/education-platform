@@ -1,0 +1,219 @@
+<Intro>
+
+<Puzzle question="A company passes its security audit in the autumn. Before the year is out, attackers take its customers' card details. Was the audit wrong?">
+
+Not necessarily. An audit checks a list of agreed measures, on the systems that were in its scope, by looking at a sample of evidence, at one point in time. "Passed" means: on those systems, on those days, the measures on the list were in place. It doesn't mean the list covers every way in, or that a system outside the scope was safe, or that nothing changed the week after. Passing an audit is a floor and a snapshot. Staying secure is keeping the evidence true every day, and asking what your own system needs beyond the list.
+
+</Puzzle>
+
+Audit logging and Vulnerability management each ended with something you could show an outsider: a sealed trail, a register and a rescan. This topic is about the outsider. By the end you can say what the common security rule books are and who checks each, read one rule and turn it into a setting, decide which systems the card rules reach, hand an assessor evidence they can run again, and deal honestly with a rule you can't pass. The labs are on `pay1`, the shop's payments server, with a real scanner and a real benchmark.
+
+**Why compliance exists.** A customer, a bank or a regulator can't come and inspect your servers. So they ask two things: follow a published set of security measures, and prove it to someone independent. That is compliance.
+
+A building inspection is the picture. The building code says "fire exits must be marked". The inspector doesn't check every door: they walk some floors and look at the signs. Then they sign a certificate that says "on this date it was so". The words map across one for one:
+
+- The code is a **framework**: a published set of controls or outcomes that an organisation agrees, or is made, to meet. It says what must be true, not how.
+- Each rule in it is a control (Threat modeling's word: a measure that reduces a risk). What a control is for is its **control objective**: "people can get out in a fire".
+- The signs are **evidence**: what shows that a control is met on a real system.
+- The inspector is an **assessor** or auditor: someone independent who examines you against the framework. They test a **sample**, some systems and some days, not everything.
+- The certificate is an **attestation**, the examiner's written opinion, or a certification, a certificate issued against a standard.
+
+An architect's part in this is to make the evidence come from the building itself, every day, and not from photographs taken the week before the inspector calls.
+
+**The landscape: ten names you will hear.** You don't need to know any of these in depth yet. You need to know what kind of thing each one is. (Facts as of November 2026.)
+
+| Name | What it is | Whom it binds | Who checks |
+| --- | --- | --- | --- |
+| **PCI DSS** (v4.0.1, June 2024) | The card brands' security standard, published by their council, the PCI SSC | Anyone who stores, processes or transmits payment card data, through their contract with the bank | A qualified security assessor (QSA), or a self-assessment for smaller merchants |
+| **SOC 2** | A report: an independent accountant's opinion on a service company's controls, against the AICPA's Trust Services Criteria | Companies that choose it, because customers ask | A firm of certified public accountants (CPAs) |
+| **ISO/IEC 27001** (2022) | An international standard for running security as a managed system, with a list of 93 controls in its Annex A | Organisations that choose to be certified | A certification body |
+| **HIPAA Security Rule** | US law for electronic health information | US health-care organisations and the companies that handle health data for them | A regulator; there is no certificate |
+| **GDPR** | EU law for personal data | Any organisation handling the personal data of people in the EU | Each country's data-protection regulator |
+| **FedRAMP** | The US government's programme for cloud services that federal agencies buy | Cloud providers selling to US agencies | Independent assessors and the programme itself |
+| **CMMC** | The US Defense Department's programme for its contractors, in three levels | Defence contractors, through their contracts | The contractor itself at the lowest level, outside assessors above it |
+| **CIS Benchmarks** | Configuration guides for one product each, agreed by volunteers (Module 1) | Nobody by itself: a policy or a contract adopts one | A scanner, rule by rule |
+| **NIST CSF 2.0** (February 2024) | A framework of outcomes in six functions: Govern, Identify, Protect, Detect, Respond, Recover | Voluntary, for organisations of any size | Nobody: you assess yourself |
+| **NIST SP 800-53** (Revision 5) | A catalogue of security controls in 20 families | US federal systems; everyone else borrows from it | Whoever adopts it |
+
+Four ways to sort them will carry you through most conversations:
+
+- **Laws** you must obey where they apply: HIPAA, GDPR. Nobody opts in. GDPR, for one, says a breach that puts people at risk must be reported to the regulator without undue delay and, where feasible, within 72 hours of becoming aware of it.
+- **Contracts** you accepted: PCI DSS comes with being allowed to take cards, CMMC with a defence contract, FedRAMP with selling a cloud service to an agency.
+- **Reports and certificates you choose to earn,** because customers ask: SOC 2 and ISO/IEC 27001. A SOC 2 report comes in two types. Type 1 says the controls were suitably designed, as of one date. Type 2 adds that they operated effectively throughout a period, which is the one customers want.
+- **Catalogues everything else points at:** NIST's two documents and the CIS Benchmarks.
+
+That last group matters most to you, for a practical reason. NIST's documents are works of the US government: free to download, copy and quote. ISO's standards are sold. PCI DSS is free to read from the council's library, under terms that don't let anyone copy it. So when two frameworks need comparing, each is compared with NIST's catalogue, and many programmes don't write controls of their own at all. FedRAMP's baselines are selections from SP 800-53. CMMC's Level 2 is identical to another NIST document, SP 800-171. Learn to read NIST's controls and you can read most of the others.
+
+Three of these are moving as this is written. PCI DSS is at v4.0.1, a small revision of v4.0, which was retired at the end of 2024. FedRAMP's Consolidated Rules for 2026 took effect on 4 July 2026: what was a "FedRAMP authorization" is now a "FedRAMP Certification", and the old Low, Moderate and High levels are now certification classes A to D. CMMC is being phased into contracts: its first phase began on 10 November 2025, and each later phase starts a year after the one before. Check a date like these at its source before you quote it.
+
+<Check item="mcq-which-applies" />
+
+**Reading a control.** Here is a control from SP 800-53, in NIST's own words, as the lab carries it (`/usr/share/lab-pay/nist-800-53r5/AC-7.txt`):
+
+```
+AC-07 Unsuccessful Logon Attempts
+
+Control:
+a. Enforce a limit of [Assignment: organization-defined number] consecutive invalid logon attempts by a user during a [Assignment: organization-defined time period]; and
+b. Automatically [Selection (one or more): lock the account or node for [Assignment: organization-defined time period]; lock the account or node until released by an administrator; ...] when the maximum number of unsuccessful attempts is exceeded.
+
+Discussion:
+The need to limit unsuccessful logon attempts and take subsequent action when the maximum number of attempts is exceeded applies regardless of whether the logon occurs via a local or network connection. ...
+```
+
+Every control has the same parts:
+
+- **The identifier.** `AC` is the family (access control), `07` the control. An **enhancement** is a stricter add-on to a control, numbered in brackets: `AC-6(2)` is the second enhancement of AC-6, least privilege.
+- **The statement,** under `Control:`. This is the requirement: the part that must be true.
+- **Parameters.** Each `[Assignment: organization-defined ...]` is a **parameter**: a blank that NIST leaves for you, because the right number for a bank isn't the right number for a school. `[Selection ...]` is a list to choose from. Your organisation's policy fills them in, and the control is only complete once it has.
+- **The discussion.** Guidance: it explains the intent and gives examples. None of it binds.
+
+Other frameworks fill the blanks for you. PCI DSS's requirement 8.3.4 is the same control with numbers in it: lock the account after no more than 10 failed attempts, for at least 30 minutes. (PCI DSS numbers its requirements by nesting: 8.3.4 is requirement 8, part 3, item 4. The number is the identifier. Every PCI DSS number in this topic is v4.0.1's, and each requirement is described here in this lesson's words, not the standard's.)
+
+The last step is yours: **turn the parameter into a setting, in the setting's own units.** Say the shop's policy fills AC-7 as "5 attempts, then locked for 20 minutes". On Ubuntu the lock's length is `unlock_time` in `/etc/security/faillock.conf`, and its manual page says it is in seconds. 20 minutes x 60 is 1200, so the line is `unlock_time = 1200`. Writing `unlock_time = 20` would look like the policy and unlock the account after 20 seconds. The arithmetic is small, and it is where real findings come from.
+
+Units are one trap, and a setting's own meaning is the other. Password rules are the usual example. On Ubuntu, what a new password must look like is set in `/etc/security/pwquality.conf`, one `name = value` to a line. `minlen = 14` is the least length, as it reads. The "credit" settings don't read as they look: `dcredit = -1` means at least one digit, and `lcredit = -1` at least one lower-case letter. A negative credit is a minimum count. A positive one is something else, a bonus towards the length, so `dcredit = 1` demands no digit at all. A policy that says "14 characters, with a digit and a lower-case letter" therefore becomes three lines: `minlen = 14`, `dcredit = -1`, `lcredit = -1`. Read the setting's manual page before you write the number.
+
+<Check item="parameter-filled" />
+
+**Scope: which systems do the card rules reach?** Before any control is tested, an assessment settles its **scope**: which systems the framework applies to. For PCI DSS the answer has rules of its own, and getting it wrong is the costliest mistake in the whole subject. Miss a system and you fail. Include everything and you pay to apply every requirement to the staff wiki.
+
+Start with the data. *Cardholder data* is the card number (the standard calls it the PAN, the primary account number) and what travels with it: the name, the expiry date. *Sensitive authentication data* is what proves the card is present: the three-digit code, the PIN. The second kind may never be stored once a payment has been authorised (requirement 3.3.1).
+
+**PCI DSS scope** is everything the requirements apply to, and a system can be in it for three reasons. The labs give each system one of three words:
+
+- `cde`: card data is **stored on it, processed by it or passes through it**. Such systems, with their people and processes, are the **cardholder data environment** (CDE). A system is also `cde` if it has **unrestricted connectivity** to one of them: it sits on the same network with nothing filtering between. A print server that never sees a card, on the payments server's subnet, is in the CDE, because whoever takes it over is standing next to the card numbers.
+- `impacting`: no card data reaches it, but it **could affect the security** of card data. The jump host that admins reach the payments server through. The server that signs them in. The web server that sends shoppers to the page where they pay.
+- `out`: neither, **and** separated so that it couldn't affect card data even if it were taken over.
+
+To place a system you haven't seen before, ask three questions in this order and stop at the first yes:
+
+1. Is card data stored on it, or does card data pass through it? Then it is `cde`.
+2. Is it on a network with such a system, with nothing filtering between them? Then it is `cde` too.
+3. Could someone who took it over change what happens to card data: sign in to or administer a card system from it, or change the page where cards are typed or where shoppers are sent to pay? Then it is `impacting`.
+
+Three noes, and a firewall or other filter you can point to that keeps it apart: `out`. Three noes and no filter to point to is not `out`. Go back to question 2.
+
+The three groups are the PCI council's own. Its scoping guidance sorts systems into CDE systems, "connected-to and security-impacting" systems, and out-of-scope systems; the labs shorten the middle one to `impacting`.
+
+`cde` and `impacting` are both in scope. Notice which way the burden runs: a system is in until you can show it is out. What gets a system out is **segmentation**: firewalls or other filtering that separate the card systems from everything else. The standard doesn't require segmentation. Without it you have what the standard calls a flat network, and on a flat network everything is in scope.
+
+The other way to shrink scope is not to touch the card at all. A shop can send the shopper's browser to the payment provider's own page (a redirect), or show the provider's card form inside a frame on its own page. Either way the card number goes from the browser straight to the provider, and the shop's web server leaves the CDE. It does not leave scope. It still serves the page that the frame sits in, or decides where the shopper is sent, and whoever controls that page can show a card form of their own. That is why PCI DSS has a requirement to authorise and track every script on a payment page (6.4.3) and one to detect changes to such pages (11.6.1), and why, since 2025, a merchant that assesses itself and embeds a provider's form must confirm that its own page can't be attacked through scripts. Using a compliant provider reduces what you must do. It never hands over your responsibility for your own page.
+
+Scope isn't settled once. Systems are added and networks change, so PCI DSS has the organisation confirm its scope at least every 12 months, and after any significant change (requirement 12.5.2).
+
+<Check item="mcq-scope-flat-network" />
+
+<Story title="British Airways, 2018: card details copied for 15 days" source="https://web.archive.org/web/20220225190222/https://ico.org.uk/media/action-weve-taken/mpns/2618421/ba-penalty-20201016.pdf" sourceTitle="Penalty Notice: British Airways plc (UK Information Commissioner's Office, 16 October 2020; an archived copy)" license="linked, not copied">
+
+Between 22 June and 5 September 2018 an attacker moved through British Airways' systems unnoticed. They found log files that had kept card details in plain text since 2015, most with the three-digit code: a test feature nobody had switched off. Then they changed the website's code. For 15 days, every card typed into it was also sent to the attacker's own site. About 430,000 people's data may have been reached.
+
+The airline didn't find it. Someone outside told it on 5 September, and it reported the breach to the UK's data-protection regulator the next day.
+
+In October 2020 the regulator fined the airline £20 million under GDPR. It had first proposed £183 million.
+
+In this topic's terms: a website that takes payments is in scope whether or not it stores a card, and for two weeks nothing told the airline its site had changed. The regulator's notice cites the card rules twice: codes kept after authorisation, which they never allow, and no watch on the website's files, which PCI DSS already asked for (v3.2.1, requirement 11.5). The law didn't ask which checklist had been passed. It asked whether the security fitted the risk.
+
+</Story>
+
+**From a control to evidence.** A control is met when you can show it. There are four kinds of evidence, and for a setting on a server you want them in this order:
+
+1. **An automated check, run now.** In Module 1 you read OpenSCAP's reports. Here you run it. Each rule of the CIS benchmark tests one thing, and the lab's helper runs rules by name:
+
+   ```
+   $ sudo oscap-rules sshd_disable_root_login
+   sshd_disable_root_login fail
+   ```
+
+   Underneath, that is one long `oscap xccdf eval` command, which prints a `Title`, a `Rule` and a `Result` for each rule. The helper exists because OpenSCAP sometimes hangs on a long run, so the labs always run named rules and never the whole benchmark.
+2. **A reading of the configuration,** where no rule exists. No rule of this benchmark tests how long the audit trail is kept. The evidence is what the system's own tool prints: `systemd-analyze cat-config systemd/journald@audit.conf`, with its `MaxRetentionSec=` line, as in Audit logging.
+3. **Another tool's report.** "Known flaws are fixed in time" is evidenced by this week's vulnerability scan and the register, from Vulnerability management.
+4. **A document.** For controls about people (a policy exists, staff were trained), a document is the right evidence. For a setting, it is the weakest: it shows what someone meant.
+
+Good evidence has five properties. It comes **from the system itself**. It is **the tool's own output**, saved as printed, not retyped. It is **current**. It is **dated**. And it is **reproducible**: the assessor can run the same thing and get the same answer. A screenshot from last quarter has none of the last three.
+
+Two traps are waiting, and the worked example walks into both on purpose.
+
+**A rule reads files.** Captured in the lab, straight after `PermitRootLogin no` was written to a file and before SSH was reloaded:
+
+```
+$ sudo oscap-rules sshd_disable_root_login
+sshd_disable_root_login pass
+$ sudo root-login
+allowed
+```
+
+The rule passes, and a real login as root still works. The rule read the file. The running server read it once, when it started, and carries on with what it read then. A rule tests what its author thought to test, which is usually a file. So for a control that matters, look at the behaviour too: try the login, read the live value, ask the service where it is writing. And after an edit, reload first and collect evidence second.
+
+**Evidence goes stale.** Nothing in a saved file changes when the server does. A result that said `pass` in March still says `pass` in June, after someone's setup script switched root's login back on. Evidence that was true when collected and no longer matches the system is **stale evidence**. It is why every piece of evidence carries a date, why an assessor asks for a fresh run, and why a pack is collected again, after the last fix, before it is handed over.
+
+<Check item="mcq-good-evidence" />
+
+**Crosswalks: one setting, many frameworks.** The people who wrote the benchmark's rules also recorded, beside each rule, which controls of which frameworks it supports. The lab turns that into a table, `/usr/share/lab-pay/refs.tsv`: a rule, a framework and a control on each line, 4,155 lines for 408 rules. A table like this is a **crosswalk**. Ask it both ways:
+
+```
+$ awk -F'\t' '$2 == "pci-dss-4.0" && $3 == "8.3.9" { print $1 }' /usr/share/lab-pay/refs.tsv
+accounts_maximum_age_login_defs
+accounts_password_set_max_life_existing
+accounts_password_warn_age_login_defs
+```
+
+**One control, several rules.** PCI DSS 8.3.9 (where a password is the only thing a user signs in with, it is changed at least every 90 days) is supported by three rules: one for the setting new accounts get, one for the accounts that already exist, and one for the warning before a password runs out. The control is met only when all three pass. Ask the other way, for the rule `sshd_disable_root_login`, and you get a CIS recommendation, two PCI DSS requirements, six HIPAA paragraphs and nine controls in two NIST documents. **One setting, many controls:** fix it once, evidence it once, and it counts in every framework you answer to. That is the whole economy of compliance work.
+
+Three cautions come with every crosswalk.
+
+*Match the identifier exactly.* A control's number is a key in a table. `grep 8.3` on the lab's crosswalk finds 44 lines, because it matches that text anywhere in a line: 8.3, 8.3.4, 8.3.9, and ISO's A.8.3.1 as well. Compare the whole column, as the `awk` above does.
+
+*A mapping belongs to a version.* The lab's framework names tell you: `nist-800-53r4` is **revision 4** of the catalogue, and the current one is revision 5. `iso-27001-2013` is the 2013 edition; the 2022 edition regrouped and renumbered its controls, so a 2013 number means nothing to an auditor working from 2022. `pci-dss-4.0` is v4.0 of the card standard, and the current one is v4.0.1: that revision added and removed no requirement, so these numbers still hold, which you can say only because you checked. The rules still test real things. The mappings need checking against the version you are assessed on. For its own documents NIST publishes official mappings, which it calls informative references, between the CSF and SP 800-53.
+
+*A rule supports a control. It doesn't prove it.* A passing rule is evidence for part of a control. The control may ask for more than any rule tests.
+
+A sentence on tooling, so the word doesn't surprise you later: NIST publishes its catalogues in a machine-readable format called OSCAL, which is where the lab's control texts come from.
+
+<Check item="mcq-substring-trap" />
+
+**Gaps and exceptions.** When you line up the controls in scope against the evidence you have, four kinds of gap appear.
+
+*No automated evidence.* Covered above: find evidence of another kind, and say which kind. What you may not do is reach for a rule that sounds nearby. A rule about one journal's storage is not evidence about another journal's retention.
+
+*The benchmark and the framework disagree about a number.* The CIS rule for password length tests for 14 characters. PCI DSS asks for 12 (requirement 8.3.6). Set 12, and you meet PCI DSS while the CIS rule fails. Both are true at once. Either meet the stricter one, or record which you follow. The same care runs the other way: where a rule is looser than your control, a pass proves nothing.
+
+*A rule that doesn't apply.* OpenSCAP answers `notapplicable` for a rule about something the machine doesn't have. That is neither a pass nor a fail, and a control whose rules all say it has no automated evidence yet.
+
+*A rule you can't pass.* The benchmark says rsync should not be installed. The payments server runs an rsync daemon, because the bank fetches settlement files from it every night. The rule fails and always will. The honest answer is the one Vulnerability management taught, an exception: a written decision that names the control and the rule, the reason, a compensating control that limits the risk in its place (and that really exists on the server), an owner, and an expiry date, after which someone must look again.
+
+The dishonest answer has a name too. **Tailoring** is changing a benchmark for your own use, by switching rules off or changing their values. It has a proper use: leaving out rules that don't apply to this kind of system, with the reason recorded. Used to switch off the rules that fail, it produces a clean report about an unchanged server. The gaps are still there, and now nobody can see them or owns them.
+
+Count what you have, honestly. Say 40 controls are in scope: 26 have an automated check, 8 have other evidence and 6 have none. Coverage is (26 + 8) / 40, which is 85%. The 6 are the work list, and "26 automated" tells you how much of the pack can be collected again tonight with one command.
+
+<Check item="mcq-exception-parts" />
+
+**Compliant is not secure, and the cloud doesn't change that.** A framework is written for the average organisation. It is a floor. What your system needs beyond it comes from the threat model you learned to write at the start of this module, which knows what you hold and who wants it. The audit in the puzzle wasn't wrong. It answered a narrower question than the one the attackers asked.
+
+In a cloud, part of every control is run by the provider: the building, the hardware, the virtualisation. The provider is audited for its part, and you take over its result as an inherited control. You still evidence everything you run yourself, which is every setting in this topic. Each provider publishes its own audit reports for customers to download:
+
+| | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| Where the provider's own reports are | AWS Artifact | The Service Trust Portal | Compliance Reports Manager |
+| What is there | Auditors' reports, certifications and attestations about AWS | External auditors' reports, with sections for SOC, ISO/IEC, PCI DSS and FedRAMP; some need a sign-in and a non-disclosure agreement | ISO/IEC certificates and SOC reports, at no additional cost |
+
+(Read on 22 November 2026.) Module 20 builds on this, with the clouds' own tools for collecting evidence all the time and not once a year, which is called continuous compliance.
+
+**Going further (all optional, except the reading below).** Everything the questions and labs ask is in the lesson above. Below it is NIST's own announcement of CSF 2.0, copied in: six minutes on what the framework is and whom it is for, from the people who wrote it. The other pages are for when you want more: the framework's own page, with its quick-start guides; SP 800-53's page, with a browser for all its controls; the PCI council's library, where the standard itself can be read, its note on what v4.0.1 changed, and its announcement of the newest scoping guidance, for cloud and other modern networks; the CIS Benchmarks' page; and Microsoft's guide to its Service Trust Portal, as an example of where a cloud's own reports live.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Compliance** is following a published **framework** of controls and proving it to an independent **assessor**, who tests a sample at a point in time. A pass is a floor and a snapshot.
+- **Sort the names:** laws (HIPAA, GDPR, with its 72 hours to report a breach), contracts (PCI DSS, CMMC, FedRAMP), reports and certificates you choose (SOC 2 from a CPA firm, Type 1 design and Type 2 operation; ISO/IEC 27001), and catalogues the rest map to (NIST's CSF 2.0 with six functions, SP 800-53, the CIS Benchmarks). NIST's texts are free to read and copy.
+- **A control** is an identifier, a statement and **parameters** your policy fills in; the discussion is guidance. Turn each value into a setting in the setting's own units and meaning: 20 minutes is `unlock_time = 1200`, and "at least one digit" is `dcredit = -1` in `/etc/security/pwquality.conf`.
+- **PCI DSS scope:** the **cardholder data environment** (systems that store, process or transmit card data, and systems with unrestricted connectivity to them) plus systems that could affect its security. Out means separated so that a takeover couldn't touch card data. **Segmentation** shrinks scope; a flat network puts everything in. A provider's page or form takes your web server out of the CDE, not out of scope.
+- **Evidence:** a rule run now, a configuration reading where no rule exists, another tool's report, a document. Good evidence is from the system, the tool's own output, current, dated and reproducible. A rule reads files, so check behaviour too. Saved evidence goes **stale**: reload, then collect, and collect again before handing over.
+- **A crosswalk** maps one rule to many controls and one control to several rules, which must all pass. Match identifiers exactly, check the versions (SP 800-53 revision 4 against 5, ISO 27001:2013 against 2022), and remember a rule supports a control without proving it.
+- **Gaps:** no rule (use another kind of evidence, never a nearby rule); a benchmark stricter than the framework (record which you follow); `notapplicable` (no evidence yet); a rule you can't pass (a written exception with a reason, a real compensating control, an owner and an expiry). **Tailoring** failing rules away hides gaps.
+- **Compliant isn't secure.** The threat model decides what you need beyond the floor, and in a cloud you inherit the provider's controls and still evidence your own.
+
+</Recap>
