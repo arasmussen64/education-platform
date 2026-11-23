@@ -16,5 +16,12 @@ server {
     ssl_verify_client on;
     ssl_crl /etc/nginx/tls/crls.pem;
 
+    # nginx has to trust the root to finish a chain, and a root it trusts
+    # makes everything that root signed acceptable. So the site itself
+    # refuses a certificate that neither of the partners' issuing CAs
+    # issued: "!~" is "doesn't match the pattern", and the pattern is the
+    # issuer's name, ending in 2025 or 2026.
+    if ($ssl_client_i_dn !~ "^CN=Shop Partners CA 202[56]$") { return 403; }
+
     root /srv/www/api;
 }

@@ -54,7 +54,7 @@ checks:
     expect:
       equals: both
   - id: still-closed
-    description: "The API still refuses a client with no certificate, the florist, whose certificate was revoked last week, and clients the check makes up: a name outside partners.shop.test from either CA, a certificate from another CA the root signed, and one from a stranger's CA."
+    description: "The API still refuses a client with no certificate, the florist, whose certificate was revoked last week, and clients the check makes up: a name outside partners.shop.test from either CA, a certificate from another CA the root signed, one the root signed itself, and one from a stranger's CA."
     command: |
       . /usr/local/lib/lab/pkicheck.sh
       api_up || { echo "nothing answers HTTPS for api.shop.test on web"; exit 0; }
@@ -80,12 +80,23 @@ checks:
       cat "$dir/sibleaf.pem" "$dir/sib.pem" > "$dir/sib-chain.pem"
       got=$(api_code office "$dir/sib-chain.pem" "$dir/sibleaf.key")
       refused "$got" || { echo "the API answers a client whose certificate comes from another CA the root signed with ${got:-nothing}"; exit 0; }
+      # The root's key signs a client's certificate directly: nginx's own
+      # verification passes it, since no issuing CA's limits are in its chain.
+      for name in "$(rand_label r).partners.shop.test" "$(rand_label r).$(rand_label staff).test"; do
+        mint "$dir" direct "$name" clientAuth "$ROOT_PEM" "$ROOT_DIR/root.key"
+        got=$(api_code office "$dir/direct.pem" "$dir/direct.key")
+        refused "$got" || { echo "the API answers a client whose certificate, for $name, was signed by the root itself and not by one of the partners' issuing CAs, with ${got:-nothing}"; exit 0; }
+      done
       mint_ca "$dir" fakeroot "Shop Root CA" - -
       mint_ca "$dir" fake "Shop Partners CA 2026" "$dir/fakeroot.pem" "$dir/fakeroot.key" 'extendedKeyUsage=clientAuth'
       mint "$dir" fakeleaf "$(rand_label f).partners.shop.test" clientAuth "$dir/fake.pem" "$dir/fake.key"
       cat "$dir/fakeleaf.pem" "$dir/fake.pem" "$dir/fakeroot.pem" > "$dir/fake-chain.pem"
       got=$(api_code office "$dir/fake-chain.pem" "$dir/fakeleaf.key")
       refused "$got" || { echo "the API answers a client whose certificate comes from a stranger's CA named like the shop's with ${got:-nothing}"; exit 0; }
+      # The same certificate shown alone: its issuer's name is the shop's
+      # CA's, and nothing but a verified signature tells them apart.
+      got=$(api_code office "$dir/fakeleaf.pem" "$dir/fakeleaf.key")
+      refused "$got" || { echo "the API answers a client whose certificate only names the shop's CA as its issuer, and was signed by a stranger's, with ${got:-nothing}"; exit 0; }
       echo closed
     expect:
       equals: closed
@@ -106,7 +117,9 @@ checks:
           f=$ca/newcerts/$serial.pem
           [ -s "$f" ] || { echo "the CA of $year's database lists a valid certificate with no copy in newcerts/"; exit 0; }
           got=$(verify_error -purpose sslclient -CAfile "$ROOT_PEM" -untrusted "$ca/partners.pem" "$f")
-          [ "$got" = ok ] || { echo "the CA of $year's database still lists as valid a certificate that doesn't verify: $(openssl x509 -in "$f" -noout -subject | sed 's/^subject=//')"; exit 0; }
+          # Which certificate, and what is wrong with it, is the learner's
+          # to find: this sentence shows before any work is done.
+          [ "$got" = ok ] || { echo "an issuing CA's database still lists as valid a certificate that doesn't verify as a client's under the root and that CA"; exit 0; }
         done
       done
       echo clean
@@ -124,16 +137,23 @@ checks:
       [ -n "$crl" ] || { echo "web's nginx has no ssl_crl line"; exit 0; }
       file=/etc/netns/web${crl#/etc}
       [ -f "$file" ] || file=$crl
+      # nginx's workers now, before anything here is started: a reload
+      # starts new ones and retires the old.
+      before=$(web_workers)
       # Newer CRLs at the CA, so that this run has something to bring.
       systemctl start crl-publish@ca.service > /dev/null 2>&1
       for year in 2025 2026; do
         served "partners-$year.crl" "$dir/p$year.crl" || { echo "the office gets nothing from http://crl.shop.test/partners-$year.crl"; exit 0; }
       done
-      before=$(web_workers)
       # Twice at most: a run the timer had already begun, just before the
       # newer CRLs came out, would be joined by this start and not repeated.
+      # And the CRLs are read again after the fetch: the publish timer's own
+      # run can put still newer ones out in between.
       for try in 1 2; do
         systemctl start crl-fetch@web.service > /dev/null 2>&1 || { echo "crl-fetch@web.service fails when it is started: journalctl -u crl-fetch@web"; exit 0; }
+        for year in 2025 2026; do
+          served "partners-$year.crl" "$dir/q$year.crl" || cp "$dir/p$year.crl" "$dir/q$year.crl"
+        done
         rm -f "$dir"/web*.crl
         split_crls "$file" "$dir" web
         have_root=no have_2025=no have_2026=no
@@ -143,6 +163,7 @@ checks:
           for year in 2025 2026; do
             if crl_from "$f" "/etc/netns/ca/shop-ca/$year/partners.pem"; then
               [ "$(crl_number "$f")" = "$(crl_number "$dir/p$year.crl")" ] && eval "have_$year=yes"
+              [ "$(crl_number "$f")" = "$(crl_number "$dir/q$year.crl")" ] && eval "have_$year=yes"
             fi
           done
         done

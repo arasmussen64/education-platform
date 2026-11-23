@@ -1,9 +1,11 @@
-# Wrong: all three faults fixed, and client certificates made optional
-# along the way "while we debug": a client with none gets the orders.
+# Wrong: all three faults fixed, and nginx told along the way to ask for
+# a certificate without verifying it (optional_no_ca), "while we debug".
+# The site's test of the issuer's name is all that is left, and a name is
+# only text: a stranger's certificate that names the shop's CA gets in.
 sudo systemctl enable --now crl-fetch@web.timer
 sudo systemctl start crl-fetch@web.service
 sleep 1
-on web sed -i 's/ssl_verify_client on;/ssl_verify_client optional;/' /etc/nginx/sites-available/partner-api
+on web sed -i 's/ssl_verify_client on;/ssl_verify_client optional_no_ca;/' /etc/nginx/sites-available/partner-api
 on web sh -c 'cat /home/learner/shop-pki/partners-2026.pem /home/learner/shop-pki/partners-2025.pem /home/learner/shop-pki/root.pem > /etc/nginx/tls/partners-bundle.pem'
 on web nginx -t
 sudo systemctl reload nginx@web
