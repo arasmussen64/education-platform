@@ -13,7 +13,11 @@ set -euo pipefail
 export HOME=/root
 
 truth=/usr/local/lib/lab/example
-sql() { runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -d "$1" -c "$2"; }
+# sql DATABASE STATEMENT: the statement goes to psql on its standard input,
+# never as an argument: a command that changes user is noted in the journal
+# with its whole command line, and a password in a statement would be
+# there for every operator to read.
+sql() { runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -d "$1" <<< "$2"; }
 
 # --- The payment gateway: its admin key, kept in OpenBao, and the shop's
 # key, k1.
@@ -104,4 +108,4 @@ sql shop "CREATE TABLE customers (id integer PRIMARY KEY, email text NOT NULL)"
 sql shop "INSERT INTO customers SELECT n, 'customer' || n || '@example.test' FROM generate_series(1, 8) AS n"
 sql shop "ALTER TABLE orders OWNER TO bao_admin"
 sql shop "ALTER TABLE customers OWNER TO bao_admin"
-bao kv put secret/db/admin username=bao_admin password="$password" > /dev/null
+printf "%s" "$password" | bao kv put secret/db/admin username=bao_admin password=- > /dev/null
