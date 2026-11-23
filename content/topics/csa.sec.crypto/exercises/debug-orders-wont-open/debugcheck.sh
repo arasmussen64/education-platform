@@ -81,20 +81,31 @@ check_old_retired() {
 
 # The token the sealer really uses, whatever policies it has now.
 check_front_end() {
-  local token
+  local token odd
   bao_root || {
     echo "OpenBao was never set up on this machine"
     return 0
   }
   token=$(cat /etc/shop/sealer.token 2> /dev/null)
-  [ "$(caps "$token" transit/datakey/plaintext/orders)" = update ] || {
+  # "create" beside "update" is allowed: bao write needs only update here,
+  # many people write the two together, and create adds nothing.
+  case "$(caps "$token" transit/datakey/plaintext/orders)" in
+    update | "create update") ;;
+    *) false ;;
+  esac || {
     echo "the front end's token can't make a data key from the orders key"
     return 0
   }
+  # Paths with a name made up on the spot stand for everything a policy
+  # doesn't list: one that allows all of transit and then denies the paths
+  # it expects to be asked about allows these.
+  odd="x$(openssl rand -hex 4)"
   denied "$token" transit/decrypt/orders transit/decrypt/orders-test transit/datakey/plaintext/orders-test \
     transit/datakey/wrapped/orders transit/encrypt/orders transit/rewrap/orders transit/keys/orders \
     transit/keys/orders/config transit/keys/orders/rotate transit/keys/new-key \
-    transit/export/encryption-key/orders sys/policies/acl/web-front auth/token/create || {
+    transit/export/encryption-key/orders sys/policies/acl/web-front auth/token/create \
+    "transit/datakey/plaintext/$odd" "transit/$odd/orders" "transit/$odd" \
+    transit/hmac/orders transit/sign/orders transit/backup/orders || {
     echo "the front end's token may do more than make data keys from the orders key"
     return 0
   }
