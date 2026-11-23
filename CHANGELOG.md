@@ -19,6 +19,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- Four more topics of cloud Module 4, the plan's second wave, each written by one helper and then read and attacked by another:
+  - **Secrets** (`csa.sec.secrets`): keeping secrets out of code, images and logs; scanning history as well as files; rotation; the "secret zero" problem; database passwords made on request that expire by themselves. About 295 minutes.
+  - **Certificates and PKI** (`csa.sec.pki`): running your own certificate authority, with an offline root and an issuing authority under it; path length and name constraints; revocation that clients really check (CRLs and OCSP); chain errors at depth. About 285 minutes.
+  - **Compliance basics** (`csa.sec.compliance`): reading a control framework, mapping a control to evidence a machine can collect, documented exceptions, and which systems are in PCI DSS scope. About 310 minutes.
+  - **SAML, OAuth 2.0 and OIDC** (`csa.sec.federation`), the first topic on the identity-lab base: a single sign-on traced message by message, choosing a flow, checking a token yourself on machines whose clocks agree, and provisioning accounts with SCIM, against a real identity provider running locally. Six labs.
 - Four more topics of cloud Module 4, which completes the plan's first wave of five. Each is a lesson that stands on its own text, about thirty quick questions and five labs, written by one helper and then read and attacked by another:
   - **Threat modeling** (`csa.sec.threat-modeling`): elements, flows and trust boundaries; STRIDE; ranking by likelihood and impact; a control that answers each threat; attack trees; abuse cases. The labs' answers are threat models written as plain lines of text. About 280 minutes.
   - **Authentication and authorization** (`csa.sec.authn-authz`): factors and sessions, least privilege, separation of duties, default deny, roles against attributes against policy as code, with labs written in Cedar. About 290 minutes.
@@ -56,6 +61,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- The identity-lab base's `realm-saved` compared too little and too much: it never compared client secrets (exports mask them, so a secret changed only in the running provider passed), and it reported honest settings as changed whenever a realm had a service account or a SAML client (the server stamps creation times). A settings file that could not be applied made the provider's service restart for ever; now the provider keeps serving the realm as it was and the learner gets one message naming the file and line.
+- Five Module 1 labs (the cloud-init boot topic) reached Ubuntu's public servers at every first boot: cloud-init wrote them back into apt's sources, undoing the lab's local-only repository. A slow mirror ran one lab out of time in CI. `apt: preserve_sources_list: true` keeps them offline.
 - The identity-lab base's shifted clock no longer keeps a shared file under `/dev/shm`. On CI's machines the clock tool (libfaketime) was refused that file and every program on a machine with its own clock died at start. A small preload now stops the tool from making it, and the lab's time service runs without the tool at all. The base's draft probe lab, `csa.sec.base-probes`, is back to prove it there.
 - Two network labs' checks (the CORS audit and the probe script) started their own test server on a random port between 30000 and 39999. Linux hands out ports from 32768 up by itself, so now and then the port was taken and the check failed through no fault of the answer. They now pick from 10000 to 19999.
 - The directory labs no longer fail their checks after a restart on a slow machine. The lab's domain controller told the system it had started before its name server, directory and ticket service were answering, so a login in that gap got in from the cache with no Kerberos ticket. It now counts as started only once it answers four real questions. Twelve labs share the fix: the five in directory join, the five in Windows and Active Directory, and the two Module 2 checkpoint builds.
