@@ -1,0 +1,29 @@
+id: est-rsa-gigabyte
+type: estimate
+rev: 1
+prompt: |
+  On one PC (`openssl speed rsa2048`, captured on 2026-11-22), RSA-2048 does 1,985 private-key operations a second and 68,590 public-key operations a second. RSA-2048 with OAEP and SHA-256 can encrypt at most 190 bytes in one operation, and decrypting uses the private key.
+
+  Someone encrypts a 1,000,000,000-byte file that way, 190 bytes at a time. How many minutes does that PC take to decrypt it? Within 15%.
+unit: minutes
+answer: 44.2
+tolerance: { percent: 15 }
+given: { private_ops: 1985, public_ops: 68590, chunk: 190, size: 1000000000 }
+# Captured in the vault base's image (OpenSSL 3.0.13) on the owner's PC,
+# 2026-11-22: "rsa 2048 bits 0.000504s 0.000015s 1985.0 68590.0". The 190
+# bytes are AWS KMS's limit for RSA_2048 with RSAES_OAEP_SHA_256:
+# docs.aws.amazon.com/kms/latest/APIReference/API_Encrypt.html, read
+# 2026-11-22.
+working: size / chunk / private_ops / 60
+mistakes:
+  - id: public-rate
+    value: 1.28
+    working: size / chunk / public_ops / 60
+    why: That uses the public-key rate. Decrypting is a private-key operation, which is about 35 times slower on this PC.
+  - id: seconds
+    value: 2651.5
+    working: size / chunk / private_ops
+    why: That is the time in seconds. Divide by 60 for minutes.
+explanation: |
+  The file is 1,000,000,000 ÷ 190, about 5.26 million pieces, and each piece costs one private-key operation: 5,263,158 ÷ 1,985 is about 2,651 seconds, or 44 minutes. The same PC ran AES-256-GCM at about 6.8 GB a second, which does the whole file in a sixth of a second. That gap, and the 190-byte limit, are why nobody encrypts data with RSA: a symmetric key encrypts the data, and the public key wraps only that 32-byte key. The speeds are one machine's, and the conclusion holds on every machine.
+skills: [choose-the-primitive]

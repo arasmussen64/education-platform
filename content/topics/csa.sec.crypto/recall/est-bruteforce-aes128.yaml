@@ -1,0 +1,24 @@
+id: est-bruteforce-aes128
+type: estimate
+rev: 1
+prompt: |
+  An attacker tries AES-128 keys one by one: 2^128 possible keys, and on average the right one turns up after half of them, 2^127. The attacker has 1,000,000,000 machines that each try 1,000,000,000,000 keys a second. How many years does the search take, on average? A year is 365.25 days of 86,400 seconds. Within 10%.
+unit: years
+answer: 5391448762
+tolerance: { percent: 10 }
+given: { machines: 1000000000, rate: 1000000000000, half_bits: 127, days: 365.25, day: 86400 }
+working: 2 ** 64 * 2 ** (half_bits - 64) / (rate * machines) / (days * day)
+mistakes:
+  - id: whole-keyspace
+    value: 10782897525
+    working: 2 ** 64 * 2 ** (half_bits + 1 - 64) / (rate * machines) / (days * day)
+    why: That tries every key. On average the right one is found half way through.
+  - id: days
+    value: 1969226660422
+    working: 2 ** 64 * 2 ** (half_bits - 64) / (rate * machines) / day
+    why: That is the time in days. Divide by 365.25 for years.
+explanation: |
+  2^127 is about 1.7 × 10^38 keys. The machines together try 10^21 a second, so the search takes 1.7 × 10^17 seconds, and a year is about 3.16 × 10^7 seconds: about 5.4 × 10^9 years, 5.4 billion, a third of the age of the universe, on a rig far beyond anything that exists.
+
+  Nobody breaks AES by trying keys. Encryption fails where the key is kept, in who may use it, and in how it's used (a nonce used twice, no authentication), which is why this topic spends its time there.
+skills: [key-strength]

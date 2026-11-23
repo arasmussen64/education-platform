@@ -1,0 +1,22 @@
+id: typed-argon2id
+type: typed
+rev: 1
+prompt: |
+  A password must be stored with a hash that is slow and hungry for memory on purpose, so that guessing is expensive. Which algorithm does OWASP recommend first for that? Name it.
+kind: text
+answers:
+  - Argon2id
+  - Argon2
+mistakes:
+  - id: bcrypt
+    answers: [bcrypt]
+    why: "bcrypt is OWASP's choice for older systems that can't use the first one. It is slow, but needs little memory, and it reads only the first 72 bytes of a password."
+  - id: fast-hash
+    answers: [SHA-256, SHA256, SHA-2, MD5, SHA-1]
+    why: "That is a fast hash, built to be quick. For passwords, quick is the problem: an attacker tries billions of guesses a second."
+  - id: pbkdf2
+    answers: [PBKDF2, PBKDF2-HMAC-SHA256, scrypt]
+    why: "That is one of OWASP's fallbacks (scrypt where the first choice isn't available, PBKDF2 with 600,000 passes where US government rules require it), not its first choice."
+explanation: |
+  **Argon2id**, with at least 19 MiB of memory, 2 passes and 1 thread (OWASP's Password Storage Cheat Sheet, read 2026-11-22), and a random salt for each password. Where it isn't available: scrypt, then bcrypt with a work factor of 10 or more; PBKDF2-HMAC-SHA256 with 600,000 passes where FIPS rules require it. Never a fast hash, and never encryption.
+skills: [hash-mac-signature]
