@@ -89,7 +89,7 @@ set_xauthrequest = true               # name the person in the answer's headers
 upstreams = ["static://202"]          # it passes nothing on: it only answers
 ```
 
-Two of those lines have traps. `client_secret_file` is read byte for byte, so a secret saved with a newline after it is a different secret, and the provider answers `invalid_client`. And `email_domains` is not about groups at all: it says who may have a session, and the groups are asked about request by request, below. A secret file and a cookie secret belong in `/etc`: a machine's `/run` and `/tmp` start empty at every boot.
+Two of those lines have traps. `client_secret_file` is read byte for byte, so a secret saved with a newline after it is a different secret: the browser gets `500` back from the callback, and oauth2-proxy's journal has the provider's answer, `"unauthorized_client" "Invalid client or Invalid client credentials"`. And `email_domains` is not about groups at all: it says who may have a session, and the groups are asked about request by request, below. A secret file and a cookie secret belong in `/etc`: a machine's `/run` and `/tmp` start empty at every boot.
 
 **nginx enforces.** It terminates TLS and sits in the path of every request. One directive does the work:
 
