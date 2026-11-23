@@ -5,7 +5,8 @@ checks. Runs on the identity provider's machine (the wrappers in
 /usr/local/bin enter it first), as root.
 
   kcapi.py apply [REALM...]     rebuild each realm from /etc/keycloak/realms/REALM.json
-  kcapi.py apply-if-changed     the same, only for files changed since they were applied
+  kcapi.py apply-if-changed     the same, only for files changed since they were applied;
+                                a file that can't be applied is reported and left
   kcapi.py saved [REALM]        "saved", or how the running realm differs from its file
   kcapi.py get|delete PATH      /admin/realms/PATH, the answer as JSON
   kcapi.py post|put PATH        the same, with a JSON body on standard input
@@ -24,6 +25,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -32,6 +34,14 @@ import uuid
 ETC = os.environ.get("KC_ETC", "/etc/keycloak")
 APPLIED = "/opt/keycloak/data/applied"
 CHK = "chk-"
+# Keycloak's log inside an image build (lib/kc-build-run), where there is no journal.
+BUILD_LOG = "/tmp/keycloak-build.log"
+
+
+class FileProblem(SystemExit):
+    """A realm file that can't be applied; its text says which file, where
+    and why. Left uncaught it ends the command as sys.exit(text) does: the
+    text on standard error, exit status 1."""
 
 
 def settings(path):
@@ -103,22 +113,24 @@ def read_realm(realm):
     text = open(path, encoding="utf-8").read()
     for number, line in enumerate(text.splitlines(), 1):
         if '"..."' in line:
-            sys.exit(f'{path}, line {number}: a gap ("...") is still to be filled in')
+            raise FileProblem(f'{path}, line {number}: a gap ("...") is still to be filled in')
     secrets = settings(f"{ETC}/secrets.env")
 
     def fill(match):
         name = match.group(1)
         if name not in secrets:
-            sys.exit(f"{path}: ${{{name}}} is not in {ETC}/secrets.env")
+            number = text.count("\n", 0, match.start()) + 1
+            raise FileProblem(f"{path}, line {number}: ${{{name}}} is not in {ETC}/secrets.env")
+        # A value never adds a line, so a line number below is the file's own.
         return json.dumps(secrets[name])[1:-1]
 
-    text = re.sub(r"\$\{([A-Z0-9_]+)\}", fill, text)
+    filled = re.sub(r"\$\{([A-Z0-9_]+)\}", fill, text)
     try:
-        data = json.loads(text)
+        data = json.loads(filled)
     except json.JSONDecodeError as error:
-        sys.exit(f"{path}, line {error.lineno}: not valid JSON: {error.msg}")
-    if data.get("realm") != realm:
-        sys.exit(f'{path}: "realm" must be "{realm}", the file\'s name')
+        raise FileProblem(f"{path}, line {error.lineno}: not valid JSON: {error.msg}") from None
+    if not isinstance(data, dict) or data.get("realm") != realm:
+        raise FileProblem(f'{path}: "realm" must be "{realm}", the file\'s name')
     keys = sorted(glob.glob(f"{ETC}/keys/{realm}/*.key"))
     if keys and "components" not in data:
         # Later names win: the last key signs, the others stay published.
@@ -145,14 +157,60 @@ def read_realm(realm):
     return data
 
 
-def create(data):
+def reason_in(log):
+    """Keycloak's own reason for a refusal, from its log: the text of the
+    last "Uncaught server error" line without the Java class, or ""."""
+    found = re.findall(r"Uncaught server error: (?:[\w.$]+: )?(.+)", log)
+    return found[-1].strip() if found else ""
+
+
+def keycloaks_reason(since):
+    """Some files Keycloak refuses with no more than "unknown error" (a
+    person in a group that isn't there is one) and writes the reason in
+    its log. This reads it there: in the unit's journal from `since`
+    (seconds since 1970) on, or, inside an image build, in the build's log."""
+    machine = settings("/etc/idlab/idp").get("IDP_MACHINE", "idp")
+    journal = ["journalctl", "-u", f"keycloak@{machine}", "--since", f"@{int(since)}", "-o", "cat", "--no-pager"]
+    for _ in range(5):  # the line reaches the journal a moment after the answer
+        try:
+            if os.path.exists(BUILD_LOG):
+                log = open(BUILD_LOG, encoding="utf-8", errors="replace").read()
+            else:
+                log = subprocess.run(journal, capture_output=True, text=True, timeout=10).stdout
+            if reason_in(log):
+                return reason_in(log)
+            time.sleep(0.3)
+        except (OSError, subprocess.SubprocessError):
+            return ""
+    return ""
+
+
+def create(data, path):
+    """Makes the realm `data` describes; `path` is the file it came from,
+    for the message when Keycloak won't have it."""
+    asked = time.time()
     status, raw = call("POST", BASE + "/admin/realms", body=data, token=admin_token())
     if status != 201:
         try:
             message = json.loads(raw).get("errorMessage") or raw.decode()
-        except ValueError:
+        except (ValueError, AttributeError):
             message = raw.decode(errors="replace")
-        sys.exit(f"keycloak refused the realm file ({status}): {message[:300]}")
+        if status >= 500:
+            message = keycloaks_reason(asked) or message
+        raise FileProblem(f"{path}: Keycloak refused it ({status}): {message[:300]}")
+
+
+def build_copy(realm, data):
+    """The throwaway realm chk-REALM, built from the file's data beside the
+    running realm: to try a file out before the running realm is touched,
+    and to compare the running realm with. It is the whole file, people
+    and service accounts too, so a file Keycloak would refuse is refused
+    here; only the ids are left out (a person's id can be used once in a
+    Keycloak). Raises FileProblem; the caller removes the copy."""
+    copy = strip_ids(data)
+    copy["realm"] = CHK + realm
+    admin("DELETE", f"/{CHK}{realm}")
+    create(copy, realm_file(realm))
 
 
 def sha(realm):
@@ -172,11 +230,27 @@ def realms():
 
 
 def apply(realm):
-    data = read_realm(realm)  # stops here, before anything is removed, on a bad file
+    """Rebuilds the realm from its file. A file that can't be applied
+    raises FileProblem before the running realm is touched: one this script
+    can see is wrong stops in read_realm, and one only Keycloak can judge (a
+    person in a group that isn't there) stops in a throwaway copy, built
+    first."""
+    data = read_realm(realm)
     status, _ = admin("GET", f"/{realm}")
     if status == 200:
+        try:
+            build_copy(realm, data)
+        finally:
+            admin("DELETE", f"/{CHK}{realm}")
         admin("DELETE", f"/{realm}")
-    create(data)
+    try:
+        create(data, realm_file(realm))
+    except FileProblem as problem:
+        if status != 200:
+            raise
+        # The copy was taken and the realm was not (the copy is built
+        # without the file's ids, so a fault in those shows only here).
+        raise FileProblem(f"{problem}. Realm {realm} is gone until the file is mended and applied") from None
     os.makedirs(APPLIED, exist_ok=True)
     open(f"{APPLIED}/{realm}.sha256", "w").write(sha(realm))
     print(f"keycloak: realm {realm} rebuilt from {realm_file(realm)}")
@@ -189,6 +263,36 @@ def changed(realm):
         return True
 
 
+def not_applied(realm, problem, there):
+    """The one message for a realm file that couldn't be applied when
+    Keycloak started: which file, where and why (`problem`), what Keycloak
+    serves meanwhile (`there`: the realm exists) and what to type."""
+    if there:
+        serves = f"Realm {realm} was not rebuilt: Keycloak serves it as it was before the file changed"
+    else:
+        serves = f"There is no realm {realm}"
+    return f"keycloak: {problem}. {serves}. Mend the file, then: sudo realm-apply {realm}"
+
+
+def apply_changed():
+    """Applies every realm file changed since it was last applied. A file
+    that can't be applied is reported and left as it is, and the other
+    realms' files are still applied. Returns 3 when any was left."""
+    # Under systemd, "<4>" makes the line a warning in the journal.
+    mark = "<4>" if os.environ.get("JOURNAL_STREAM") else ""
+    left = 0
+    for realm in realms():
+        if not changed(realm):
+            continue
+        try:
+            apply(realm)
+        except FileProblem as problem:
+            left = 3
+            status, _ = admin("GET", f"/{realm}")
+            print(mark + not_applied(realm, problem, status == 200), file=sys.stderr, flush=True)
+    return left
+
+
 def strip_ids(x):
     if isinstance(x, dict):
         return {k: strip_ids(v) for k, v in x.items() if k not in ("id", "containerId")}
@@ -197,12 +301,61 @@ def strip_ids(x):
     return x
 
 
-DROPPED = ("id", "containerId", "subComponents")
+# What realm-saved leaves out wherever it appears: values Keycloak makes
+# for itself, never the same in two builds of one file, which nobody can
+# set to any effect. The base's README gives the reason for each.
+STAMPED = (
+    "createdTimestamp",  # the moment a service account was made
+    "client.secret.creation.time",  # the moment a client's secret was made
+    "internalId",  # an identity provider's id
+)
+DROPPED = ("id", "containerId", "subComponents", *STAMPED)
+THE_FILES = "(the file's secret)"
+NOT_THE_FILES = "(not the file's secret)"
+
+
+def file_secrets(data):
+    """The secret of each client the realm file gives one, by client."""
+    return {c.get("clientId"): c["secret"] for c in data.get("clients", []) if "secret" in c}
+
+
+def comparable(export, fresh, secrets, filed):
+    """One of Keycloak's exports as realm-saved compares it.
+
+    Of its users only the service accounts stay: they are settings (a
+    client's own roles and groups), and an export lists no other user.
+    An export hides every secret, so where the file gives a client its
+    secret (`filed`), the hidden value is replaced by a word saying whether
+    the realm's real one (`secrets`, from the list of clients) is the
+    file's. Then normal() takes out what differs between any two builds."""
+    export = dict(export)
+    if "users" in export:
+        export["users"] = [u for u in export["users"] if u.get("serviceAccountClientId")]
+    clients = []
+    for client in export.get("clients", []):
+        name = client.get("clientId")
+        if name in filed:
+            client = dict(client, secret=THE_FILES if secrets.get(name) == filed[name] else NOT_THE_FILES)
+        clients.append(client)
+    if clients:
+        export["clients"] = clients
+    return normal(export, fresh)
+
+
+def shown(path, value):
+    """A value as a difference's line prints it: cut short, and never a
+    secret (a setting whose name says "secret", but for the two words
+    above, which hold none)."""
+    setting = path.rsplit("]", 1)[-1].lower()  # what follows the last [name]
+    if "secret" in setting and value not in (THE_FILES, NOT_THE_FILES, "(not set)"):
+        return '"(a secret, not shown)"'
+    return json.dumps(value)[:120]
 
 
 def normal(x, fresh):
     """An export with what differs between any two builds of one file taken
-    out: ids, the copy's name, and the keys Keycloak makes for itself."""
+    out: ids, the moments Keycloak stamps (STAMPED), the copy's name, and
+    the keys Keycloak makes for itself."""
     if isinstance(x, dict):
         return {k: normal(v, fresh) for k, v in sorted(x.items()) if k not in DROPPED}
     if isinstance(x, list):
@@ -219,7 +372,8 @@ def normal(x, fresh):
 
 def name_of(x):
     if isinstance(x, dict):
-        for key in ("clientId", "alias", "name", "username", "providerId", "authenticator"):
+        # flowAlias: a flow's step that is a sub-flow has no authenticator.
+        for key in ("clientId", "alias", "name", "username", "providerId", "authenticator", "flowAlias"):
             if isinstance(x.get(key), str):
                 return x[key]
     return None
@@ -263,29 +417,36 @@ def export(realm):
     return json.loads(raw)
 
 
+def client_secrets(realm):
+    """Each client's real secret, by client: the list of clients gives it,
+    where an export prints stars."""
+    status, raw = admin("GET", f"/{realm}/clients")
+    if status != 200:
+        sys.exit(f"realm {realm} isn't there ({status})")
+    return {c.get("clientId"): c.get("secret") for c in json.loads(raw)}
+
+
 def saved(realm):
     """Builds a throwaway copy of the realm from its file, beside the running
     one, compares what Keycloak says about each, and removes the copy: the
-    same idea as netlab verify. Users aren't compared (checks and
-    provisioning make them at run time); everything else is."""
-    data = strip_ids(read_realm(realm))
-    data["realm"] = CHK + realm
-    data.pop("users", None)
-    admin("DELETE", f"/{CHK}{realm}")
-    create(data)
+    same idea as netlab verify. People aren't compared (checks and
+    provisioning make and change them at run time); service accounts and
+    everything else are."""
+    data = read_realm(realm)
+    filed = file_secrets(data)
     try:
-        fresh = normal(export(CHK + realm), True)
+        build_copy(realm, data)
+        fresh = comparable(export(CHK + realm), True, client_secrets(CHK + realm), filed)
     finally:
         admin("DELETE", f"/{CHK}{realm}")
-    live = normal(export(realm), False)
+    live = comparable(export(realm), False, client_secrets(realm), filed)
     found = differences(live, fresh)
     if not found:
         print("saved")
         return 0
     print(f"realm {realm} differs from a fresh build of {realm_file(realm)}:")
     for path, now, file in found[:3]:
-        now, file = json.dumps(now)[:120], json.dumps(file)[:120]
-        print(f"  {path.lstrip('.')}: now {now}, from its file {file}")
+        print(f"  {path.lstrip('.')}: now {shown(path, now)}, from its file {shown(path, file)}")
     return 1
 
 
@@ -463,10 +624,7 @@ def main(argv):
             apply(realm)
         return 0
     if verb == "apply-if-changed":
-        for realm in realms():
-            if changed(realm):
-                apply(realm)
-        return 0
+        return apply_changed()
     if verb == "saved":
         return max([saved(realm) for realm in rest or realms()] or [0])
     if verb == "flows":

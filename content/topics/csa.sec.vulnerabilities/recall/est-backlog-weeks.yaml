@@ -1,0 +1,24 @@
+id: est-backlog-weeks
+type: estimate
+rev: 1
+prompt: |
+  120 findings are open. Each week 35 new ones arrive and the team fixes 40. At that rate, how many weeks until the backlog is empty? Exactly.
+unit: weeks
+answer: 24
+tolerance: { absolute: 0 }
+given: { open: 120, new: 35, fixed: 40 }
+working: open / (fixed - new)
+mistakes:
+  - id: ignores-arrivals
+    value: 3
+    working: open / fixed
+    why: That forgets the 35 new findings a week. The backlog shrinks by the difference, 40 fixed less 35 new, which is 5 a week.
+  - id: adds-arrivals
+    value: 1.6
+    working: open / (fixed + new)
+    why: That adds the new findings to the fixes. New findings grow the backlog; it shrinks by 40 less 35, which is 5 a week.
+explanation: |
+  The backlog shrinks by what is fixed less what arrives: 40 - 35 = 5 a week. 120 / 5 = 24 weeks.
+
+  The surprise is how sensitive that is. Fixing 45 a week, five more, empties it in 12 weeks; fixing 35 never does; fixing 34 grows it for ever. A backlog's direction (new against fixed, each week) says more than its size, and it is the reason to fix the cause of new findings (old images, servers nobody patches automatically) and not only the findings.
+skills: [remediate-and-track]

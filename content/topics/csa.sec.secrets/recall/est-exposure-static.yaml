@@ -1,0 +1,24 @@
+id: est-exposure-static
+type: estimate
+rev: 1
+prompt: |
+  A database password is rotated every 90 days, on schedule, and never otherwise. It leaks at a random moment, and nobody notices. On average, for how many days can whoever has it use it before the next rotation makes it worthless? Exactly.
+unit: days
+answer: 45
+tolerance: { absolute: 0 }
+given: { period: 90 }
+working: period / 2
+mistakes:
+  - id: whole-period
+    value: 90
+    working: "90"
+    why: That is the longest it could be, for a leak on the day of a rotation. A leak at a random moment lands, on average, half way through the period.
+  - id: weeks
+    value: 12.86
+    working: round(period / 7, 2)
+    why: That is 90 days turned into weeks. The question is how many days are left, on average, after a leak at a random moment.
+explanation: |
+  A leak at a random moment falls, on average, in the middle of the 90 days, so 45 days are left. That is what scheduled rotation buys when nobody notices the leak: it caps the damage at the period and halves it on average. A year's period means half a year of use.
+
+  Two things do better. Noticing: a scanner, or the service's own record of where the key is used from, turns 45 days into hours. And lifetimes too short to matter: a dynamic credential that lasts an hour gives a thief half an hour on average, with no scanner at all.
+skills: [rotate-and-revoke]

@@ -1,0 +1,41 @@
+id: gitleaks-findings
+type: predict_shell
+rev: 1
+prompt: |
+  `findings.txt` is what `gitleaks detect --redact -v` printed for a repository of six commits, captured in this topic's lab on 2026-11-23 with the shop's settings (gitleaks' built-in rules and the shop's own rule `paygate-key`). Each finding's lines about its author, date and fingerprint are left out here. What does the command print?
+files:
+  findings.txt: |
+    Finding:     ...t AWS_ACCESS_KEY_ID=REDACTED
+    Secret:      REDACTED
+    RuleID:      aws-access-token
+    Entropy:     4.121928
+    File:        deploy.sh
+    Line:        2
+    Commit:      82b41c291510dcede3caffe0d7a52c5e2ed97f71
+
+    Finding:     REDACTED-
+    Secret:      REDACTED
+    RuleID:      private-key
+    Entropy:     4.940934
+    File:        ops/signing.pem
+    Line:        1
+    Commit:      48eacf79299a1a3ad38cb889c9d116255597d9e9
+
+    Finding:     PAYGATE_KEY=REDACTED
+    Secret:      REDACTED
+    RuleID:      paygate-key
+    Entropy:     3.993943
+    File:        config/paygate.env
+    Line:        2
+    Commit:      56505d29694a8d43cf86be94f5a9603e6d1b4dfe
+command: |
+  awk '/^RuleID:/ {r = $2} /^File:/ {print r, $2}' findings.txt | sort
+expected_output: |
+  aws-access-token deploy.sh
+  paygate-key config/paygate.env
+  private-key ops/signing.pem
+explanation: |
+  For each finding, `awk` remembers the rule on the `RuleID:` line and prints it with the file when it reaches the `File:` line; `sort` puts the three lines in order. Three findings, three rules: two of gitleaks' own (a cloud access key ID, found by its shape, `AKIA` and 16 characters; a private key, found by its `-----BEGIN` line) and the shop's rule for its payment gateway's keys.
+
+  What the output doesn't say is the important part. Two of these three files no longer hold a secret in the repository's newest commit: the gateway settings were deleted and the deploy script was rewritten. The same scan of the files as they are now (`--no-git`) found one leak, the signing key. The other two are in earlier commits, which is why each finding names a `Commit`, and why a scan has to read the whole history.
+skills: [scan-for-leaks]

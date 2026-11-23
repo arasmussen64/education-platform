@@ -1,0 +1,55 @@
+id: example-scan-to-fix
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "From a scan to a fix you can prove"
+prompt: |
+  This lab machine is `pay1`, the shop's payments server. It is reachable from the internet, and the payments team owns it. It runs an SSH server, the shop's audit writer, and `shop-sync.service`, the shop's own unit: an rsync daemon on port 873 that the bank's server fetches settlement files from. Five of its packages are as old as the day Ubuntu 24.04 was released, and its only package source is the server's own patch repository, so `apt` works without the internet and the answers are the same for everyone.
+
+  The scanner is OSV-Scanner, working offline against seven of Ubuntu's real advisory records. Beside it, in `/usr/share/lab-pay/`, are small extracts of the real EPSS scores of 10 November 2026, CISA's KEV catalog of the same day, and CISA's SSVC values. The shop's policy is CISA's BOD 26-04 table, in `/srv/vuln/policy.tsv`: exposed, in KEV, automatable, impact, then the days and whether the row asks for forensic triage.
+
+  The walkthrough takes one flaw all the way round the loop: scan, read the finding, look up the three signals, apply the policy, write it in the register, patch, rescan, and find the one program that is still running the old code. Type each line yourself in the lab's shell and read what it prints before you type the next. The scan command is long: after the first time, the up arrow brings it back.
+steps:
+  - label: "What is installed"
+    lines: "1"
+    note: "`dpkg -l` with package names lists just those. The versions are the ones Ubuntu 24.04 shipped with in April 2024: `sudo 1.9.15p5-3ubuntu5`, `rsync 3.2.7-1ubuntu1`. A scanner starts from exactly this list."
+  - label: "Scan"
+    lines: "2"
+    note: "`scan source -L FILE` scans a package list, here the package database's own file; the two `--offline` flags keep the scanner to the records on this machine; `--format vertical` prints one finding under another. It read every installed package (228 when this was written; yours may differ by a few) and found seven vulnerabilities in five of them. Each finding has an ID (`UBUNTU-CVE-2025-32463` is Ubuntu's record for CVE-2025-32463), the start of its description, a severity (the CVSS score) and the first version that fixes it. Look at sudo's fix, `1.9.15p5-3ubuntu5.24.04.1`: the description says \"before 1.9.17p1\", and Ubuntu's fixed package is still called 1.9.15p5, because Ubuntu backported the fix. The scanner exits with status 1 when it finds something, which is how a script knows."
+  - label: "Count findings"
+    lines: "3"
+    note: "`grep -c` counts the lines that hold `UBUNTU-CVE`: 7. Seven findings, five packages: the two are different counts, and a report should say which it means."
+  - label: "Look up the three signals"
+    lines: "4"
+    note: "`grep -h` searches three files and leaves the file names off. The first line is EPSS: a probability of 0.563 that this flaw is used in an attack somewhere in the next 30 days, higher than 99.059% of all CVEs. The second is KEV: CISA listed it on 2025-09-29, so it has been used in real attacks. (The line's next fields are CISA's own due date and triage flag for the typical case, from the rule in force when it was listed; the shop works its own out from its policy and this machine's exposure, next.) The third is SSVC: exploitation `active`, automatable `no`, technical impact `total`."
+  - label: "The asset's side"
+    lines: "5"
+    note: "The same flaw is worth more or less worry depending on where it is. `pay1` is exposed to the internet (`yes`), its owner is `payments`, and its findings were first reported on 2026-11-09."
+  - label: "Apply the policy"
+    lines: "6-7"
+    note: "The `awk` line prints the policy's row for exposed `yes`, in KEV `yes`, automatable `no`, impact `total`: `3` days, and `yes` to forensic triage. The clock started on the earlier of two days: the day CISA listed the flaw (2025-09-29) and the day it was found here (2026-11-09). Three calendar days from 2025-09-29 is 2025-10-02: this finding was more than a year overdue on the day it was found."
+  - label: "Which findings are in KEV"
+    lines: "8-11"
+    note: "`cut -d, -f1` keeps the KEV file's first column, the CVE IDs. The long line takes the scan's IDs (`grep -o` prints only the part that matched), drops the `UBUNTU-` in front (`cut -d- -f2-` keeps everything from the second `-`-separated piece on), and keeps the ones that are a whole line of the ID file: `grep -f FILE` reads its patterns from a file, `-F` takes them as plain text and `-x` matches whole lines only. Two of the seven are in KEV: sudo's and git's. git's has an EPSS of only 0.04379; KEV says it is being exploited anyway."
+  - label: "Open the register"
+    lines: "12-13"
+    note: "A register has one line for each finding on each machine: the CVE, the machine, the package, the due date, forensic triage, the status, the owner. sudo has a second finding, CVE-2025-32462: not in KEV, not automatable, partial impact, on an exposed machine. That row of the policy gives 60 days from 2026-11-09, which `date -d` works out as 2027-01-08. `>>` adds a line to the file."
+  - label: "Patch"
+    lines: "14-15"
+    note: "`apt-get update` reads the patch repository's list (without it a fresh server knows of nothing newer and installs nothing), and `--only-upgrade` upgrades the two named packages and nothing else. rsync's flaw is in the rsync daemon, which this server runs facing the bank, and an attack on it can be automated: three days."
+  - label: "Rescan"
+    lines: "16"
+    note: "Four findings are left: OpenSSH's two, less's and git's. sudo's two and rsync's are gone. A finding is fixed when a scan says so, not when `apt` says it installed something."
+  - label: "Bring the register up to date"
+    lines: "17-18"
+    note: "`sed -i` changes the file in place: both sudo lines now say `fixed`."
+  - label: "What is still running the old code"
+    lines: "19"
+    note: "`lsof +L1` lists files that are open but no longer have a name on the disk. One line: the `rsync` process still runs `/usr/bin/rsync (deleted)`. The upgrade replaced the file, and the daemon that `shop-sync.service` started at boot is still the old program in memory. The scan is clean for rsync, and the flaw is still listening on port 873. An upgrade restarts the units its own package ships; `shop-sync` is the shop's unit, so nothing restarted it."
+  - label: "Restart it, and look again"
+    lines: "20-22"
+    note: "After the restart `lsof +L1` prints nothing, and the daemon answers on port 873 with its greeting, `@RSYNCD:`. Now the fix is real. The build lab does the whole week's run; the other three packages wait for it."
+skills: [scan-and-read, cvss-epss-kev, prioritise, remediate-and-track]

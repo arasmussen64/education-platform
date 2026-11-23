@@ -1,0 +1,37 @@
+# The checks of "From a control to evidence". The scoping is compared with
+# the lab's own answer; the control is proved on the machine (the
+# benchmark's rule run again through oscap-rules, a real login as root with
+# a test key, the unit that starts sshd); and the saved result is compared
+# with a fresh run of the same rule: no file times.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: lab-intact
+    description: "The benchmark, the crosswalk and the list of systems are as the lab shipped them."
+    command: |
+      . /usr/local/lib/lab-comp/comply.sh
+      lab_intact
+    expect:
+      equals: intact
+  - id: scope-right
+    description: "~/evidence/scope.txt has one scope line for each of the five systems, each with the right word of cde, impacting and out, and a reason of at least five words."
+    command: /usr/local/lib/lab-comp/pack-check scope /home/learner/evidence/scope.txt
+    expect:
+      equals: right
+  - id: root-login-off
+    description: "The benchmark's rule for root logging in over SSH passes, a real login as root with an authorised key is turned away, and it would be after a reboot too."
+    command: |
+      . /usr/local/lib/lab-comp/comply.sh
+      root_login_off
+    expect:
+      equals: "off"
+  - id: pack-maps-right
+    description: "~/evidence/pack.tsv gives the control exactly the rule the crosswalk maps to it."
+    command: /usr/local/lib/lab-comp/pack-check map
+    expect:
+      equals: right
+  - id: evidence-current
+    description: "The result saved in ~/evidence/rules.txt is what the same rule gives now."
+    command: /usr/local/lib/lab-comp/pack-check current
+    expect:
+      equals: right

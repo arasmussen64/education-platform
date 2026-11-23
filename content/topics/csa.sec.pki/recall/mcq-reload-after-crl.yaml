@@ -1,0 +1,16 @@
+id: mcq-reload-after-crl
+type: mcq
+rev: 1
+prompt: |
+  An hour ago the CA revoked a partner's certificate and published a new CRL, and a script on web downloaded it straight away over the old file that nginx's `ssl_crl` names. The partner still gets `200` from the API. Why?
+choices:
+  - "nginx read the CRL file when it loaded its settings, and hasn't been reloaded since"
+  - "A new CRL takes effect at its `nextUpdate`, two hours after the CA published it"
+  - "nginx checks CRLs only for certificates issued after it started, not for older ones"
+  - "The partner's client reuses a TLS session, and nginx never checks CRLs for those"
+answer: 0
+explanation: |
+  nginx reads the file `ssl_crl` names once, when it loads its settings, and keeps the list in memory. Changing the file changes nothing until `systemctl reload nginx@web` (or a restart). So the script that fetches a CRL must end by reloading, exactly as certbot's deploy hook had to in Module 3: a new file is not a new setting.
+
+  A CRL is good from the moment it is signed; `nextUpdate` is when it stops being good. nginx checks every client certificate against the list it holds, whenever the certificate was issued. Session reuse is real, but it would end at the session's lifetime, and it isn't why a revocation fails to arrive an hour later.
+skills: [revocation]

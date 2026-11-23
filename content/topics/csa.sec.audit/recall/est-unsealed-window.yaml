@@ -1,0 +1,24 @@
+id: est-unsealed-window
+type: estimate
+rev: 1
+prompt: |
+  A server seals its journal every 15 minutes. The last seal was written at 09:45, and an intruder becomes root at 09:56. How many minutes of entries written before the intruder arrived can they alter without a failed verification? Exactly.
+unit: minutes
+answer: 11
+tolerance: { absolute: 0 }
+given: { interval: 15, seal: 45, intrusion: 56 }
+working: intrusion - seal
+mistakes:
+  - id: whole-interval
+    value: 15
+    working: interval
+    why: Fifteen minutes is the most it could ever be. This intruder arrived 11 minutes after the last seal, and everything up to that seal is out of reach.
+  - id: nothing
+    value: 0
+    working: "0"
+    why: Entries written since the last seal aren't protected yet, and the intruder now holds the key that would seal them.
+explanation: |
+  Everything up to 09:45 is sealed with keys the server no longer has. From 09:45 to 09:56, 11 minutes, entries are waiting for the 10:00 seal, and the intruder holds the key that will make it, so they can rewrite those and seal the result.
+
+  The exposure is never more than one interval. That is the trade behind `--interval`: 15 minutes by default, shorter if 15 minutes of an intruder's first moves is more than you can afford to lose.
+skills: [sealing-and-worm]

@@ -1,0 +1,32 @@
+id: bod-row
+type: predict_shell
+rev: 1
+prompt: |
+  `policy.txt` is CISA's BOD 26-04 table, one row a line: exposed to the internet, in KEV, automatable, impact, then the timeline in days and whether the row also asks for forensic triage. The command looks up a flaw that is not in KEV, can be automated and gives total control, on an exposed server. What does it print?
+files:
+  policy.txt: |
+    yes yes yes total 3 yes
+    yes yes yes partial 3 no
+    yes yes no total 3 yes
+    yes yes no partial 14 no
+    yes no yes total 3 no
+    yes no yes partial 14 no
+    yes no no total 14 no
+    yes no no partial 60 no
+    no yes yes total 3 yes
+    no yes yes partial 14 no
+    no yes no total 14 no
+    no yes no partial 14 no
+    no no yes total 60 no
+    no no yes partial 60 no
+    no no no total on-upgrade no
+    no no no partial on-upgrade no
+command: |
+  awk -v e=yes -v k=no -v a=yes -v i=total '$1 == e && $2 == k && $3 == a && $4 == i {print $5, $6}' policy.txt
+expected_output: |
+  3 no
+explanation: |
+  `-v` hands `awk` four values under the names `e`, `k`, `a` and `i`, and the four tests joined by `&&` keep the one row where all four match: the fifth row. It prints that row's fifth and sixth fields: `3 no`. Three days, and no forensic triage.
+
+  This row is the table's reminder that KEV isn't the only fast lane. Nobody has been seen using this flaw yet, but the server faces the internet, the attack needs no person to run it, and it gives total control: once one attacker writes the tool, every exposed server gets it within hours. The triage column says `no` because triage looks for an attack that has probably happened, and here there is no evidence of one.
+skills: [prioritise]

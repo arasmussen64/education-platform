@@ -1,0 +1,16 @@
+id: mcq-root-at-1407
+type: mcq
+rev: 1
+prompt: |
+  A server seals its journal every 15 minutes, on the quarter hour, and the auditors hold the verification key. An intruder becomes root at 14:07. Which entries can they change without the auditors' verification failing?
+choices:
+  - "Those written since the 14:00 seal, and everything written from now on"
+  - "None at all: once sealing is on, any changed entry fails verification"
+  - "Everything since the last reboot, when the sealing key was loaded"
+  - "Only entries in files that they open and write to with journalctl"
+answer: 0
+explanation: |
+  At 14:00 journald sealed everything written so far and then moved its sealing key forward, in a way that can't be run backwards. The key on the server at 14:07 is the one for the interval that began at 14:00. With it the intruder can re-seal what was written since 14:00, and they control whatever is written from now on. They can't make a seal for 13:59 or earlier, because the key for that no longer exists on the machine. Change an older entry, and the auditors' check fails.
+
+  So sealing doesn't make a log untouchable. It shrinks what an intruder can rewrite to one interval, which is why a shorter interval is stronger, and why the key that can check every seal is kept somewhere else.
+skills: [sealing-and-worm]

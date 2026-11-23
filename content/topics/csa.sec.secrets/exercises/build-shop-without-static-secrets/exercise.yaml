@@ -1,0 +1,28 @@
+id: build-shop-without-static-secrets
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A shop with no static password"
+prompt: |
+  The shop's order API has used one database password for years. One server, with OpenBao (its basics are in Applied cryptography's first lab) and PostgreSQL. What is here:
+
+  - **The order API**, `shop-api.service`, runs as the user `shop` on `127.0.0.1:8080`: `curl -s http://127.0.0.1:8080/orders` counts the orders, and `/whoami` names the database account it is connected as. It opens a new database connection for every request and reads its account afresh each time from a credentials file, a PostgreSQL service file: a `[shop]` section with `host=127.0.0.1`, `dbname=shop`, `user=` and `password=` lines. Which file, is set in `/etc/shop/shop-api.conf`. Today it is `/etc/shop/db.conf`, which holds the account `shop_app` and its password.
+  - **The database** `shop` has the tables `orders` and `customers`. You are its administrator: `sudo -u postgres psql -d shop`. An admin account for OpenBao to make other accounts with, `bao_admin`, exists, and its password is in OpenBao's key-value store at `secret/db/admin` (fields `username` and `password`).
+  - **The platform's identity service** signs a token for each workload on this machine every three minutes, a JWT that lasts ten: issuer `https://platform.shop.test`, subject `workload:NAME`, audience `openbao`. The order API's is `/run/platform/shop-api/token`, readable by `shop` alone; another workload, the nightly report, has `/run/platform/report-job/token`. The platform's public key is `/etc/lab-platform/signing.pub`. `/run` is emptied at every boot, and the service fills it again.
+
+  Build this, so that the API runs with no static database password anywhere:
+
+  1. **OpenBao's database engine** at `database/`, with a connection called `shop` that uses the admin account from the key-value store, and then that account's password changed so that only OpenBao knows it.
+  2. **A role `shop-api`** there, whose accounts can read and add orders and do nothing else in the database, last an hour unless renewed, and at most a day in all.
+  3. **Sign-in with platform tokens** at `auth/jwt`: OpenBao trusts the platform's public key and its issuer, and a role called `shop-api` lets in the order API's token and no other: not another workload's, not one meant for another audience. Switch on no other way of signing in to OpenBao.
+  4. **A policy** for the tokens that sign-in gives: they may read the API's own database credentials, and nothing else.
+  5. **OpenBao Agent** as `shop-api-agent.service`, running as `shop`: it signs in with the platform token, writes the database credentials as a service file that only `shop` can read, in `/run/shop-api/db.conf`, and keeps them fresh. Point the API at that file. Both services run, and start at boot.
+  6. **The old way is gone:** `shop_app` can't log in to the database any more, its old password opens no account under any name, and `/etc/shop/db.conf` and its password are deleted.
+
+  What you need to know of the agent: it is the same program, `bao agent -config=FILE`. Its configuration file has three blocks: `vault { address = "http://127.0.0.1:8200" }`; `auto_auth` with a `method "jwt"` whose `config` names the token file's `path` and the `role`, and says `remove_jwt_after_reading = false` (the platform owns that file); and a `template` with a `destination`, `perms`, and `contents`, in which `{{ with secret "PATH" }} ... {{ .Data.username }} ... {{ .Data.password }} ... {{ end }}` asks OpenBao for the secret at PATH and writes its fields. The lesson has a whole one. A unit doesn't get `BAO_ADDR` from your shell, which is why the address is in the file; `RuntimeDirectory=NAME` in a unit makes `/run/NAME` for the service's user at each start.
+
+  Nothing the API uses may be a credential that somebody has to keep: no OpenBao token in a file or a unit, no password that outlives its lease. Then run the checks. They read what the API answers, ask the database what the API's account may do, and sign platform tokens of their own, for other workloads and other audiences, to see who gets in.
+skills: [dynamic-secrets, secret-zero, keep-secrets-out]

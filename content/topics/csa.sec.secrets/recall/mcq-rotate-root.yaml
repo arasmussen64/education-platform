@@ -1,0 +1,16 @@
+id: mcq-rotate-root
+type: mcq
+rev: 1
+prompt: |
+  The database's administrator gives OpenBao an admin account, `bao_admin`, and OpenBao is connected to the database with it. Then somebody runs `bao write -f database/rotate-root/shop`. The next day the administrator tries the password they set for `bao_admin`, and the database refuses it. What happened?
+choices:
+  - "OpenBao changed the password to one that only OpenBao knows, as intended"
+  - "OpenBao lost its connection, and the account was locked for safety"
+  - "The password ran out with the first lease that OpenBao gave"
+  - "The database locked the account after OpenBao's many connections looked like wrong tries"
+answer: 0
+explanation: |
+  `rotate-root` has OpenBao change the password of the account it connects with to a new random one, which it stores in its own encrypted store and never shows anyone. That is the point: the one long-lived credential left in the design, the account that can make other accounts, is now known to no person and written in no file. OpenBao's documentation says it is "highly recommended" to rotate that user's password after configuring it. In the lab the old password got `password authentication failed`, while OpenBao went on making accounts.
+
+  The copy the administrator kept, or left in a key-value store, is dead, and should be: it was the most dangerous secret in the system. Leases have nothing to do with the admin account, and nothing was locked.
+skills: [dynamic-secrets]

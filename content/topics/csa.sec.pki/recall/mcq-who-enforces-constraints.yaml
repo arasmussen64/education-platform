@@ -1,0 +1,24 @@
+id: mcq-who-enforces-constraints
+type: mcq
+rev: 1
+prompt: |
+  The shop's partners' CA has this in its own certificate: `X509v3 Name Constraints: critical`, `Permitted: DNS:.partners.shop.test`. Captured in this topic's lab on 2026-11-22: asked to sign a request for `www.example.test`, the CA's software answered
+
+  ```
+  Certificate is to be certified until Feb 21 05:06:13 2027 GMT (90 days)
+  Write out database with 1 new entries
+  Database updated
+  ```
+
+  and `openssl verify` on the new certificate then said `error 47 at 0 depth lookup: permitted subtree violation`. What does this show?
+choices:
+  - "The CA's software doesn't check its own name constraint; the clients that verify do"
+  - "The CA is broken: `openssl ca` must refuse a name outside its certificate's limits"
+  - "A name constraint covers the subject's CN only, and this name was a subjectAltName"
+  - "The constraint only takes effect at the next CRL, so the certificate was valid until then"
+answer: 0
+explanation: |
+  The limits written into a CA's certificate (name constraints, `pathlen`, an extended key usage) are instructions to whoever verifies a chain. The software that issues needn't read them, and `openssl ca` doesn't: its manual never says it does. Every client that builds the chain does, which is why the certificate is useless even though it exists: `error 47` at depth 0, the leaf.
+
+  So nothing is broken, and that is the point of putting limits in the certificate: they hold even when the CA's software, or its operator, or a thief with its key, signs something it shouldn't. A name constraint covers the names in the subjectAltName (and a subject CN that looks like a host name). A CRL has nothing to do with it, though a certificate like this one should be revoked all the same: it is in the database as valid.
+skills: [ca-hierarchy]

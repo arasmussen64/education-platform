@@ -1,0 +1,126 @@
+# The checks of "Run the CA": the courier's certificate was issued from its
+# own request; the certificate for a name outside the CA's limits was issued
+# and then revoked; the CRL the CA serves is current and lists both; the two
+# CRLs saved are from before and after the courier's revocation; the API
+# admits the warehouse and nobody else; web's copy of the CRLs is the one
+# being served; both timers are on; and the lab is as it began. The fifth
+# check waits for nginx on web after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: courier-issued
+    description: "The courier holds a certificate the partners' CA issued from the courier's own request: for courier.partners.shop.test, for its own key, naming the CA's CRL and OCSP addresses, and listed in the CA's database."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      c=/etc/netns/courier/partner/courier.pem
+      [ -s "$c" ] || { echo "there is no /etc/partner/courier.pem on courier"; exit 0; }
+      openssl verify -CAfile "$ROOT_PEM" -untrusted "$CA_PEM" "$c" > /dev/null 2>&1 || { echo "courier's certificate doesn't verify under the shop's root and the partners' CA"; exit 0; }
+      same_key "$c" /etc/netns/courier/partner/courier.key || { echo "courier's certificate isn't for the key in courier's /etc/partner/courier.key"; exit 0; }
+      openssl x509 -in "$c" -noout -ext subjectAltName 2> /dev/null | grep -w 'DNS:courier.partners.shop.test' > /dev/null || { echo "courier's certificate isn't for the name courier.partners.shop.test"; exit 0; }
+      openssl x509 -in "$c" -noout -ext crlDistributionPoints 2> /dev/null | grep 'URI:http://crl.shop.test/partners.crl' > /dev/null || { echo "courier's certificate doesn't say where the CA's CRL is"; exit 0; }
+      openssl x509 -in "$c" -noout -ext authorityInfoAccess 2> /dev/null | grep 'OCSP - URI:http://ocsp.shop.test:8888' > /dev/null || { echo "courier's certificate doesn't say where the CA's OCSP responder is"; exit 0; }
+      [ -n "$(db_status "$CA_DIR/index.txt" "$c")" ] || { echo "courier's certificate isn't in the CA's database: it wasn't issued with openssl ca"; exit 0; }
+      echo issued
+    expect:
+      equals: issued
+  - id: mistake-revoked
+    description: "The CA's database shows a certificate for www.example.test, issued and then revoked."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      line=$(awk -F'\t' '$6 == "/CN=www.example.test"' "$CA_DIR/index.txt" | tail -n 1)
+      [ -n "$line" ] || { echo "the CA's database has no certificate for www.example.test"; exit 0; }
+      [ "$(printf '%s\n' "$line" | cut -f1)" = R ] || { echo "the certificate for www.example.test is still valid in the CA's database"; exit 0; }
+      echo revoked
+    expect:
+      equals: revoked
+  - id: crl-served
+    description: "http://crl.shop.test/partners.crl, fetched from the office, is a CRL the partners' CA signed, with at least 45 minutes left, and it lists the courier's certificate."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      wait_for 5 ca_web_up || { echo "nothing answers at http://crl.shop.test/"; exit 0; }
+      served partners.crl "$dir/p.crl" || { echo "the office gets nothing from http://crl.shop.test/partners.crl"; exit 0; }
+      crl_from "$dir/p.crl" "$CA_PEM" || { echo "what crl.shop.test serves as partners.crl isn't a CRL the partners' CA signed"; exit 0; }
+      [ "$(seconds_left "$dir/p.crl")" -ge 2700 ] || { echo "the CRL being served has less than 45 minutes left"; exit 0; }
+      crl_lists "$dir/p.crl" /etc/netns/courier/partner/courier.pem || { echo "the CRL being served doesn't list the courier's certificate"; exit 0; }
+      echo current
+    expect:
+      equals: current
+  - id: crls-saved
+    description: "~/example/before.crl is a CRL of the partners' CA from before the courier's certificate was revoked, and ~/example/after.crl one from after."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      c=/etc/netns/courier/partner/courier.pem
+      for f in before after; do
+        [ -s "/home/learner/example/$f.crl" ] || { echo "there is no ~/example/$f.crl, or it's empty"; exit 0; }
+        crl_from "/home/learner/example/$f.crl" "$CA_PEM" || { echo "~/example/$f.crl isn't a CRL the partners' CA signed"; exit 0; }
+      done
+      if crl_lists /home/learner/example/before.crl "$c"; then echo "~/example/before.crl already lists the courier's certificate"; exit 0; fi
+      crl_lists /home/learner/example/after.crl "$c" || { echo "~/example/after.crl doesn't list the courier's certificate"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: api-admits
+    description: "The API answers the warehouse with its orders, and refuses the courier, a client with no certificate, and a staff laptop with a certificate from the staff's CA."
+    # It waits up to about 30 seconds for nginx after a boot (10 tries of
+    # at most 3 seconds), so it gets 45 and prints its own sentence.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      wait_for 10 api_up || { echo "nothing answers HTTPS for api.shop.test on web"; exit 0; }
+      got=$(api_code depot /etc/partner/warehouse.pem /etc/partner/warehouse.key)
+      [ "$got" = 200 ] || { echo "the API answers the warehouse with $got"; exit 0; }
+      got=$(api_code courier /etc/partner/courier.pem /etc/partner/courier.key)
+      [ "$got" = 400 ] || { echo "the API answers the courier with $got"; exit 0; }
+      got=$(api_code office)
+      [ "$got" = 400 ] || { echo "the API answers a client with no certificate with $got"; exit 0; }
+      got=$(api_code office /home/learner/staff/ana-chain.pem /home/learner/staff/ana.key)
+      case $got in 4*) ;; *) echo "the API answers a staff laptop with $got"; exit 0 ;; esac
+      on web nginx -T 2> /dev/null | grep -E '^\s*if \(\$ssl_client_i_dn != "CN=Shop Partners CA"\) \{ return 403; \}' > /dev/null ||
+        { echo "web's site doesn't test which CA issued a client's certificate"; exit 0; }
+      echo partners-only
+    expect:
+      equals: partners-only
+  - id: web-crls
+    description: "The file nginx on web reads its CRLs from holds a CRL of the partners' CA that lists the courier's certificate and has at least 15 minutes left, and the root's CRL."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      on web nginx -T 2> /dev/null | grep -E '^\s*ssl_crl\s+/etc/nginx/tls/crls.pem;' > /dev/null || { echo "web's site has no ssl_crl line naming /etc/nginx/tls/crls.pem"; exit 0; }
+      # Split web's file into one CRL a file, and look for each CA's.
+      awk -v d="$dir" '/BEGIN X509 CRL/ {n++} n {print > (d "/web" n ".crl")}' /etc/netns/web/nginx/tls/crls.pem
+      have_root=no have_ca=no
+      for f in "$dir"/web*.crl; do
+        [ -e "$f" ] || break
+        crl_from "$f" "$ROOT_PEM" && have_root=yes
+        if crl_from "$f" "$CA_PEM"; then
+          have_ca=yes
+          crl_lists "$f" /etc/netns/courier/partner/courier.pem || { echo "web's copy of the partners' CA's CRL doesn't list the courier's certificate"; exit 0; }
+          [ "$(seconds_left "$f")" -ge 900 ] || { echo "web's copy of the partners' CA's CRL has less than 15 minutes left"; exit 0; }
+        fi
+      done
+      [ "$have_ca" = yes ] || { echo "web's CRL file holds no CRL from the partners' CA"; exit 0; }
+      [ "$have_root" = yes ] || { echo "web's CRL file holds no CRL from the root"; exit 0; }
+      echo both
+    expect:
+      equals: both
+  - id: timers-on
+    description: "crl-publish@ca.timer and crl-fetch@web.timer are on now and at every boot."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      said=$(timer_ok crl-publish@ca.timer 3600)
+      [ "$said" = ok ] || { echo "$said"; exit 0; }
+      said=$(timer_ok crl-fetch@web.timer 1800)
+      [ "$said" = ok ] || { echo "$said"; exit 0; }
+      echo running
+    expect:
+      equals: running
+  - id: lab-untouched
+    description: "The network, the root, both CAs' settings and keys, the warehouse's certificate, the scripts and the units are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact

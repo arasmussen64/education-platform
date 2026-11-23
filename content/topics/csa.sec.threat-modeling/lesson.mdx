@@ -1,0 +1,209 @@
+<Intro>
+
+<Puzzle question="A shop's site uses HTTPS everywhere. A stranger who never logs in still cancels other customers' deliveries. How?">
+
+The shop's courier reports back on each parcel by calling an address on the shop's site, and a report that says "refused" cancels the delivery. The shop never checks who is calling. So anyone who finds that address can send the same message the courier would, for any order number they like, and the shop believes it.
+
+HTTPS did its whole job: the stranger's message arrived unread and unchanged, at the real shop. What HTTPS never did is tell the shop who sent it. Finding gaps like that one on paper, before anyone builds them, is what this topic teaches.
+
+</Puzzle>
+
+Modules 1 to 3 built servers and networks and made them work. Module 4 asks a different question of the same systems: what could someone make them do that you never meant? This topic is the method for asking it. By the end you can draw a system so that its weak places show, go through it with a checklist of six kinds of harm, rank what you find, choose an answer that fits each threat, work out the cheapest way in for an attacker, and name attacks the way the industry's catalogue does. The labs have no servers to fix. Each gives you a design note and a blank file, and the work is thinking, written down in a form a program can check.
+
+**Why model at all.** A **threat** is something that could go wrong for a system because someone means it to, or misuses it: a stranger cancelling deliveries, a password guessed, a file read by the wrong person. A **threat model** is a written answer to "what could go wrong here, and what are we doing about it?", and **threat modeling** is the work of making one. The time to do it is while the system is still a design. A missing check costs a line in a document to fix then, and an incident to fix later.
+
+The whole method is four questions, asked in order (they come from the Threat Modeling Manifesto, a short statement by a group of practitioners):
+
+1. **What are we working on?** Draw the system.
+2. **What can go wrong?** Find the threats.
+3. **What are we going to do about it?** Decide an answer for each.
+4. **Did we do a good enough job?** Check the model, and keep it up to date.
+
+The first comes first because every later answer depends on it. Two people who picture different systems find different threats, and neither list can be trusted. Every lab file in this topic has the four questions as its four parts.
+
+<Check item="mcq-first-question" />
+
+**What are we working on: the data-flow diagram.** The drawing used for threat modeling is a **data-flow diagram** (DFD). It has only four kinds of thing, and one test tells each apart:
+
+| Kind | The test | Examples |
+| --- | --- | --- |
+| **External entity** | It is outside your control | a customer, a member of staff's own laptop, a partner's system, a payment company's API |
+| **Process** | It changes or decides something | a web server, an API, a scheduled job |
+| **Data store** | It keeps something until asked | a database, a message queue, a folder of files, a storage bucket |
+| **Data flow** | It moves data between two of the others | a sign-in, a query, a file upload, a report |
+
+A flow is drawn from the side that **starts the conversation**. A customer calls the shop's API, so that arrow runs from the customer to the API, even though data comes back along it. The direction matters most when it is the other way round from what you'd expect. A **webhook** is an address on your own system that a partner's system calls when something happens on their side: the courier calling the shop when a parcel moves, a payment company calling when a payment clears. The partner starts that conversation, so the arrow runs from the partner to you, and your system is the one that has to decide whether to believe the caller.
+
+Picture the shop's order system as boxes in a row. On the left, a customer. In the middle, the shop's order API with its database beside it. On the right, two companies the shop works with: the payment company, which the API calls, and the courier, which calls the API. Four arrows: customer to API, API to database, API to payment company, courier to API. That is the whole diagram, and it is the worked example's.
+
+<Check item="mcq-element-kind" />
+
+**Where trust changes.** Now draw lines round the boxes. A **trust zone** is a group of parts that one organisation runs on one network: you can make the same assumptions about everything inside it. A **trust boundary** is the line between two zones, the place where the level of trust changes. A flow whose two ends are in different zones **crosses** a boundary, and that is where to look first, because the receiving end is taking data from something it does not control. In the shop's diagram there are four zones: the internet (anyone), the shop's own network, the payment company and the courier company. Three of the four flows cross a boundary. The fourth, from the API to its own database, stays inside the shop's zone.
+
+Two rules settle most arguments about zones:
+
+- **A zone is who runs a thing, not who can reach it.** A partner with a contract and a private link is still another organisation, with its own staff, its own mistakes and its own break-ins. It gets a zone of its own. Putting a partner's system inside your zone says "we trust it as we trust ourselves", and then the flow from it crosses no boundary and nobody reviews it.
+- **The internet is one zone: anyone.** A customer, a stranger and an attacker all look the same from there until something proves otherwise.
+
+<Story title="Target's tills, reached through a contractor, 2013" source="https://krebsonsecurity.com/2014/02/target-hackers-broke-in-via-hvac-company/" sourceTitle="Target Hackers Broke in Via HVAC Company" license="linked, not copied">
+
+In 2013 about 40 million payment cards used at the American retailer Target between 27 November and 15 December were exposed to thieves. The journalist Brian Krebs reported how they got in. They stole the network credentials of Fazio Mechanical Services, a refrigeration and heating contractor of Target's, and first used them on Target's network in mid-November (reports give the 15th and the 12th). By 28 November card-stealing software was on a few tills, as a test, and by month's end on most.
+
+The contractor said its connection was only for billing, contracts and project management. It was not clear, Krebs wrote, why that access was not kept apart from the network that held the tills. A US Senate committee's staff, going over the published reports the next March, wrote that Target appears to have "failed to properly isolate its most sensitive network assets".
+
+In this topic's terms: a supplier is another organisation, so its sign-in crosses a trust boundary, however routine the work, and nothing stood between that sign-in and the tills. Draw the diagram, and both show up as questions: what can this flow reach, and what if the far end is not who it says?
+
+</Story>
+
+**The cloud is not one zone either.** When you rent from a cloud provider, some of your system is run by the provider's staff and software. The line between what they look after and what you look after is called **shared responsibility**, and it is a trust boundary like any other. Where it falls depends on the kind of service. On a virtual machine you run the operating system and everything above it. On a managed service (a database or a storage service the provider runs for you) the provider runs the servers and the software, and you are left with what you put in it, who may reach it, and how it is set up. The three providers say it in their own words (each page read on 2026-11-22):
+
+| | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| How it's put | AWS is responsible for "security of the cloud" (the buildings, hardware, network and the software that runs its services); you for "security in the cloud" | A table of ten areas by service type: on-premises, IaaS, PaaS, SaaS | "Shared responsibility", and on top of it "shared fate": Google takes on more of the work of getting you to a safe setup |
+| What moves | On a virtual machine (EC2) you patch the operating system and set its firewall; on storage and managed databases (S3, DynamoDB) AWS runs the platform, and you manage your data and who may reach it | From IaaS to PaaS the operating system passes to Microsoft, and network controls and the application become shared; in SaaS Microsoft runs the network controls too | On infrastructure services you carry most of the work; on platform services Google runs more; on finished applications, most |
+| What never moves | Your data and your access rules | Your data, your devices, your accounts and your access management | Your data and your access policies |
+
+IaaS, PaaS and SaaS are the three sizes of rental: infrastructure (you get machines and networks), platform (you get a running service to put your code or data in) and software (you get a finished application). Module 8 comes back to them. For a threat model the point is the last row. A bucket that opens for anyone is on your side of the line with every provider, because who may reach your data is always yours to set.
+
+So a careful model draws a managed service as a part in the provider's zone, and the flow to it crosses a boundary. A small model may leave that boundary out on purpose and say so. The labs accept either for a managed database that only your own network can reach.
+
+**What can go wrong: STRIDE.** Staring at a diagram and asking "what could go wrong?" finds whatever you happened to think of. **STRIDE** is a checklist that makes you ask six separate questions. It is the checklist Microsoft's engineers use, and each letter is a kind of harm that breaks one property a system should have:
+
+| | Category | What happens | The property it breaks | An example |
+| --- | --- | --- | --- | --- |
+| S | **Spoofing** | Someone pretends to be someone or something else | authentication | A stranger posts a report as if they were the courier |
+| T | **Tampering** | Data is changed without permission, on the way or where it is kept | integrity | An order's price is altered in the database |
+| R | **Repudiation** | Someone does something and can deny it, because nothing ties it to them | non-repudiation | An administrator deletes orders, and no record says who |
+| I | **Information disclosure** | Data reaches someone who shouldn't see it | confidentiality | An error page shows a password |
+| D | **Denial of service** | The system is made unavailable to the people it is for | availability | Uploads fill the disk until the site stops |
+| E | **Elevation of privilege** | Someone does more than their rights allow | authorization | A customer's request runs an administrator's action |
+
+Two of those properties are the next topic's whole subject, so one sentence each will do here. **Authentication** is proving who someone is. **Authorization** is deciding what they may do once you know. Spoofing attacks the first; elevation of privilege attacks the second.
+
+Not every letter applies to every kind of element. Microsoft's own mapping, **STRIDE per element**: an external entity can be spoofed and can repudiate (S, R); a process is open to all six; a data store to T, R, I and D; a data flow to T, I and D. Only a process can suffer elevation of privilege, because only a process acts with rights. Reviewing every element for every letter that applies is a lot of questions, so reviews are scoped. The scope this topic's labs use, and a common one in practice, is: **every flow that crosses a trust boundary is reviewed for all six letters**, as a flow together with the part it arrives at. For each letter the reviewer writes either a threat or the reason there is nothing to record. A reason is a recorded review: someone looked, and wrote why it is safe. A blank is a skipped one, and the two must never look the same.
+
+<Check item="typed-spoofing-property" />
+
+**Writing a threat down.** "The API is insecure" and "hackers could steal data" are not threats anyone can act on. A usable threat says **who can do what, leading to what**: "An attacker on the internet can post a made-up 'refused' report for any order number, and the delivery is cancelled." From that sentence a team can judge how likely it is (who is the "who", and what do they need first?), how bad it is (what does it lead to?), and what would stop it (what lets them do the "what"?). The labs make every threat start with "A" or "An" and contain "can", which is enough to push you into that shape.
+
+**The labs' format.** A threat model in this topic is a text file with one fact a line. The first word says what the line is:
+
+```
+zone courier-co the courier company
+element courier external courier-co the courier company's servers
+flow f4 courier shop-api tracking reports to /hooks/tracking
+threat t1 f4 S 3 3 9 An attacker on the internet can post a made-up "refused" report for any order number, and the delivery is cancelled
+none f4 TIDE HTTPS in transit, a report holds only an order number and a state, ...
+control c1 t1 signing check the signature on every report with the signing secret shared with the courier
+top t1
+```
+
+A `zone` has a name. An `element` has a name, a kind (`external`, `process` or `store`) and its zone. A `flow` has a name and its two ends, the starting side first. A `threat` has a name, its flow, one STRIDE letter, three numbers (explained next) and its sentence. A `none` line names a flow, the letters with nothing to record written together, and the reason. The rest (`control`, `accept`, `top`, `attack`, the attack tree's lines, `abuse` and `test`) come up below. A line can only use names that lines above it define. In a lab, `tm-check --help` prints the whole format, and `tm-check reads FILE` says whether every line fits it, or which line doesn't and how it should be written. The first lab explains the rest of `tm-check`.
+
+Real teams draw their models in a tool such as OWASP's Threat Dragon, a free app that draws data-flow diagrams and lists threats against them, or AWS Labs' Threat Composer. The thinking is the same in all of them. This format exists so that a program can check your thinking, and so that you can read a model with the tools you already know: one line of `awk` lists the flows that cross a boundary.
+
+**How much does it matter: ranking.** A review of a real system finds more threats than a team can fix this month, so they have to be put in order. The usual way gives each threat two ratings:
+
+- **Likelihood**: how easily it could happen. Who could do it, and what do they need first?
+- **Impact**: how bad it is if it does.
+
+The **risk** is the two multiplied. Each design in the labs states its scales, from 1 to 3, in words. Likelihood 3 might be "anyone on the internet could do it, with nothing stolen first", 2 "it needs something first, such as one customer's password", 1 "it needs an administrator's rights". With the scales written down, a rating stops being an opinion: two readers of the same design should reach the same number, and a third can check them. Risk then runs from 1 to 9. The labs draw a line at 6: a risk of 6 or more is **high**, goes on the model's `top` line (highest first), and must be answered. In the file, a threat's three numbers are its likelihood, its impact and its risk: `S 3 3 9`.
+
+OWASP's Risk Rating Methodology is the same idea with more steps. It scores eight likelihood factors (four about the attacker: skill, motive, opportunity, how many there are; four about the weakness: how easy it is to find and to use, how well known it is, how likely an attack is to be noticed) and eight impact factors (four technical, four about the business), each from 0 to 9, and averages each group. Below 3 is LOW, from 3 to below 6 MEDIUM, 6 and above HIGH, and a table turns the two bands into a severity: HIGH with HIGH is Critical. For impact it says to use the business factors whenever you know enough to score them.
+
+Whichever method you use, know what the number is. The scales are **ranks**, not measurements: a 3 is more than a 2, and nobody has said how much more. So two threats that both score 6 are not equally bad, and a 9 is not three times a 3. The number sorts threats into "now", "soon" and "decide"; it does nothing finer. It also leaves out what each fix would cost, which a team has to weigh separately.
+
+<Check item="est-risk-after-mfa" />
+
+**What are we going to do about it.** Every threat gets one of four responses:
+
+- **Mitigate**: add something that makes it less likely or less harmful. Most answers are this.
+- **Eliminate**: remove the feature that the threat needs. No export file, no leaked export file.
+- **Transfer**: make someone else carry the cost, by insurance or by contract. It changes who pays, and neither how likely the threat is nor how bad.
+- **Accept**: do nothing, on purpose, with the reason written down. For low risks only: in the labs, a risk of 6 or more can't be accepted.
+
+Whatever you add to mitigate a threat is a **security control** (often just "control"). Here is the idea this whole topic turns on: **a control only answers a threat if it restores the property that threat breaks.** The labs' `control` lines name a kind, and `tm-check` knows which kinds answer which letter:
+
+| Letter | Kinds of control that answer it |
+| --- | --- |
+| S | `authn` (a sign-in, an API key), `mfa`, `mutual-tls`, `signing`, `access-proxy` |
+| T | `signing`, `integrity`, `input-validation`, `mutual-tls`, `patch` |
+| R | `audit-log`, `signing` |
+| I | `tls`, `encryption`, `minimise-data`, `authz`, `least-privilege`, `access-proxy`, `secret-store`, `patch` |
+| D | `rate-limit`, `quota`, `redundancy` |
+| E | `authz`, `least-privilege`, `sandbox`, `allow-list`, `separation-of-duties`, `input-validation`, `patch` |
+
+Several of those words belong to later topics of this module, and one sentence each is enough for now. **MFA** (multi-factor authentication) is a second proof besides the password, such as a code from your phone. A **signing secret** is a secret that you and a partner both hold: the partner uses it to sign each message, and you check the signature, so a message from anyone else is refused. Mutual TLS you know from Module 3: the caller shows a certificate too.
+
+Look at where `tls` sits: under I, and nowhere else. That is narrower than the whole truth, on purpose. Ordinary TLS does three things: it proves the *server* to the caller, and it keeps the traffic private and unchanged on the way. On a link with no TLS at all it would answer a fake server and a change made on the wire too, and Microsoft's own list of answers to spoofing includes it. Every design in these labs already has HTTPS, so those threats are answered before you start, and what is left is the one thing ordinary TLS never does: it says nothing about who the *caller* is. So "we use HTTPS" answers "can someone read this on the wire?" and does not answer "can a stranger send this?", "can someone sign in with a stolen password?" or "can anyone who has the link open the file?" Those are the puzzle's stranger, and most real incidents. In a review, when someone answers a threat with a control, ask which property the threat breaks and whether the control restores that one. A good control aimed at the wrong property leaves the threat exactly where it was, with a tick beside it.
+
+A control rarely removes a risk altogether. What is left afterwards is the **residual risk**: rate the threat again with the control in place, and if the answer is still high, it needs more.
+
+<Check item="mcq-four-responses" />
+
+**Attack trees.** STRIDE finds threats one flow at a time. An **attack tree** takes one threat, the worst one, and asks how an attacker would really get there. The goal is the root. Under it are the ways to reach it, and under each way the steps it needs. Two kinds of branching:
+
+- **or**: any one of the branches is enough. The attacker picks.
+- **and**: every step under it is needed.
+
+The ends of the branches, the **leaves**, are single actions, and each gets a rough cost to the attacker, in money or effort. Then:
+
+- an **or** costs as much as its **cheapest** branch, because that is the one the attacker will take;
+- an **and** costs the **sum** of its steps.
+
+One word in the trees below may be new. To **phish** someone is to trick them, with an email or a page made to look genuine, into giving up a password or opening the attacker's file.
+
+The worked example's tree, for "cancel other customers' deliveries", as an outline:
+
+```
+goal: cancel other customers' deliveries          (the cheapest way under it)
+  post a made-up report to the hook: 5
+  and: send the report from inside the courier    (300 + 100 = 400)
+    phish a courier employee: 300
+    find the server that sends the reports: 100
+  bribe a shop administrator: 2000
+```
+
+The cheapest of 5, 400 and 2000 is 5, so that is the attack to expect, and the leaf to fix. In the labs' format a goal takes the cheapest of what sits directly under it, an `and` node adds, and a `cheapest` line states the answer, which `tm-check tree` checks.
+
+The tree earns its keep when you test a fix on it. Turn on signature checking and the first leaf is gone. The cheapest path is now 400, and it needs a crime against the courier first. But a fix that only raises one leaf can do less than it seems: if another branch is nearly as cheap, the attacker moves there, and the cost of the attack rises only as far as that branch. Always work the tree out again after a change.
+
+Leaves can carry probabilities in place of costs. If steps are independent, an **and** multiplies them (0.3 and 0.5 give 0.15: both must work), and an **or** fails only if every branch fails (1 minus the product of the failures). "Independent" is an assumption, and worth saying aloud.
+
+<Check item="est-tree-cheapest" />
+
+**Naming the attack: MITRE ATT&CK.** STRIDE asks what could go wrong in a design. **ATT&CK** (said "attack"), kept by the MITRE Corporation, records what attackers have actually done, gathered from real incidents. It is a catalogue with two levels:
+
+- a **tactic** is the attacker's reason for a step, the "why": Initial Access (getting in), Credential Access (getting passwords and keys), Exfiltration (getting data out). The Enterprise matrix has 15.
+- a **technique** is the "how", with an ID: `T1190`, Exploit Public-Facing Application; `T1566`, Phishing; `T1078`, Valid Accounts (signing in with an account that is real and isn't yours); `T1530`, Data from Cloud Storage. A **sub-technique** is a narrower how, after a dot: `T1110.004` is Credential Stuffing (trying passwords leaked from other sites), under `T1110`, Brute Force.
+
+ATT&CK has matrices for cloud: IaaS (rented infrastructure), SaaS, Office Suite (hosted email and documents) and Identity Provider (the service that signs people in). For a threat model, ATT&CK adds precision. "Someone reads the bucket" becomes `T1530`, and that page lists how it has been done, how to prevent it and how to detect it. In the labs' format it is one line: `attack t4 T1530`.
+
+One habit goes with it: **say which version you used.** ATT&CK is revised about twice a year, and this topic was written against version 20.1 (current since 13 October 2026). IDs move. Version 19, in April 2026, split one tactic, Defense Evasion, into two, Stealth and Defense Impairment, and techniques moved with it: the technique for switching off a cloud's logs was `T1562.008`, and that address now forwards to `T1685.002`. A model that names an ID without a version sends next year's reader to the wrong page.
+
+<Check item="mcq-attack-metadata" />
+
+**Abuse cases: getting threats into the work.** Threat models die in folders. The threats that get fixed are the ones that reach the team's list of work in a form the team already uses. A user story says "As a customer, I want to track my parcel so that I know when to be in." An **abuse case** is the same story told by the attacker: "As a stranger who never signs in, I post 'refused' reports for order numbers I guess so that other customers' deliveries are cancelled." It comes with an **acceptance test**, the attacker's attempt, failing: "a report with no valid signature gets `401` and leaves the order unchanged" (`401` is the status code a server gives a request that hasn't proved who sent it). The test can be run on every release, so the control can't quietly disappear. In the labs' format these are an `abuse` line and a `test` line, and every high risk needs both.
+
+An honest note: OWASP has archived its own guide to abuse cases, saying reviewers found they are rarely used in practice. Take them as one good way to carry a threat from the model into the backlog, not as a ceremony every team performs.
+
+**Did we do a good enough job.** The fourth question is a review of the model itself. Does the diagram still match the system? Has every flow that crosses a boundary been through all six letters? Does every high risk have a control that fits its property, and a test that proves the control is there? Is each accepted risk low, with a reason someone signed? And then the model is kept: a new partner, a new flow or a new store is a change to the drawing, so the four questions are asked again for the part that changed. An approved model of last year's system is a description of something that no longer exists.
+
+**Going further (all optional).** Everything the questions and labs ask is in the lesson above and the reading below it. That reading is OWASP's Threat Modeling Cheat Sheet, copied in under its licence: the same four questions in a practitioner's words, with a section on cloud threat modeling. Two of its abbreviations are not explained there: the SDLC is the software development life cycle, a team's steps from a design to a release, and LINDDUN is a checklist like STRIDE for privacy. The Threat Modeling Manifesto is where the four questions come from, with its authors' advice on doing this as a team. Microsoft Learn's module has a unit for each STRIDE category, with the elements it applies to. OWASP's Risk Rating Methodology has the sixteen factors in full. Bruce Schneier's "Attack Trees" is the 1999 article that introduced them, with a safe as its example. MITRE's "Get Started" and IaaS matrix are the way into ATT&CK. The three clouds' shared responsibility pages are the ones behind the table. The quick questions sort elements and letters, work out risks and trees, and read a model with awk. The labs model the shop's order API step by step, fill the gaps in a model of its newsletter, and write a script that finds unfinished reviews; then you model a clinic's booking service from a blank file, and repair a model that was approved and shouldn't have been.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Four questions, in order:** what are we working on, what can go wrong, what are we going to do about it, did we do a good enough job. Draw first: a threat only means something in a system everyone agrees on.
+- **A data-flow diagram** has external entities (outside your control), processes (change or decide), data stores (keep until asked) and data flows (drawn from the side that starts). A webhook is a flow a partner starts.
+- **A trust zone** is one owner on one network; a **trust boundary** is where the zone changes. A partner gets its own zone. A cloud's managed service sits across the shared responsibility boundary, and your data, your accounts and your settings are always on your side.
+- **STRIDE:** Spoofing breaks authentication, Tampering integrity, Repudiation non-repudiation, Information disclosure confidentiality, Denial of service availability, Elevation of privilege authorization. Review every flow that crosses a boundary for all six, and write a threat (who can do what, leading to what) or the reason there is none.
+- **Risk = likelihood x impact,** on scales written down. The numbers are ranks: they sort, they don't measure, and they leave out the cost of the fix.
+- **Mitigate, eliminate, transfer or accept.** A security control answers a threat only if it restores the property the threat breaks. TLS answers disclosure on the wire; it never tells you who is calling. What is left after a control is the residual risk.
+- **An attack tree:** an or costs its cheapest branch, an and the sum of its steps. Work it out again after every fix, because the cheapest path moves.
+- **ATT&CK** names what attackers really do: tactics (why), techniques (how), IDs that change between versions, so cite the version. **An abuse case** is the attacker's story with a test the team can run.
+
+</Recap>

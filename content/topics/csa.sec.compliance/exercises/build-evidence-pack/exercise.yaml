@@ -1,0 +1,48 @@
+id: build-evidence-pack
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The payments server's evidence pack"
+prompt: |
+  The payments server, `pay1`, is assessed next week. This lab machine is `pay1` with two jobs already done: its audit trail is as Audit logging's build left it, and its packages are patched, with the register and the rescan in `~/vuln`, as Vulnerability management's build left them. It still runs `shop-sync.service`, the rsync daemon the bank's server fetches settlement files from every night.
+
+  `/srv/compliance/scope.tsv` lists the seven controls the assessor will sample, and for each one what they will check, in plain words. Your job is the evidence pack in `~/evidence/`: make the server meet every control it can, and hand over evidence the assessor can run again.
+
+  What you have:
+
+  - the crosswalk, `/usr/share/lab-pay/refs.tsv` (rule, framework, control), and NIST's control texts in `/usr/share/lab-pay/nist-800-53r5/`;
+  - `sudo oscap-rules RULE...`, which runs the named rules of the benchmark and prints `rule result` for each;
+  - `/srv/compliance/collectors.tsv`: the shop's collectors, each a name, a kind (`config` or `report`), a command, and what its output shows;
+  - `/srv/inventory/assets.tsv`, which names the team that owns each machine.
+
+  **1. Meet the controls.** Fix what fails, so that it lasts a reboot and so that the running server behaves as its files say. One rule in scope can't pass here, because the business needs what it forbids. Leave that one failing, and leave what the business needs exactly as it is.
+
+  **2. The pack,** `~/evidence/pack.tsv`: one line for each piece of evidence, four fields separated by spaces or tabs: the framework, the control, the kind and the source. Like this (a made-up line):
+
+  ```
+  pci-dss-4.0 9.9.9 rule some_rule_name
+  ```
+
+  - A control the crosswalk maps rules to is evidenced by exactly those rules: one `rule` line for each, and no other line.
+  - A control it maps no rule to gets no `rule` line. It is evidenced by the collector that shows what the assessor checks, with the kind the collectors' list gives it. One control may have two collectors; none has more. A collector that shows something else doesn't belong.
+
+  **3. The evidence itself.** Save the results of every rule in the pack as `~/evidence/rules.txt`, as `oscap-rules` prints them: one line for each rule, each rule once, and nothing else. Save each collector's output as `~/evidence/NAME.txt` (the collector `audit-policy` goes in `~/evidence/audit-policy.txt`). Collect after your last fix: the checks run every rule and collector again and compare.
+
+  **4. One exception,** `~/evidence/exception.txt`, for the rule that can't pass, six lines like these:
+
+  ```
+  control: FRAMEWORK CONTROL
+  rule: the rule's name
+  reason: why the server can't pass it
+  compensating-control: what limits the risk instead (it must be true: name a limit that the service's own settings put on it)
+  owner: the team that owns this server
+  expires: YYYY-MM-DD
+  ```
+
+  An exception ends: give it a date in the future, at most a year from today.
+
+  Don't change the benchmark, the crosswalk, the scanners, the scope or the collectors' list, and don't undo the audit or the patch work.
+skills: [read-a-control, control-to-evidence, crosswalks, gaps-and-exceptions]

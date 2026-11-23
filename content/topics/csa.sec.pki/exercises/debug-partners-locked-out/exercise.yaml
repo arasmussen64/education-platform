@@ -1,0 +1,42 @@
+id: debug-partners-locked-out
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Partners locked out"
+prompt: |
+  The shop's partner PKI, a week after it was built. Every machine is described here, the broken parts and the working ones alike; `netlab show` lists them.
+
+  - **`root`** holds the root CA and has no network. Nothing has been done on it since it signed the issuing CAs.
+  - **`ca`** (10.0.9.5) holds the partners' issuing CAs, two of them since yesterday, both signed by the root with the same limits. The CA of 2025 (`/etc/shop-ca/2025`, `CN=Shop Partners CA 2025`) issued partners' certificates until yesterday, and issues nothing new now. The CA of 2026 (`/etc/shop-ca/2026`, `CN=Shop Partners CA 2026`) issues from now on: `on ca openssl ca -config /etc/shop-ca/2026/ca.cnf ...`. Each has its own database and publishes its own CRL: `crl-publish@ca.timer` runs `/usr/local/bin/publish-crl` every hour and at every boot, and nginx on ca serves `http://crl.shop.test/partners-2025.crl`, `partners-2026.crl` and `root.crl`.
+  - **`web`** (10.0.9.1) runs nginx for the partners' API, `api.shop.test`: its site is `/etc/nginx/sites-available/partner-api`, its files for TLS are in `/etc/nginx/tls/`, and it logs to `/var/log/nginx/error.log`, with information as well as errors. `crl-fetch@web.timer` is there to run `/usr/local/bin/fetch-crls` every half hour and at every boot.
+  - **`depot`** (10.0.9.3) is the warehouse's server, a partner for a long time, and **`courier`** (10.0.9.4) the courier's, a partner since yesterday. Each has its key and its certificate in its `/etc/partner/`.
+  - **`office`** (10.0.9.2) is a staff laptop, and **`resolver`** (10.0.9.53) the shop's name server.
+
+  Your home folder is the same on every machine: `~/shop-pki` holds the three CA certificates, which are public, and `~/transfer` carries files between machines.
+
+  On the lab's fast clock a CRL lasts 2 hours and a new one is published every hour (a real CA's: days).
+
+  Since this morning every partner's call gets `400`, the courier's included:
+
+  ```
+  on depot curl -s -o /dev/null -w '%{http_code}\n' --cert /etc/partner/warehouse.pem --key /etc/partner/warehouse.key https://api.shop.test/orders
+  on courier curl -s -o /dev/null -w '%{http_code}\n' --cert /etc/partner/courier.pem --key /etc/partner/courier.key https://api.shop.test/orders
+  ```
+
+  The API's own certificate is fine: `on office curl -sv https://api.shop.test/ -o /dev/null 2>&1 | grep 'SSL certificate verify'` says `SSL certificate verify ok.`
+
+  There are three faults. Find them from what nginx on web logs when it refuses a client, from `openssl verify`, and from what each machine holds, and fix each at its cause. Fixing one can change what you see.
+
+  The rules of the fix:
+
+  - **The API keeps refusing everyone without a valid, unrevoked certificate from the partners' issuing CAs,** and keeps checking CRLs.
+  - **Nothing a CA's own certificate allows is changed:** the root, both issuing CAs' certificates, keys and settings stay as they are, and so do the scripts and units that publish and fetch CRLs.
+  - **A partner's key never leaves its machine, and the warehouse's certificate stays as it is.** A partner that needs a new certificate gets it from the CA that issues today, from a request made with the key it has.
+  - **When you're done, every certificate that is still valid in a CA's database is one that CA should stand behind.**
+  - **Whatever you do survives a reboot.**
+
+  `on web nano FILE` edits a file, `on web nginx -t` checks nginx's files, and `sudo systemctl reload nginx@web` makes nginx read them again. When both partners get their orders, run the checks.
+skills: [revocation, fix-chains, ca-rotation, ca-hierarchy]

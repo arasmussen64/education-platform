@@ -1,9 +1,14 @@
 """The identity-lab base's smaller helpers (content/lab-bases/id/): the time
 sync client's reading of a chrony.conf and of a time server's answer, and
-the one file the base shares with another base.
+the one file the base shares with another base, and kc-wait, which decides
+whether Keycloak's unit counts as started.
 """
 
+import os
+import shutil
 import struct
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -89,6 +94,101 @@ def test_the_identity_bases_copy_of_ca_whatif_is_the_policy_bases() -> None:
     )
 
 
+# --- kc-wait: what makes "started" mean "answering" -----------------------------------
+
+KC_WAIT = BASE / "lib" / "kc-wait"
+
+# A python3 for kc-wait to find first on its PATH: it notes which of
+# kcapi.py's verbs was asked for and answers as the test says.
+STUB_PYTHON = """#!/bin/bash
+echo "$2" >> "$STUB_LOG"
+case $2 in
+  ready) [ "$STUB_READY" = yes ] ;;
+  apply-if-changed)
+    echo "keycloak: shop.json, line 4: a gap" >&2
+    exit "$STUB_APPLY"
+    ;;
+esac
+"""
+
+
+def run_kc_wait(tmp_path: Path, ready: str, apply_status: int):
+    """Runs kc-wait with the stub python3 (and a sleep that doesn't) first
+    on its PATH; returns the finished process and the verbs it asked for."""
+    if sys.platform == "win32" or not shutil.which("bash"):
+        pytest.skip("kc-wait is run on Linux only (CI), where bash is the lab's")
+    stubs = tmp_path / "stubs"
+    stubs.mkdir()
+    for name, text in (("python3", STUB_PYTHON), ("sleep", "#!/bin/bash\n")):
+        (stubs / name).write_bytes(text.encode())
+        (stubs / name).chmod(0o755)
+    log = tmp_path / "asked"
+    log.touch()
+    env = {
+        **os.environ,
+        "PATH": f"{stubs}{os.pathsep}{os.environ['PATH']}",
+        "STUB_LOG": str(log),
+        "STUB_READY": ready,
+        "STUB_APPLY": str(apply_status),
+    }
+    done = subprocess.run(
+        ["bash", str(KC_WAIT)], env=env, capture_output=True, text=True, timeout=120
+    )
+    return done, log.read_text().split()
+
+
+@pytest.mark.parametrize("status", [0, 1, 3])
+def test_a_realm_file_that_cant_be_applied_doesnt_fail_keycloaks_start(
+    tmp_path: Path, status: int
+) -> None:
+    # kc-wait is the unit's ExecStartPost. If it failed, systemd would start
+    # Keycloak again, find the same file and go round for ever. So whatever
+    # apply-if-changed says, the start is done; its line reaches the journal.
+    done, asked = run_kc_wait(tmp_path, "yes", status)
+    assert done.returncode == 0
+    assert asked == ["ready", "apply-if-changed"]
+    assert "keycloak: shop.json, line 4: a gap" in done.stderr
+
+
+def test_a_keycloak_that_never_answers_does_fail_the_start(tmp_path: Path) -> None:
+    done, asked = run_kc_wait(tmp_path, "no", 0)
+    assert done.returncode == 1
+    assert set(asked) == {"ready"} and len(asked) == 560
+    assert "no answer" in done.stderr
+
+
+def test_kc_wait_ends_the_start_itself() -> None:
+    # The same promise read from the file, for machines where the two tests
+    # above are skipped: apply-if-changed is never the script's last word
+    # (no "exec"), its failure is swallowed, and the script ends with exit 0.
+    lines = [
+        line.strip()
+        for line in KC_WAIT.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    applies = [line for line in lines if "apply-if-changed" in line]
+    assert applies == ["python3 /usr/local/lib/idlab/kcapi.py apply-if-changed || true"]
+    assert lines[-1] == "exit 0"
+
+
+def test_the_federation_labs_base_fix_finds_nothing_to_change() -> None:
+    """The first topic on this base (csa.sec.federation) worked around two
+    faults with a script in each of its labs, base-fix, which rewrites the
+    image's kcapi.py and kc-wait: each of these lines, if it is still
+    there. Both faults are mended here, so the script must find none of
+    them (a rewrite on top of the mended files would undo part of the
+    mending), and both files must still be where it opens them. This test
+    can go once no lab carries a base-fix."""
+    replaced = [
+        ("kcapi.py", 'DROPPED = ("id", "containerId", "subComponents")\n'),
+        ("kcapi.py", '    data.pop("users", None)\n'),
+        ("kc-wait", "exec python3 /usr/local/lib/idlab/kcapi.py apply-if-changed\n"),
+    ]
+    for name, line in replaced:
+        text = (BASE / "lib" / name).read_text(encoding="utf-8")
+        assert line not in text, f"base-fix would rewrite {name}: {line.strip()}"
+
+
 # --- The base's shape -----------------------------------------------------------------
 
 
@@ -101,6 +201,27 @@ def test_every_script_in_the_base_has_unix_line_endings() -> None:
         if path.is_file() and b"\r\n" in path.read_bytes()
     ]
     assert not crlf, f"Windows line endings in: {', '.join(crlf)}"
+
+
+def test_every_python_script_in_the_base_is_python_312() -> None:
+    # The lab image's Python is Ubuntu 24.04's 3.12, older than the one these
+    # tests run on, and "ruff format" at the repository's own target writes
+    # "except A, B:", which 3.12 refuses (test_policy_checklib.py has the
+    # story). These files are formatted with --target-version py312.
+    import ast
+
+    scripts = [
+        path
+        for path in sorted(BASE.rglob("*"))
+        if path.is_file()
+        and (
+            path.suffix == ".py"
+            or path.read_bytes().startswith(b"#!/usr/bin/env python3")
+        )
+    ]
+    assert BASE / "lib" / "kcapi.py" in scripts and BASE / "bin" / "signin" in scripts
+    for script in scripts:
+        ast.parse(script.read_text(encoding="utf-8"), feature_version=(3, 12))
 
 
 def test_the_base_starts_from_the_network_base() -> None:

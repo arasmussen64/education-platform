@@ -53,8 +53,9 @@ describe('topic outlines that load on demand', () => {
     for (const id of topicIdsOf(cloud)) {
       expect(getTopic(id), id).toBeDefined()
     }
-    // A Module 4 topic: planned for a long while yet.
-    expect(getTopic('csa.sec.threat-modeling')).toMatchObject({
+    // A topic far down the track (post-quantum cryptography, in the
+    // security-architecture module): planned for a long while yet.
+    expect(getTopic('csa.secarch.pqc')).toMatchObject({
       status: 'planned',
       practice: [],
     })

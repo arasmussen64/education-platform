@@ -1,0 +1,157 @@
+<h2>Overview</h2>
+<p>In the context of application security, threat modeling is a structured, repeatable process used to gain actionable insights into the security characteristics of a particular system. It involves modeling a system from a security perspective, identifying applicable threats based on this model, and determining responses to these threats. Threat modeling analyzes a system from an adversarial perspective, focusing on ways in which an attacker can exploit a system.</p>
+<p>Threat modeling is ideally performed early in the SDLC, such as during the design phase. Moreover, it is not something that is performed once and never again. A threat model is something that should be maintained, updated and refined alongside the system. Ideally, threat modeling should be integrated seamlessly into a team's normal SDLC process; it should be treated as a standard and necessary step in the process, not an add-on.</p>
+<p>According to the <a href="https://www.threatmodelingmanifesto.org/">Threat Modeling Manifesto</a>, the threat modeling process should answer the following four questions:</p>
+<ol>
+<li>What are we working on?</li>
+<li>What can go wrong?</li>
+<li>What are we going to do about it?</li>
+<li>Did we do a good enough job?</li>
+</ol>
+<p>These four questions will act as the foundation for the four major phases described below.</p>
+<h2>Advantages</h2>
+<p>Before turning to an overview of the process, it may be worth addressing the question: why threat model? Why bother adding more work to the development process? What are the benefits? The following section will briefly outline some answers to these questions.</p>
+<h3>Identify Risks Early On</h3>
+<p>Threat modeling seeks to identify potential security issues during the design phase. This allows security to be "built-into" a system rather than "bolted-on". This is far more efficient than having to identify and resolve security flaws after a system is in production.</p>
+<h3>Increased Security Awareness</h3>
+<p>Proper threat modeling requires participants to think creatively and critically about the security and threat landscape of a specific application. It challenges individuals to "think like an attacker" and apply general security knowledge to a specific context. Threat modeling is also typically a team effort with members being encouraged to share ideas and provide feedback on others. Overall, threat modeling can prove to be a highly educational activity that benefits participants.</p>
+<h3>Improved Visibility of Target of Evaluation (TOE)</h3>
+<p>Threat modeling requires a deep understanding of the system being evaluated. To properly threat model, one must understand data flows, trust boundaries, and other characteristics of the system. Thus improved visibility into a system and its interactions is one advantage of threat modeling.</p>
+<h2>Addressing Each Question</h2>
+<p>There is no universally accepted industry standard for the threat modeling process, no "right" answer for every use case. However, despite this diversity, most approaches do include the processes of system modeling, threat identification, and risk response in some form. Inspired by these commonalities and guided by the four key questions of threat modeling discussed above, this cheatsheet will break the threat modeling down into four basic steps: application decomposition, threat identification and ranking, mitigations, and review and validation. There are processes that are less aligned to this, including the Process for Attack Simulation and Threat Analysis (PASTA) and Operationally Critical Threat, Asset, and Vulnerability Evaluation (OCTAVE), each of which has passionate advocates.</p>
+<h3>System Modeling</h3>
+<p>The step of system modeling seeks to answer the question "what are we working on"? Without understanding a system, one cannot truly understand what threats are most applicable to it; thus, this step provides a critical foundation for subsequent activities. Although different techniques may be used in this first step of threat modeling, data flow diagrams (DFDs) are arguably the most common approach.</p>
+<p>DFDs visually model a system, its data flows, and interactions with external entities. Create them using a diagramming tool or a whiteboard, and save them in a form the team can update. For complex systems, use a high-level overview alongside more detailed diagrams of individual components.</p>
+<p>Regardless of how a DFD or comparable model is generated, it is important that the solution provides a clear view of trust boundaries, data flows, data stores, processes, and the external entities which may interact with the system. These often represent possible attack points and provide crucial input for the subsequent steps.</p>
+<p>Another approach to Data Flow Diagrams (DFD) could be the brainstorming technique, which is an effective method for generating ideas and discovering the project's domain. Applying brainstorming in this context can bring numerous benefits, such as increased team engagement, unification of knowledge and terminology, a shared understanding of the domain, and quick identification of key processes and dependencies. One of the main arguments for using brainstorming is its flexibility and adaptability to almost any scenario, including business logic. Additionally, this technique is particularly useful when less technical individuals participate in the session, as it eliminates barriers related to understanding and applying the components of DFD models and their correctness.</p>
+<p>Brainstorming engages all participants, fostering better communication and mutual understanding of issues. Every team member has the opportunity to contribute, which increases the sense of responsibility and involvement. During a brainstorming session, participants can collaboratively define and agree on key terms and concepts, leading to a unified language used in the project. This is especially important in complex projects where different teams might have different approaches to terminology. Due to the dynamic nature of brainstorming, the team can quickly identify key business processes and their interrelations.</p>
+<p>Integrating the results of brainstorming with formal modeling techniques can lead to a better understanding of the domain and more effective system design.</p>
+<h3>Cloud Threat Modeling</h3>
+<p>Most modern systems are cloud-native or hybrid. Traditional threat modeling techniques (like STRIDE or DFDs) often need adaptation for cloud architectures, which introduce:</p>
+<ul>
+<li>Shared responsibility models</li>
+<li>Managed services and APIs</li>
+<li>Multi-tenant and identity federation considerations</li>
+<li>Dynamic infrastructure (IaC, serverless, containers)</li>
+</ul>
+<p>Cloud-native systems introduce unique considerations for threat modeling due to their distributed, service-oriented nature and shared responsibility model. In this context, the threat modeling process should account for:</p>
+<ul>
+<li><strong>Cloud architecture components:</strong> virtual networks, IAM roles, managed services, and storage buckets.</li>
+<li><strong>Shared responsibility:</strong> understanding which security controls are managed by the provider vs. the customer.</li>
+<li><strong>Dynamic environments:</strong> container orchestration, serverless functions, and ephemeral infrastructure.</li>
+<li><strong>Compliance and data residency:</strong> ensuring that workloads meet jurisdictional and privacy requirements.</li>
+</ul>
+<h3>Threat Identification</h3>
+<p>After the system has been modeled, it is now time to address the question of "what can go wrong?". This question must be explored with the inputs from the first step in mind; that is, it should focus on identifying and ranking threats within the context of the specific system being evaluated. In attempting to answer this question, threat modelers have a wealth of data sources and techniques at their disposal. For illustration purposes, this cheatsheet will leverage STRIDE; however, in practice, other approaches may be used alongside or instead of STRIDE.</p>
+<p>STRIDE is a mature and popular threat modeling technique and mnemonic originally developed by Microsoft employees. To facilitate threat identification, STRIDE groups threats into one of six general prompts and engineers are encouraged to systematically consider how these general threats may materialize within the context of the specific system being evaluated. Each STRIDE threat may be considered a violation of a desirable security attribute; the categories and associated desirable attributes are as follows:</p>
+<table>
+<thead>
+<tr>
+<th>Threat Category</th>
+<th>Violates</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>S</strong>poofing</td>
+<td>Authentication</td>
+<td>An attacker steals the authentication token of a legitimate user and uses it to impersonate the user.</td>
+</tr>
+<tr>
+<td><strong>T</strong>ampering</td>
+<td>Integrity</td>
+<td>An attacker abuses the application to perform unintended updates to a database.</td>
+</tr>
+<tr>
+<td><strong>R</strong>epudiation</td>
+<td>Accounting</td>
+<td>An attacker manipulates logs to cover their actions.</td>
+</tr>
+<tr>
+<td><strong>I</strong>nformation Disclosure</td>
+<td>Confidentiality</td>
+<td>An attacker extracts data from a database containing user account info.</td>
+</tr>
+<tr>
+<td><strong>D</strong>enial of Service</td>
+<td>Availability</td>
+<td>An attacker locks a legitimate user out of their account by performing many failed authentication attempts.</td>
+</tr>
+<tr>
+<td><strong>E</strong>levation of Privileges</td>
+<td>Authorization</td>
+<td>An attacker tampers with a JWT to change their role.</td>
+</tr>
+</tbody>
+</table>
+<p>Use STRIDE's six categories as prompts while reviewing the system model. Brainstorm threats with the team and record which components, data flows, or trust boundaries they affect.</p>
+<p>After possible threats have been identified, people will frequently rank them. In theory, ranking should be based on the mathematical product of an identified threat's likelihood and its impact. A threat that is likely to occur and result in serious damage would be prioritized much higher than one that is unlikely to occur and would only have a moderate impact. However, these both can be challenging to calculate, and they ignore the work to fix a problem. Some advocate for including that in a single prioritization.</p>
+<h4>Choosing a Threat Modeling Technique</h4>
+<p>Start with STRIDE for a technical design, and select another technique when the scope requires a different view. The <a href="https://www.sei.cmu.edu/library/threat-modeling-a-summary-of-available-methods/">Software Engineering Institute comparison of threat modeling methods</a> explains that methods focus on different concerns and may be combined.</p>
+<table>
+<thead>
+<tr>
+<th>When the team needs to analyze</th>
+<th>Consider</th>
+<th>How to use it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Security threats in a technical design</td>
+<td>STRIDE</td>
+<td>Apply the six threat categories above to components, data flows, and trust boundaries.</td>
+</tr>
+<tr>
+<td>A high-value attacker goal or multi-step attack</td>
+<td>Attack trees</td>
+<td>Start with the attacker's goal and decompose the alternative or required paths to reach it.</td>
+</tr>
+<tr>
+<td>Abuse of a valid workflow or business rule</td>
+<td>Misuse or abuse cases</td>
+<td>Explore actions performed out of order, repeatedly, concurrently, or for an unintended outcome.</td>
+</tr>
+<tr>
+<td>Privacy properties and harms</td>
+<td><a href="https://linddun.org/threat-types/">LINDDUN</a> (Linking, Identifying, Non-repudiation, Detecting, Data disclosure, Unawareness and Unintervenability, Non-compliance)</td>
+<td>Apply privacy-specific prompts that are not fully represented by STRIDE's security properties.</td>
+</tr>
+<tr>
+<td>Application threats with business impact</td>
+<td>PASTA</td>
+<td>Connect business objectives and technical requirements to application threats.</td>
+</tr>
+<tr>
+<td>Organization-wide risk to critical assets</td>
+<td>OCTAVE</td>
+<td>Assess organizational risk and plan a security strategy for critical assets.</td>
+</tr>
+<tr>
+<td>Application and operational threats across many teams</td>
+<td>VAST (Visual, Agile, and Simple Threat Modeling)</td>
+<td>Maintain separate application and operational threat models within development workflows.</td>
+</tr>
+</tbody>
+</table>
+<p>Do not add techniques only to make the model appear comprehensive. State why each technique fits the scope and record any concerns it does not address.</p>
+<h3>Response and Mitigations</h3>
+<p>Equipped with an understanding of both the system and applicable threats, it is now time to answer "what are we going to do about it"? Each threat identified earlier must have a response. Threat responses are similar, but not identical, to risk responses. Adam Shostack lists the following responses:</p>
+<ul>
+<li><strong>Mitigate:</strong> Take action to reduce the likelihood that the threat will materialize.</li>
+<li><strong>Eliminate:</strong> Simply remove the feature or component that is causing the threat.</li>
+<li><strong>Transfer:</strong> Allocate contractual or financial responsibility to another party. <a href="https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=908030#page=52">Risk transfer does not itself reduce the likelihood or harmful consequences of an event</a>; document who owns the remaining controls and residual risk.</li>
+<li><strong>Accept:</strong> Do not mitigate, eliminate, or transfer the risk because none of the above options are acceptable given business requirements or constraints.</li>
+</ul>
+<p>Document each threat's response and turn agreed mitigations into actionable security requirements. Record how the team will implement each mitigation and why it accepts any remaining risk. Keep these decisions current as the system changes, as recommended by <a href="https://nvlpubs.nist.gov/nistpubs/specialpublications/nist.sp.800-218.pdf#page=20">NIST SP 800-218, practice PW.1.2</a>.</p>
+<h3>Review and Validation</h3>
+<p>Finally, it is time to answer the question "did we do a good enough job"? The threat model must be reviewed by all stakeholders, not just the development or security teams. Areas to focus on include:</p>
+<ul>
+<li>Does the DFD (or comparable) accurately reflect the system?</li>
+<li>Have all threats been identified?</li>
+<li>For each identified threat, has a response strategy been agreed upon?</li>
+<li>For identified threats for which mitigation is the desired response, have mitigation strategies been developed which reduce risk to an acceptable level?</li>
+<li>Has the threat model been formally documented? Are artifacts from the threat model process stored in such a way that it can be accessed by those with "need to know"?</li>
+<li>Can the agreed upon mitigations be tested? Can success or failure of the requirements and recommendations from the threat model be measured?</li>
+</ul>

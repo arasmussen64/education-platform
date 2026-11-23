@@ -1,8 +1,25 @@
 #!/bin/bash
 # Waits until Keycloak answers on this machine, then applies every realm
 # file that changed since it was last applied (none, at an ordinary boot).
+# It is the unit's ExecStartPost, so "started" means "answering".
+answering=no
 for i in $(seq 1 560); do
-  python3 /usr/local/lib/idlab/kcapi.py ready 2> /dev/null && break
+  if python3 /usr/local/lib/idlab/kcapi.py ready 2> /dev/null; then
+    answering=yes
+    break
+  fi
   sleep 0.5
 done
-exec python3 /usr/local/lib/idlab/kcapi.py apply-if-changed
+if [[ $answering == no ]]; then
+  echo "keycloak: no answer after 280 seconds" >&2
+  exit 1
+fi
+# A realm file that can't be applied (a gap still to fill in, a slip in its
+# JSON, something Keycloak refuses) must not fail the unit: systemd would
+# start Keycloak again, find the same file, and go round for ever, with no
+# identity provider at all. So Keycloak stays up with each such realm as
+# its database has it, kcapi.py writes one line to the journal saying which
+# file, where, and what to type, and the start counts as done. The other
+# realms' files are still applied.
+python3 /usr/local/lib/idlab/kcapi.py apply-if-changed || true
+exit 0

@@ -1,0 +1,51 @@
+# The checks of "Chain doctor": the script is there, runnable, clean and
+# does its own work; it gives the right line for the lab's six examples;
+# and it gives the right line for eighteen cases it has never seen, each a
+# small PKI made as the check runs with names made up then (chain-cases),
+# so a script that knows answers by heart fails.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/chain-doctor exists, is executable, starts with a shebang, ShellCheck has nothing to say about it (with no warning switched off), and it does its own work with openssl and the shell."
+    command: |
+      f=/home/learner/bin/chain-doctor
+      [ -f "$f" ] || { echo "there is no ~/bin/chain-doctor"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/chain-doctor isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/chain-doctor's first line isn't a shebang"; exit 0; }
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/chain-doctor switches ShellCheck's warnings off"; exit 0; fi
+      if grep -E 'python|perl|sudo|/usr/local/lib/lab' "$f" > /dev/null; then
+        echo "~/bin/chain-doctor hands the work to another program, or to another account: openssl and the shell are this lab's tools"
+        exit 0
+      fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say: $(echo "$said" | grep -m 1 'SC[0-9]')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: examples
+    description: "On the lab's six examples in ~/examples it prints the line the prompt gives for each."
+    command: |
+      script=/home/learner/bin/chain-doctor
+      [ -x "$script" ] || { echo "there is no ~/bin/chain-doctor to run"; exit 0; }
+      for d in /home/learner/examples/*/; do
+        name=$(basename "$d")
+        want=$(cat "/usr/local/lib/lab/expected/$name.txt" 2> /dev/null)
+        [ -n "$want" ] || { echo "the lab's example $name has been changed"; exit 0; }
+        if [ -e "$d/crls.pem" ]; then
+          got=$(cd "$d" && sudo -u learner timeout 10 "$script" leaf.pem chain.pem root.pem crls.pem 2>&1 | head -n 3)
+        else
+          got=$(cd "$d" && sudo -u learner timeout 10 "$script" leaf.pem chain.pem root.pem 2>&1 | head -n 3)
+        fi
+        [ "$got" = "$want" ] || { echo "in ~/examples/$name, chain-doctor printed \"$(printf '%s' "$got" | tr '\n' ';')\", not \"$want\""; exit 0; }
+      done
+      echo same
+    expect:
+      equals: same
+  - id: unseen-cases
+    description: "On eighteen cases it has never seen, each a small PKI made as the check runs with names made up then and one thing wrong or nothing, with CRLs and without, it prints the right line for each."
+    timeout: 90
+    command: |
+      [ -x /home/learner/bin/chain-doctor ] || { echo "there is no ~/bin/chain-doctor to run"; exit 0; }
+      /usr/local/lib/lab/chain-cases
+    expect:
+      equals: same

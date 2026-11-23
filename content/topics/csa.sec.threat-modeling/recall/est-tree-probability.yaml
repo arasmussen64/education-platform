@@ -1,0 +1,24 @@
+id: est-tree-probability
+type: estimate
+rev: 1
+prompt: |
+  An attack needs two steps, and each works or fails independently of the other. Phishing a member of staff works with probability 0.3. The session stolen that way is still good when the attacker uses it with probability 0.5. What is the probability that the whole attack succeeds? Within 0.01.
+unit: probability
+answer: 0.15
+tolerance: { absolute: 0.01 }
+given: { p_phish: 0.3, p_session: 0.5 }
+working: p_phish * p_session
+mistakes:
+  - id: added
+    value: 0.8
+    working: p_phish + p_session
+    why: "That adds the two. Needing both steps makes success less likely than either alone: multiply them."
+  - id: the-or-rule
+    value: 0.65
+    working: 1 - (1 - p_phish) * (1 - p_session)
+    why: "That is the chance that at least one of the two works, the rule for alternatives. Here both are needed."
+explanation: |
+  Steps that are all needed are an **and**: with independent steps, multiply. 0.3 x 0.5 = 0.15. Every extra step an attacker needs makes the whole attack less likely, which is the case for layers of defence.
+
+  Alternatives are an **or**: the attack fails only if every way fails, so the chance of success is 1 minus the product of the failures. Both rules lean on the steps being independent, which is an assumption to state: one phished password often makes the next step easier.
+skills: [attack-trees]

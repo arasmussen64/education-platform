@@ -1,0 +1,16 @@
+id: mcq-abuse-case
+type: mcq
+rev: 1
+prompt: |
+  A clinic's SMS hook cancels a patient's appointments when a STOP reply arrives. The team writes the abuse case: "As an attacker, I send STOP replies for other people's phone numbers so that their appointments are cancelled." Which acceptance test shows that the abuse case is refused?
+choices:
+  - "A report sent over plain HTTP is redirected to the HTTPS address"
+  - "A STOP reply from a patient's own phone cancels that appointment"
+  - "A thousand reports in one minute are slowed by the rate limit"
+  - "A report with no valid signature gets 401 and changes no booking"
+answer: 3
+explanation: |
+  An **abuse case** is a user story told by the attacker, and its acceptance test is the attacker's attempt, failing. The attacker here sends reports the SMS company never sent, so the test sends one: no valid signature, and it must be refused (`401`) *and* leave every booking as it was. Both halves matter: a hook that answers 401 and cancels anyway has passed nothing.
+
+  The redirect test shows the hook uses HTTPS, which the attacker is happy to use too. The patient's own STOP is the feature working, not the abuse failing. The rate limit slows a flood, and one forged report is enough to cancel one patient's appointments. A good test is one the team can run on every release, so the control can't quietly disappear.
+skills: [attack-and-abuse]

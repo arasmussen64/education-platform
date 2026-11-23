@@ -1,0 +1,24 @@
+id: est-crl-worst-case
+type: estimate
+rev: 1
+prompt: |
+  A CA publishes a new CRL every 12 hours, and each one is good for 48 hours. A client of yours fetches a new CRL only when the copy it holds runs out. A certificate is revoked one minute after a CRL was published, and your client fetched that CRL the moment it came out. To the nearest hour, for how many hours can your client go on trusting the revoked certificate? Exactly.
+unit: hours
+answer: 48
+tolerance: { absolute: 0 }
+given: { publish: 12, valid: 48 }
+working: valid
+mistakes:
+  - id: publish-interval
+    value: 12
+    working: publish
+    why: That is when the CA's next CRL comes out. Your client doesn't fetch it then; it waits until its own copy runs out.
+  - id: sum
+    value: 60
+    working: publish + valid
+    why: The client's copy runs out 48 hours after it was published, and the client fetches then. The publishing interval doesn't add to that.
+explanation: |
+  The client holds a CRL that doesn't list the certificate and is good for 48 hours, and it doesn't look for another until then. The CA's next four CRLs, at 12, 24, 36 and 48 hours, all list the revocation, and the client never sees them: 48 hours, less the one minute.
+
+  How long a revocation takes to arrive is set by the relying party, not the CA: it is as long as the client's copy lasts, unless the client fetches sooner. Fetch on a timer as often as the CA publishes, here every 12 hours, and the worst case falls to about 12. The CRL's lifetime is then only what it should be: how long the client can survive without a new list.
+skills: [revocation]

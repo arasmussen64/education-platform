@@ -1,0 +1,12 @@
+#!/bin/bash
+# publish-crl: run on ca by crl-publish@ca.service. For each of the
+# partners' two issuing CAs it makes the next CRL from the CA's database,
+# good for 2 hours, and puts it where crl.shop.test serves it. Each new
+# file is written beside the old one and then moved over it, so nobody ever
+# downloads half a CRL.
+set -euo pipefail
+for year in 2025 2026; do
+  openssl ca -config "/etc/shop-ca/$year/ca.cnf" -gencrl -crlhours 2 -out "/etc/shop-ca/public/partners-$year.crl.new"
+  chmod 644 "/etc/shop-ca/public/partners-$year.crl.new"
+  mv "/etc/shop-ca/public/partners-$year.crl.new" "/etc/shop-ca/public/partners-$year.crl"
+done

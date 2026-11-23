@@ -1,0 +1,27 @@
+id: debug-gaps-in-the-trail
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Gaps in the trail"
+prompt: |
+  This lab machine is the shop's payments server, a year after its audit trail was set up. The trail is the `audit` journal (`journalctl --namespace=audit`), written by `shop-audit.service` from the policy in `/etc/shop/audit.conf`. It is meant to be kept on disk for a year and sealed every 10 seconds (the lab's stand-in for 15 minutes), and the auditors hold its verification key: their copy is `/srv/auditors/verify-key`. The audit journal's settings are in `/etc/systemd/journald@audit.conf` and its drop-in folder. `shop-cli events` lists what the shop can do, `shop-cli EVENT FIELD=VALUE` makes it do one, and `shop-cli settle` replays the nightly settlement batch: 1,500 refunds in under a second.
+
+  The auditors have sent three complaints, all about the last week:
+
+  - Of the 1,500 refunds in a night's settlement batch, only a few hundred are in the trail. Refunds made one at a time during the day are all there.
+  - After Sunday's reboot, everything the trail had recorded since the Monday before was gone, though older entries were still there. (Stopping this lab and starting it again is a reboot.)
+  - Admins' role changes haven't appeared in the trail at all, though sign-ins and refunds have.
+
+  There are three faults. Find each from the evidence the server gives, and repair it so that it stays repaired after a reboot.
+
+  The rules of the repair:
+
+  - Keep a rate limit on the audit journal. It must let through the biggest burst the shop makes, a settlement batch, and no more than ten batches in half a minute.
+  - The trail stays sealed, and the auditors' key stays the key that verifies it.
+  - Nothing that is in the trail is removed from it.
+  - The policy records what it was written to record: nothing it forbids is added, and no noise.
+  - The shop's programs and the audit writer's unit stay as they are.
+skills: [what-to-log, retention, sealing-and-worm]

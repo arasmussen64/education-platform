@@ -1,0 +1,177 @@
+<Intro>
+
+<Puzzle question="A partner's certificate was revoked on Monday. On Friday the shop's API still accepts it, and nothing is broken. Why?">
+
+Revoking a certificate changes one line in the certificate authority's own records, and nothing else. The API goes on accepting the certificate until the API itself holds a list that says it's revoked. For that, the authority has to publish a new list, and the API has to fetch it and load it. An API that was never told to check, or that holds a list from before Monday which is still inside its dates and only looks for a new one when the old one runs out, is working exactly as it was set up. A revocation is only as fast as the slowest party that relies on it.
+
+</Puzzle>
+
+In Certificates and mutual TLS you made a root and an intermediate once, signed a certificate with each, and trusted the result. Nothing remembered what had been issued, nothing could take a certificate back, and nothing stopped the intermediate signing anything at all. This topic runs a certificate authority as a service with a memory and limits: a **PKI** (public key infrastructure), which is the CAs, their rules, and everything that publishes and checks what they say. By the end you can run a root that stays offline and an issuing CA under it, limit what that CA can vouch for, revoke a certificate and make the revocation reach the servers that matter, replace a CA without locking anyone out, and read a chain error down to the certificate at fault.
+
+The labs use the shop's partners again. `root` holds the root CA and has no network cable. `ca` holds the issuing CA, serves what it publishes at `crl.shop.test`, and runs its OCSP responder. `web` runs nginx for the partners' API, `api.shop.test`. `depot` is the warehouse's server and `courier` the courier's, each with its own key; `office` is a staff laptop and `resolver` the name server.
+
+**A CA is a key, a certificate, a database and a policy.** Picture a notary's office. The stamp, kept in the safe, is the CA's private key. The notary's registration, framed on the wall, is the CA's certificate. The register, in which every stamped document gets a numbered line, is the **CA database**. And the office's rules say what may be stamped and with which wording. The labs run their CAs with `openssl ca`, because with it each of the four is a file you can read. Its settings file, `ca.cnf`, names them:
+
+```
+[ shop_partners ]
+dir             = /etc/shop-ca
+certificate     = $dir/partners.pem     # the CA's own certificate
+private_key     = $dir/partners.key     # and its key
+database        = $dir/index.txt        # one line for every certificate issued
+rand_serial     = yes                   # serial numbers are random
+copy_extensions = copy                  # take the names a request asks for
+
+[ partner ]                             # what goes into every certificate it issues
+basicConstraints      = critical, CA:FALSE
+extendedKeyUsage      = clientAuth
+crlDistributionPoints = URI:http://crl.shop.test/partners.crl
+```
+
+A certificate starts as a CSR, made on the machine that will hold the key, so that only the request and the certificate ever travel: `openssl req -new -key courier.key -subj "/CN=courier.partners.shop.test" -addext "subjectAltName=DNS:courier.partners.shop.test" -out courier.csr`. The CA signs it with `openssl ca -config ca.cnf -extensions partner -in courier.csr -out courier.pem`: it checks the request's signature, copies the names the request asks for, adds the extensions of the `[ partner ]` section (which win over anything else the request asked for), signs, and adds a line to `index.txt`. The fields are separated by tabs:
+
+```
+V	270221050612Z		14334A72...D182	unknown	/CN=courier.partners.shop.test
+```
+
+`V` is valid; then the expiry (21 February 2027, 05:06:12 UTC), an empty field, the serial number, a file name that is always `unknown`, and the subject. `openssl ca -revoke courier.pem -crl_reason keyCompromise` turns that line's `V` into `R` and fills the empty field with the time and the reason: `261123050613Z,keyCompromise`. (A third letter, `E`, marks a certificate that has expired, once `openssl ca -updatedb` has tidied the database.) That database is the CA's whole memory. A certificate signed straight from the key with `openssl x509 -req`, as Module 3 did it, verifies just as well and can never be revoked, because the CA has no record that it exists.
+
+Two cautions. `copy_extensions = copy` trusts the requester to ask for the right names, so the section must pin everything else, and something must still limit the names (the next section). And `openssl ca` is a teaching tool: its own manual says it "was originally meant as an example of how to do things in a CA" and that "its code does not have production quality". Companies run step-ca (Module 3's ACME CA), Active Directory Certificate Services, EJBCA, OpenBao's PKI engine, or a cloud's private CA. They all have these four parts.
+
+<Check item="index-revoked" />
+
+**Two tiers: an offline root and issuing CAs.** Whoever signed a certificate can take it back, except a root's, which signed itself. So a PKI splits the work. The **offline root** is a CA whose key lives on a machine with no network (in real life, in an HSM in a safe). It is used a few times a year, and signs only the certificates of **issuing CAs** and its own revocation list. An issuing CA is online and signs the leaves, day in, day out. If an issuing CA's key is stolen, the root revokes that CA and signs a new one, and every client that trusts the root carries on. If the root's key is stolen there is nobody above it: every trust store on every machine has to change. In the labs, files reach `root` and come back through a shared folder, as a USB stick would carry them.
+
+The root also decides what each issuing CA may do, by what it writes into that CA's certificate:
+
+| Limit, in the issuing CA's certificate | Means | Broken, a client says |
+| --- | --- | --- |
+| `basicConstraints = critical, CA:TRUE, pathlen:0` | it is a CA, and no CA may stand below it | `error 25 at 2 depth lookup: path length constraint exceeded` |
+| `nameConstraints = critical, permitted;DNS:.partners.shop.test` | its certificates are good only for names under `partners.shop.test` | `error 47 at 0 depth lookup: permitted subtree violation` |
+| `extendedKeyUsage = clientAuth` | its certificates are good only as client certificates | `error 26 at 1 depth lookup: unsuitable certificate purpose` (checked as a server's) |
+
+A **name constraint** is a list of what is allowed (`permitted`), which is what you want, or of what isn't (`excluded`), which leaves everything nobody thought of. It must be marked `critical`, so that a client too old to understand it refuses the certificate instead of ignoring the limit.
+
+Now the point the whole section turns on. Ask the labs' CA, the one limited to `partners.shop.test`, to sign a request for `www.example.test`, and it does, without a word. `openssl ca` doesn't read the limits in its own CA certificate. The clients do: `openssl verify` refuses the new certificate with error 47, and so does nginx. **Limits on a CA are enforced by whoever verifies, never by the CA that issues.** That is their strength: they hold when the CA's software is careless, when its operator makes a mistake, and when a thief has its key. Anyone who relies on a certificate to decide something is a **relying party**: the API that admits a partner, the browser that shows a padlock, and later in this module the app that accepts a sign-in token. Relying parties do the enforcing, so a limit is worth exactly as much as their checking.
+
+One relying party needs watching. nginx can't end a chain at an issuing CA: the file `ssl_client_certificate` names needs the issuing CA's certificate **and** the root's (with the issuing CA alone, every client gets `(2:unable to get issuer certificate)`). But a root nginx trusts makes everything that root has signed acceptable: a certificate from any other CA under it, if the client sends the missing CA certificate itself, and a certificate the root signed directly, for any name, since no issuing CA's limits are in that chain. In the labs a staff laptop, with a certificate from the shop's staff CA, gets `200` from the partners' API that way. Two things close the door. Give sibling CAs different limits where their purposes differ. And test the issuer in the site: `if ($ssl_client_i_dn != "CN=Shop Partners CA") { return 403; }` reads the name of the CA that issued the client's certificate and refuses any other. A name is only text, so the test means something only after nginx has verified the chain: it goes with `ssl_verify_client on`, never in place of it.
+
+<Check item="mcq-who-enforces-constraints" />
+
+**Revocation: the CRL.** A **CRL** (certificate revocation list) is a file the CA signs that lists the serial numbers it has revoked. `openssl ca -gencrl -crlhours 2 -out partners.crl` makes one from the database's `R` lines, and `openssl crl -in partners.crl -noout -text` reads it. It carries two dates: `lastUpdate`, when it was made, and `nextUpdate`, by when the CA promises a newer one, after which nobody should rely on this one. Every certificate says where its CA's list lives, in its **CRL distribution point**: `URI:http://crl.shop.test/partners.crl`. Plain HTTP is fine there, because the list is signed.
+
+Think of a bank's list of stolen cards, printed each morning and good until tomorrow's arrives. A shop that never collects the new list goes on accepting a card stolen today. A shop whose list is out of date can't tell an honest delay from a thief holding the post back, so it accepts no cards at all. CRLs fail in both ways, and the labs show each:
+
+- **A stale list says yes.** Checked against a CRL made a minute before the revocation, a revoked certificate is `OK`. For that client the revocation hasn't happened yet.
+- **An expired list says no to everyone.** Past `nextUpdate`, `openssl verify` reports `error 12 at 0 depth lookup: CRL has expired`, and nginx answers every partner `400` and logs `(12:CRL has expired)`.
+
+Lists grow. Measured with the labs' openssl, an empty CRL is 181 bytes and each revoked certificate adds about 36 (1,000 entries: 35,670 bytes), so a CA with 100,000 revocations hands every client about 3.6 MB at each refresh. Big CAs split the list into shards, each named in the certificates it covers. A revoked certificate drops off the list once it has expired, which is one reason short-lived certificates keep lists short. (Public CAs serve the list in DER, the binary form, which `openssl crl -inform DER` reads; the labs publish PEM, which nginx takes as it is.)
+
+<Check item="mcq-stale-crl-ok" />
+
+**OCSP, and who actually checks.** HTTP and TLS taught OCSP: a responder that answers, for one serial number, `good`, `revoked` or `unknown`, in a signed reply. A certificate names its responder in its **authority information access** extension (AIA): `OCSP - URI:http://ocsp.shop.test:8888`. An answer is live, where a CRL is a snapshot, but each one also says how long it may be reused, and now the responder has to be up. A real CA gives its responder a key and certificate of its own for signing answers, so that the CA's key isn't needed every time someone asks; the labs' responder is openssl's test one, and signs with the CA's key.
+
+None of it matters unless the relying party checks. What each one does, as tried in the labs (nginx 1.24, OpenSSL 3.0) or reported by its maker:
+
+| Relying party | What it checks | When the list or responder fails |
+| --- | --- | --- |
+| nginx, `ssl_crl FILE` (client certificates) | the CRLs in FILE, read once, when nginx loads its settings; it needs one from every CA in the chain | a CA's CRL missing: `(3:unable to get certificate CRL)`, everyone refused; expired: `(12:CRL has expired)`, everyone refused; a new file changes nothing until a reload |
+| nginx, `ssl_ocsp leaf` | asks the responder about the client's certificate at each handshake (`ssl_ocsp_cache` remembers answers) | revoked: `400`; responder down: `400`, `certificate status request failed` |
+| `openssl verify -crl_check` | the leaf, against its issuer's CRL; `-crl_check_all`, every certificate in the chain | `error 3` (no CRL), `error 12` (expired), `error 23` (revoked) |
+| Chrome | CRLSets: a list Google ships to the browser, about 600 kB, covering about 1% of revocations (Mozilla's figures, August 2025) | doesn't ask the CA |
+| Firefox | CRLite, since Firefox 137: every revocation, about 300 kB a day; OCSP for domain-validated certificates, the ordinary kind, switched off from Firefox 142 | doesn't ask the CA |
+
+Refusing when the answer is missing is **hard fail**; accepting is **soft fail**. Browsers soft-failed for years, because a stalled responder would otherwise break every site of that CA, which also lets through any attacker who can block the way to the responder. That is why they moved to lists downloaded ahead of time, and why the public web's rules changed: the CA/Browser Forum (ballot SC-063, passed in July 2023 and in force since 15 March 2024) made OCSP optional and CRLs required, with a new CRL within 24 hours of a revocation and otherwise at least every 7 days, or every 4 where certificates carry no OCSP address. Its Baseline Requirements (version 2.3.1) also define a **short-lived certificate**, one that lasts 7 days at most since 15 March 2026, which needs no revocation address at all: it is gone before a revocation could have spread. The same rules cap an ordinary public certificate at 200 days now and 100 days from 15 March 2027.
+
+For a partner API the judgement goes the other way. The callers are few and known, and what's behind it is worth protecting, so it hard-fails. The price is that the CRL's freshness, or the responder, is now part of the API's availability, and needs the same care as the API.
+
+<Check item="mcq-reload-after-crl" />
+
+**Timers keep it fresh.** Nothing above stays true by itself. The CA must publish before each CRL runs out, and every relying party must fetch and reload, for as long as anyone relies on the list. Both are jobs for a **systemd timer**: a unit named `NAME.timer` that starts `NAME.service` on a schedule. The service is an ordinary unit of `Type=oneshot`, which runs a script and ends. The timer:
+
+```
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target
+```
+
+`OnBootSec=30s` runs the service half a minute after every boot; `OnUnitActiveSec=1h` runs it again an hour after each run. (`OnCalendar=hourly` is the other way to say when, by the clock. Alone it waits for the next full hour, whatever happened while the machine was off, so a job that must also run after a boot keeps its `OnBootSec=`.) `sudo systemctl enable --now NAME.timer` switches it on now and at every boot, and `systemctl list-timers` shows each timer's next and last run. One trap is worth knowing in advance: `OnUnitActiveSec` counts from the service's last run, so a timer with that line alone has nothing to count from after a reboot, and never runs again. And like any unit, a timer file lasts in `/etc/systemd/system`, not under `/run`.
+
+The script a relying party runs must end by making the server read the list: fetch every CA's CRL into the one file, then `systemctl reload nginx@web`. The figures are sized against the list's lifetime. In the labs, on a fast clock, a CRL lasts 2 hours, the CA publishes every hour, and web fetches every 30 minutes. Real figures are days: Microsoft's Cloud PKI issues CRLs that last 7 days and republishes every 3.5.
+
+<Check item="mcq-timer-after-reboot" />
+
+**Rotating a CA.** A leaf is replaced by ACME (Module 3). A CA is replaced by overlap:
+
+1. The new issuing CA (a new key, signed by the root) starts issuing. From that day the old one issues nothing.
+2. Every certificate the old CA issued is still good until it expires, so relying parties trust **both** CAs, and the old CA goes on publishing its CRL.
+3. When the old CA's last certificate has expired, it is removed everywhere.
+
+Two rules give the dates. A CA must stop issuing while its own certificate still has a full leaf lifetime left, or its last leaves are cut short: a CA certificate of 1,095 days that issues 200-day leaves stops on day 895. And relying parties keep the old CA for one leaf lifetime after its last issue. Both are easier with short leaves.
+
+The classic trap: the new issuing CA keeps the old one's **name**. Now two certificates have the subject the leaf's `issuer=` asks for, and a server that sends the old one with a new leaf gets `error 20 at 0 depth lookup: unable to get local issuer certificate`, though the name matches. A client finds an issuer by name and then by key. The leaf's **authority key identifier** (AKI) is a fingerprint of its signer's public key, and each CA certificate's subject key identifier (SKI) is the fingerprint of its own: `openssl x509 -noout -ext authorityKeyIdentifier` on the leaf, `-ext subjectKeyIdentifier` on each candidate. The one that matches is the issuer.
+
+A root is replaced on a longer scale, because a new root is only useful once it is in the trust stores of devices you may not control. If devices take up to a year to learn a new root, and issuing CAs last 3 years, the new root has to start going out 4 years before the old one expires. The gap is bridged by **cross-signing**: the new root's key gets a second certificate, signed by the old root, so that a device that only knows the old root can still build a chain.
+
+<Check item="est-stop-issuing" />
+
+<Story title="The day DST Root CA X3 expired, 2021" source="https://letsencrypt.org/docs/dst-root-ca-x3-expiration-september-2021/" sourceTitle="DST Root CA X3 Expiration (September 2021)" license="© Internet Security Research Group; linked, not copied">
+
+Let's Encrypt has a root of its own, ISRG Root X1. To be trusted on almost every device from the start, it had its certificates cross-signed by an older root that devices already held, DST Root CA X3. On 30 September 2021 that older root expired, as planned.
+
+By then modern browsers and devices trusted ISRG Root X1 directly, and typical sites saw little or no difference. Devices that no longer received updates had never learned the new root (Let's Encrypt names the iPhone 4 and the HTC Dream) and started showing certificate warnings. Old Android phones were kept working by a special cross-sign that reaches past the old root's expiry, an exception that applies to Android alone. And some up-to-date clients failed anyway: programs using OpenSSL 1.0.x, which a quirk in verification made refuse the Android-compatible chain even when they trusted the new root.
+
+Let's Encrypt's advice to operators of APIs and devices was to make sure every client trusts ISRG Root X1, not only the old root, and uses OpenSSL 1.1.0 or later. A root is replaced through other people's trust stores, and the devices that never update decide how long the old one has to live.
+
+</Story>
+
+**Chain errors at depth.** Certificates and mutual TLS gave the codes for the usual failures (20 and 21, 19, 18, 10, 62). `openssl verify -CAfile root.pem -untrusted chain.pem leaf.pem` says more: `error N at D depth lookup`, where D is which certificate (0 the leaf, 1 the one that signed it, 2 the next up) and N is what is wrong with it. The subject of the certificate at fault is printed on the line above. All of these were captured in this topic's labs:
+
+| `openssl verify` says | Means | Usually |
+| --- | --- | --- |
+| `error 20 at 0`, and a certificate with the issuer's name was sent | the right name, the wrong key (AKI and SKI differ) | an old CA certificate sent after a re-key |
+| `error 20 at 1`, or `error 19 at 2` | the chain is whole and ends at a root the client doesn't trust | the client was never given the root |
+| `error 10 at 1` | the issuing CA's own certificate has expired | a CA nobody replaced in time |
+| `error 79 at 1` | the certificate that signed the leaf isn't a CA | a leaf's key used to sign |
+| `error 25 at 2` | a CA below one with `pathlen:0` | someone made a CA under an issuing CA |
+| `error 26 at 1` | the CA's own extended key usage doesn't allow this use | a client CA's certificate on a server |
+| `error 47 at 0` | a name outside the CA's name constraint | a certificate for the wrong domain |
+| `error 23 at 0`, `at 1` | revoked: the leaf, or the issuing CA itself | |
+| `error 3 at D` | no CRL to check the certificate at depth D against | the file lacks the root's CRL: `3 at 1` |
+| `error 12 at D` | that CRL is past its `nextUpdate` | publishing or fetching stopped |
+
+Two more come from nginx itself. `(2:unable to get issuer certificate)` in its log means the file of trusted CAs holds an issuing CA and not the root. And `key values mismatch`, when it won't start, means the first certificate in `ssl_certificate` isn't the server's own. The habit that saves time: read the depth first, then `openssl verify -show_chain`, which prints the chain it built, one certificate to a line.
+
+<Check item="depth-which-cert" />
+
+**Where the three clouds differ.** Each sells, or doesn't, a private CA run for you (each provider's page, read 2026-11-22):
+
+| | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| A managed private CA | AWS Private CA: $400 a month for each CA in general-purpose mode, or $50 in short-lived mode (certificates of 7 days at most); then $0.75 a certificate for the first 1,000 a month, $0.35 to 10,000, $0.001 beyond, or $0.058 each in short-lived mode | No general-purpose one. Key Vault orders certificates from its partner public CAs (DigiCert, GlobalSign) and renews those by itself; certificates from any other CA, your own included, don't renew by themselves. Microsoft Cloud PKI is a root and issuing CA run for you, only for devices managed by Intune (Microsoft's service for managing a company's laptops and phones), up to three CAs | Certificate Authority Service, in two tiers: DevOps, for many short-lived certificates, which can't list, describe or revoke a certificate; and Enterprise, which can |
+| Revocation | OCSP costs extra: $0.06 a month for each certificate asked about, and $0.20 per 100,000 queries | Cloud PKI: CRLs that last 7 days, republished every 3.5 days and at every revocation | only the Enterprise tier revokes |
+
+The pattern is the lesson's own: the cheap tier at AWS and at Google is the one that gives up revocation and relies on short lifetimes instead, and a real hierarchy with revocation is a standing monthly cost that somebody has to justify.
+
+**Going further (all optional).** Everything the questions and labs ask is in the lesson above; the pages below are for when you want more. The OpenSSL PKI Tutorial builds a root and a signing CA with `openssl ca` at more length, with complete settings files to read. Smallstep's long article tells the story of chains and revocation once more, with opinions. nginx's module page and openssl's manual are the references for every directive and option used here, and RFC 5280 is the standard behind the extensions. Mozilla's post explains how CRLite fits every revocation into a small download. The clouds' pages are the ones behind the table. The quick questions read a CA's database, verify output and nginx's log, and work out how long a revocation takes and when a CA must be replaced. The labs run a CA and revoke a certificate, fill in an issuing CA's limits, write a script that diagnoses a chain, build a partner PKI from an empty root, and repair one the morning after its issuing CA was replaced.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A CA** is a key, a certificate, a database and a policy. `openssl ca -config ca.cnf -extensions SECTION -in CSR -out CERT` issues and records; `index.txt` holds a line for each certificate (`V`, `R` with a time and reason, `E`); `-revoke FILE -crl_reason REASON`; `-gencrl -crlhours N` makes the CRL. The CSR is made where the key lives. `openssl ca` is for learning; real CAs are step-ca, Active Directory Certificate Services, EJBCA, OpenBao's PKI engine or a cloud's.
+- **Two tiers:** an offline root signs issuing CAs and its own CRL; issuing CAs sign leaves. A stolen issuing CA is revoked and replaced; a stolen root means changing every trust store.
+- **Limits on an issuing CA** live in its certificate: `pathlen:0` (error 25), a critical name constraint with `permitted;DNS:.NAME` (error 47), an extended key usage (error 26). The CA's software doesn't check them; relying parties do.
+- **nginx** needs the issuing CA and the root in `ssl_client_certificate`, and then accepts anything that root signed, another CA's certificates or one of its own: limit siblings, and test `$ssl_client_i_dn` (with `ssl_verify_client on`, never in place of it).
+- **A CRL** is a signed list with `lastUpdate` and `nextUpdate`, at the certificate's CRL distribution point. A stale copy says yes to a revoked certificate; an expired one says no to everyone (error 12). `ssl_crl` wants a CRL from every CA in the chain (error 3 without), and nginx reads it only when it loads: fetch, then reload.
+- **OCSP** answers live and makes the responder part of your availability. Hard fail for a partner API; browsers gave up asking (CRLSets, CRLite). Public rules: CRLs required, OCSP optional, a new CRL within 24 hours of a revocation; short-lived certificates (7 days) need no revocation.
+- **Timers:** `NAME.timer` starts `NAME.service`; `OnBootSec=` and `OnUnitActiveSec=` together (the second alone dies at a reboot; `OnCalendar=` alone waits for the clock), `WantedBy=timers.target`, `enable --now`, `list-timers`. Publish and fetch well inside the CRL's life.
+- **Rotation by overlap:** new CA issues, old CA stops; both trusted until the old one's last leaf expires; stop issuing one leaf lifetime before the CA expires. Same name, new key: `error 20 at 0`, settled by AKI and SKI. A new root goes out years ahead, bridged by cross-signing.
+- **Depth:** `error N at D`: D is which certificate, N is what. `-show_chain` prints the path; `-crl_check_all -CRLfile` checks every level.
+- **Clouds:** AWS Private CA $400 a month ($50 short-lived, no revocation); Azure has Cloud PKI for Intune devices only; Google's DevOps tier can't revoke, Enterprise can.
+
+</Recap>

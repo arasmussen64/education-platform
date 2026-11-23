@@ -1,0 +1,25 @@
+# The partners' CA's OCSP responder on one of the lab's machines:
+# "systemctl status ocsp-responder@ca". It is openssl's own small responder.
+# It answers on port 8888 whether a certificate the CA issued is still good,
+# from the CA's database, and signs each answer with the CA's key. An answer
+# says when to ask again: in five minutes.
+# It is a test tool, and one thing hangs it for good, spinning: a connection
+# that sends no request, such as a port probe (nc -z). So it may use a fifth
+# of one processor at most, and it is restarted every quarter of an hour;
+# "sudo systemctl restart ocsp-responder@ca" brings it back at once.
+[Unit]
+Description=The partners' CA's OCSP responder on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/openssl ocsp -index /etc/shop-ca/index.txt -port 8888 -CA /etc/shop-ca/partners.pem -rsigner /etc/shop-ca/partners.pem -rkey /etc/shop-ca/partners.key -nmin 5
+Restart=always
+RestartSec=1
+RuntimeMaxSec=900
+CPUQuota=20%
+
+[Install]
+WantedBy=multi-user.target

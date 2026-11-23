@@ -1,0 +1,23 @@
+id: debug-audit-findings
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The assessor's sample"
+prompt: |
+  This lab machine is the payments server, `pay1`, a month after its evidence pack was handed over. The pack is in `~/evidence/`: `pack.tsv` (framework, control, kind, source), the rules' results in `rules.txt`, each collector's output in a file of its own, and one exception in `exception.txt`. The scope is `/srv/compliance/scope.tsv`, the collectors are listed in `/srv/compliance/collectors.tsv`, and the crosswalk is `/usr/share/lab-pay/refs.tsv`.
+
+  The server takes card payments. Staff sign in over SSH with their own accounts; nobody signs in as root. The server's own journal is kept on disk. Its audit trail is a journal of its own, kept for 400 days. The bank's server fetches a settlement file every night from `shop-sync.service`, an rsync daemon, which is why the pack carries an exception for rsync.
+
+  This morning the assessor sampled the pack against the server:
+
+  - The pack says root can't log in over SSH. The assessor logged in as root, with a key. (`sudo root-login` tries the same login with a test key and prints `allowed` or `refused`.)
+  - The pack says the server's journal is kept on disk. The assessor restarted the server, and afterwards the journal held nothing from before the restart. (`sudo journalctl --header | grep 'File path'` shows where the journal is being written now. `sudo journalctl --flush` asks a journal that is allowed to use the disk to move there at once; otherwise it moves at the next boot.)
+  - For one control in scope, what the pack offers is not the evidence for that control.
+
+  There are three faults. Find them, fix the server so that the fixes last a reboot, and make the pack right and current: every result in it must be what the same rule or collector gives now, saved as the tool prints it.
+
+  Rules of the repair: staff must still be able to sign in over SSH, and the settlement sync stays as it is. The exception stands. Don't change the benchmark, the crosswalk, the scope, the collectors' list, the audit policy or the scanners. `sudo oscap-rules RULE...` runs named rules.
+skills: [control-to-evidence, crosswalks, gaps-and-exceptions]

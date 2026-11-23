@@ -1,0 +1,16 @@
+id: mcq-immutable-fix
+type: mcq
+rev: 1
+prompt: |
+  The shop's web servers are immutable: each one is built from an image and replaced, never changed. A scan flags a package in the image. How is it fixed?
+choices:
+  - "Run `apt-get upgrade` on each running server, and leave the image as it is"
+  - "Build a new image with the fixed package, then replace the servers with it"
+  - "Patch the running servers today, and rebuild the image at the next release"
+  - "Do nothing: a server that is never changed can't be reached by a new attack"
+answer: 1
+explanation: |
+  On an immutable fleet the image is the thing that has the vulnerability, and every server made from it inherits it. The fix is a new image with the fixed package, and new servers from that image in place of the old ones (Packages and patching's "replace the fleet"). Then every server made tomorrow is fixed too, and a rescan of the image proves it before anything is replaced.
+
+  Patching the running servers by hand fixes today's servers only: the next one made from the old image brings the flaw back, and the fleet has drifted from its image, which is what immutable servers exist to prevent. "Never changed" describes how a server is managed, not who can reach it.
+skills: [remediate-and-track]

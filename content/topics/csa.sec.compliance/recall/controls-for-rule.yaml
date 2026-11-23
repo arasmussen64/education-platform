@@ -1,0 +1,36 @@
+id: controls-for-rule
+type: predict_shell
+rev: 1
+prompt: |
+  The same 14 lines of the crosswalk: a rule, a framework and a control, separated by tabs. The first command counts the lines for the rule `sshd_disable_root_login`. The second prints the framework of each of those lines, once each. What do they print?
+files:
+  refs.tsv: |
+    accounts_password_pam_dcredit	pci-dss-4.0	8.3.6
+    accounts_password_pam_lcredit	pci-dss-4.0	8.3.6
+    accounts_password_pam_minlen	pci-dss-4.0	8.3.6
+    accounts_passwords_pam_faillock_deny	nist-800-53r4	AC-7(a)
+    accounts_passwords_pam_faillock_deny	pci-dss-4.0	8.3.4
+    accounts_passwords_pam_faillock_unlock_time	nist-800-53r4	AC-7(b)
+    accounts_passwords_pam_faillock_unlock_time	pci-dss-4.0	8.3.4
+    accounts_tmout	pci-dss-4.0	8.6.1
+    sshd_disable_root_login	cis-ubuntu-24.04	5.1.20
+    sshd_disable_root_login	hipaa	164.312(e)(1)
+    sshd_disable_root_login	nist-800-171	3.1.5
+    sshd_disable_root_login	nist-800-53r4	AC-6(2)
+    sshd_disable_root_login	pci-dss-4.0	2.2
+    sshd_disable_root_login	pci-dss-4.0	2.2.6
+command: |
+  grep -c '^sshd_disable_root_login' refs.tsv
+  awk -F'\t' '$1 == "sshd_disable_root_login" { print $2 }' refs.tsv | sort -u
+expected_output: |
+  6
+  cis-ubuntu-24.04
+  hipaa
+  nist-800-171
+  nist-800-53r4
+  pci-dss-4.0
+explanation: |
+  One rule, six lines, five frameworks (PCI DSS has two lines: requirement 2.2 and its sub-requirement 2.2.6). That is a **crosswalk** at work: one setting on one server, `PermitRootLogin no`, counts as evidence for a CIS recommendation, a HIPAA paragraph, a requirement of NIST SP 800-171, a control of SP 800-53 and a PCI DSS requirement. Fix it once, evidence it once, use it five times.
+
+  Read the framework names as well as counting them. `nist-800-53r4` is revision 4 of the catalogue; the current one is revision 5. A mapping always belongs to one version of each side.
+skills: [crosswalks]

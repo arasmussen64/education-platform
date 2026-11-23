@@ -1,0 +1,25 @@
+id: est-owasp-impact
+type: estimate
+rev: 1
+prompt: |
+  OWASP's risk rating method scores impact factors from 0 to 9. A team scores the four technical factors (loss of confidentiality, integrity, availability and accountability) as 7, 5, 3 and 1, and the four business factors (financial damage, reputation damage, non-compliance and privacy violation) as 9, 3, 6 and 6. The team knows the business well, so it follows the method's advice on which group to use, and takes that group's average. What impact does it get? Within 0.05.
+unit: out of 9
+answer: 6
+tolerance: { absolute: 0.05 }
+given: { conf: 7, integ: 5, avail: 3, account: 1, money: 9, reputation: 3, compliance: 6, privacy: 6 }
+# The 4 is "the four business factors", written as a word in the prompt.
+working: (money + reputation + compliance + privacy) / 4
+mistakes:
+  - id: all-eight
+    value: 5
+    working: (conf + integ + avail + account + money + reputation + compliance + privacy) / 8
+    why: "That averages all eight. For impact the method uses one group: the business factors when you know them, the technical ones when you don't."
+  - id: technical
+    value: 4
+    working: (conf + integ + avail + account) / 4
+    why: "That is the technical impact, the fallback for when nothing is known about the business. This team knows the business, so the business factors decide."
+explanation: |
+  OWASP's method says the business impact is the one that matters and should be used whenever there is enough information to score it; the technical impact is the next best thing when there isn't. The business factors average (9 + 3 + 6 + 6) / 4 = 6.0, which is HIGH on the bands (from 6 to 9).
+
+  The technical average, 4.0, would have been MEDIUM. The same finding is rated differently once you ask what it means for the business, which is why a rating needs someone in the room who knows.
+skills: [rank-risks]

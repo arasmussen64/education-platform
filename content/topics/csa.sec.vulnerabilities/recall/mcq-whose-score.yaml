@@ -1,0 +1,16 @@
+id: mcq-whose-score
+type: mcq
+rev: 1
+prompt: |
+  For sudo's CVE-2025-32462, the organisation that assigned the CVE scored it 2.8. The scanner prints `Severity: '8.8'`, because Ubuntu's record for it carries two vectors, one that scores 2.8 and one that scores 8.8. What do you do with the two numbers?
+choices:
+  - "Take 8.8: it is the environmental score, worked out for this very server"
+  - "Take 2.8: a score from whoever assigned the CVE is the one official score"
+  - "Read both vectors, and judge which one describes the flaw on your systems"
+  - "Take 5.8: the average of the two is the fairest single number to report"
+answer: 2
+explanation: |
+  A CVE can have several CVSS scores, from different scorers who assumed different things, and none is "the" official one. Here the two vectors disagree about how hard the attack is and how much it gives: `AC:H ... C:N/I:L/A:N` (hard, and a little damage to integrity: 2.8) against `AC:L ... C:H/I:H/A:H` (easy, and everything: 8.8). The flaw only matters where the `sudoers` file names particular hosts, so which vector fits depends on your own configuration. Read them and decide.
+
+  The scanner showing the higher one is a safe default, not a judgement. Neither is an environmental score: nobody at Ubuntu knows your server, and CVSS's environmental metrics are yours to fill in. An average describes no real attack at all.
+skills: [cvss-epss-kev]

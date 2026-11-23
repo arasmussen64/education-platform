@@ -1,0 +1,16 @@
+id: mcq-openssl-ca-production
+type: mcq
+rev: 1
+prompt: |
+  This topic's labs run certificate authorities with `openssl ca`. Why wouldn't a company run its real CA with it?
+choices:
+  - "Its own manual says it began as an example of how a CA works and isn't production quality"
+  - "It can't revoke a certificate once issued, so it only suits certificates that last a few days"
+  - "It can sign servers' and clients' certificates, but has no way to sign an issuing CA's own"
+  - "It only works with keys kept in a hardware security module, which most companies don't have"
+answer: 0
+explanation: |
+  The manual's own warning: `openssl ca` "was originally meant as an example of how to do things in a CA", and "its code does not have production quality". Its database is a text file that two people can't safely write at once and that is hard to repair if it is damaged, it has no service to ask for a certificate, and, as the labs show, it doesn't even check the limits in its own CA certificate.
+
+  It does revoke (`-revoke`, `-gencrl`), and it signs an issuing CA as readily as a leaf: the labs do both. And it reads its key from a plain file, which is a weakness, not a requirement for hardware. Companies run step-ca, Active Directory Certificate Services, EJBCA, OpenBao's PKI engine or a cloud's private CA. The labs use `openssl ca` because every part of a CA is a file you can read.
+skills: [run-a-ca]

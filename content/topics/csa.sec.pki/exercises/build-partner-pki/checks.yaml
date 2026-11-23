@@ -1,0 +1,293 @@
+# The checks of "A PKI for the partners". In order: the root and its key;
+# what the partners' CA's certificate allows, read and then tried with
+# certificates the checks make themselves, with made-up names, signed by
+# the CA's key outside its database; the two partners' certificates; who
+# the API lets in; what the CA publishes; and the two timers, each proved by
+# running the service it starts, exactly as the timer would.
+# The fifth check waits for nginx on web after a boot; the rest read at
+# once. A check that finds something wrong prints what it found and exits
+# 0, so the checker shows that sentence rather than an exit status.
+checks:
+  - id: root-offline
+    description: "The root CA exists on root: a key and a certificate it signed itself, as a CA. The root's key is in no file outside root's own /etc/shop-ca, and root has no network."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      [ -s "$ROOT_DIR/root.key" ] || { echo "there is no /etc/shop-ca/root.key on root"; exit 0; }
+      [ -s "$ROOT_PEM" ] || { echo "there is no /etc/shop-ca/root.pem on root"; exit 0; }
+      same_key "$ROOT_PEM" "$ROOT_DIR/root.key" || { echo "root's root.pem isn't the certificate of root's root.key"; exit 0; }
+      [ "$(verify_error -CAfile "$ROOT_PEM" "$ROOT_PEM")" = ok ] || { echo "root's root.pem isn't a certificate signed by its own key"; exit 0; }
+      openssl x509 -in "$ROOT_PEM" -noout -ext basicConstraints 2> /dev/null | grep 'CA:TRUE' > /dev/null || { echo "root's root.pem isn't a CA's certificate"; exit 0; }
+      found=$(holds_key_of "$ROOT_PEM" | head -n 1)
+      [ -z "$found" ] || { echo "the root's private key is also in a file outside root's own /etc/shop-ca"; exit 0; }
+      [ -z "$(ip -n root -o addr show scope global 2> /dev/null)" ] || { echo "root has a network address"; exit 0; }
+      echo offline
+    expect:
+      equals: offline
+  - id: ca-limits
+    description: "The partners' CA's certificate, on ca, is signed by the root and listed in the root's database, and it says: no CA below this one; names under partners.shop.test only; client certificates only."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      [ -s "$CA_PEM" ] || { echo "there is no /etc/shop-ca/partners.pem on ca"; exit 0; }
+      same_key "$CA_PEM" "$CA_DIR/partners.key" || { echo "ca's partners.pem isn't the certificate of ca's partners.key"; exit 0; }
+      [ "$(verify_error -CAfile "$ROOT_PEM" "$CA_PEM")" = ok ] || { echo "ca's partners.pem doesn't verify under the root"; exit 0; }
+      [ "$(db_status "$ROOT_DIR/index.txt" "$CA_PEM")" = V ] || { echo "ca's partners.pem isn't a valid line in the root's database: it wasn't issued with openssl ca on root"; exit 0; }
+      bc=$(openssl x509 -in "$CA_PEM" -noout -ext basicConstraints 2> /dev/null | tail -n 1 | sed 's/^ *//')
+      [ "$bc" = "CA:TRUE, pathlen:0" ] || { echo "the partners' CA's basic constraints are \"${bc:-none}\""; exit 0; }
+      nc=$(openssl x509 -in "$CA_PEM" -noout -ext nameConstraints 2> /dev/null | sed '1d;s/^ *//' | tr '\n' ' ' | sed 's/ $//')
+      case $nc in
+        "Permitted: DNS:.partners.shop.test" | "Permitted: DNS:partners.shop.test") ;;
+        *) echo "the partners' CA's name constraints are \"${nc:-none}\""; exit 0 ;;
+      esac
+      eku=$(openssl x509 -in "$CA_PEM" -noout -ext extendedKeyUsage 2> /dev/null | tail -n 1 | sed 's/^ *//')
+      [ "$eku" = "TLS Web Client Authentication" ] || { echo "the partners' CA's extended key usage is \"${eku:-none}\""; exit 0; }
+      echo limited
+    expect:
+      equals: limited
+  - id: partners-certs
+    description: "The warehouse (on depot) and the courier each hold a certificate the partners' CA issued for the partner's own key and its name under partners.shop.test, listed in the CA's database, for client use, lasting 90 days at most, naming http://crl.shop.test/partners.crl and http://ocsp.shop.test:8888."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      for pair in depot:warehouse courier:courier; do
+        m=${pair%%:*} n=${pair#*:}
+        c=/etc/netns/$m/partner/$n.pem
+        [ -s "$c" ] || { echo "there is no /etc/partner/$n.pem on $m"; exit 0; }
+        same_key "$c" "/etc/netns/$m/partner/$n.key" || { echo "$m's $n.pem isn't for the key in $m's /etc/partner/$n.key"; exit 0; }
+        [ "$(verify_error -purpose sslclient -CAfile "$ROOT_PEM" -untrusted "$CA_PEM" "$c")" = ok ] || { echo "$m's $n.pem doesn't verify as a client's certificate under the root and the partners' CA"; exit 0; }
+        openssl x509 -in "$c" -noout -ext subjectAltName 2> /dev/null | grep -w "DNS:$n.partners.shop.test" > /dev/null || { echo "$m's $n.pem isn't for the name $n.partners.shop.test"; exit 0; }
+        [ -n "$(db_status "$CA_DIR/index.txt" "$c")" ] || { echo "$m's $n.pem isn't in the partners' CA's database: it wasn't issued with openssl ca on ca"; exit 0; }
+        eku=$(openssl x509 -in "$c" -noout -ext extendedKeyUsage 2> /dev/null | tail -n 1 | sed 's/^ *//')
+        [ "$eku" = "TLS Web Client Authentication" ] || { echo "$m's $n.pem may be used for \"${eku:-anything}\""; exit 0; }
+        openssl x509 -in "$c" -noout -ext basicConstraints 2> /dev/null | grep 'CA:FALSE' > /dev/null || { echo "$m's $n.pem doesn't say it is not a CA"; exit 0; }
+        from=$(date -u -d "$(openssl x509 -in "$c" -noout -startdate | cut -d= -f2)" +%s)
+        until=$(date -u -d "$(openssl x509 -in "$c" -noout -enddate | cut -d= -f2)" +%s)
+        [ $((until - from)) -le $((90 * 86400)) ] || { echo "$m's $n.pem lasts $(((until - from) / 86400)) days"; exit 0; }
+        openssl x509 -in "$c" -noout -ext crlDistributionPoints 2> /dev/null | grep 'URI:http://crl.shop.test/partners.crl$' > /dev/null || { echo "$m's $n.pem doesn't name http://crl.shop.test/partners.crl as its CRL"; exit 0; }
+        openssl x509 -in "$c" -noout -ext authorityInfoAccess 2> /dev/null | grep 'OCSP - URI:http://ocsp.shop.test:8888$' > /dev/null || { echo "$m's $n.pem doesn't name http://ocsp.shop.test:8888 as its OCSP responder"; exit 0; }
+      done
+      echo issued
+    expect:
+      equals: issued
+  - id: limits-hold
+    description: "Certificates made for this check with the partners' CA's key are refused wherever they step outside the CA's limits: a name outside partners.shop.test, a server's certificate, and a certificate from a CA below the partners' CA."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      [ -s "$CA_PEM" ] && [ -s "$CA_DIR/partners.key" ] && [ -s "$ROOT_PEM" ] || { echo "there is no partners' CA on ca yet"; exit 0; }
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      chmod 755 "$dir"
+      out="$(rand_label p).$(rand_label partners).test"
+      mint "$dir" out "$out" clientAuth || { echo "the check couldn't sign with the partners' CA's key"; exit 0; }
+      got=$(verify_error -purpose sslclient -CAfile "$ROOT_PEM" -untrusted "$CA_PEM" "$dir/out.pem")
+      [ "$got" = "47 at 0" ] || { echo "a certificate from the partners' CA for $out, a name outside partners.shop.test, verifies as: $got"; exit 0; }
+      near="$(rand_label p).$(rand_label team).shop.test"
+      mint "$dir" near "$near" clientAuth
+      got=$(verify_error -purpose sslclient -CAfile "$ROOT_PEM" -untrusted "$CA_PEM" "$dir/near.pem")
+      [ "$got" = "47 at 0" ] || { echo "a certificate from the partners' CA for $near, a name outside partners.shop.test, verifies as: $got"; exit 0; }
+      mint "$dir" srv "$(rand_label s).partners.shop.test" serverAuth
+      got=$(verify_error -purpose sslserver -CAfile "$ROOT_PEM" -untrusted "$CA_PEM" "$dir/srv.pem")
+      [ "$got" = "26 at 1" ] || { echo "a server's certificate from the partners' CA, checked as a server's, verifies as: $got"; exit 0; }
+      mint_ca "$dir" sub "Sub CA $(rand_label)" "$CA_PEM" "$CA_DIR/partners.key"
+      mint "$dir" deep "$(rand_label d).partners.shop.test" clientAuth "$dir/sub.pem" "$dir/sub.key"
+      cat "$CA_PEM" "$dir/sub.pem" > "$dir/chain.pem"
+      got=$(verify_error -purpose sslclient -CAfile "$ROOT_PEM" -untrusted "$dir/chain.pem" "$dir/deep.pem")
+      [ "$got" = "25 at 2" ] || { echo "a certificate from a CA below the partners' CA verifies as: $got"; exit 0; }
+      echo held
+    expect:
+      equals: held
+  - id: partners-in
+    description: "The API answers the warehouse with its orders, and a partner the check makes up, with a certificate from the partners' CA for a name under partners.shop.test."
+    # It waits up to about 30 seconds for nginx after a boot (10 tries of
+    # at most 3 seconds), so it gets 45 and prints its own sentence.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      wait_for 10 api_up || { echo "nothing answers HTTPS for api.shop.test on web"; exit 0; }
+      wait_for 3 ca_web_up
+      got=$(api_code depot /etc/partner/warehouse.pem /etc/partner/warehouse.key)
+      [ "$got" = 200 ] || { echo "the API answers the warehouse with ${got:-nothing}"; exit 0; }
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      chmod 755 "$dir"
+      name="$(rand_label new).partners.shop.test"
+      mint "$dir" new "$name" clientAuth || { echo "the check couldn't sign with the partners' CA's key"; exit 0; }
+      got=$(api_code office "$dir/new.pem" "$dir/new.key")
+      [ "$got" = 200 ] || { echo "the API answers a new partner, $name, whose certificate the partners' CA signed, with ${got:-nothing}"; exit 0; }
+      echo in
+    expect:
+      equals: in
+  - id: nobody-else
+    description: "The API refuses a client with no certificate, and clients the check makes up: a name outside partners.shop.test, a certificate from a CA below the partners' CA, one from another CA the root signed, one the root signed itself, and one from a stranger's CA that uses the shop's CA names."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      api_up || { echo "nothing answers HTTPS for api.shop.test on web"; exit 0; }
+      [ -s "$CA_PEM" ] && [ -s "$CA_DIR/partners.key" ] && [ -s "$ROOT_DIR/root.key" ] || { echo "there is no root and partners' CA yet"; exit 0; }
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      chmod 755 "$dir"
+      refused() { case $1 in 4*) return 0 ;; esac; return 1; }
+      got=$(api_code office)
+      refused "$got" || { echo "the API answers a client with no certificate with ${got:-nothing}"; exit 0; }
+      out="$(rand_label p).$(rand_label partners).test"
+      mint "$dir" out "$out" clientAuth
+      got=$(api_code office "$dir/out.pem" "$dir/out.key")
+      refused "$got" || { echo "the API answers a client whose certificate is for $out with ${got:-nothing}"; exit 0; }
+      mint_ca "$dir" sub "Sub CA $(rand_label)" "$CA_PEM" "$CA_DIR/partners.key"
+      mint "$dir" deep "$(rand_label d).partners.shop.test" clientAuth "$dir/sub.pem" "$dir/sub.key"
+      cat "$dir/deep.pem" "$dir/sub.pem" > "$dir/deep-chain.pem"
+      got=$(api_code office "$dir/deep-chain.pem" "$dir/deep.key")
+      refused "$got" || { echo "the API answers a client whose certificate comes from a CA below the partners' CA with ${got:-nothing}"; exit 0; }
+      mint_ca "$dir" sib "Shop $(rand_label Team) CA" "$ROOT_PEM" "$ROOT_DIR/root.key" 'basicConstraints=critical,CA:TRUE,pathlen:0' 'extendedKeyUsage=clientAuth'
+      mint "$dir" sibleaf "$(rand_label x).partners.shop.test" clientAuth "$dir/sib.pem" "$dir/sib.key"
+      cat "$dir/sibleaf.pem" "$dir/sib.pem" > "$dir/sib-chain.pem"
+      got=$(api_code office "$dir/sib-chain.pem" "$dir/sibleaf.key")
+      refused "$got" || { echo "the API answers a client whose certificate comes from another CA the root signed with ${got:-nothing}"; exit 0; }
+      # The root's key signs a client's certificate directly, for a partner's
+      # name and for any other: nginx's own verification passes both, since
+      # the partners' CA's limits aren't in their chain.
+      for name in "$(rand_label r).partners.shop.test" "$(rand_label r).$(rand_label staff).test"; do
+        mint "$dir" direct "$name" clientAuth "$ROOT_PEM" "$ROOT_DIR/root.key"
+        got=$(api_code office "$dir/direct.pem" "$dir/direct.key")
+        refused "$got" || { echo "the API answers a client whose certificate, for $name, was signed by the root itself and not by the partners' CA, with ${got:-nothing}"; exit 0; }
+      done
+      mint_ca "$dir" fakeroot "Shop Root CA" - -
+      mint_ca "$dir" fake "Shop Partners CA" "$dir/fakeroot.pem" "$dir/fakeroot.key" 'extendedKeyUsage=clientAuth'
+      mint "$dir" fakeleaf "$(rand_label f).partners.shop.test" clientAuth "$dir/fake.pem" "$dir/fake.key"
+      cat "$dir/fakeleaf.pem" "$dir/fake.pem" "$dir/fakeroot.pem" > "$dir/fake-chain.pem"
+      got=$(api_code office "$dir/fake-chain.pem" "$dir/fakeleaf.key")
+      refused "$got" || { echo "the API answers a client whose certificate comes from a stranger's CA named like the shop's with ${got:-nothing}"; exit 0; }
+      # The same certificate shown alone: its issuer's name is the shop's
+      # CA's, and nothing but a verified signature tells them apart.
+      got=$(api_code office "$dir/fakeleaf.pem" "$dir/fakeleaf.key")
+      refused "$got" || { echo "the API answers a client whose certificate only names the shop's CA as its issuer, and was signed by a stranger's, with ${got:-nothing}"; exit 0; }
+      echo refused
+    expect:
+      equals: refused
+  - id: revoked-out
+    description: "The courier's certificate is revoked in the CA's database with the reason, a compromised key; no other certificate for the courier's key is still valid there; the API refuses the courier; and the OCSP responder at http://ocsp.shop.test:8888 says revoked."
+    # A responder that doesn't answer is asked five times, five seconds each.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      c=/etc/netns/courier/partner/courier.pem
+      [ -s "$c" ] || { echo "there is no /etc/partner/courier.pem on courier"; exit 0; }
+      [ "$(db_status "$CA_DIR/index.txt" "$c")" = R ] || { echo "the courier's certificate isn't revoked in the partners' CA's database"; exit 0; }
+      why=$(awk -F'\t' -v s="$(serial_of "$c")" 'toupper($4) == toupper(s) {print $3}' "$CA_DIR/index.txt" | head -n 1)
+      case $why in *,keyCompromise) ;; *) echo "the courier's certificate is revoked without the reason: its key is lost, which is keyCompromise"; exit 0 ;; esac
+      # The key is what was lost: every certificate the CA issued for it has
+      # to go, an earlier try included. The database's valid lines are read
+      # by subject, and their copies in newcerts/ by key.
+      key=$(openssl pkey -in /etc/netns/courier/partner/courier.key -pubout 2> /dev/null)
+      for serial in $(awk -F'\t' '$1 == "V" {print $4}' "$CA_DIR/index.txt"); do
+        subject=$(awk -F'\t' -v s="$serial" '$4 == s {print $6}' "$CA_DIR/index.txt" | head -n 1)
+        copy=$CA_DIR/newcerts/$serial.pem
+        if [ "$subject" = "/CN=courier.partners.shop.test" ] || { [ -s "$copy" ] && [ "$(openssl x509 -in "$copy" -noout -pubkey 2> /dev/null)" = "$key" ]; }; then
+          echo "the partners' CA's database still lists as valid another certificate for the courier: the key that was lost can still use it"
+          exit 0
+        fi
+      done
+      got=$(api_code courier /etc/partner/courier.pem /etc/partner/courier.key)
+      [ "$got" = 400 ] || { echo "the API answers the courier with ${got:-nothing}"; exit 0; }
+      said=$(ocsp_status "$CA_PEM" "$c")
+      [ -n "$said" ] || { echo "the office gets no answer signed by the partners' CA from http://ocsp.shop.test:8888 (is ocsp-responder@ca running? If something hung it: sudo systemctl restart ocsp-responder@ca)"; exit 0; }
+      [ "$said" = revoked ] || { echo "the OCSP responder says the courier's certificate is $said"; exit 0; }
+      [ "$(systemctl is-enabled ocsp-responder@ca 2> /dev/null)" = enabled ] || { echo "ocsp-responder@ca doesn't start at boot"; exit 0; }
+      echo out
+    expect:
+      equals: out
+  - id: crls-served
+    description: "crl.shop.test serves both CRLs: the root's, signed by the root, with at least a day left; and the partners' CA's, signed by it, made to last 2 hours, with at least 45 minutes left, listing the courier's certificate."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      served root.crl "$dir/r.crl" || { echo "the office gets nothing from http://crl.shop.test/root.crl"; exit 0; }
+      crl_from "$dir/r.crl" "$ROOT_PEM" || { echo "what crl.shop.test serves as root.crl isn't a CRL the root signed"; exit 0; }
+      [ "$(seconds_left "$dir/r.crl")" -ge 86400 ] || { echo "the root's CRL has less than a day left"; exit 0; }
+      served partners.crl "$dir/p.crl" || { echo "the office gets nothing from http://crl.shop.test/partners.crl"; exit 0; }
+      crl_from "$dir/p.crl" "$CA_PEM" || { echo "what crl.shop.test serves as partners.crl isn't a CRL the partners' CA signed"; exit 0; }
+      life=$(crl_life "$dir/p.crl")
+      [ "$life" -ge 6900 ] && [ "$life" -le 7500 ] || { echo "the partners' CA's CRL was made to last $((life / 60)) minutes"; exit 0; }
+      [ "$(seconds_left "$dir/p.crl")" -ge 2700 ] || { echo "the partners' CA's CRL has less than 45 minutes left"; exit 0; }
+      crl_lists "$dir/p.crl" /etc/netns/courier/partner/courier.pem || { echo "the partners' CA's CRL doesn't list the courier's certificate"; exit 0; }
+      echo served
+    expect:
+      equals: served
+  - id: publish-timer
+    description: "crl-publish@ca.timer is on now and at every boot, from a unit file that lasts, and runs at least every hour; and one run of crl-publish@ca.service, which it starts, puts a newer CRL at http://crl.shop.test/partners.crl."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      said=$(timer_ok crl-publish@ca.timer 3600)
+      [ "$said" = ok ] || { echo "$said"; exit 0; }
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      served partners.crl "$dir/a.crl" && crl_from "$dir/a.crl" "$CA_PEM" || { echo "the office gets no CRL of the partners' CA from http://crl.shop.test/partners.crl"; exit 0; }
+      systemctl start crl-publish@ca.service > /dev/null 2>&1 || { echo "crl-publish@ca.service fails when it is started: journalctl -u crl-publish@ca"; exit 0; }
+      served partners.crl "$dir/b.crl" && crl_from "$dir/b.crl" "$CA_PEM" || { echo "after a run of crl-publish@ca.service, the office gets no CRL of the partners' CA"; exit 0; }
+      [ "$(crl_number "$dir/b.crl")" -gt "$(crl_number "$dir/a.crl")" ] || { echo "a run of crl-publish@ca.service doesn't put a newer CRL at http://crl.shop.test/partners.crl"; exit 0; }
+      echo publishes
+    expect:
+      equals: publishes
+  - id: fetch-timer
+    description: "crl-fetch@web.timer is on now and at every boot, from a unit file that lasts, and runs at least every 30 minutes; and one run of crl-fetch@web.service, which it starts, leaves nginx on web using the CRLs being served now, the partners' CA's and the root's."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      said=$(timer_ok crl-fetch@web.timer 1800)
+      [ "$said" = ok ] || { echo "$said"; exit 0; }
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      crl=$(on web nginx -T 2> /dev/null | sed -n 's/^\s*ssl_crl\s\+\(\S\+\);.*/\1/p' | head -n 1)
+      [ -n "$crl" ] || { echo "web's nginx has no ssl_crl line"; exit 0; }
+      file=/etc/netns/web${crl#/etc}
+      [ -f "$file" ] || file=$crl
+      # nginx's workers now, before anything here is started: a reload
+      # starts new ones and retires the old.
+      before=$(web_workers)
+      # A newer CRL at the CA, so that this run has something to bring.
+      systemctl start crl-publish@ca.service > /dev/null 2>&1
+      served partners.crl "$dir/p.crl" && crl_from "$dir/p.crl" "$CA_PEM" || { echo "the office gets no CRL of the partners' CA from http://crl.shop.test/partners.crl"; exit 0; }
+      # Twice at most: a run the timer had already begun, just before the
+      # newer CRL came out, would be joined by this start and not repeated.
+      # And the CRL is read again after the fetch: the publish timer's own
+      # run can put a still newer one out in between.
+      for try in 1 2; do
+        systemctl start crl-fetch@web.service > /dev/null 2>&1 || { echo "crl-fetch@web.service fails when it is started: journalctl -u crl-fetch@web"; exit 0; }
+        served partners.crl "$dir/q.crl" || cp "$dir/p.crl" "$dir/q.crl"
+        rm -f "$dir"/web*.crl
+        split_crls "$file" "$dir" web
+        have_root=no have_ca=no
+        for f in "$dir"/web*.crl; do
+          [ -e "$f" ] || break
+          crl_from "$f" "$ROOT_PEM" && have_root=yes
+          if crl_from "$f" "$CA_PEM"; then
+            [ "$(crl_number "$f")" = "$(crl_number "$dir/p.crl")" ] && have_ca=yes
+            [ "$(crl_number "$f")" = "$(crl_number "$dir/q.crl")" ] && have_ca=yes
+          fi
+        done
+        [ "$have_ca" = yes ] && break
+      done
+      [ "$have_ca" = yes ] || { echo "after a run of crl-fetch@web.service, the file nginx reads its CRLs from doesn't hold the partners' CA's CRL being served now"; exit 0; }
+      [ "$have_root" = yes ] || { echo "after a run of crl-fetch@web.service, the file nginx reads its CRLs from doesn't hold the root's CRL"; exit 0; }
+      # nginx read the new file if it has new workers.
+      fresh() { [ -n "$(web_workers)" ] && [ "$(web_workers)" != "$before" ]; }
+      wait_for 5 fresh || { echo "after a run of crl-fetch@web.service, nginx on web is still running with the CRLs it had loaded before"; exit 0; }
+      echo fetches
+    expect:
+      equals: fetches
+  - id: lasting
+    description: "nginx on web starts at every boot and its files pass its own test, and the warehouse still gets its orders."
+    command: |
+      . /usr/local/lib/lab/pkicheck.sh
+      [ "$(systemctl is-enabled nginx@web 2> /dev/null)" = enabled ] || { echo "nginx@web doesn't start at boot"; exit 0; }
+      said=$(on web nginx -t 2>&1) || { echo "on web, nginx -t says: $(echo "$said" | grep -m 1 emerg)"; exit 0; }
+      ok() { [ "$(api_code depot /etc/partner/warehouse.pem /etc/partner/warehouse.key)" = 200 ]; }
+      wait_for 5 ok || { echo "the API no longer answers the warehouse with its orders"; exit 0; }
+      echo lasts
+    expect:
+      equals: lasts
+  - id: scenery
+    description: "The network, the resolver, what ca serves, the API's own certificate, the partners' keys and the units the lab gave are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact

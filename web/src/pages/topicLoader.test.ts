@@ -58,9 +58,10 @@ describe('the topic loader', () => {
 
   it('loads nothing for a topic that is still an outline, or unknown', async () => {
     // The cloud track's outlines aren't bundled in; the loader fetches them.
-    // A Module 4 topic: Modules 1 to 3 have real content, or are being written.
-    expect(await load('csa.sec.threat-modeling')).toMatchObject({
-      topic: { id: 'csa.sec.threat-modeling', status: 'planned' },
+    // A topic far down the track, in a module that isn't bundled: the
+    // earlier modules have real content, or are being written.
+    expect(await load('csa.secarch.pqc')).toMatchObject({
+      topic: { id: 'csa.secarch.pqc', status: 'planned' },
       content: null,
       interleaved: null,
     })

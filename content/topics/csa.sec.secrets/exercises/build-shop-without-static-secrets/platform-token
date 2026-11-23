@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""platform-token: the platform's identity service, as far as this lab goes.
+Scenery: don't change it.
+
+On a real platform this is the part that knows which workload is which,
+because it started them: a cloud's metadata service, Kubernetes handing
+each pod a service-account token, a CI system signing a token for each
+job. Here it is one program, run as root at boot and every three minutes
+(platform-token.service and .timer):
+
+    platform-token
+
+For every line "WORKLOAD USER" in /etc/lab-platform/workloads it signs a
+token that says who the workload is and writes it where only that
+workload's user can read it: /run/platform/WORKLOAD/token. A token is a
+JWT, signed with the platform's private key (ES256), and lasts ten
+minutes:
+
+    iss  https://platform.shop.test    who signed it
+    sub  workload:WORKLOAD             who it is about
+    aud  openbao                       who it is meant for
+    iat, nbf, exp                      made, valid from, valid until
+
+Anyone can check one with the public key, /etc/lab-platform/signing.pub.
+The private key, /etc/lab-platform/signing.key, is made at the first run
+and only root reads it.
+
+The lab's checks sign tokens of their own, with claims of their choosing:
+
+    platform-token sign --sub SUBJECT [--aud AUDIENCE] [--ttl SECONDS]
+                        [--iss ISSUER] [--key PRIVATE-KEY-FILE]
+"""
+
+import argparse
+import base64
+import json
+import os
+import pwd
+import sys
+import time
+
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+
+HOME = "/etc/lab-platform"
+KEY = f"{HOME}/signing.key"
+PUBLIC = f"{HOME}/signing.pub"
+WORKLOADS = f"{HOME}/workloads"
+ISSUER = "https://platform.shop.test"
+AUDIENCE = "openbao"
+LIFETIME = 600
+
+
+def b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def make_key() -> None:
+    """The platform's key pair, made once, on this machine."""
+    if os.path.exists(KEY):
+        return
+    key = ec.generate_private_key(ec.SECP256R1())
+    private = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    public = key.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    with open(os.open(KEY, os.O_WRONLY | os.O_CREAT, 0o600), "wb") as file:
+        file.write(private)
+    with open(PUBLIC, "wb") as file:
+        file.write(public)
+    os.chmod(PUBLIC, 0o644)
+
+
+def sign(subject: str, audience: str, lifetime: int, issuer: str, key_file: str) -> str:
+    with open(key_file, "rb") as file:
+        key = serialization.load_pem_private_key(file.read(), None)
+    now = int(time.time())
+    head = b64(json.dumps({"alg": "ES256", "typ": "JWT"}).encode())
+    claims = {
+        "iss": issuer,
+        "sub": subject,
+        "aud": audience,
+        "iat": now,
+        "nbf": now,
+        "exp": now + lifetime,
+    }
+    body = b64(json.dumps(claims).encode())
+    r, s = decode_dss_signature(
+        key.sign(f"{head}.{body}".encode(), ec.ECDSA(hashes.SHA256()))
+    )
+    return f"{head}.{body}.{b64(r.to_bytes(32, 'big') + s.to_bytes(32, 'big'))}"
+
+
+def write_all() -> None:
+    """A fresh token for every workload, where only its user reads it."""
+    os.makedirs("/run/platform", mode=0o755, exist_ok=True)
+    with open(WORKLOADS, encoding="utf-8") as file:
+        lines = [
+            line.split() for line in file if line.strip() and not line.startswith("#")
+        ]
+    for workload, user in lines:
+        account = pwd.getpwnam(user)
+        folder = f"/run/platform/{workload}"
+        os.makedirs(folder, mode=0o700, exist_ok=True)
+        os.chown(folder, account.pw_uid, account.pw_gid)
+        token = sign(f"workload:{workload}", AUDIENCE, LIFETIME, ISSUER, KEY)
+        with open(
+            os.open(
+                f"{folder}/token.new", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o400
+            ),
+            "w",
+        ) as out:
+            out.write(token + "\n")
+        os.chown(f"{folder}/token.new", account.pw_uid, account.pw_gid)
+        os.replace(f"{folder}/token.new", f"{folder}/token")
+
+
+def main(argv: list[str]) -> int:
+    make_key()
+    if not argv:
+        write_all()
+        return 0
+    parser = argparse.ArgumentParser(prog="platform-token")
+    parser.add_argument("command", choices=["sign"])
+    parser.add_argument("--sub", required=True)
+    parser.add_argument("--aud", default=AUDIENCE)
+    parser.add_argument("--ttl", type=int, default=LIFETIME)
+    parser.add_argument("--iss", default=ISSUER)
+    parser.add_argument("--key", default=KEY)
+    args = parser.parse_args(argv)
+    print(sign(args.sub, args.aud, args.ttl, args.iss, args.key))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

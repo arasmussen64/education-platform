@@ -1,0 +1,24 @@
+# The partners' issuing CA, on the machine "ca": what "openssl ca" reads.
+# It signs partners' client certificates and its own CRL.
+
+[ ca ]
+default_ca = shop_partners
+
+[ shop_partners ]
+dir               = /etc/shop-ca
+certificate       = $dir/partners.pem     # the CA's own certificate, signed by the root
+private_key       = $dir/partners.key     # and its key
+database          = $dir/index.txt        # one line for every certificate it has signed
+new_certs_dir     = $dir/newcerts         # a copy of each, named by serial number
+crlnumber         = $dir/crlnumber        # the number of the next CRL
+rand_serial       = yes                   # serial numbers are random, never counted up
+default_md        = sha256
+default_days      = 90                    # a partner's certificate lasts 90 days
+default_crl_hours = 2                     # a CRL lasts 2 hours (the labs' fast clock)
+policy            = policy_partner
+unique_subject    = no                    # a partner may hold two certificates at once, while it renews
+copy_extensions   = copy                  # the names a request asks for (its subjectAltName) are copied in
+
+# What a request's subject must hold.
+[ policy_partner ]
+commonName = supplied

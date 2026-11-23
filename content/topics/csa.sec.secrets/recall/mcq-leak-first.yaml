@@ -1,0 +1,16 @@
+id: mcq-leak-first
+type: mcq
+rev: 1
+prompt: |
+  Two minutes ago a developer pushed a commit with the shop's payment key in it to a public repository. They have noticed, and ask you what to do first.
+choices:
+  - "Revoke the key at the payment gateway, then deal with the repository"
+  - "Rewrite the history without the commit and force-push, then rotate tonight"
+  - "Make the repository private at once, then rotate the key this week"
+  - "Add the key to the scanner's allowlist, so that the alerts stop"
+answer: 0
+explanation: |
+  Revoke first. From the moment of the push the key is in a public place that bots watch all day, and no later step can call it back: a rewritten history doesn't reach the clones, forks and caches that already have the commit, and a private repository doesn't un-publish what was public for two minutes. The only thing that makes a leaked secret harmless is that it stops working.
+
+  Then the rest, in order: give the service a new key, read the gateway's record for what the old key was used for while it was out, remove the secret from where it leaked, and find out how it got there. An allowlist entry only tells the scanner to stop mentioning it.
+skills: [rotate-and-revoke]

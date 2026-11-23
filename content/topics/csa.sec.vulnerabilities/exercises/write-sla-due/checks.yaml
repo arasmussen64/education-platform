@@ -1,0 +1,47 @@
+# The checks for "Due dates from a policy". Each of the last six has
+# sla-cases (/usr/local/lib/lab-checks) make up findings, assets and a
+# policy as it runs, so a script that knows one week or one table by heart
+# fails; each judges one part of the answer, so one mistake fails one check.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/sla-due exists, is executable and starts with #!/bin/bash."
+    command: |
+      f=/home/learner/bin/sla-due
+      [ -f "$f" ] || { echo "there is no ~/bin/sla-due"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/sla-due isn't executable"; exit 0; }
+      [ "$(head -n 1 "$f")" = "#!/bin/bash" ] || { echo "the first line isn't #!/bin/bash"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: every-row
+    description: "For 32 findings the check makes up, two for each row of the shop's policy, every due date that is a date is right, counted in calendar days."
+    command: /usr/local/lib/lab-checks/sla-cases rows
+    expect:
+      equals: right
+  - id: earlier-start
+    description: "A finding's clock starts on the earlier of the day it was found and the day CISA listed it in KEV, whichever way round the two days are."
+    command: /usr/local/lib/lab-checks/sla-cases start
+    expect:
+      equals: right
+  - id: on-upgrade
+    description: "A finding whose row has no number of days is printed with on-upgrade in place of a date."
+    command: /usr/local/lib/lab-checks/sla-cases upgrade
+    expect:
+      equals: right
+  - id: triage-flag
+    description: "Each line's last field is its row's forensic triage, yes or no."
+    command: /usr/local/lib/lab-checks/sla-cases triage
+    expect:
+      equals: right
+  - id: exposure-from-assets
+    description: "Exposure comes from the ASSETS file: the same findings are right twice, the second time with every asset's exposure the other way round."
+    command: /usr/local/lib/lab-checks/sla-cases assets
+    expect:
+      equals: right
+  - id: reads-the-policy
+    description: "The timelines come from the POLICY file: with another table, with other numbers of days and other rows asking for triage, every line is still right."
+    command: /usr/local/lib/lab-checks/sla-cases policy
+    expect:
+      equals: right

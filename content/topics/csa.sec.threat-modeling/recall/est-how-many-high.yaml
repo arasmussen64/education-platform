@@ -1,0 +1,25 @@
+id: est-how-many-high
+type: estimate
+rev: 1
+prompt: |
+  A model rates likelihood and impact from 1 to 3, a risk is likelihood times impact, and a risk of 6 or more is high. Its four threats are rated, likelihood then impact: 3 and 3, 3 and 2, 2 and 2, 1 and 3. How many of the four are high? Exactly.
+unit: threats
+answer: 2
+tolerance: { absolute: 0 }
+given: { l1: 3, i1: 3, l2: 3, i2: 2, l3: 2, i3: 2, l4: 1, i4: 3, high: 6 }
+# x // high is 1 for a risk from 6 to 9 and 0 below 6.
+working: l1 * i1 // high + l2 * i2 // high + l3 * i3 // high + l4 * i4 // high
+mistakes:
+  - id: six-left-out
+    value: 1
+    working: l1 * i1 // (high + 1) + l2 * i2 // (high + 1) + l3 * i3 // (high + 1) + l4 * i4 // (high + 1)
+    why: "That counts only the 9. \"6 or more\" includes 6, so the threat rated 3 and 2 is high too."
+  - id: any-three
+    value: 3
+    working: max(l1, i1) // 3 + max(l2, i2) // 3 + max(l3, i3) // 3 + max(l4, i4) // 3
+    why: "That counts every threat with a 3 in it. A 3 on one scale isn't high by itself: 1 times 3 is 3."
+explanation: |
+  The four risks are 9, 6, 4 and 3. Two are 6 or more: the 9 and the 6. Those two go on the model's `top` line, highest first, and each needs a control. The 4 and the 3 need a control or a written decision to accept them.
+
+  The last threat is the one to look at twice: its impact is the worst there is, and its risk is 3 because it is rated very unlikely. If that likelihood is wrong, a 9 has been filed as a 3.
+skills: [rank-risks]

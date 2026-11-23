@@ -1,0 +1,24 @@
+id: est-exposure-scan
+type: estimate
+rev: 1
+prompt: |
+  The shop scans its repositories on a schedule, every 360 minutes. A key is pushed 168 minutes before the next scan. The scan finds it; the person on call takes 120 minutes to read the alert and work out whose key it is, and revoking it takes 15 minutes more. For how many minutes after the push could the key be used? Exactly.
+unit: minutes
+answer: 303
+tolerance: { absolute: 0 }
+given: { until_scan: 168, triage: 120, revoke: 15, interval: 360 }
+working: until_scan + triage + revoke
+mistakes:
+  - id: whole-interval
+    value: 495
+    working: interval + triage + revoke
+    why: That counts a whole interval between scans. This key was pushed part of the way through one, 168 minutes before the next scan.
+  - id: found-is-not-fixed
+    value: 168
+    working: "168"
+    why: That stops the clock when the scan finds the key. A found key still works until somebody revokes it, 120 and 15 minutes later.
+explanation: |
+  168 + 120 + 15 = 303 minutes, just over five hours. The exposure window runs from the leak to the revocation, and it has three parts: waiting to be found, waiting to be understood, and the revoking. On a public repository, automated collectors find keys within minutes, so five hours is five hours too many.
+
+  Each part has its own cure. A hook on the server refuses the push, so there is nothing to wait for. An alert that names the rule, the commit and the owner cuts the two hours. And a key that can be revoked with one command, by the person on call, cuts the rest.
+skills: [rotate-and-revoke]

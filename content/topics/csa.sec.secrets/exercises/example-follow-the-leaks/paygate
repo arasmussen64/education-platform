@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+"""paygate: the payment gateway, as far as these labs go. Scenery: don't change it.
+
+It stands in for an outside company's API, on 127.0.0.1:9440. The shop
+talks to it with an API key ("pg_live_" and 32 letters and digits) in the
+header "Authorization: Bearer KEY". The gateway keeps the shop's keys, at
+most two active at a time, so that a key can be replaced without a gap:
+make the new one, move the shop's programs to it, revoke the old one.
+
+    POST /charges                  charge an order (any active key)
+    GET  /whoami                   which key is this? (any active key)
+    GET  /admin/keys               the shop's keys: id, state, last use
+    POST /admin/keys               make a new key (refused when two are active)
+    POST /admin/keys/ID/revoke     revoke one, for good
+    GET  /admin/uses               the gateway's own record of every use
+
+The /admin paths want the shop's admin key, which lives in OpenBao at
+secret/paygate/admin; `payctl` sends it for you. A revoked or unknown key
+gets 401, and the attempt is recorded too.
+
+Everything is kept in /var/lib/paygate, which only root reads.
+"""
+
+import http.server
+import json
+import os
+import re
+import secrets
+import string
+import threading
+import time
+
+STATE = "/var/lib/paygate"
+KEYS = f"{STATE}/keys.json"
+USES = f"{STATE}/uses.log"
+ADMIN = f"{STATE}/admin.key"
+ALPHABET = string.ascii_letters + string.digits
+LOCK = threading.Lock()
+
+
+def load() -> list[dict]:
+    try:
+        with open(KEYS, encoding="utf-8") as file:
+            return json.load(file)
+    except (OSError, ValueError):
+        return []
+
+
+def save(keys: list[dict]) -> None:
+    with open(KEYS + ".new", "w", encoding="utf-8") as file:
+        json.dump(keys, file, indent=1)
+    os.replace(KEYS + ".new", KEYS)
+
+
+def stamp() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def record(key_id: str, what: str, result: str, where: str) -> None:
+    with open(USES, "a", encoding="utf-8") as file:
+        file.write(f"{stamp()} {key_id} {what} {result} from {where}\n")
+
+
+def new_key(keys: list[dict]) -> dict:
+    number = max([int(key["id"][1:]) for key in keys] + [0]) + 1
+    key = {
+        "id": f"k{number}",
+        "key": "pg_live_" + "".join(secrets.choice(ALPHABET) for _ in range(32)),
+        "state": "active",
+        "created": stamp(),
+    }
+    keys.append(key)
+    return key
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def bearer(self) -> str:
+        value = self.headers.get("Authorization", "")
+        return value[7:].strip() if value.startswith("Bearer ") else ""
+
+    def answer(self, status: int, text: str) -> None:
+        body = (text.rstrip("\n") + "\n").encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def is_admin(self) -> bool:
+        try:
+            with open(ADMIN, encoding="utf-8") as file:
+                admin = file.read().strip()
+        except OSError:
+            return False
+        return bool(admin) and secrets.compare_digest(self.bearer(), admin)
+
+    def shop_key(self, what: str) -> dict | None:
+        """The active key this request carries, or None after answering 401."""
+        sent = self.bearer()
+        where = self.client_address[0]
+        for key in load():
+            if secrets.compare_digest(sent, key["key"]):
+                if key["state"] == "active":
+                    if what != "whoami":
+                        record(key["id"], what, "ok", where)
+                    return key
+                record(key["id"], what, "refused-revoked", where)
+                self.answer(401, f"401: key {key['id']} has been revoked")
+                return None
+        record("unknown", what, "refused-unknown", where)
+        self.answer(401, "401: no such key")
+        return None
+
+    def do_GET(self) -> None:
+        with LOCK:
+            if self.path == "/health":
+                self.answer(200, "ok")
+            elif self.path == "/whoami":
+                key = self.shop_key("whoami")
+                if key:
+                    self.answer(200, f"200: key {key['id']} is active")
+            elif self.path == "/admin/keys":
+                if not self.is_admin():
+                    return self.answer(401, "401: the admin key is needed")
+                lines = ["ID   STATE    CREATED               ENDS IN  USES"]
+                uses = (
+                    open(USES, encoding="utf-8").read().split("\n")
+                    if os.path.exists(USES)
+                    else []
+                )
+                for key in load():
+                    count = sum(
+                        1
+                        for line in uses
+                        if f" {key['id']} " in line and " ok " in line
+                    )
+                    lines.append(
+                        f"{key['id']:<4} {key['state']:<8} {key['created']}  ...{key['key'][-4:]}  {count}"
+                    )
+                self.answer(200, "\n".join(lines))
+            elif self.path == "/admin/uses":
+                if not self.is_admin():
+                    return self.answer(401, "401: the admin key is needed")
+                text = (
+                    open(USES, encoding="utf-8").read() if os.path.exists(USES) else ""
+                )
+                self.answer(200, text or "(no use recorded)")
+            else:
+                self.answer(404, "404: no such path")
+
+    def do_POST(self) -> None:
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(length).decode(errors="replace") if length else ""
+        with LOCK:
+            if self.path == "/charges":
+                key = self.shop_key("charge")
+                if key:
+                    order = re.sub(r"[^A-Za-z0-9=._-]", "", body)[:40] or "order"
+                    self.answer(201, f"201: charged ({order}) with key {key['id']}")
+            elif self.path == "/admin/keys":
+                if not self.is_admin():
+                    return self.answer(401, "401: the admin key is needed")
+                keys = load()
+                if sum(1 for key in keys if key["state"] == "active") >= 2:
+                    return self.answer(
+                        409, "409: two keys are active already. Revoke one first."
+                    )
+                key = new_key(keys)
+                save(keys)
+                self.answer(201, f"{key['id']} {key['key']}")
+            elif re.fullmatch(r"/admin/keys/k\d+/revoke", self.path):
+                if not self.is_admin():
+                    return self.answer(401, "401: the admin key is needed")
+                wanted = self.path.split("/")[3]
+                keys = load()
+                for key in keys:
+                    if key["id"] == wanted:
+                        key["state"] = "revoked"
+                        key["revoked"] = stamp()
+                        save(keys)
+                        return self.answer(200, f"200: key {wanted} is revoked")
+                self.answer(404, f"404: there is no key {wanted}")
+            else:
+                self.answer(404, "404: no such path")
+
+    def log_message(self, *args: object) -> None:
+        # Quiet: the gateway's record is /admin/uses, not the journal.
+        pass
+
+
+def seed(argv: list[str]) -> None:
+    """For a lab's first-boot script, run as root: `paygate admin-key` makes
+    the admin key if there is none and prints it; `paygate add-key` makes a
+    shop key and prints "ID KEY"; `paygate note-use ID WHAT RESULT WHERE WHEN`
+    writes one line of history into the gateway's record."""
+    os.makedirs(STATE, mode=0o700, exist_ok=True)
+    if argv[0] == "admin-key":
+        if not os.path.exists(ADMIN):
+            with open(
+                os.open(ADMIN, os.O_WRONLY | os.O_CREAT, 0o600), "w", encoding="utf-8"
+            ) as file:
+                file.write(
+                    "pg_admin_"
+                    + "".join(secrets.choice(ALPHABET) for _ in range(32))
+                    + "\n"
+                )
+        print(open(ADMIN, encoding="utf-8").read().strip())
+    elif argv[0] == "add-key":
+        keys = load()
+        key = new_key(keys)
+        save(keys)
+        os.chmod(KEYS, 0o600)
+        print(key["id"], key["key"])
+    elif argv[0] == "note-use":
+        key_id, what, result, where, when = argv[1:6]
+        with open(USES, "a", encoding="utf-8") as file:
+            file.write(f"{when} {key_id} {what} {result} from {where}\n")
+        os.chmod(USES, 0o600)
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) > 1:
+        seed(sys.argv[1:])
+    else:
+        os.makedirs(STATE, mode=0o700, exist_ok=True)
+        http.server.ThreadingHTTPServer(("127.0.0.1", 9440), Handler).serve_forever()

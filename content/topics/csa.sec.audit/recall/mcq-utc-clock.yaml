@@ -1,0 +1,16 @@
+id: mcq-utc-clock
+type: mcq
+rev: 1
+prompt: |
+  Two payment servers each record a refund of the same order. Both write their times in UTC, yet the two audit lines disagree, by two seconds, about which refund came first. What is the likeliest cause?
+choices:
+  - "The servers' clocks aren't synchronised to the same time source"
+  - "One server writes UTC and the other writes its local time zone"
+  - "The journal sorts entries by size before it writes them to disk"
+  - "The two refunds were sealed in different sealing intervals"
+answer: 0
+explanation: |
+  A timestamp is only as good as the clock it was read from. Two servers whose clocks have drifted two seconds apart will each write an honest time, in the same format, and still get the order of two events wrong. That is why audit rules ask for more than "use UTC": PCI DSS 10.6 requires every system's clock to be synchronised by time-synchronisation technology, so that lines from different machines can be put in one order.
+
+  A time-zone mix-up would be out by whole hours, not two seconds, and the question says both write UTC. A journal keeps entries in the order they arrive. Sealing adds proof on top of entries and never changes their times.
+skills: [what-to-log]

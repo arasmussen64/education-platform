@@ -1,0 +1,24 @@
+id: est-crl-traffic
+type: estimate
+rev: 1
+prompt: |
+  5,000 servers each rely on the same CA's CRL, which is 2 MB, and each downloads a fresh copy every 12 hours. How much do they download in a day, all together, in gigabytes (1 GB is 1,000 MB)? Exactly.
+unit: GB
+answer: 20
+tolerance: { absolute: 0 }
+given: { servers: 5000, size: 2, every: 12 }
+working: servers * size * (24 / every) / 1000
+mistakes:
+  - id: once-a-day
+    value: 10
+    working: servers * size / 1000
+    why: That is one download each. Every 12 hours is twice a day.
+  - id: megabytes
+    value: 20000
+    working: servers * size * (24 / every)
+    why: That is megabytes. Divide by 1,000 for gigabytes.
+explanation: |
+  Each server downloads 2 MB twice a day, 4 MB; 5,000 servers, 20,000 MB, which is 20 GB a day from the CA's CRL address, whether or not anything was revoked.
+
+  It is the CA's cost, and the reason a CRL's address is a plain HTTP URL that can sit behind a content delivery network: the list is signed, so it needs no TLS to be trusted, and every client fetches the same bytes. Fetching more often shortens the time a revocation takes to arrive and raises this bill in proportion.
+skills: [revocation]

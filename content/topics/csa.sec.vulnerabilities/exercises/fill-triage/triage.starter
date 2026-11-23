@@ -1,0 +1,35 @@
+#!/bin/bash
+# triage FINDINGS EPSS KEV: this week's findings, in the order to work on them.
+#   FINDINGS  the scan, one finding a line, tab-separated:
+#             cve  package  installed  fixed  cvss
+#   EPSS      FIRST's daily scores, comma-separated, under two heading lines:
+#             cve,epss,percentile
+#   KEV       CISA's catalog, comma-separated, under one heading line; the
+#             CVE is the first field
+# It prints one line for each finding, tab-separated:
+#             cve  package  cvss  epss  kev      (kev is yes or no)
+# with the KEV entries first, then by EPSS from high to low, then by CVSS
+# from high to low, then by CVE.
+set -euo pipefail
+findings=$1
+epss=$2
+kev=$3
+
+# One awk reads all three files, in the order they are named on its last
+# line. -F'[,\t]' splits a line at every comma or tab, so the same $1 and
+# $2 work for the comma-separated files and the tab-separated one.
+awk -F'[,\t]' -v OFS='\t' -v kevfile="$kev" '
+  # The first file is EPSS. While awk is still in its first file, NR (the
+  # lines read so far) equals FNR (the lines read of this file). Remember
+  # each score under its CVE, then go straight to the next line.
+  NR == FNR { score[...] = ...; next }
+  # The second file is KEV. Remember which CVEs are in it.
+  FILENAME == kevfile { listed[$1] = 1; next }
+  # Every other line is a finding. "A in B" asks whether the array B has
+  # something under A; "test ? this : that" picks one of two values.
+  {
+    e = ($1 in score) ? score[$1] : ...
+    k = ($1 in listed) ? ... : ...
+    print $1, $2, $5, e, k
+  }
+' "$epss" "$kev" "$findings" | sort -t "$(printf '\t')" ...

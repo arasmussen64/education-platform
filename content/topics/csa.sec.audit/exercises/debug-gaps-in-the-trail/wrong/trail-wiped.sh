@@ -1,0 +1,8 @@
+# Wrong: the old journal files are deleted "to start clean" before the
+# journal is restarted: everything the trail held is gone.
+printf '[Journal]\nRateLimitBurst=3000\n' | sudo tee /etc/systemd/journald@audit.conf.d/40-quiet.conf > /dev/null
+sudo rm /etc/systemd/journald@audit.conf.d/60-disk.conf
+sudo sed -i 's/^audit role\.chnage /audit role.change /' /etc/shop/audit.conf
+sudo systemctl reload shop-audit
+sudo sh -c 'rm -f /var/log/journal/*.audit/*'
+sudo systemctl restart systemd-journald@audit

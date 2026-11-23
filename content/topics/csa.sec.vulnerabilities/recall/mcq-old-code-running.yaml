@@ -1,0 +1,16 @@
+id: mcq-old-code-running
+type: mcq
+rev: 1
+prompt: |
+  A server's rsync package was upgraded an hour ago, and the scan no longer lists it. `sudo lsof +L1` shows a line ending `/usr/bin/rsync (deleted)` for a process that one of the shop's own units started last week. What does that tell you?
+choices:
+  - "The upgrade failed halfway: it removed the program and never installed the new one"
+  - "The scanner's database is out of date, so its clean result can't be trusted"
+  - "The old file is kept until the next reboot, so that the upgrade can be undone"
+  - "That process still runs the old rsync from memory, until its unit is restarted"
+answer: 3
+explanation: |
+  An upgrade replaces the file on disk. A process that started before it goes on running the program it loaded, and the kernel keeps that old file alive, without a name, for as long as the process has it open: that is what `(deleted)` means, and `lsof +L1` lists exactly those files. The package is fixed, the scan is right about the package, and the vulnerable code is still running. Restart the unit (`sudo systemctl restart NAME`) and look again.
+
+  The upgrade didn't fail: `/usr/bin/rsync` exists and is the new version. The scanner isn't stale: it reads the package database, which is correct. And nothing is kept for undoing: the old file goes the moment the last process using it ends. An upgrade restarts the units its own package ships; a unit of your own that runs the same program is yours to restart.
+skills: [remediate-and-track]

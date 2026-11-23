@@ -1,0 +1,87 @@
+# pki-cases: helpers that make small certificate authorities with openssl's
+# "ca" command, each in a folder of its own, for the lab's examples and for
+# the checks. Sourced, not run.
+# shellcheck shell=bash
+
+# say COMMAND...: runs it quietly; if it fails, shows what it said.
+say() {
+  local said
+  said=$("$@" 2>&1) || { printf 'pki-cases: %s\n%s\n' "$*" "$said" >&2; return 1; }
+}
+
+# ca_files DIR: what "openssl ca" keeps for a CA in DIR, and its settings.
+ca_files() {
+  mkdir -p "$1/newcerts"
+  : > "$1/index.txt"
+  echo 'unique_subject = no' > "$1/index.txt.attr"
+  echo 1000 > "$1/crlnumber"
+  printf '%s\n' '[ ca ]' 'default_ca = this' '[ this ]' "dir = $1" 'certificate = $dir/ca.pem' \
+    'private_key = $dir/ca.key' 'database = $dir/index.txt' 'new_certs_dir = $dir/newcerts' \
+    'crlnumber = $dir/crlnumber' 'rand_serial = yes' 'default_md = sha256' 'default_days = 3650' \
+    'default_crl_days = 3650' 'policy = any' 'unique_subject = no' 'copy_extensions = none' \
+    '[ any ]' 'commonName = supplied' > "$1/ca.cnf"
+}
+
+# new_root DIR CN: a root CA in DIR (ca.key, ca.pem), signed by itself.
+new_root() {
+  ca_files "$1"
+  openssl ecparam -name prime256v1 -genkey -noout -out "$1/ca.key"
+  say openssl req -x509 -new -key "$1/ca.key" -subj "/CN=$2" -days 3650 -out "$1/ca.pem" \
+    -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' \
+    -addext 'subjectKeyIdentifier=hash'
+}
+
+# sign PARENT-DIR CSR OUT EXTENSION-LINES [OPENSSL-CA-OPTIONS...]: PARENT
+# signs the request, with the extensions given one to a line.
+sign() {
+  local parent=$1 csr=$2 out=$3 ext
+  ext=$(mktemp)
+  printf '%s\n' "$4" > "$ext"
+  shift 4
+  say openssl ca -batch -notext -config "$parent/ca.cnf" -extfile "$ext" "$@" -in "$csr" -out "$out"
+  rm -f "$ext"
+}
+
+# new_ca DIR CN PARENT-DIR [EXTRA-EXTENSION-LINES [OPENSSL-CA-OPTIONS...]]:
+# an issuing CA in DIR, signed by PARENT. By default it is a CA with
+# pathlen:0; EXTRA-EXTENSION-LINES add to that, and a line that starts
+# "basicConstraints" replaces the default one.
+new_ca() {
+  local dir=$1 cn=$2 parent=$3 extra=${4:-} bc='basicConstraints=critical,CA:TRUE,pathlen:0'
+  shift 3
+  [ $# -gt 0 ] && shift
+  ca_files "$dir"
+  openssl ecparam -name prime256v1 -genkey -noout -out "$dir/ca.key"
+  say openssl req -new -key "$dir/ca.key" -subj "/CN=$cn" -out "$dir/ca.csr"
+  case $extra in *basicConstraints*) bc='' ;; esac
+  sign "$parent" "$dir/ca.csr" "$dir/ca.pem" "$(printf '%s\n' $bc 'keyUsage=critical,keyCertSign,cRLSign' \
+    'subjectKeyIdentifier=hash' 'authorityKeyIdentifier=keyid' "$extra")" "$@"
+}
+
+# new_leaf OUT-BASE DNS-NAME PARENT-DIR [OPENSSL-CA-OPTIONS...]: a server's
+# certificate OUT-BASE.pem with its key OUT-BASE.key, for DNS-NAME, signed
+# by PARENT.
+new_leaf() {
+  local base=$1 dns=$2 parent=$3
+  shift 3
+  openssl ecparam -name prime256v1 -genkey -noout -out "$base.key"
+  say openssl req -new -key "$base.key" -subj "/CN=$dns" -out "$base.csr"
+  sign "$parent" "$base.csr" "$base.pem" "$(printf '%s\n' 'basicConstraints=critical,CA:FALSE' "subjectAltName=DNS:$dns" \
+    'extendedKeyUsage=serverAuth' 'keyUsage=critical,digitalSignature' 'authorityKeyIdentifier=keyid')" "$@"
+  rm -f "$base.csr"
+}
+
+# revoke CA-DIR CERT: the CA revokes a certificate it issued.
+revoke() { say openssl ca -config "$1/ca.cnf" -revoke "$2" -crl_reason keyCompromise; }
+
+# new_crl CA-DIR OUT [OPENSSL-CA-OPTIONS...]: the CA's next CRL.
+new_crl() {
+  local dir=$1 out=$2
+  shift 2
+  say openssl ca -config "$dir/ca.cnf" -gencrl "$@" -out "$out"
+}
+
+# Dates for a certificate or a CRL that has run out: from two days ago to
+# yesterday.
+past_from() { date -u -d '2 days ago' +%Y%m%d%H%M%SZ; }
+past_to() { date -u -d '1 day ago' +%Y%m%d%H%M%SZ; }

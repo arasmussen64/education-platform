@@ -1,0 +1,9 @@
+#!/bin/bash
+# publish-crl: run on ca by crl-publish@ca.service. It makes the partners'
+# CA's next CRL from its database, good for 2 hours, and puts it where
+# crl.shop.test serves it. The new file is written beside the old one and
+# then moved over it, so nobody ever downloads half a CRL.
+set -euo pipefail
+openssl ca -config /etc/shop-ca/ca.cnf -gencrl -crlhours 2 -out /etc/shop-ca/public/partners.crl.new
+chmod 644 /etc/shop-ca/public/partners.crl.new
+mv /etc/shop-ca/public/partners.crl.new /etc/shop-ca/public/partners.crl
