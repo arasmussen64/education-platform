@@ -17,13 +17,15 @@ prompt: |
 
   1. Doctors and nurses view the charts of their own ward.
   2. Doctors and nurses add notes to the charts of their own ward. Only doctors edit them.
-  3. Billing staff view invoices, of any ward, and nothing else.
+  3. Billing staff view invoices, of any ward. The billing role gives nothing else.
   4. Doctors prescribe on the charts of their own ward. Pharmacists dispense prescriptions, of any ward. Nobody dispenses a prescription they wrote.
   5. Nobody does anything to a record about themselves.
   6. Editing, prescribing and dispensing need a session that used MFA. Nothing at all is done off shift.
   7. Everything else is denied.
 
-  The clinic expects its permits to grow over the years. So whatever in rules 4, 5 and 6 says "nobody", "needs" or "nothing" must hold whatever permits are added later: one check adds a rule that permits everything to a copy of your file and asks again.
+  Someone with two roles may do what either role allows: a nurse who also works in billing views charts and invoices.
+
+  The clinic expects its permits to grow over the years. So whatever in rules 4, 5 and 6 says "nobody", "needs" or "nothing" must hold whatever permits are added later: one check adds a rule that permits everything to a copy of your file and asks again. The same check expects that nothing else is refused then: rules 1 to 3 say who may, and ban nobody.
 
   Write the rules in `~/clinic/policies.cedar` (`nano ~/clinic/policies.cedar`). In `~/clinic`, `cedar validate --schema clinic.cedarschema --policies policies.cedar` checks your names against the schema, and `ask PERSON ACTION RECORD mfa=yes on_shift=yes` asks one question (a fact you leave out counts as no): `ask nia view chart-pat on_shift=yes`, `ask -v dev dispense rx-quinn mfa=yes on_shift=yes`.
 

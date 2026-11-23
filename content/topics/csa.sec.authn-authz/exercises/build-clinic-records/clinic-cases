@@ -234,6 +234,14 @@ def cases_for(rule, names):
         for action, kinds in KINDS.items():
             for kind in kinds:
                 add([], action, kind, True)
+        # ...and two roles in one person add up to what each allows and
+        # nothing more: every pair of roles against every action.
+        for i, first in enumerate(ROLES):
+            for second in ROLES[i + 1 :]:
+                for action, kinds in KINDS.items():
+                    for kind in kinds:
+                        for same_ward in (True, False):
+                            add([first, second], action, kind, same_ward)
     else:
         sys.exit(f"clinic-cases: no rule called {rule}")
     return cases
