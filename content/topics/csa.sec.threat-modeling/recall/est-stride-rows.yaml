@@ -1,0 +1,24 @@
+id: est-stride-rows
+type: estimate
+rev: 1
+prompt: |
+  A data-flow diagram has 2 external entities, 3 processes, 2 data stores and 5 data flows. Under Microsoft's STRIDE-per-element mapping, an external entity is reviewed for S and R, a process for all six letters, a data store for T, R, I and D, and a data flow for T, I and D. How many element-and-letter pairs does a full review of this diagram have? Exactly.
+unit: pairs
+answer: 45
+tolerance: { absolute: 0 }
+given: { ext: 2, proc: 3, store: 2, flows: 5 }
+# The letters each kind gets (2, 6, 4 and 3) are counted from the prompt's
+# lists; the prompt gives them as letters, not as digits.
+working: ext * 2 + proc * 6 + store * 4 + flows * 3
+mistakes:
+  - id: six-for-everything
+    value: 72
+    working: (ext + proc + store + flows) * 6
+    why: "That gives every element all six letters. Only a process gets six: an external entity gets 2, a data store 4 and a data flow 3."
+  - id: store-three
+    value: 43
+    working: ext * 2 + proc * 6 + store * 3 + flows * 3
+    why: "That gives a data store three letters. A store gets four: T, R, I and D, repudiation included."
+explanation: |
+  2 x 2 = 4 for the external entities, 3 x 6 = 18 for the processes, 2 x 4 = 8 for the stores and 5 x 3 = 15 for the flows: 45 pairs, each a question someone has to answer, for a diagram of twelve elements. That is why a review is usually scoped: start with the flows that cross a trust boundary, where threats cluster, and go deeper only where the answers say to. This topic's labs review each crossing flow for all six letters.
+skills: [stride]

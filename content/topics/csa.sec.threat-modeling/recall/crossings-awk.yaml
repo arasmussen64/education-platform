@@ -1,0 +1,32 @@
+id: crossings-awk
+type: predict_shell
+rev: 1
+prompt: |
+  `model.tm` holds the start of a threat model in the labs' line format: an `element` line gives an element's name (the second word) and its zone (the fourth), and a `flow` line gives a flow's name and its two ends. The command reads the file once. What does it print?
+files:
+  model.tm: |
+    zone internet anyone on the internet
+    zone shop the shop's own network
+    zone bank the payment company
+    zone courier-co the courier company
+    element customer external internet a browser
+    element api process shop the order API
+    element db store shop the orders
+    element payments external bank the payment API
+    element courier external courier-co the courier's servers
+    flow f1 customer api place an order
+    flow f2 api db save the order
+    flow f3 api payments charge the order
+    flow f4 courier api tracking reports
+    flow f5 api db read an order
+command: |
+  awk '$1 == "element" {z[$2] = $4} $1 == "flow" && z[$3] != z[$4] {print $2}' model.tm
+expected_output: |
+  f1
+  f3
+  f4
+explanation: |
+  For each `element` line awk remembers the element's zone: `z["customer"]` is `internet`, `z["api"]` and `z["db"]` are `shop`, `z["payments"]` is `bank`, `z["courier"]` is `courier-co`. For each `flow` line it compares the zones of the two ends (`$3` and `$4`) and prints the flow's name when they differ. `f1` runs from the internet into the shop, `f3` from the shop to the payment company, `f4` from the courier into the shop: those three cross a **trust boundary**, and they are where a review starts. `f2` and `f5` stay inside the shop's zone and print nothing.
+
+  One pass is enough because the format puts every element above the flows that use it. If a flow came first, its ends would have no zone yet when awk read it.
+skills: [draw-the-system]

@@ -1,0 +1,18 @@
+id: mcq-boundary-managed-db
+type: mcq
+rev: 1
+prompt: |
+  The shop's API runs on a virtual machine the shop looks after. It reads and writes the cloud's managed PostgreSQL service, at a private address in the same virtual network. Is there a trust boundary on that flow?
+choices:
+  - "No: both ends sit inside the same private network and one subnet"
+  - "Yes: the provider runs the database server, so trust changes"
+  - "Only if the connection leaves the network and crosses the internet"
+  - "Only if the database holds personal data or card numbers"
+answer: 1
+explanation: |
+  A trust boundary is wherever the level of trust changes, and trust changes when the **operator** changes. On the VM the shop patches the operating system and decides who logs in. In a managed database the provider does both, and the shop relies on it. That line between what you run and what the provider runs is the **shared responsibility** boundary, and it is there however private the address is.
+
+  A boundary isn't only where the internet starts: a partner's system on a private link, or a managed service inside your own network, sits across one too. And it doesn't depend on what the data is. What the data is decides how much a threat on the flow matters, not whether trust changes there.
+
+  What the shop still owns on its side of this boundary: who may connect, with which credentials, and what it stores. A small model may leave this boundary undrawn and say so; it should be a decision, not an oversight.
+skills: [draw-the-system]

@@ -1,0 +1,138 @@
+# The checks of "Model the newsletter": each runs one part of the
+# threat-model base's tm-check on the learner's model. The design's own
+# answers (the reference) are handed to tm-check on standard input ("-"),
+# from here, so they are never a file in the lab. A line that still holds
+# ___ stops the model reading, and then every other part says so. No
+# description holds a word that a gap asks for. The forged bounce report
+# may be filed under either of two letters; the none line beside it must
+# then cover exactly the others. One check is the lab's own, in awk: the
+# model is compared, line by line, with the copy the image keeps in
+# /usr/local/lib/lab, so a gap filled wrongly can't be covered by a line
+# added beside it, and the file can't be swapped for another. The last
+# check is that the design note is as it was.
+checks:
+  - id: model-reads
+    description: "The model reads: every line is one of the format's, and no gap is left."
+    timeout: 10
+    command: |
+      tm-check reads /home/learner/model.tm - <<'REF'
+      {"elements":{"visitor":["external","internet"],"signup-api":["process","shop"],"subscribers-db":["store","shop"],"mailer":["external","mailer-co"]},"flows":{"f1":["visitor","signup-api"],"f2":["signup-api","subscribers-db"],"f3":["signup-api","mailer"],"f4":["mailer","signup-api"]},"weak":[{"flow":"f4","letters":["S","T"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"]},{"flow":"f1","letters":["S"],"L":3,"I":1}]}
+      REF
+    expect:
+      equals: ok
+  - id: diagram-matches-design
+    description: "Every part and flow the design names is there, of the right kind, drawn from the side that starts it."
+    timeout: 10
+    command: |
+      tm-check diagram /home/learner/model.tm - <<'REF'
+      {"elements":{"visitor":["external","internet"],"signup-api":["process","shop"],"subscribers-db":["store","shop"],"mailer":["external","mailer-co"]},"flows":{"f1":["visitor","signup-api"],"f2":["signup-api","subscribers-db"],"f3":["signup-api","mailer"],"f4":["mailer","signup-api"]},"weak":[{"flow":"f4","letters":["S","T"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"]},{"flow":"f1","letters":["S"],"L":3,"I":1}]}
+      REF
+    expect:
+      equals: ok
+  - id: zones-where-trust-changes
+    description: "Two parts share a zone exactly when one organisation runs both on one network."
+    timeout: 10
+    command: |
+      tm-check boundaries /home/learner/model.tm - <<'REF'
+      {"elements":{"visitor":["external","internet"],"signup-api":["process","shop"],"subscribers-db":["store","shop"],"mailer":["external","mailer-co"]},"flows":{"f1":["visitor","signup-api"],"f2":["signup-api","subscribers-db"],"f3":["signup-api","mailer"],"f4":["mailer","signup-api"]},"weak":[{"flow":"f4","letters":["S","T"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"]},{"flow":"f1","letters":["S"],"L":3,"I":1}]}
+      REF
+    expect:
+      equals: ok
+  - id: every-crossing-reviewed
+    description: "Every flow that crosses a boundary has each of the six letters reviewed, once."
+    timeout: 10
+    command: |
+      tm-check stride /home/learner/model.tm - <<'REF'
+      {"elements":{"visitor":["external","internet"],"signup-api":["process","shop"],"subscribers-db":["store","shop"],"mailer":["external","mailer-co"]},"flows":{"f1":["visitor","signup-api"],"f2":["signup-api","subscribers-db"],"f3":["signup-api","mailer"],"f4":["mailer","signup-api"]},"weak":[{"flow":"f4","letters":["S","T"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"]},{"flow":"f1","letters":["S"],"L":3,"I":1}]}
+      REF
+    expect:
+      equals: ok
+  - id: design-weaknesses-found
+    description: "What the design describes that can go wrong is a threat on its flow, under a letter that fits, rated by the design's scales."
+    timeout: 10
+    command: |
+      tm-check findings /home/learner/model.tm - <<'REF'
+      {"elements":{"visitor":["external","internet"],"signup-api":["process","shop"],"subscribers-db":["store","shop"],"mailer":["external","mailer-co"]},"flows":{"f1":["visitor","signup-api"],"f2":["signup-api","subscribers-db"],"f3":["signup-api","mailer"],"f4":["mailer","signup-api"]},"weak":[{"flow":"f4","letters":["S","T"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"]},{"flow":"f1","letters":["S"],"L":3,"I":1}]}
+      REF
+    expect:
+      equals: ok
+  - id: ranked-by-risk
+    description: "Each risk is likelihood times impact, and top lists every risk of 6 or more."
+    timeout: 10
+    command: |
+      tm-check ranking /home/learner/model.tm - <<'REF'
+      {"elements":{"visitor":["external","internet"],"signup-api":["process","shop"],"subscribers-db":["store","shop"],"mailer":["external","mailer-co"]},"flows":{"f1":["visitor","signup-api"],"f2":["signup-api","subscribers-db"],"f3":["signup-api","mailer"],"f4":["mailer","signup-api"]},"weak":[{"flow":"f4","letters":["S","T"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"]},{"flow":"f1","letters":["S"],"L":3,"I":1}]}
+      REF
+    expect:
+      equals: ok
+  - id: every-threat-answered
+    description: "Every risk of 6 or more has a control of a kind that answers it."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - <<'REF'
+      {"elements":{"visitor":["external","internet"],"signup-api":["process","shop"],"subscribers-db":["store","shop"],"mailer":["external","mailer-co"]},"flows":{"f1":["visitor","signup-api"],"f2":["signup-api","subscribers-db"],"f3":["signup-api","mailer"],"f4":["mailer","signup-api"]},"weak":[{"flow":"f4","letters":["S","T"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"]},{"flow":"f1","letters":["S"],"L":3,"I":1}]}
+      REF
+    expect:
+      equals: ok
+  - id: attack-tree
+    description: "The attack tree's cheapest line is the cost of the cheapest path."
+    timeout: 10
+    command: |
+      tm-check tree /home/learner/model.tm - <<'REF'
+      {"elements":{"visitor":["external","internet"],"signup-api":["process","shop"],"subscribers-db":["store","shop"],"mailer":["external","mailer-co"]},"flows":{"f1":["visitor","signup-api"],"f2":["signup-api","subscribers-db"],"f3":["signup-api","mailer"],"f4":["mailer","signup-api"]},"weak":[{"flow":"f4","letters":["S","T"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"]},{"flow":"f1","letters":["S"],"L":3,"I":1}]}
+      REF
+    expect:
+      equals: ok
+  - id: abuse-cases
+    description: "The highest risk has an abuse case with a test."
+    timeout: 10
+    command: |
+      tm-check abuse /home/learner/model.tm - <<'REF'
+      {"elements":{"visitor":["external","internet"],"signup-api":["process","shop"],"subscribers-db":["store","shop"],"mailer":["external","mailer-co"]},"flows":{"f1":["visitor","signup-api"],"f2":["signup-api","subscribers-db"],"f3":["signup-api","mailer"],"f4":["mailer","signup-api"]},"weak":[{"flow":"f4","letters":["S","T"],"L":3,"I":3,"controls":["signing","mutual-tls","authn"]},{"flow":"f1","letters":["S"],"L":3,"I":1}]}
+      REF
+    expect:
+      equals: ok
+  - id: only-the-gaps-filled
+    description: "Every line of the model is as it was given, but for the eight gaps."
+    timeout: 10
+    command: |
+      awk '
+        NR == FNR {
+          want[FNR] = $0
+          n = FNR
+          next
+        }
+        {
+          sub(/[ \t\r]+$/, "")
+          got[FNR] = $0
+          if ($0 != "") m = FNR
+        }
+        END {
+          if (m != n) {
+            print "the model has lines added or taken out: fill the eight gaps and change nothing else (cp /usr/local/lib/lab/model.tm ~/model.tm starts again)"
+            exit
+          }
+          for (i = 1; i <= n; i++) {
+            gap = index(want[i], "___")
+            if (!gap) {
+              if (got[i] != want[i]) changed = 1
+              continue
+            }
+            before = substr(want[i], 1, gap - 1)
+            after = substr(want[i], gap + 3)
+            if (substr(got[i], 1, length(before)) != before) changed = 1
+            if (length(got[i]) < length(before) + length(after)) changed = 1
+            else if (substr(got[i], length(got[i]) - length(after) + 1) != after) changed = 1
+          }
+          if (changed) print "a line differs outside its gap: fill the eight gaps and change nothing else (cp /usr/local/lib/lab/model.tm ~/model.tm starts again)"
+          else print "same"
+        }
+      ' /usr/local/lib/lab/model.tm /home/learner/model.tm
+    expect:
+      equals: same
+  - id: design-untouched
+    description: "~/design.md is as it was."
+    timeout: 10
+    command: echo '53d12c2221a4da9dc605e8f6522fa193fb44be50f7e41cdc1abba115de0f193f  /home/learner/design.md' | sha256sum -c --status - && echo same
+    expect:
+      equals: same

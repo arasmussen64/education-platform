@@ -1,0 +1,22 @@
+id: est-risk-after-mfa
+type: estimate
+rev: 1
+prompt: |
+  A model rates on scales of 1 to 3, and a risk is likelihood times impact. Staff sign-in by password alone, reachable from the internet, is rated likelihood 3 and impact 3. Adding a second factor makes it likelihood 1: an attacker now needs the staff member's phone as well. The impact is unchanged. By how many points does the risk fall? Exactly.
+unit: points
+answer: 6
+tolerance: { absolute: 0 }
+given: { l_before: 3, impact: 3, l_after: 1 }
+working: l_before * impact - l_after * impact
+mistakes:
+  - id: likelihood-only
+    value: 2
+    working: l_before - l_after
+    why: "That is how far the likelihood fell. The risk is likelihood times impact: 9 before and 3 after."
+  - id: after-not-multiplied
+    value: 8
+    working: l_before * impact - l_after
+    why: "That takes the new likelihood, 1, from the old risk. The new risk is 1 times 3."
+explanation: |
+  Before: 3 x 3 = 9. After: 1 x 3 = 3. The risk falls by 6, from high to below the line of 6. The 3 that is left is the **residual risk**: what remains after the control. A second factor lowers how likely the sign-in is to be taken over. It does nothing to the impact: if someone does get in, they see as much as before.
+skills: [rank-risks]
