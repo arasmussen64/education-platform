@@ -1,17 +1,310 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.authn-authz
 kind: topic
-status: planned
+status: ready
 title: Authentication and authorization
-summary: Tell authentication from authorization.
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "Two questions every system asks: who is this, and may they do that? Authentication and its factors, the session it leaves behind, and `401` against `403`; authorization as a decision on every request, with default deny and a deny that always wins; roles, attributes and policy as code, written and tested in Cedar; least privilege as a loop of observe, cut and watch, with what the clouds' analyzers see and miss; separation of duties; and how AWS, Azure and Google Cloud each combine their policies."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections 2,
+# 3 and 5) and its designer's brief (csa.sec.authn-authz.md), with what
+# building the policy lab base found (BUILD-NOTES.md and
+# content/lab-bases/policy/README.md). Its one prerequisite is Checkpoint
+# 3: it builds on Module 1 (users, groups, modes, sudo and sudoers, SSH key
+# pairs, least privilege for services, awk, sort, uniq -c, sed) and Module 3
+# (an HTTP request, its status codes, cookies, a signature in one sentence,
+# mutual TLS). Module 2 is not a prerequisite.
+#
+# This topic defines, for the module (the plan's 3.5): authentication,
+# authorization, identity, principal (in the glossary as "security
+# principal": the finance track's glossary has "principal" already),
+# credential, authentication factor, MFA, session ("sign-in session"),
+# token, claim (one sentence, no glossary entry: "claim" as a glossary term
+# would mark the everyday verb in other lessons, and csa.sec.federation
+# opens claims up), policy ("access policy"), default deny, explicit deny,
+# least privilege, privilege creep, separation of duties, RBAC, ABAC, role
+# explosion, policy as code, policy decision point and policy enforcement
+# point, workload identity, just-in-time access, and `401` against `403`.
+prerequisites: [csa.m3.checkpoint]
+# Worked out: the lesson about 31 minutes (4,000 words with its tables),
+# the copied reading 20 (OWASP's introduction and first five
+# recommendations, 2,663 words by the importer's count), the puzzle and
+# the story 3, 16 practice recall items at 1.5 each 24, then the worked
+# example 30, the fill-in 25, the write 40, the build 50, the debug 40 and
+# the explain 20: about 283. The plan's 290 is kept (MODULE-4-BRIEF.md,
+# section 2).
+estimated_minutes: 290
 rev: 1
 objectives:
-- Tell authentication from authorization.
-- Apply MFA, least privilege and separation of duties.
-- Compare role-based, attribute-based and policy-as-code access.
-- Treat least privilege as an iterative process with access analyzers and custom roles.
+  - "Tell authentication from authorization in any system: which step proves who someone is, and with which factors; which step decides what they may do, on every request; where each happens; and what each failure looks like (`401` against `403`)."
+  - "Write access rules as code in Cedar: a rule for a role, a rule that compares attributes, and a `forbid` that no `permit` can override, validated against a schema and tried against requests; and say what default deny and policy as code give you."
+  - "Take access down to least privilege as a loop (observe real use, cut, watch for denials, repeat), read an access analyzer's report beside what the job is for, and do the sums: the share unused, how long a window must be, what the analysis costs."
+  - "Name duties that must not meet in one person and enforce their separation, by roles or by a rule decided on each request."
+  - "Compare how AWS, Azure and Google Cloud combine their policies when rules disagree, and name each cloud's tools for least privilege."
+# Facts the lesson and the items rely on, each read on 2026-11-22:
+# - RFC 9110 (HTTP Semantics, June 2022), section 15.5.2: 401 "indicates
+#   that the request has not been applied because it lacks valid
+#   authentication credentials for the target resource", and the server
+#   "MUST send a WWW-Authenticate header field"; 15.5.4: 403 "indicates
+#   that the server understood the request but refuses to fulfill it", "If
+#   authentication credentials were provided in the request, the server
+#   considers them insufficient to grant access", and a server that wishes
+#   to hide a forbidden resource "MAY instead respond with a status code of
+#   404 (Not Found)": rfc-editor.org/rfc/rfc9110.html.
+# - Microsoft's "Authentication vs. authorization" (ms.date 2025-03-21):
+#   authentication "is the process of proving that you are who you say you
+#   are"; authorization "is the act of granting an authenticated party
+#   permission to do something":
+#   learn.microsoft.com/en-us/entra/identity-platform/authentication-vs-authorization.
+# - NIST's glossary: least privilege, each entity "is granted the minimum
+#   system resources and authorizations that the entity needs to perform its
+#   function" (SP 800-53 Rev. 5): csrc.nist.gov/glossary/term/least_privilege.
+#   Separation of duty, "no user should be given enough privileges to misuse
+#   the system on their own", enforced "statically (by defining conflicting
+#   roles ...) or dynamically (by enforcing the control at access time)"
+#   (SP 800-192): csrc.nist.gov/glossary/term/separation_of_duty.
+# - Cedar's "Authorization" page: "no request is authorized (decision
+#   Allow) unless there is a specific permit policy that grants it"; "even
+#   if a permit policy is satisfied, any satisfied forbid policy overrides
+#   it"; "if a policy's evaluation returns error ... it is skipped":
+#   docs.cedarpolicy.com/auth/authorization.html.
+# - AWS, "Policy evaluation logic": identity-based and resource-based
+#   policies in one account, "the union of the permissions of the two
+#   types", "An explicit deny in either of these policies overrides the
+#   allow"; with a permissions boundary "the intersection"; with SCPs or
+#   RCPs "an action must be allowed by all three policy types":
+#   docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html.
+#   "Security best practices in IAM": managed policies "might not grant
+#   least-privilege permissions for your specific use cases because they
+#   are available for use by all AWS customers"; "No permissions are
+#   granted by SCPs and RCPs": .../best-practices.html.
+#   IAM Access Analyzer: unused access findings cover unused roles, access
+#   keys, passwords, services and actions; "Service-linked roles aren't
+#   analyzed for unused access activity": .../what-is-access-analyzer.html.
+#   Its prices: $0.20 per IAM role or user analyzed per month (unused
+#   access), $9.00 per monitored resource per Region per month (internal
+#   access), $0.0020 per API call (custom policy checks); external access
+#   analysis, policy validation and policy generation at no additional
+#   charge: aws.amazon.com/iam/access-analyzer/pricing/.
+#   Policy generation: "a time period of up to 90 days"; no action-level
+#   activity for data events; iam:PassRole not tracked:
+#   .../access-analyzer-policy-generation.html. Last accessed information:
+#   "The tracking period for service information is at least 400 days";
+#   it "includes all attempts to access an AWS API, not just the successful
+#   attempts": .../access_policies_last-accessed.html.
+# - Azure, "What is Azure RBAC?" (ms.date 2024-03-12, updated 2025-10-15):
+#   "A role assignment consists of three elements: security principal, role
+#   definition, and scope"; four scope levels (management group,
+#   subscription, resource group, resource); "an additive model, so your
+#   effective permissions are the sum of your role assignments"; "If a deny
+#   assignment applies, access is blocked"; free with the subscription:
+#   learn.microsoft.com/en-us/azure/role-based-access-control/overview.
+#   Privileged Identity Management (ms.date 2026-11-17): just-in-time,
+#   time-bound, approval, MFA on activation; eligible against active
+#   assignments; "Using Privileged Identity Management requires licenses":
+#   learn.microsoft.com/en-us/entra/id-governance/privileged-identity-management/pim-configure.
+# - Google Cloud, "IAM overview": an allow policy "contains a list of role
+#   bindings"; basic roles "shouldn't be used in production environments";
+#   "The union of all of these policies is called the effective allow
+#   policy"; deny policies; principal access boundary policies:
+#   docs.cloud.google.com/iam/docs/overview. "IAM always checks relevant
+#   deny policies before checking relevant allow policies", and deny
+#   policies are inherited: .../iam/docs/deny-overview. Role
+#   recommendations: "The maximum observation period for role
+#   recommendations is 90 days" (30 or 60 for a project, by choice); "a role
+#   recommendation never suggests a change that increases a principal's
+#   level of access"; recommendations for basic roles "are available at no
+#   charge", others need Security Command Center Premium or Enterprise:
+#   docs.cloud.google.com/policy-intelligence/docs/role-recommendations-overview.
+#   Privileged Access Manager, just-in-time temporary elevation with
+#   entitlements and grants: docs.cloud.google.com/iam/docs/pam-overview.
+# - The story: United States v. Thompson, No. 22-30179 (9th Cir., 17 March
+#   2025), the opinion's statement of facts (the court's PDF, read as
+#   text); the OCC's news release 2020-101 (6 August 2020); Capital One's
+#   own page on the incident (capitalone.com/digital/facts2019/). The
+#   Justice Department's releases returned no text and aren't used, so the
+#   story says nothing about a firewall.
+# - Not confirmed, so not in the lesson: the dates on which Microsoft Entra
+#   Permissions Management stopped being sold and supported (the designer's
+#   fact F23; its two posts weren't opened).
+# Tried in this topic's labs (the Cedar command-line tool 4.14.1 in the
+# policy lab base), 2026-11-22: every policy, every `ask` answer and every
+# `cedar validate` message the lesson and the labs show; the three "how
+# many are allowed" items' decisions.
+#
+# Licences, each read on 2026-11-22. OWASP's Cheat Sheet Series is CC BY-SA
+# 4.0 (the page's footer: "This work is licensed under Creative Commons
+# Attribution-ShareAlike 4.0 International"). Cedar's documentation is
+# Apache-2.0 (the cedar-policy/cedar-docs repository, as the base's README
+# records for the tool). RFCs are under the IETF Trust's licence. AWS's
+# documentation is (c) Amazon Web Services. Azure's documentation is CC BY
+# 4.0 (MicrosoftDocs/azure-docs); the Entra pages are under Microsoft
+# Learn's terms of use. Google Cloud's documentation is CC BY 4.0 "except
+# as otherwise noted" (Google's site policies; the footer itself wasn't in
+# the text fetched).
+resources:
+  - title: "Authorization Cheat Sheet (OWASP): the introduction and the first five recommendations, from least privilege to attribute- and relationship-based access control"
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
+    type: reading
+    use: embed
+    license: CC BY-SA 4.0
+    text:
+      file: readings/owasp-authorization.html
+      by: "The OWASP Cheat Sheets Series Team (the page's footer credits it so)"
+      license_url: "https://creativecommons.org/licenses/by-sa/4.0/"
+      retrieved: "2026-11-22"
+      changes: "The introduction and the first five recommendations, from 'Enforce Least Privileges' to 'Prefer Attribute and Relationship Based Access Control over RBAC'. The six later recommendations, the list of references and the site's menus are left out. Nothing is reworded."
+  - title: "Authorization (Cedar Policy Language Reference Guide): how Cedar decides a request, default deny, and forbid overriding permit"
+    url: https://docs.cedarpolicy.com/auth/authorization.html
+    type: reading
+    use: link
+    optional: true
+    license: "Apache-2.0 (the cedar-docs repository); linked, not copied"
+  - title: "RFC 9110, HTTP Semantics: sections 15.5.2 (401 Unauthorized) and 15.5.4 (403 Forbidden)"
+    url: https://www.rfc-editor.org/rfc/rfc9110.html#name-401-unauthorized
+    type: reading
+    use: link
+    optional: true
+    license: "IETF Trust (the document's copyright notice); linked, not copied"
+  - title: "Policy evaluation logic (AWS IAM User Guide): how identity policies, resource policies, boundaries and SCPs combine"
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Security best practices in IAM (AWS IAM User Guide): from \"Apply least-privilege permissions\" to \"Regularly review and remove unused users, roles, permissions, policies, and credentials\""
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "What is Azure role-based access control (Azure RBAC)? (Microsoft Learn): role assignments, scope, and how Azure decides"
+    url: https://learn.microsoft.com/en-us/azure/role-based-access-control/overview
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "IAM overview (Google Cloud): allow policies, roles, the resource hierarchy and deny policies"
+    url: https://docs.cloud.google.com/iam/docs/overview
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "Role recommendations overview (Google Cloud Policy Intelligence): what the recommender observes, for how long, and what it costs"
+    url: https://docs.cloud.google.com/policy-intelligence/docs/role-recommendations-overview
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "Using AWS Identity and Access Management Access Analyzer (AWS IAM User Guide): its analyzers, policy generation and how it is priced"
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html
+    type: reading
+    use: link
+    optional: true
+    license: "© Amazon Web Services; linked, not copied"
+# The recall items tell the two steps apart, work out what a small policy
+# set decides, read an access log with Module 1's text tools, and do the
+# sums of least privilege. The five labs are plain labs on the policy lab
+# base (content/lab-bases/policy): the learner writes Cedar policies in
+# nano and tries them with `ask`, and every rule check makes up its people,
+# places and records as it runs.
+practice:
+  - example-who-may-refund
+  - mcq-two-factors
+  - mcq-401-or-403
+  - mcq-which-step
+  - typed-default-deny
+  - est-decide-eight
+  - mcq-forbid-wins
+  - fill-warehouse-rules
+  - mcq-rbac-or-abac
+  - est-role-explosion
+  - unused-from-log
+  - est-unused-share
+  - est-window-to-see
+  - est-analyzer-cost
+  - mcq-loop-order
+  - write-tighten-service-roles
+  - mcq-sod-static-dynamic
+  - est-sod-pairs
+  - mcq-aws-explicit-deny
+  - mcq-azure-additive
+prove:
+  build: build-clinic-records
+  debug: debug-hr-portal
+  explain:
+    prompt: |
+      A colleague says: "We've got single sign-on with MFA now, so the app doesn't need access rules of its own. And giving the support team admin is simpler for now." Explain, in your own words: the difference between authenticating someone and authorizing what they do, and where each happens; why every request still needs a decision; how you'd set up the support team's access with least privilege, as a process and not a one-off, and what the clouds' tools add and miss; what separation of duties would forbid here and how you'd enforce it; and how AWS, Azure and Google Cloud each decide when two rules disagree.
+    rubric:
+      - id: authn-vs-authz
+        required: true
+        description: "Authentication proves who someone is (factors: something you know, have or are; MFA is two different kinds) and happens at sign-in, at an identity service; authorization decides whether that person may do this action to this resource, in the app or a policy engine. A session or token is the result of the first and only an input to the second. `401` against `403` named or implied."
+      - id: every-request
+        required: true
+        description: "Access is decided on every request, starting from default deny: MFA at sign-in says nothing about what a signed-in person may do, and doesn't stop them doing what they shouldn't."
+      - id: least-privilege-loop
+        required: true
+        description: "Start from what the job needs, observe real use over a window long enough for rare tasks, cut to a narrow role at the narrowest scope, watch for denials, repeat. Analyzers (AWS IAM Access Analyzer, Google's role recommendations) observe, but only inside their window, and can't know what the job is for: a task rarer than the window looks unused, and something used isn't thereby needed."
+      - id: separation-of-duties
+        required: true
+        description: "A concrete pair of duties that mustn't meet in one person (such as issuing a refund and approving it, or changing a system and reviewing its log), enforced by roles that never go together or by a rule on each request (the approver isn't the requester), and why a deny or forbid holds against later broad grants."
+      - id: clouds-differ
+        required: true
+        description: "AWS: an explicit deny wins; allows from identity and resource policies add up, inside the limits of SCPs and boundaries, which grant nothing. Azure: role assignments add up down the scopes, and a deny assignment is checked first. Google Cloud: allow policies add up down the hierarchy, and deny policies are checked before them."
+      - id: models
+        required: false
+        description: "Roles against attributes (role explosion; one rule that compares attributes), and policy as code: rules in files that are versioned, reviewed and tested."
+    model_answer: |
+      Single sign-on with MFA answers one question: who is this? That's authentication. The person proves who they are with two different kinds of proof, say a password and a code from their phone, at the sign-in service, and the app gets a session that says "this is Dina, and she used MFA". It says nothing about what Dina may do. That's authorization, a second question the app has to ask itself on every single request: may this person do this action to this thing, now? Without rules of its own, every signed-in person can do everything. The two failures even look different: `401` means "I don't know who you are", `403` means "I do, and no".
+
+      So every request is decided, and the starting answer is no: default deny. Rules then allow what's needed.
+
+      Giving support admin "for now" is the opposite, and "for now" tends to stay. I'd start from what the support job needs, a narrow role, and treat it as a loop: watch what they really use, for long enough to see the rare tasks, cut what isn't needed, watch for denials, and go round again. The clouds' analyzers help with the watching: AWS's Access Analyzer and Google's role recommendations report what was granted and never used. But they only see their window, 90 days at most, so a quarterly task looks unused, and they can't tell what was used from what should have been.
+
+      Separation of duties means nobody completes a sensitive task alone. Here: whoever handles a sale shouldn't refund it, and whoever issues a refund shouldn't approve it. Either the two roles never go to one person, or a rule on each request says the approver isn't the requester. I'd write it as a deny, because a deny holds whatever broad allow someone adds later.
+
+      On the clouds: in AWS, allows add up and one explicit deny beats them all, while SCPs and boundaries only limit. In Azure, role assignments add up down the scopes, and a deny assignment is checked first. In Google Cloud, allow policies add up down the hierarchy, and deny policies are checked before any of them.
+review_pool:
+  - mcq-401-or-403
+  - mcq-which-step
+  - mcq-two-factors
+  - mcq-token-is-input
+  - typed-401
+  - typed-default-deny
+  - mcq-forbid-wins
+  - mcq-typo-silent
+  - mcq-rbac-or-abac
+  - est-decide-six
+  - est-decide-seven
+  - unused-from-log
+  - used-counts
+  - est-unused-share
+  - est-window-to-see
+  - est-analyzer-cost
+  - est-unused-count
+  - mcq-managed-role
+  - mcq-sod-static-dynamic
+  - mcq-sod-which-pair
+  - mcq-temporary-exception
+  - est-sod-pairs
+  - mcq-aws-explicit-deny
+  - mcq-aws-scp-grants-nothing
+  - mcq-azure-additive
+  - mcq-azure-deny-assignment
+  - mcq-gcp-inherit
+  - mcq-gcp-deny-first
+  - mcq-analyzer-by-cloud
+  - mcq-jit
+# Labs short enough for a hands-on refresher in a review (ADR-0009,
+# amended 2026-11-16): the review asks one in place of a quick question.
+review_labs:
+  - fill-warehouse-rules
+  - write-tighten-service-roles
+skills:
+  - id: authn-or-authz
+    description: "Which step proves who (authentication, its factors, what counts as MFA) and which decides what they may do (authorization, on every request); where each happens; `401` against `403`; a session or token as the result of the first and an input to the second; an authentication fact such as MFA used in an authorization rule"
+  - id: access-models
+    description: "Roles (RBAC), attributes (ABAC), relationships, and policy as code: what each is good and bad at, role explosion, reading and writing Cedar (`permit`, `forbid`, scope, `when`, `unless`, roles with `in`), default deny, a forbid that wins, a schema catching a typo; working out what a small set of policies decides"
+  - id: least-privilege
+    description: "The minimum access at the narrowest scope, as a loop: observe, cut, watch, repeat; managed against custom roles; what the clouds' analyzers observe, their windows and prices; reading a usage log against a grant; the sums (the share unused, how long a window must be, what the analysis costs)"
+  - id: separation-of-duties
+    description: "Duties that must not meet in one person; static (roles that never go together) against dynamic (a rule on each request); writing it as a forbid, and why a temporary exception is a hole"
+  - id: cloud-policy-models
+    description: "How AWS combines identity and resource policies (a union), boundaries, SCPs and RCPs (limits that grant nothing) and explicit deny; Azure's role assignments (principal, role, scope; additive; deny assignments first); Google Cloud's allow policies (inherited, a union) and deny policies (checked first); just-in-time access on each"

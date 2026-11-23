@@ -1,0 +1,191 @@
+<Intro>
+
+<Puzzle question="An API answers one caller `401 Unauthorized` and another `403 Forbidden`. Which of the two callers does it know?">
+
+The one who got `403`. A `401` means "I can't tell who you are": the request came with no proof of who sent it, or proof that didn't check out, and the answer says how to sign in. A `403` means "I know exactly who you are, and the answer is no". The name `Unauthorized` is a historical slip: `401` is about proving who you are, and `403` is the one about what you're allowed to do. Those are two different questions, asked one after the other by every system you'll ever secure, and telling them apart is this topic's first job.
+
+</Puzzle>
+
+Modules 1 to 3 built servers and networks. Module 4 is about who may use them. It starts here, with two questions every system asks of every caller: **who is this?** and **may they do that?** By the end you can tell the two apart in any system, write access rules as code and test them, take a service that can do everything down to what its job needs, keep duties apart that must not meet in one person, and say how AWS, Azure and Google Cloud each decide when two rules disagree. The labs are a new kind: no network, one machine, and a file of rules that you write.
+
+**Two questions.** You've already met both. When you `ssh` to a server, the server first checks your key: is this really Ben? That is **authentication**, proving who is asking. Then, once you're in, file modes and `/etc/sudoers` decide what you may read and run. That is **authorization**, deciding what someone already known may do. The two happen in that order, they're done by different parts of the system, and passing the first tells you nothing about the second: Ben's key lets him in, and `sudoers` may still give him nothing.
+
+A hotel does the same. The front desk checks your passport once and hands you a key card. After that no door ever looks at your passport: each door reads the card and decides for itself. Your room opens. The gym opens until 22:00. The manager's office never does. The desk doesn't decide which doors open, and the doors don't check passports.
+
+Some words for the first question. An **identity** is the record a system keeps of one person or one program: an account. Whoever is asking to do something is a **principal**, in full a **security principal**, which is the word access rules use because it covers people and programs alike. A program's identity is a **workload identity**: the nightly backup job is a principal too, and should have an identity of its own instead of borrowing a person's. What a principal presents to prove who it is, is a **credential**: a password, a private key, a certificate.
+
+Credentials come in three kinds, called **authentication factors**:
+
+| Factor | Examples |
+| --- | --- |
+| something you **know** | a password, a PIN, the answer to a security question |
+| something you **have** | a phone that shows a code, a hardware security key, a private key in a file |
+| something you **are** | a fingerprint, a face |
+
+**MFA**, multi-factor authentication, is a sign-in that takes two **different** kinds: a password and a code from your phone. A thief now needs to steal two things in two different ways. Two of one kind, such as a password and a security question, is still one factor: whoever can trick you out of one thing you know can trick you out of two. Module 1 said that MFA belongs on every cloud console. A later topic in this module, Strong authentication, is about which second factors hold up against a fake sign-in page; for now it's enough that MFA is a fact about how someone signed in.
+
+<Check item="mcq-two-factors" />
+
+**What a sign-in leaves behind.** Nobody wants to type a password with every click, so a successful sign-in leaves something behind: a **sign-in session**, a record of who signed in, how, and until when. A browser carries it as a cookie (Module 3). Between systems it travels as a **token**, a small signed statement from the service that did the authenticating: "this is Alice, she proved it with a password and a phone code, and this holds until 17:14". Each fact in it is called a claim. The topic on single sign-on opens a token up; here you only need to know what it's for. It is the hotel's key card: the result of authentication, carried along so that every later request can be recognised.
+
+And it is only that. A session says who is asking. It doesn't say what they may do, and it isn't a decision about anything. The order system still has to decide about each request, and the session is one of the things it looks at.
+
+That gives the two failures their two status codes, which Module 3 left out:
+
+| Code | What the server is saying | What the caller should do |
+| --- | --- | --- |
+| `401 Unauthorized` | "The request lacks valid authentication credentials": I don't know who you are. The response carries a `WWW-Authenticate` header that says how to sign in. | sign in, or sign in again |
+| `403 Forbidden` | "I understood the request and refuse it." If you sent credentials, they were good, and they aren't enough. | nothing: signing in again won't help |
+
+The quoted words are the HTTP standard's (RFC 9110). One wrinkle: a server may answer `404 Not Found` in place of `403` when it would rather not admit that a thing exists at all to someone who may not see it.
+
+<Check item="mcq-401-or-403" />
+
+**A decision on every request.** Authorization is a question with four parts: may this **principal** do this **action** to this **resource**, given the **context**? The context is whatever else is true of this one request: the time, the network it came from, whether the session behind it used MFA. A rule, or a set of rules, that answers such questions is an **access policy**.
+
+Two parts of a system share the work. The **policy enforcement point** (PEP) stands in front of the resource: it's the piece of the order system that receives a request, asks "is this allowed?", and obeys the answer. The **policy decision point** (PDP) is whatever reads the rules and answers allow or deny. In `sudo`, the `sudo` program is the enforcement point and `/etc/sudoers` holds the rules it decides by. In the labs, the order system is the enforcement point and a policy engine called Cedar is the decision point. Keeping them apart means the rules live in one place, where they can be read, reviewed and tested, instead of being scattered through a program as `if` statements.
+
+Two rules about the answer hold in every system in this topic:
+
+- **Default deny.** The starting answer is no. A request is refused unless some rule allows it. A new door in the hotel opens for nobody until someone programs it; a new action in the order system is refused for everybody until someone writes a rule. Forgetting to write a rule therefore fails safe.
+- **An explicit deny wins.** A written rule that refuses beats every rule that allows, however many there are and whenever they were written. It's how you say "never", and mean it.
+
+And the question is asked every time. A person who signed in with MFA an hour ago is asked again for each thing they do, because the next request may be for a different order, or a different action, or their own record.
+
+<Check item="typed-default-deny" />
+
+**Three ways to write the rules.** The oldest is the one Linux uses for files. **RBAC**, role-based access control, gives permissions to **roles** and puts people into roles: `support` may view orders, and Alice is in `support`. A Linux group is a role. RBAC is easy to read and easy to audit: to know what Alice can do, look at her roles. Its weakness shows as soon as a rule has a second dimension. "Support staff view the orders of their own store" can't be said with one role. It needs a role for each store, and "of their own department, in their own country, at their own level" needs a role for every combination. That is **role explosion**: each new dimension multiplies the roles.
+
+**ABAC**, attribute-based access control, writes the rule over **attributes**, facts about the principal, the resource and the request: "the person's store is the order's store". One rule, true for every store there is or ever will be. The cost is that you can no longer list what Alice can do by looking at her alone: it depends on what each resource says.
+
+A third way follows **relationships**: "the editors of a folder may edit the documents in it". It's called relationship-based access control, ReBAC, and it's how shared documents usually work. You'll recognise it when you meet it; no lab here uses it.
+
+Real systems mix them: a role says what kind of work someone does, and attributes narrow it to the right store.
+
+<Check item="est-role-explosion" />
+
+Whichever way the rules are written, they can be kept in two places. One is a console, where someone ticks boxes and nobody can say afterwards who changed what or why. The other is a text file. **Policy as code** means the rules live in files that are kept in git, reviewed in pull requests, tested automatically and deployed like any other code. Module 18 does this for infrastructure with a tool called Open Policy Agent. This module uses **Cedar**, an open-source policy language that AWS built for application authorization, because its words are this lesson's words.
+
+**Cedar in fifteen lines.** A Cedar policy is one sentence. Here are two, from the worked example:
+
+```
+permit (principal in Role::"support", action == Action::"refund", resource)
+when { principal.store == resource.store && resource.amount <= 100 };
+
+forbid (principal, action == Action::"refund", resource)
+unless { context.mfa };
+```
+
+- It starts with its **effect**: `permit` allows, `forbid` refuses.
+- The brackets hold its **scope**: which principal, which action, which resource. `principal in Role::"support"` means anyone in the support role (`in` is membership, and a role can sit inside another role, in which case its members are in both). `action == Action::"refund"` means that one action; `action in [Action::"view", Action::"refund"]` means either. `resource is Order` means any resource of the kind `Order`. A bare word, `principal` or `action` or `resource` alone, means any at all.
+- Then come conditions. `when { ... }` switches the policy on only in the case inside the braces. `unless { ... }` switches it on in every case except that one. Inside, `principal.store` is an attribute, `==` and `<=` compare, `&&` means both must hold, and `SET.contains(VALUE)` asks whether a value is in a set.
+- It ends with a semicolon.
+
+So the first policy reads: allow support staff to refund an order of their own store, of 100 or less. The second: refuse any refund, by anyone, unless the session used MFA. That second one takes a fact that authentication produced and uses it in an authorization rule, which is the only way the two questions ever touch.
+
+Cedar decides a request with one rule: **it is allowed if at least one `permit` applies and no `forbid` does.** That one sentence holds default deny (no permit applies: denied) and explicit deny (a forbid applies: denied, whatever the permits say). The order of the policies in the file means nothing, and neither does which was written last.
+
+A policy file is checked against a **schema**, a short file that lists the kinds of thing there are (`Staff`, `Order`), their attributes (`store`, `amount`) and the actions. `cedar validate` reads both and refuses a policy that names something the schema doesn't have. Captured in the worked example, with `store` misspelt (the lines in which it shows the policy are left out here):
+
+```
+  × policy set validation failed
+  ╰─▶ for policy `support-views-own-store`, attribute `stor` on entity type
+      `Staff` not found
+  help: did you mean `store`?
+```
+
+That check matters more than it looks. Without it, a misspelt policy is found only while a request is being decided, and Cedar's rule for a policy that fails then is to skip it. A skipped permit quietly allows nobody. A skipped forbid quietly stops forbidding. So validate first, always: every lab here has a check that does.
+
+In the labs, `ask PRINCIPAL ACTION RESOURCE` puts one request to your policies and names the ones that decided it. The worked example builds the shop's four refund rules with it, one at a time.
+
+<Check item="mcq-forbid-wins" />
+
+**Least privilege, as a loop.** **Least privilege** means each person and each program gets only the access its job needs, at the narrowest scope that works: this bucket, not every bucket; read, not write. Module 1 applied it to service users and `sudoers`. The reason is simple: a stolen credential, or a bug, can do whatever the identity behind it can do, and no more.
+
+Nobody gets there in one step, because nobody knows in advance exactly what a job needs. So least privilege is a loop:
+
+1. **Start** from what the job is for, or from a ready-made role. The clouds ship roles for common jobs, and say themselves that these are a starting point: AWS's managed policies "might not grant least-privilege permissions for your specific use cases because they are available for use by all AWS customers".
+2. **Observe** what the identity really uses, over weeks.
+3. **Cut** what it doesn't need, into a role of your own (a **custom role**) with only those actions, on only those resources.
+4. **Watch** for denials, which show a cut that went too far.
+5. **Repeat**, because jobs change. The opposite of the loop has a name, **privilege creep**: access piling up as people change teams and "temporary" grants stay.
+
+The clouds automate the observing with tools usually called **access analyzers**. As their pages stood on 22 November 2026:
+
+| | What it tells you | Looks back | Costs |
+| --- | --- | --- | --- |
+| AWS IAM Access Analyzer, **unused access** | roles, access keys and passwords nobody uses, and services and actions a role is granted and never uses | it watches continuously | $0.20 for each role or user analyzed, each month (roles that belong to AWS's own services, called service-linked roles, aren't counted) |
+| AWS IAM Access Analyzer, **policy generation** | a draft policy made from what an identity actually did, read from CloudTrail, AWS's log of API calls | up to 90 days | nothing extra |
+| AWS **last accessed information** | when an identity last tried to use each service, whether or not the attempt succeeded | at least 400 days for services | part of IAM |
+| Google Cloud **role recommendations** | a smaller role to replace a broad one, from the permissions used; it never suggests more access | 90 days (30 or 60 for a project, if you choose) | nothing for the broad "basic" roles; a paid tier for the rest |
+
+(IAM is short for identity and access management, the name all three clouds give the service that holds identities and access rules.) An analyzer is a fine observer, and it has two blind spots that no setting fixes:
+
+- **The window.** It sees only as far back as it looks. A job that runs once a quarter can fall wholly outside 90 days, and then its permissions are reported as unused. Cut them, and the job fails the next time it runs, months after anyone remembers why.
+- **Used isn't needed.** It reports what happened, and has no idea what should have. An identity with too much access may well have used some of it, by mistake or worse. The report will list that as "used".
+
+So read the analyzer's report beside a plain description of what the job is for, and where the two disagree, find out why. The write lab is exactly this, with a local stand-in for an analyzer.
+
+One more turn of the same idea applies to time. Even a correct, narrow admin role is dangerous while someone holds it every minute of every day. **Just-in-time access** means they don't: the person is only eligible for the role, activates it when there's work to do (often with MFA, a reason and an approver), and it ends by itself after an hour or two. Microsoft Entra's Privileged Identity Management and Google Cloud's Privileged Access Manager both do this; Microsoft's needs a paid licence.
+
+<Check item="est-window-to-see" />
+
+<Story title="Capital One, 2019" source="https://cdn.ca9.uscourts.gov/datastore/opinions/2025/03/17/22-30179.pdf" sourceTitle="United States v. Thompson, No. 22-30179 (9th Cir. 2025)" license="linked, not copied">
+
+In March 2019 a former cloud engineer ran a script across millions of internet addresses belonging to one cloud's customers, looking for systems with a weakness. Where she found one, she asked it for its security credentials, the ones the system itself used inside its owner's cloud account, and saved them. With those she could sign in to the customer's cloud as that system.
+
+What happened next depended on one thing. In the appeal court's words, "if the credentials permitted", she copied the customer's cloud storage. She got credentials from at least 200 organizations and took data from at least 30. At Capital One the credentials did permit it, and she downloaded personal data of about 98 million people.
+
+The bank found out four months later, when someone she had boasted to reported it. In 2020 its regulator fined it $80 million for not setting up effective risk assessment before moving to the public cloud.
+
+Authentication worked as designed all along: the credentials were real. The damage was decided by authorization, by what one system's identity was allowed to do.
+
+</Story>
+
+**Separation of duties.** Some tasks are too dangerous for one person to complete alone: paying a supplier, giving a raise, changing a system and then signing off the record of the change. **Separation of duties** splits such a task into two duties and makes sure they land on two people, so that a mistake or a fraud needs two people to go wrong together. The pairs to look for are the ones where the second duty is the check on the first: request and approve, do and review, change and audit.
+
+There are two ways to enforce it:
+
+- **Static.** The two roles never go to the same person: nobody is both a requester and an approver. Simple, and checked once, when roles are handed out.
+- **Dynamic.** People may hold both roles, and a rule on each request stops them using both on the same thing: anyone on the team may approve a payment, except the one who requested it. In Cedar that is a forbid whose condition compares the person asking with a person recorded on the resource, as the worked example's rule about refunding your own sale does.
+
+Write it as a forbid for a reason. Permits pile up over the years, each one reasonable on the day: "managers may approve anything in their department". A separation written into a permit's condition is undone by the next broad permit, and nobody notices. A forbid holds against all of them. The same goes for the "temporary" exception in a busy week: for as long as it lasts, one person can do the whole task alone, and temporary grants tend to stay.
+
+<Check item="mcq-sod-static-dynamic" />
+
+**Three clouds, side by side.** Each cloud has its own names, and underneath all three follow the two rules you know: nothing is allowed until something allows it, and an explicit deny wins. Where they differ is in where rules are attached and how grants add up. As their documentation stood on 22 November 2026:
+
+| | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| A grant is | a **policy**: a document of allow and deny statements, attached to an identity (a user or a role) or to a resource (a bucket) | a **role assignment**: a security principal, a role definition and a scope, joined together | a **role binding** in a resource's **allow policy**: these principals have this role here |
+| Where it applies | in one account; an organization can set limits over whole accounts | at a **scope**: a management group, a subscription, a resource group or one resource, and everything beneath it | on the organization, a folder, a project or one resource, and everything beneath it |
+| How grants combine | an identity's policies and the resource's policy **add up** (a union): either may allow | role assignments **add up**: "your effective permissions are the sum of your role assignments" | allow policies **add up** down the hierarchy: the "effective allow policy" is the union of the resource's own and all those above it |
+| What beats a grant | an explicit `Deny` statement in any policy | a **deny assignment**: "if a deny assignment applies, access is blocked", checked first | a **deny policy**, inherited like allow policies: "IAM always checks relevant deny policies before checking relevant allow policies" |
+
+AWS adds one more kind of rule, which can only limit. An organization's **service control policies** (SCPs) and resource control policies, and a **permissions boundary** set on one identity, mark out the most that the ordinary policies may grant. An action has to be allowed by the identity's own policies and fall inside every limit as well (an intersection), and the limits grant nothing themselves: in AWS's words, "No permissions are granted by SCPs and RCPs." Google Cloud's principal access boundary policies are limits of the same sort, on which resources a principal may reach at all.
+
+Three things follow that catch people out. In Azure and Google Cloud, a broad role granted high up can't be narrowed by a smaller role granted lower down: grants only add, so Contributor on a subscription plus Reader on one resource group in it is still Contributor there. In AWS, an SCP that "allows" an action gives nobody that action: it only says the account's own policies are permitted to grant it. And in all three, the only thing that takes access away is removing the grant or writing a deny.
+
+Module 10 uses each cloud's real tools. What this topic gives you is the model they all share, and the right question to ask of any of them: where are the allows, how do they add up, and what can say no?
+
+<Check item="mcq-azure-additive" />
+
+The reading below is the first half of OWASP's Authorization Cheat Sheet (OWASP is a non-profit that publishes free guidance on application security). It is written for the people who build applications, so read it for the view from inside the program: why every single request has to be checked and not only the first, why "deny by default" has to include the cases nobody thought of, and its argument for attributes over roles. It mentions CWE numbers, which are entries in a public catalogue of kinds of software weakness, and a few frameworks by name; you don't need either to follow it. Everything the questions and labs ask is in the lesson above.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Authentication** proves who is asking; **authorization** decides whether they may do this action to this resource. They happen in that order, in different places, and passing the first says nothing about the second. `401` means "who are you?"; `403` means "I know who you are, and no".
+- Proof comes in three kinds: something you know, have or are. **MFA** is two different kinds. A sign-in leaves a session or a token behind: the result of authentication, and only one input to authorization.
+- Authorization is decided on **every request**: principal, action, resource, context. The **policy enforcement point** asks and obeys; the **policy decision point** reads the rules and answers.
+- **Default deny**: nothing is allowed until a rule allows it. **An explicit deny wins**: Cedar's `forbid`, AWS's `Deny`, Azure's deny assignment, Google Cloud's deny policy.
+- **RBAC** gives permissions to roles: readable, but every new dimension multiplies the roles. **ABAC** compares attributes: one rule for every store. **Policy as code** keeps the rules in files that are versioned, reviewed and tested.
+- In Cedar a request is allowed if at least one `permit` applies and no `forbid` does. `when` switches a rule on in one case, `unless` in every other. Validate against the schema first: a policy that fails while deciding is skipped without a word.
+- **Least privilege** is a loop: observe, cut, watch for denials, repeat. An analyzer sees only its window, and can't tell used from needed, so read its report beside what the job is for.
+- **Separation of duties**: no one person completes a sensitive task alone. Enforce it by roles that never go together, or by a forbid on each request that compares the approver with the requester.
+- AWS, Azure and Google Cloud all add grants up and let a deny win. Limits such as SCPs grant nothing. A narrow grant never shrinks a broad one.
+
+</Recap>
