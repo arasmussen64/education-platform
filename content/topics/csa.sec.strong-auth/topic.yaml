@@ -18,8 +18,8 @@ summary: "Why a password and a one-time code can be phished and a security key c
 # strength, conditional access, report-only, break-glass account. "Relying
 # party" is Certificates and PKI's.
 prerequisites: [csa.sec.federation]
-# Worked out the README's way: lesson about 40 minutes (around 4,200 words with
-# its tables), the puzzle and story 3, 19 ladder recall items at 1.5 = 29, the
+# Worked out the README's way: lesson about 40 minutes (about 4,400 words with
+# its tables and one policy in JSON), the puzzle and story 3, 19 ladder recall items at 1.5 = 29, the
 # worked example 30, the fill-in 25, the write 35, the build 55, the debug 40,
 # and the explain 15; plus the clock-free conditional-access reading in the
 # lesson itself. About 300. No outside reading is assigned: every resource is
@@ -51,10 +51,12 @@ objectives:
 #   number matching ("vulnerable to phishing"), then push without number
 #   matching, then SMS and voice ("vulnerable to phishing, SS7, and SIM swap");
 #   "The only widely available phishing-resistant authentication is
-#   FIDO/WebAuthn." US government work. The 508 PDF would not yield text to the
-#   fetcher on 2026-11-23, so these points are taken from the designer's
-#   recorded reading of 2026-11-12 and are consistent with SP 800-63B above;
-#   the page is linked, not copied.
+#   FIDO/WebAuthn." US government work. Read again on 2026-11-23 by its
+#   second writer, from the text inside the 508 PDF: "October 2022"; "Table 1:
+#   MFA Forms, Strongest to Weakest"; OTP and push with number matching
+#   "Vulnerable to phishing attacks"; push without number matching "Vulnerable
+#   to push bombing attacks as well as user error"; SMS or voice "Vulnerable to
+#   phishing, SS7, and SIM swap attacks". The page is linked, not copied.
 # - Microsoft Entra Conditional Access overview (ms.date 2026-04-27): policies
 #   are "if-then statements", enforced "after first-factor authentication is
 #   completed"; "Block access is the most restrictive decision"; "Using this
@@ -79,15 +81,13 @@ objectives:
 #   "Accounts with passkeys must still enable 2SV":
 #   docs.cloud.google.com/docs/authentication/mfa-requirement.
 # - The story: Cloudflare, "The mechanics of a sophisticated phishing scam and
-#   how we stopped it" (9 August 2022): three employees entered their
-#   credentials on a page at cloudflare-okta.com after an SMS wave; the
-#   credentials were relayed in real time (over Telegram); the attackers were
-#   stopped at the "hard key (U2F)" step because every employee signs in with a
-#   FIDO2 security key, which the page credits to the keys being "tied to users
-#   and implement origin binding"; no systems were compromised:
-#   blog.cloudflare.com/2022-07-sms-phishing-attacks/. Cloudflare uses no TOTP,
-#   so the relay of a code is described there as a presumed mechanism; the
-#   lesson tells it that way.
+#   how we stopped it" (9 August 2022), read again 2026-11-23: messages from
+#   2022-07-20 22:50 UTC to "at least 76 employees" and some family members;
+#   cloudflare-okta.com registered "less than 40 minutes before"; three
+#   employees entered their credentials, "immediately relayed to the attacker
+#   via the messaging service Telegram"; the FIDO2 keys "implement origin
+#   binding"; "no Cloudflare systems were compromised"; "Cloudflare does not
+#   use TOTP codes": blog.cloudflare.com/2022-07-sms-phishing-attacks/.
 # - Tried on the identity base (Keycloak 26.8.2) on 2026-11-23, and the labs
 #   are built on what was seen: a sign-in flow written in the realm file that
 #   requires a security key for the admin role and an app code for everyone
@@ -101,9 +101,23 @@ objectives:
 #   credential for login.shop-help.test"); ca-whatif against the realm export;
 #   Keycloak's LOGIN events in the journal, which signin-watch reads; and
 #   brute-force detection set in the realm file. A lone ALTERNATIVE webauthn
-#   step behaves like REQUIRED on this base (Keycloak drives key registration),
-#   so the fill-in's weakening wrong fixes use a misnamed role, a DISABLED key
-#   and an un-applied file instead.
+#   step behaves like REQUIRED on this base, so the fill-in rejects it by
+#   reading the file (the flow must say "a must"), and the build's and the
+#   debug's weakening fixes put an app code beside the key.
+# - Found and run again by the topic's second writer, 2026-11-23: the amr
+#   mapper drops a step whose reference config has no
+#   default.reference.maxAge (Keycloak 26.8.2's AmrUtils counts the age
+#   against 0), so amr came out ["hwk"] or ["pwd","hwk"] depending on whether
+#   the sign-in crossed a second; with "36000" it was ["pwd","hwk"] five times
+#   in five. The relay carries a password-and-code sign-in only with a code
+#   the provider hasn't taken yet (it takes each once), so the worked example
+#   waits for the next 30-second step; attacker-replay then got a token from
+#   the caught KEYCLOAK_IDENTITY cookie. With bruteForceProtected and
+#   failureFactor 5, five wrong passwords 1.2 s apart locked a person (the
+#   right password and code then refused); with failureFactor 6 they did not.
+#   A browser told to lie (signin --origin) is refused by the provider with
+#   "Passkey origin mismatch." and the event web_authn_authentication_error=
+#   "webauthn-error-bad-origin".
 # Licences, each read on 2026-11-23: CISA's and NIST's pages are US government
 # work (public domain); Microsoft Learn pages are under Microsoft Learn's terms
 # of use (linked); passkeys.dev is CC BY-NC-ND 4.0 (linked); the FIDO Alliance
@@ -199,7 +213,7 @@ prove:
         description: "Two cloud-only accounts with phishing-resistant keys different from the daily method, excluded only through one dedicated group from the blocking or restricting policies, with an alert on every use and a drill on a schedule; and a test that others gained no way round."
       - id: clouds-differ
         required: false
-        description: "Any correct difference: AWS enforces MFA for root and recommends passkeys; Google is phasing in mandatory 2-step verification and models device context with access levels; Entra's access tokens last 60 to 90 minutes."
+        description: "Any correct difference: AWS enforces MFA for root and recommends passkeys; Google is phasing in mandatory 2-step verification and models device context with access levels; Azure's mandatory MFA covers the portal and the command line, emergency accounts included."
     model_answer: |
       The phishing site is a relay. It shows the admin the real sign-in page, takes the password and the app code as they are typed, and passes them straight to the real site while the code is still good. The real site sets a session cookie, and the relay keeps it. From then on the attacker is the admin, with no need for the code again. The code did its job and still lost, because a code is a secret the person types, and a site in the middle collects it like any other field.
 

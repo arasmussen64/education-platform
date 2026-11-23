@@ -2,18 +2,18 @@ id: kc-event-read
 type: predict_shell
 rev: 1
 prompt: |
-  `events.txt` holds three of the identity provider's sign-in events, captured in the lab. The command pulls out the reason a security-key sign-in was refused. What does it print?
+  `events.txt` holds three of the identity provider's sign-in events, copied from its log in the lab (`journalctl -u keycloak@idp -o cat`): a sign-in, the token request that followed it, and a refused security-key sign-in. The command pulls out why the key was refused. What does it print?
 files:
   events.txt: |
-    type="LOGIN" realmName="shop" clientId="admin-app" username="ana" auth_method="openid-connect"
-    type="LOGIN_ERROR" realmName="shop" clientId="admin-app" error="invalid_user_credentials" credential_type="webauthn" web_authn_authentication_error="webauthn-error-bad-origin"
-    type="CODE_TO_TOKEN" realmName="shop" clientId="admin-app" grant_type="authorization_code"
+    2026-11-23 16:33:07,905 INFO  [org.keycloak.events] (executor-thread-1) type="LOGIN", realmId="3776bfdc-3124-4d5e-ab90-cb6b3478b6c5", realmName="shop", clientId="trace-cli", userId="0a000000-0000-4000-8000-000000000032", sessionId="SuoFgEogRZA0IBNAylLqtWir", ipAddress="10.0.5.2", auth_method="openid-connect", auth_type="code", selected_credential_id="abe5c2ac-c54d-4957-a6c4-9309458070cd", response_type="code", redirect_uri="http://127.0.0.1:8400/callback", consent="no_consent_required", code_id="SuoFgEogRZA0IBNAylLqtWir", username="ana", response_mode="query", authSessionParentId="SuoFgEogRZA0IBNAylLqtWir", authSessionTabId="eic_pAwOFbI"
+    2026-11-23 16:33:08,092 INFO  [org.keycloak.events] (executor-thread-1) type="CODE_TO_TOKEN", realmId="3776bfdc-3124-4d5e-ab90-cb6b3478b6c5", realmName="shop", clientId="trace-cli", userId="0a000000-0000-4000-8000-000000000032", sessionId="SuoFgEogRZA0IBNAylLqtWir", ipAddress="10.0.5.2", refresh_token_provider_id="default", token_id="onrtac:4ae7dfe4-ad9a-d015-a003-ed21e960c3ff", grant_type="authorization_code", refresh_token_type="Refresh", scope="openid profile email", refresh_token_id="3f4495f2-3039-0ff9-fde2-64e32ab7d930", code_id="SuoFgEogRZA0IBNAylLqtWir", client_auth_method="client-secret"
+    2026-11-23 16:33:32,819 WARN  [org.keycloak.events] (executor-thread-1) type="LOGIN_ERROR", realmId="3776bfdc-3124-4d5e-ab90-cb6b3478b6c5", realmName="shop", clientId="trace-cli", userId="null", ipAddress="10.0.5.2", error="invalid_user_credentials", credential_type="webauthn", auth_method="openid-connect", auth_type="code", web_authn_authentication_error="webauthn-error-bad-origin", redirect_uri="http://127.0.0.1:8400/callback", code_id="CY31fyZTB8iWI2dy_0KIzItX", web_authn_authentication_error_detail="The collectedClientData 'https://login.shop-help.test' origin doesn't match any of the preconfigured origins."
 command: |
   grep -o 'web_authn_authentication_error="[^"]*"' events.txt
 expected_output: |
   web_authn_authentication_error="webauthn-error-bad-origin"
 explanation: |
-  `grep -o` prints only the matched part, and only the one line that has it: the `LOGIN_ERROR`. The reason, `webauthn-error-bad-origin`, is the server's own check firing: the key's signature covered an origin (`login.shop-help.test`) that was not the real site's, so the provider refused it even though the browser had been told to lie about where it was.
+  `grep -o` prints only the part of a line that matches, and only the third line has a `web_authn_authentication_error` field, so one match comes out. The reason, `webauthn-error-bad-origin`, is the server's own check: the key's signature covered an origin, `https://login.shop-help.test`, that is not the real site's, and the line's last field says so in a sentence. The browser had been told to lie about where it was, and the provider still refused.
 
-  This is the last of the three guards a relayed key sign-in meets, after the browser's (it won't ask the key for another site's name) and the key's (it has no credential for the lookalike). The server checks the origin inside what was signed, so even a broken browser gets nowhere.
+  This is the last of three guards a relayed key sign-in meets, after the browser's (it asks a key only for the site it is on) and the key's (it has no credential for the lookalike). The server reads the origin inside what was signed, so even a fooled browser gets nowhere. Note the first line too: a `LOGIN` event names the person (`username="ana"`), which is what a watcher that alerts on particular accounts reads.
 skills: [phishing-resistance]
