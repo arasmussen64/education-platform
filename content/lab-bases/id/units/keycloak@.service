@@ -21,6 +21,9 @@ ExecStartPre=/usr/sbin/ip netns exec %i /usr/sbin/sysctl -qw net.ipv4.ip_unprivi
 ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/setpriv --reuid keycloak --regid keycloak --init-groups /opt/keycloak/bin/kc.sh --config-file=/etc/keycloak/keycloak.conf start --optimized
 # Started means answering, with every realm file that changed since it was
 # last applied applied: the boot (and labcheck's wait for it) covers both.
+# A realm file that can't be applied doesn't fail the start: Keycloak keeps
+# that realm as it was, and one warning in this unit's journal says which
+# file, where, and what to type (lib/kc-wait says why).
 ExecStartPost=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/lib/idlab/kc-wait
 ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/python3 /usr/local/lib/idlab/kcapi.py apply
 TimeoutStartSec=300

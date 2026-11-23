@@ -23,7 +23,7 @@ The whole image is 1.35 GB as Docker Desktop reports it. Its three layers build 
 | Size | 173,550,645 bytes |
 | SHA-256 | `dd124787283918bc597628887168333465ee2a811a389e0003569e52be7e487f` (GitHub's digest for the release asset; the `Dockerfile` checks it) |
 
-Move the pin only on purpose. A new Keycloak can rename a form that `signin` reads, so: change the version and checksum, save Keycloak's pages again into `tools/tests/keycloak_pages/` (`tools/tests/test_idlab_signin.py` says how they were saved), run those tests, and read one full Labs run. The weekly Labs run rebuilds from whatever apt serves, so a new Java or Apache arrives without a pull request; Keycloak itself moves only with the pin.
+Move the pin only on purpose. A new Keycloak can rename a form that `signin` reads, or stamp a new field that `realm-saved` must leave out, so: change the version and checksum, save Keycloak's pages again into `tools/tests/keycloak_pages/` (`tools/tests/test_idlab_signin.py` says how they were saved) and its exports into `tools/tests/keycloak_exports/` (`tools/tests/test_idlab_kcapi.py` says how), run those tests, and read one full Labs run. The weekly Labs run rebuilds from whatever apt serves, so a new Java or Apache arrives without a pull request; Keycloak itself moves only with the pin.
 
 **The packages,** with the licence each one's `/usr/share/doc/PACKAGE/copyright` states (read in the image on 2026-11-22):
 
@@ -104,7 +104,7 @@ The lab machine itself is the console and is on no network, so checks act from `
 
 ## Keycloak on a machine
 
-**The unit** is `keycloak@idp`. It runs through `lab-enter` like every per-machine service, as the user `keycloak`, not root (the unit sets `net.ipv4.ip_unprivileged_port_start=0` in the machine so it can serve port 443), with the JVM's fast compiler only (`-XX:TieredStopAtLevel=1`) and a heap of at most 384 MB. Its `ExecStartPost` waits until Keycloak answers and then applies any realm file that changed since it was last applied. So **"booted" means "the provider answers"**: `labcheck`'s wait for the boot covers it, and no check waits for Keycloak. Its log is `journalctl -u keycloak@idp`, with a line for every sign-in and token request (`type="LOGIN"`, `type="CODE_TO_TOKEN"`, `type="LOGIN_ERROR" ... error="..."`).
+**The unit** is `keycloak@idp`. It runs through `lab-enter` like every per-machine service, as the user `keycloak`, not root (the unit sets `net.ipv4.ip_unprivileged_port_start=0` in the machine so it can serve port 443), with the JVM's fast compiler only (`-XX:TieredStopAtLevel=1`) and a heap of at most 384 MB. Its `ExecStartPost` waits until Keycloak answers and then applies any realm file that changed since it was last applied (one that can't be applied is reported and left: "A realm file that can't be applied", below). So **"booted" means "the provider answers"**: `labcheck`'s wait for the boot covers it, and no check waits for Keycloak. Its log is `journalctl -u keycloak@idp`, with a line for every sign-in and token request (`type="LOGIN"`, `type="CODE_TO_TOKEN"`, `type="LOGIN_ERROR" ... error="..."`).
 
 **`cache=local` is not optional.** Without it Keycloak 26 looks in its database for the other members of a cluster. After a restart that killed it (which `docker restart` is), it waits for the instance it used to be: the designer measured 25 s and then 44 s for the restart trial's boots, against 7 to 8 s with `cache=local`. It is a setting of the running server, so it lives in `keycloak.conf` (`idlab idp` writes it) and in the build-time start. Keycloak's own guide says local mode "is intended only for development and testing purposes", which a lab is; the file database (H2) is not for production either. A lesson that shows `keycloak.conf` says both in a sentence.
 
@@ -114,19 +114,78 @@ The lab machine itself is the console and is on no network, so checks act from `
 
 `/etc/keycloak/realms/shop.json` on `idp` is short: only what the lab sets (the probe's is 71 lines for a realm, two groups, two people and one client with two mappers). Keycloak fills in the rest.
 
-- **`sudo realm-apply [REALM]`**, or `sudo systemctl reload keycloak@idp`: fills in each `${NAME}` from `secrets.env`, adds the realm's signing keys, deletes the running realm and creates it again from the file. One to two seconds. It refuses a file before touching anything when the JSON is invalid (`line 17: not valid JSON`), a placeholder has no value, or a fill-in gap is still there (`shop.json, line 17: a gap ("...") is still to be filled in`).
-- **`realm-saved [REALM]`**, `kc_saved REALM` in checks: builds a throwaway copy of the realm (`chk-shop`) from the file beside the running one, asks Keycloak to export both, removes the copy, and compares everything except ids and people. About a second. It prints `saved`, or up to three differences:
+- **`sudo realm-apply [REALM]`**, or `sudo systemctl reload keycloak@idp`: fills in each `${NAME}` from `secrets.env`, adds the realm's signing keys, builds the file once as a throwaway copy (`chk-shop`) to see that Keycloak takes it, then deletes the running realm and creates it again from the file. It refuses a file **before touching the running realm**, whatever is wrong with it: "A realm file that can't be applied", below, has the messages.
+- **`realm-saved [REALM]`**, `kc_saved REALM` in checks: builds a throwaway copy of the realm (`chk-shop`) from the file beside the running one, asks Keycloak to export both, removes the copy, and compares them. It prints `saved`, or up to three differences:
 
   ```text
   realm shop differs from a fresh build of /etc/keycloak/realms/shop.json:
     authenticationFlows[Browser - Conditional 2FA].authenticationExecutions[webauthn-authenticator].requirement: now "ALTERNATIVE", from its file "DISABLED"
     clients[scanner]: now "there", from its file "(not there)"
+    clients[shop-web].secret: now "(not the file's secret)", from its file "(the file's secret)"
   ```
 
-  This is `netlab verify`'s idea applied to an identity provider. It keeps no list of fields, so a change to a flow, a mapper, a client, a role or a lifetime is caught alike. **`kc_saved` takes a realm, not a machine:** `kc_saved shop`.
-- **At a boot** the realm is left as the database has it, unless its file (or `secrets.env`, or a key) changed since the last apply. A reload always rebuilds; a boot rebuilds only when the file changed. So a restart keeps what was made at run time, and a file edited but never applied takes effect at the next boot, as a daemon's configuration does.
+  This is `netlab verify`'s idea applied to an identity provider. It keeps no list of the fields it compares, so a change to a flow, a mapper, a client, a role, a lifetime or a service account is caught alike; "What `realm-saved` compares", below, lists the few things it leaves out. **`kc_saved` takes a realm, not a machine:** `kc_saved shop`. With a file that can't be applied it prints the file's fault instead (on standard error, exit 1), so a check that expects `saved` fails.
+- **At a boot** the realm is left as the database has it, unless its file (or `secrets.env`, or a key) changed since the last apply. A reload always rebuilds; a boot rebuilds only when the file changed. So a restart keeps what was made at run time, and a file edited but never applied takes effect at the next boot, as a daemon's configuration does. A file that can't be applied never stops Keycloak starting (below).
 - **`kcadm.sh` is for looking.** `kc get shop/clients?clientId=shop-web` is the same through the base's helper, in a fraction of a second. A change made with either is real until the next apply, and `realm-saved` shows it. The lesson's word for that is **drift**; the cloud parallel is a console change to something Terraform or Bicep owns.
 - **`kc-flows REALM [FLOW] [--file]`** shows a sign-in flow as a tree, one step a line with its requirement and its settings: as the running realm has it, or with `--file` as the realm file writes it. A realm file that sets no flow gets Keycloak's built-in ones, and `kc-flows shop --file` says so.
+
+### What `realm-saved` compares
+
+Everything Keycloak exports for the realm (`partial-export`, with clients, groups and roles), and each client's secret where the file gives one. Found by building a realm with one of each kind of client the base supports (a site with a secret, a public client, a device client, two service accounts, a client that signs its own tokens, a bearer-only API, a SAML client, an identity provider) and people with a password, an authenticator app and a security key; applying it; and reading what differs between the running realm and a fresh copy when nobody has changed anything. That pair of exports is saved in `tools/tests/keycloak_exports/one-of-each.json`, and `tools/tests/test_idlab_kcapi.py` holds the list below to it.
+
+**Left out, wherever it appears** (`STAMPED` and `DROPPED` in `lib/kcapi.py`):
+
+| Field | Where Keycloak 26.8.2 writes it | Why leaving it out is safe |
+| --- | --- | --- |
+| `id`, `containerId` | everything | Keycloak makes them up, new in every build. A realm file names things by name (a flow's alias, a client's `clientId`); the one id it sets is a person's, and people aren't compared. |
+| `internalId` | an identity provider | The same: an id under another name. |
+| `createdTimestamp` | each user; the only users in an export are service accounts | The millisecond the account was made. No sign-in, token or permission reads it. A file can't usefully set it, and everything else about a service account (enabled, groups, realm and client roles) is compared. |
+| `client.secret.creation.time` (a client attribute) | a client whose secret Keycloak made itself: a SAML client, a bearer-only API, a client that signs its own tokens, any client after "regenerate secret" | The second the secret was made. It matters only to a secret-rotation policy, which no lab sets. The secret itself is compared, below, so a regenerated secret is still caught. |
+| `subComponents`, and key providers named `fallback-…` | components | Empty, and the keys Keycloak makes for itself when asked for an algorithm the realm has no key for. The realm's own keys are compared by certificate. |
+
+**Compared in a way of its own:**
+
+- **A client's secret.** An export prints every secret as `**********`, so two exports can't tell a changed secret (before this was added, a secret set through the admin API passed, and a regenerated one was caught only by its creation time). Where the realm file gives a client a `"secret"`, `realm-saved` reads the running realm's real one from the list of clients and compares it with the file's. The difference is printed as `now "(not the file's secret)", from its file "(the file's secret)"`: no secret is ever printed, and any other setting with "secret" in its name prints as `"(a secret, not shown)"`. Where the file gives a client no secret (a SAML client, a bearer-only API), Keycloak makes one up in every build; it is no setting of the file's, so it isn't compared. A confidential client that signs in with a secret always has it in the file (`${NAME}`), or every `realm-apply` would change it.
+- **Service accounts.** A client with `"serviceAccountsEnabled": true` has a user, `service-account-CLIENT`, which Keycloak's export lists. It is a setting, so it is compared: enabled, groups, realm roles, client roles. The copy is built from the whole file, so a service account the file writes out (with `"serviceAccountClientId"`, to give it roles) is in it. One trap: a client whose service account the file writes out does not get the `service_account` client scope, and one Keycloak makes by itself does; both forms are `saved`, each compared with a copy built the same way.
+
+**Not compared:**
+
+- **People:** who exists, their groups, roles, passwords, keys and whether they are switched off. Checks make people of their own (`idp-user`), and provisioning changes the file's own people while a lab runs: federation's HR connector moves them between groups and switches leavers off, and its check then expects `saved`. A lab that must prove a person's group lasts reads the file (and that the file was applied, with `realm-saved`), or signs in after a `realm-apply`. An export lists no people in 26.8.2; `realm-saved` drops them if a later one does.
+- **Values Keycloak never gives back:** an identity provider's client secret (`identityProviders[].config.clientSecret`: changed through the admin API, it still reads `**********` everywhere, tried here) and a key's private half (the key is still caught by its certificate). A lab whose learner sets an identity provider's secret proves it by signing in through that provider.
+
+Each of these was changed in the running realm alone, through the admin API, on the one-of-each realm, and `realm-saved` named it: a redirect address, a client's secret (set, and regenerated), a mapper's setting, a new role, a service account's group, role and "enabled", a step of the browser flow, a new client (with and without a service account) and the token lifetime. The tests make the same changes to the saved export, and a SAML setting, a grant switched on and an identity provider's address as well.
+
+### A realm file that can't be applied
+
+A learner's realm file is unfinished for a while: a gap still to fill in, a comma missing, a name with no value, something Keycloak won't take. The rule is that **the running realm stays as it was until a file is applied that Keycloak takes whole**, and Keycloak itself always runs.
+
+| What's wrong | Who finds it | `sudo realm-apply` says (and exits 1) |
+| --- | --- | --- |
+| a gap | `kcapi.py`, before Keycloak is asked | `/etc/keycloak/realms/shop.json, line 17: a gap ("...") is still to be filled in` |
+| invalid JSON, an empty file | the same | `/etc/keycloak/realms/shop.json, line 6: not valid JSON: Expecting ',' delimiter` (the line is where Python noticed, often the line after the slip) |
+| `${NAME}` with no value | the same | `/etc/keycloak/realms/shop.json, line 89: ${NO_SUCH_SECRET} is not in /etc/keycloak/secrets.env` |
+| `"realm"` isn't the file's name | the same | `/etc/keycloak/realms/shop.json: "realm" must be "shop", the file's name` |
+| valid JSON that Keycloak refuses (a person in a group that isn't there) | Keycloak, building the throwaway copy | `/etc/keycloak/realms/shop.json: Keycloak refused it (500): Unable to find group specified by path: /no-such-group` |
+
+The last row is why `realm-apply` builds a copy first. Keycloak can only say whether it takes a file by building it, and the old `realm-apply` had deleted the running realm by then: one slip left the lab with no realm at all. Keycloak answers some such files with no more than `unknown_error`; the reason is in its log, and `kcapi.py` reads it from there (`keycloaks_reason`). Keycloak has no line numbers to give; its sentence usually names the thing. It does not check everything: a mapper whose type doesn't exist (`"protocolMapper": "no-such-mapper"`) was accepted here, so what a realm does is still a lab's checks' business.
+
+**At a start** (a boot, the restart trial, `sudo systemctl restart keycloak@idp`, `sudo netlab restart`), with a file that changed and can't be applied:
+
+- **Keycloak starts and the unit is `active`.** `lib/kc-wait`, the unit's `ExecStartPost`, never fails because of a realm file. Before this, it did: systemd started Keycloak again, found the same file, and went round for ever (a new start about every 30 seconds, counted here on the base as it was, and never a provider that answered).
+- **Keycloak serves each such realm as its database has it:** the realm as it last was, from the last file that was applied, with everything made at run time since. Sign-ins go on working against that. Nothing of the new file is in effect, as with any file that was edited and not applied. If the realm was never built, there is no such realm (a lab's image is baked from a file that applies, so this needs a file added by hand). The other realms' files are still applied: one bad file doesn't hold back the rest.
+- **One warning in the unit's journal says what and what to do,** once per start:
+
+  ```text
+  $ journalctl -u keycloak@idp -p warning -o cat
+  keycloak: /etc/keycloak/realms/shop.json, line 17: a gap ("...") is still to be filled in. Realm shop was not rebuilt: Keycloak serves it as it was before the file changed. Mend the file, then: sudo realm-apply shop
+  ```
+
+  `realm-saved` and `sudo realm-apply` say the first sentence again whenever they are run, so a learner who never opens the journal still meets it at the first thing they type about the realm.
+- **Mending it:** fix the file, then `sudo realm-apply` (a second or two), or restart; the next start applies a file that changed. Nothing needs `reset-failed`, because nothing failed.
+
+So a fill-in lab may ship a realm file with gaps: bake the image from the file with the unfinished part left out, then put the file with the gaps in place (`csa.sec.federation`'s first fill-in does it with `jq 'del(.clients)'`). The lab boots with the baked realm and the warning above, which is true and points at nothing but the gap the prompt already names.
+
+The start still fails, and systemd still tries again, when Keycloak doesn't answer within 280 seconds: that is Keycloak itself not coming up, not a realm file, and `journalctl -u keycloak@idp` has its own words. That case was not run here.
 
 ### Rules for realm files
 
@@ -141,6 +200,8 @@ The lab machine itself is the console and is on no network, so checks act from `
 ## Sites and APIs that rely on the provider
 
 **Apache with mod_auth_openidc** (`run app apache2`, the unit `apache2@app`): the code flow with PKCE (`OIDCPKCEMethod S256`), the client secret in an included file only root reads, `Require claim groups:staff`. What a check reads: a CGI page that prints `user=$REMOTE_USER` and `groups=$OIDC_CLAIM_groups`, and Apache's error log on the machine (`on app tail /var/log/apache2/error.log`), which names each failure. Three things found by running: it answers `401`, not a redirect to the sign-in, to a client that doesn't ask for HTML, so `signin` sends a browser's `Accept` header; the unit's start script makes the run and lock folders a machine's empty `/run` lacks; and the signed-in person's access token reaches a CGI script as `$OIDC_access_token`, so "the site calls the API as the person" is three lines of shell. Apache starts after Keycloak, a moment after the boot counts as finished, so a lab's first check waits a few seconds for it (`wait_for 10 on office curl -s -m 2 -o /dev/null https://app.shop.test/`).
+
+**Apache with a configuration file it can't read never starts, and never gives up.** The unit tests the configuration first (`apache2 -t`) and has `Restart=on-failure` with `RestartSec=2`, slow enough that systemd's start limit is never reached: with a bad line in a site file, 12 restarts in 32 seconds were counted here, and it goes on for as long as the file is wrong. What a learner sees: `sudo systemctl restart apache2@app` answers `Job for apache2@app.service failed because the control process exited with error code`; `systemctl status apache2@app` says `activating (auto-restart) (Result: exit-code)`; the site doesn't answer (`curl` can't connect); the lab machine as a whole still counts as booted (`systemctl is-system-running` says `running`), so the checker's wait for a boot isn't held up. Why: `on app apache2ctl -t`, or `journalctl -u apache2@app -n 5`, gives Apache's own line (`AH00526: Syntax error on line 28 of /etc/apache2/sites-enabled/orders.conf: Invalid command ...`). What they do: mend the file. Apache then starts by itself within two seconds; `sudo systemctl restart apache2@app` does no harm and `reset-failed` is never needed, because the unit never reaches `failed`. So a fill-in lab may ship an unfinished site file, and its prompt says the site is down until the file is done.
 
 **`stock-api`** (`run api stock-api`, the unit `stock-api@api`) is the base's stand-in API, for labs where the API is scenery: HTTPS on 443, `GET /stock/level`, a bearer token required. Its settings are seven lines in the machine's `/etc/stock-api/api.conf` (`name`, `issuer`, `audience`, `jwks_uri`, `leeway`, and the two switches a hurried fix reaches for, `check_audience` and `check_expiry`), and its journal gives the reason in plain words: `10.0.5.20 refused: audience 'https://apis.shop.test' doesn't include 'https://api.shop.test'`. It fetches the keys by address, and once more when a token names a key it doesn't have.
 
@@ -162,6 +223,8 @@ It served the provider's access token (`200`) and refused the ID token (its audi
 - **Two `Require` lines without `<RequireAll>` mean "either":** the issuer line alone granted a token for any audience.
 - **It answers a token it has already accepted from its cache, past the token's expiry.** With 20-second tokens, a token it had served was still served 46 s after it expired, while one it had never seen was refused 6 s after its expiry (`_oauth2_jose_jwt_validate_exp: "exp" validation failure (1795396087): JWT expired 7 seconds ago`, in the machine's `error.log`). So a check of expiry shows the API a token it has never seen, and the federation lesson says why.
 - **An option it doesn't know makes it refuse every token** (`error_description="Token could not be verified."`): `verify.iss=required&verify.exp=required&verify.iat.slack_after=60` after the address did that here. The plain line above checks signature and expiry; the first lab that needs more reads liboauth2's own list of options.
+- **It logs nothing when a signature doesn't verify.** A token signed by another key and an unsigned one each got `401` and left not one byte in the machine's `error.log`, with `LogLevel warn oauth2:info` (federation's debug lab, 2026-11-23). Text that isn't a token at all does leave a line (`oauth2_jose_jwt_verify: cjose_jws_import failed`), and so does an expired token, below. So the log can't tell a learner "wrong key": a `401` with a silent log, for a token whose issuer, audience and expiry are right (`jwt show`, `jwt verify`), is the evidence, and a lesson says so. `stock-api`, the stand-in, does name the reason.
+- **It allows no slack on expiry.** A token it had never seen was served 1.7 s before its `exp` and refused 0.6 s after it (`"exp" validation failure (1795420622): JWT expired 1 seconds ago`). `stock-api`, by contrast, forgives 60 s both ways. So an API on mod_oauth2 whose clock runs a few seconds ahead refuses tokens early, and a check that shows it an expired token needs no margin beyond a second.
 
 **mod_auth_mellon** (SAML) is installed and switched off. The designer ran one sign-on through it with the provider's metadata fetched from the running Keycloak. Not tried: metadata written at image build, and a NameID that is the user name.
 
@@ -256,6 +319,8 @@ From the Module 4 brief, section 3.3, and from running the probe.
 - **A check may make people and devices of its own at the identity provider, and removes them** (ADR-0018, fourth amendment): `idp-user add shop chk-u$r ...` with the removal in an `EXIT` trap, a name starting `chk-`, and never `kc_saved` or `realm-apply` while they exist. It changes nothing the learner made. Random people are what make an allow list of the lab's own people fail.
 - **Random values go after `=`, and are hex.** `--nonce="$n"`, `--secret="$s"`, `--iss=$iss`. A random value that began with `-` was read as an option and failed one right answer in four parallel runs (the designer's finding). `signin` makes hex state and nonce values; a check makes its own with `od -An -N4 -tx1 /dev/urandom | tr -d ' \n'`.
 - **One sign-in with a one-time code per person per 30 seconds.** Keycloak refuses a code it has already accepted (`refused: Invalid authenticator code.`, seen on this base). A check that needs two sign-ins with a code makes two people, or keeps the first session with `--jar`.
+- **A file a check hands to `on M` goes under `/srv`, never `/run`.** Every machine has a `/run` of its own (`lab-enter` gives it one, and it starts empty at every boot), so a file the check writes to the lab machine's `/run` isn't there for a command run with `on M` (`cat: /run/x: No such file or directory`, tried here). `/srv` is one folder for the lab machine and every machine (so is `/tmp`, which is everybody's to write in). A check removes what it wrote.
+- **`json` prints a bare value as Python does:** `json "d['enabled']"` prints `False`, `True` or `None`, not `false`, `true` or `null` (a list or an object is printed as JSON; a string or a number as itself). Compare with `False`, or ask for the word: `json "str(d['enabled']).lower()"`.
 - **Allowlists, not denylists,** where a check must read a configuration: "the only verify line is `jwks_uri` with the realm's HTTPS address", not "no `pem` line".
 - **Never file times.** Docker Desktop and a fresh CI checkout disagree about them. "Written after the fix" is proved by comparing content with a fresh run.
 - **Read every included file** when a setting can live in more than one (`apachectl -t -D DUMP_INCLUDES`).
@@ -287,6 +352,8 @@ Each is small, and belongs to the first writer who needs it (Module 4 brief, sec
 - `signin` through oauth2-proxy, and the size of its cookie;
 - Keycloak's sign-in events as a watching unit reads them;
 - a page on a second host asking for a key (the relay): `signin`'s refusal is written and was not run against one;
+- `realm-saved` on a realm whose file writes a sign-in flow of its own, LDAP or a client policy: the one-of-each realm had none, so a value Keycloak stamps there would show as a difference nobody made, and joins `STAMPED` with its reason;
+- a Keycloak that doesn't answer within 280 seconds at a start;
 - `ca-whatif`: it has one source, in the policy-lab base (`content/lab-bases/policy/bin/ca-whatif`), and a byte-identical copy here in `bin/`. Change the policy base's, then copy it over this one; `tools/tests/test_idlab_helpers.py` fails if the two differ.
 
 ## Files here
@@ -301,13 +368,13 @@ Each is small, and belongs to the first writer who needs it (Module 4 brief, sec
 | `bin/clock` | `on M clock` |
 | `bin/mint-token` | a check's forged token |
 | `bin/stock-api` | the stand-in API |
-| `lib/kcapi.py` | Keycloak's admin API: apply, saved, flows, a check's people, plain reads and writes (`tools/tests/test_idlab_kcapi.py`) |
+| `lib/kcapi.py` | Keycloak's admin API: apply, saved, flows, a check's people, plain reads and writes (`tools/tests/test_idlab_kcapi.py`, on exports saved in `tools/tests/keycloak_exports/`) |
 | `lib/jwtlib.py` | reading and checking tokens, RS256 only, standard library only (`tools/tests/test_idlab_jwtlib.py`) |
 | `lib/idlib.sh` | the check helpers |
 | `lib/timesync` | the time sync client (`tools/tests/test_idlab_helpers.py`) |
 | `lib/machine-clock` | each machine's clock from its hardware clock at boot; `clock_offset` |
 | `lib/make-key` | a security key made at image build, or for a check's person |
-| `lib/kc-build-run`, `lib/first-start`, `lib/kc-wait` | Keycloak inside an image build; its first start; the wait that makes "started" mean "answering" |
+| `lib/kc-build-run`, `lib/first-start`, `lib/kc-wait` | Keycloak inside an image build; its first start; the wait that makes "started" mean "answering", and that keeps a realm file that can't be applied from failing the start (`tools/tests/test_idlab_helpers.py`) |
 | `lib/faketime-noshm.c` | keeps libfaketime from making a semaphore and shared memory in `/dev/shm`; the `Dockerfile` compiles it in a stage of its own |
 | `lib/apache2-run` | Apache inside a machine, whose `/run` starts empty |
 | `lib/plain-units` | the plain `apache2` and `chrony` units, replaced by ones that say what to type |
@@ -329,7 +396,8 @@ Measured on the owner's PC on 2026-11-22 (Docker Desktop 29.8.2, 8 CPUs, 15.5 Gi
 | The same, four labs at once | quiet: 20.3 to 23.9 s, median 22.1 s (36 boots). Busy: 34 to 77 s, median 46 s |
 | Memory, one lab | 550 to 620 MiB for the container (621 MiB at most over a whole contract); Keycloak's heap is capped at 384 MB |
 | Memory, four labs at once | 2.4 GiB at most between them (sampled every 4 s); the largest single container 640 MiB |
-| `realm-apply` | 1 to 2 s |
+| `realm-apply` | 1 to 2 s when it was delete-and-create (2026-11-22). Since it builds a copy first (2026-11-23) it makes two realms and removes two: 3.8 to 5.0 s for the probe's realm and 4.9 to 6.5 s for a realm with fourteen clients, both measured on a very busy machine (load average 13 to 20 on 8 CPUs), where delete-and-create alone took 1.5 s. Not measured quiet |
+| `realm-saved` | 2.8 to 3.2 s for the probe's realm, 3.9 to 4.6 s for the fourteen-client one, on the same busy machine; the first run after a boot took 12 to 15 s there (Keycloak's code is cold) |
 | The probe lab's eight checks, one run | 7 s through `labcheck check` |
 | **The probe lab's contract, alone** (pristine, solution, restart trial, six wrong fixes: nine boots, ten runs of the checks) | **174 s** quiet, 439 s busy |
 | **Four such labs at once** (`labcheck test --all --jobs 4`) | **366 s each** quiet, 783 to 793 s busy; all four kept, both times |
