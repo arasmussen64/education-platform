@@ -23,15 +23,27 @@ checks:
     expect:
       equals: right
   - id: due-findings-fixed
-    description: "A fresh scan of the payments server shows no finding whose timeline is 14 days or shorter."
-    command: /usr/local/lib/lab-vuln/vuln-truth must-fix
+    description: "A fresh scan of the payments server shows no finding whose timeline is 14 days or shorter, and the programs on disk are the fixed packages' own."
+    command: |
+      said=$(/usr/local/lib/lab-vuln/vuln-truth must-fix)
+      [ "$said" = right ] || { echo "$said"; exit 0; }
+      # A package list can be made to say anything. The program on disk has
+      # to be the one inside the patch repository's package.
+      real() {
+        deb=$(ls /srv/patches/"$1"_*.deb 2> /dev/null | head -n 1)
+        [ -n "$deb" ] && dpkg-deb --fsys-tarfile "$deb" 2> /dev/null | tar -xO ".$2" 2> /dev/null | cmp -s - "$2"
+      }
+      for pair in sudo:/usr/bin/sudo openssh-server:/usr/sbin/sshd less:/usr/bin/less rsync:/usr/bin/rsync git:/usr/bin/git; do
+        real "${pair%%:*}" "${pair#*:}" || { echo "the package list says ${pair%%:*} is fixed, and ${pair#*:} is not the fixed package's program"; exit 0; }
+      done
+      echo right
     expect:
       equals: right
   - id: nothing-removed
     description: "sudo, OpenSSH, less, rsync and git are all still installed and still work."
     command: |
       for package in sudo openssh-server openssh-client less rsync git; do
-        [ "$(dpkg-query -W -f '${db:Status-Abbrev}' "$package" 2> /dev/null)" = "ii " ] \
+        [ "$(dpkg-query -W -f '${db:Status-Status}' "$package" 2> /dev/null)" = installed ] \
           || { echo "$package is no longer installed"; exit 0; }
       done
       su learner -c 'sudo -n true' > /dev/null 2>&1 || { echo "sudo no longer works for the learner"; exit 0; }

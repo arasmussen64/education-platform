@@ -6,7 +6,7 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: sudo-and-rsync-fixed
-    description: "sudo and rsync are at fixed versions, sudo still works, and a fresh scan no longer lists a finding in either."
+    description: "sudo and rsync are at fixed versions, their programs on disk are the fixed packages' own, sudo still works, and a fresh scan no longer lists a finding in either."
     command: |
       lib=/usr/local/lib/lab-pay
       original=$($lib/scan-tsv dpkg-status:/usr/share/lab-pay/original-dpkg-status 2> /dev/null)
@@ -19,6 +19,15 @@ checks:
         fixed=$(echo "$original" | awk -F'\t' -v p="$package" '$2 == p {print $4}' | sort -V | tail -n 1)
         have=$(dpkg-query -W -f '${Version}' "$package" 2> /dev/null)
         dpkg --compare-versions "${have:-0}" ge "$fixed" || { echo "$package is at ${have:-no version}"; exit 0; }
+      done
+      # A package list can be made to say anything. The program on disk has
+      # to be the one inside the patch repository's package.
+      real() {
+        deb=$(ls /srv/patches/"$1"_*.deb 2> /dev/null | head -n 1)
+        [ -n "$deb" ] && dpkg-deb --fsys-tarfile "$deb" 2> /dev/null | tar -xO ".$2" 2> /dev/null | cmp -s - "$2"
+      }
+      for pair in sudo:/usr/bin/sudo rsync:/usr/bin/rsync; do
+        real "${pair%%:*}" "${pair#*:}" || { echo "the package list says ${pair%%:*} is fixed, and ${pair#*:} is not the fixed package's program"; exit 0; }
       done
       su learner -c 'sudo -n true' > /dev/null 2>&1 || { echo "sudo no longer works for the learner"; exit 0; }
       echo "patched"
