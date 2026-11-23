@@ -39,12 +39,12 @@ Four ways to sort them will carry you through most conversations:
 
 - **Laws** you must obey where they apply: HIPAA, GDPR. Nobody opts in. GDPR, for one, says a breach that puts people at risk must be reported to the regulator without undue delay and, where feasible, within 72 hours of becoming aware of it.
 - **Contracts** you accepted: PCI DSS comes with being allowed to take cards, CMMC with a defence contract, FedRAMP with selling a cloud service to an agency.
-- **Reports and certificates you choose to earn,** because customers ask: SOC 2 and ISO/IEC 27001. A SOC 2 report comes in two types. Type 1 says the controls were suitably designed. Type 2 adds that they operated effectively throughout a period, which is the one customers want.
+- **Reports and certificates you choose to earn,** because customers ask: SOC 2 and ISO/IEC 27001. A SOC 2 report comes in two types. Type 1 says the controls were suitably designed, as of one date. Type 2 adds that they operated effectively throughout a period, which is the one customers want.
 - **Catalogues everything else points at:** NIST's two documents and the CIS Benchmarks.
 
 That last group matters most to you, for a practical reason. NIST's documents are works of the US government: free to download, copy and quote. ISO's standards are sold. PCI DSS is free to read from the council's library, under terms that don't let anyone copy it. So when two frameworks need comparing, each is compared with NIST's catalogue, and many programmes don't write controls of their own at all. FedRAMP's baselines are selections from SP 800-53. CMMC's Level 2 is identical to another NIST document, SP 800-171. Learn to read NIST's controls and you can read most of the others.
 
-Three of these are moving as this is written. PCI DSS is at v4.0.1, a small revision of v4.0, which was retired at the end of 2024. FedRAMP's Consolidated Rules for 2026 took effect on 4 July 2026: what was a "FedRAMP authorization" is now a "FedRAMP Certification", and the old Low, Moderate and High levels are now certification classes A to D. CMMC is being phased into contracts: its first phase began in November 2025, and each later phase starts a year after the one before. Check a date like these at its source before you quote it.
+Three of these are moving as this is written. PCI DSS is at v4.0.1, a small revision of v4.0, which was retired at the end of 2024. FedRAMP's Consolidated Rules for 2026 took effect on 4 July 2026: what was a "FedRAMP authorization" is now a "FedRAMP Certification", and the old Low, Moderate and High levels are now certification classes A to D. CMMC is being phased into contracts: its first phase began on 10 November 2025, and each later phase starts a year after the one before. Check a date like these at its source before you quote it.
 
 <Check item="mcq-which-applies" />
 
@@ -68,7 +68,7 @@ Every control has the same parts:
 - **Parameters.** Each `[Assignment: organization-defined ...]` is a **parameter**: a blank that NIST leaves for you, because the right number for a bank isn't the right number for a school. `[Selection ...]` is a list to choose from. Your organisation's policy fills them in, and the control is only complete once it has.
 - **The discussion.** Guidance: it explains the intent and gives examples. None of it binds.
 
-Other frameworks fill the blanks for you. PCI DSS's requirement 8.3.4 is the same control with numbers in it: lock the account after no more than 10 failed attempts, for at least 30 minutes. (PCI DSS numbers its requirements by nesting: 8.3.4 is requirement 8, part 3, item 4. The number is the identifier.)
+Other frameworks fill the blanks for you. PCI DSS's requirement 8.3.4 is the same control with numbers in it: lock the account after no more than 10 failed attempts, for at least 30 minutes. (PCI DSS numbers its requirements by nesting: 8.3.4 is requirement 8, part 3, item 4. The number is the identifier. Every PCI DSS number in this topic is v4.0.1's, and each requirement is described here in this lesson's words, not the standard's.)
 
 The last step is yours: **turn the parameter into a setting, in the setting's own units.** Say the shop's policy fills AC-7 as "5 attempts, then locked for 20 minutes". On Ubuntu the lock's length is `unlock_time` in `/etc/security/faillock.conf`, and its manual page says it is in seconds. 20 minutes x 60 is 1200, so the line is `unlock_time = 1200`. Writing `unlock_time = 20` would look like the policy and unlock the account after 20 seconds. The arithmetic is small, and it is where real findings come from.
 
@@ -76,7 +76,7 @@ The last step is yours: **turn the parameter into a setting, in the setting's ow
 
 **Scope: which systems do the card rules reach?** Before any control is tested, an assessment settles its **scope**: which systems the framework applies to. For PCI DSS the answer has rules of its own, and getting it wrong is the costliest mistake in the whole subject. Miss a system and you fail. Include everything and you pay to apply every requirement to the staff wiki.
 
-Start with the data. *Cardholder data* is the card number (the standard calls it the PAN, the primary account number) and what travels with it: the name, the expiry date. *Sensitive authentication data* is what proves the card is present: the three-digit code, the PIN. The second kind may never be stored once a payment has been authorised.
+Start with the data. *Cardholder data* is the card number (the standard calls it the PAN, the primary account number) and what travels with it: the name, the expiry date. *Sensitive authentication data* is what proves the card is present: the three-digit code, the PIN. The second kind may never be stored once a payment has been authorised (requirement 3.3.1).
 
 **PCI DSS scope** is everything the requirements apply to, and a system can be in it for three reasons. The labs give each system one of three words:
 
@@ -84,23 +84,33 @@ Start with the data. *Cardholder data* is the card number (the standard calls it
 - `impacting`: no card data reaches it, but it **could affect the security** of card data. The jump host that admins reach the payments server through. The server that signs them in. The web server that sends shoppers to the page where they pay.
 - `out`: neither, **and** separated so that it couldn't affect card data even if it were taken over.
 
+To place a system you haven't seen before, ask three questions in this order and stop at the first yes:
+
+1. Is card data stored on it, or does card data pass through it? Then it is `cde`.
+2. Is it on a network with such a system, with nothing filtering between them? Then it is `cde` too.
+3. Could someone who took it over change what happens to card data: sign in to or administer a card system from it, or change the page where cards are typed or where shoppers are sent to pay? Then it is `impacting`.
+
+Three noes, and a firewall or other filter you can point to that keeps it apart: `out`. Three noes and no filter to point to is not `out`. Go back to question 2.
+
+The three groups are the PCI council's own. Its scoping guidance sorts systems into CDE systems, "connected-to and security-impacting" systems, and out-of-scope systems; the labs shorten the middle one to `impacting`.
+
 The first two are both in scope. Notice which way the burden runs: a system is in until you can show it is out. What gets a system out is **segmentation**: firewalls or other filtering that separate the card systems from everything else. The standard doesn't require segmentation. Without it you have what the standard calls a flat network, and on a flat network everything is in scope.
 
 The other way to shrink scope is not to touch the card at all. A shop can send the shopper's browser to the payment provider's own page (a redirect), or show the provider's card form inside a frame on its own page. Either way the card number goes from the browser straight to the provider, and the shop's web server leaves the CDE. It does not leave scope. It still serves the page that the frame sits in, or decides where the shopper is sent, and whoever controls that page can show a card form of their own. That is why PCI DSS has a requirement to authorise and track every script on a payment page (6.4.3) and one to detect changes to such pages (11.6.1), and why, since 2025, a merchant that assesses itself and embeds a provider's form must confirm that its own page can't be attacked through scripts. Using a compliant provider reduces what you must do. It never hands over your responsibility for your own page.
 
-Scope isn't settled once. Systems are added and networks change, so PCI DSS has the organisation confirm its scope at least every 12 months.
+Scope isn't settled once. Systems are added and networks change, so PCI DSS has the organisation confirm its scope at least every 12 months, and after any significant change (requirement 12.5.2).
 
 <Check item="mcq-scope-flat-network" />
 
-<Story title="British Airways, 2018: card details diverted for 15 days" source="https://www.hunton.com/privacy-and-cybersecurity-law-blog/ico-fines-british-airways-20-million-for-security-breach" sourceTitle="ICO Fines British Airways £20 Million for Security Breach" license="linked, not copied">
+<Story title="British Airways, 2018: card details copied for 15 days" source="https://web.archive.org/web/20220225190222/https://ico.org.uk/media/action-weve-taken/mpns/2618421/ba-penalty-20201016.pdf" sourceTitle="Penalty Notice: British Airways plc (UK Information Commissioner's Office, 16 October 2020; an archived copy)" license="linked, not copied">
 
-Between 22 June and 5 September 2018 an attacker had access to British Airways' systems. For 15 days of that time, payment card details that customers gave the airline's website were diverted to a site the attacker controlled. About 430,000 people were affected: names, addresses and card details, including the three-digit codes.
+Between 22 June and 5 September 2018 an attacker moved through British Airways' systems unnoticed. They found log files that had kept card details in plain text since 2015, most with the three-digit code: a test feature nobody had switched off. Then they changed the website's code. For 15 days, every card typed into it was also sent to the attacker's own site. About 430,000 people's data may have been reached.
 
-The airline didn't find it. Someone outside told it, and it reported the breach to the UK's data-protection regulator on 6 September.
+The airline didn't find it. Someone outside told it on 5 September, and it reported the breach to the UK's data-protection regulator the next day.
 
-In October 2020 the regulator fined the airline £20 million under GDPR, for failing to keep personal data secure with measures appropriate to the risk. The fine it had first proposed was £183 million.
+In October 2020 the regulator fined the airline £20 million under GDPR. It had first proposed £183 million.
 
-In this topic's terms: the attack showed at the website that took the payment, the kind of system that is in scope whether or not it stores a card number, and for two weeks nothing told the airline that what its site did had changed. Watching payment pages for change is what PCI DSS's newer requirements ask for. And the law that applied didn't ask which checklist had been passed. It asked whether the security was appropriate to the risk.
+In this topic's terms: a website that takes payments is in scope whether or not it stores a card, and for two weeks nothing told the airline its site had changed. The regulator's notice cites the card rules twice: codes kept after authorisation, which they never allow, and no watch on the website's files, which PCI DSS already asked for (v3.2.1, requirement 11.5). The law didn't ask which checklist had been passed. It asked whether the security fitted the risk.
 
 </Story>
 
@@ -152,7 +162,7 @@ Three cautions come with every crosswalk.
 
 *Match the identifier exactly.* A control's number is a key in a table. `grep 8.3` on the lab's crosswalk finds 44 lines, because it matches that text anywhere in a line: 8.3, 8.3.4, 8.3.9, and ISO's A.8.3.1 as well. Compare the whole column, as the `awk` above does.
 
-*A mapping belongs to a version.* The lab's framework names tell you: `nist-800-53r4` is **revision 4** of the catalogue, and the current one is revision 5. `iso-27001-2013` is the 2013 edition; the 2022 edition regrouped and renumbered its controls, so a 2013 number means nothing to an auditor working from 2022. The rules still test real things. The mappings need checking against the version you are assessed on. For its own documents NIST publishes official mappings, which it calls informative references, between the CSF and SP 800-53.
+*A mapping belongs to a version.* The lab's framework names tell you: `nist-800-53r4` is **revision 4** of the catalogue, and the current one is revision 5. `iso-27001-2013` is the 2013 edition; the 2022 edition regrouped and renumbered its controls, so a 2013 number means nothing to an auditor working from 2022. `pci-dss-4.0` is v4.0 of the card standard, and the current one is v4.0.1: that revision added and removed no requirement, so these numbers still hold, which you can say only because you checked. The rules still test real things. The mappings need checking against the version you are assessed on. For its own documents NIST publishes official mappings, which it calls informative references, between the CSF and SP 800-53.
 
 *A rule supports a control. It doesn't prove it.* A passing rule is evidence for part of a control. The control may ask for more than any rule tests.
 
@@ -164,7 +174,7 @@ A sentence on tooling, so the word doesn't surprise you later: NIST publishes it
 
 *No automated evidence.* Covered above: find evidence of another kind, and say which kind. What you may not do is reach for a rule that sounds nearby. A rule about one journal's storage is not evidence about another journal's retention.
 
-*The benchmark and the framework disagree about a number.* The CIS rule for password length tests for 14 characters. PCI DSS asks for 12. Set 12, and you meet PCI DSS while the CIS rule fails. Both are true at once. Either meet the stricter one, or record which you follow. The same care runs the other way: where a rule is looser than your control, a pass proves nothing.
+*The benchmark and the framework disagree about a number.* The CIS rule for password length tests for 14 characters. PCI DSS asks for 12 (requirement 8.3.6). Set 12, and you meet PCI DSS while the CIS rule fails. Both are true at once. Either meet the stricter one, or record which you follow. The same care runs the other way: where a rule is looser than your control, a pass proves nothing.
 
 *A rule that doesn't apply.* OpenSCAP answers `notapplicable` for a rule about something the machine doesn't have. That is neither a pass nor a fail, and a control whose rules all say it has no automated evidence yet.
 
@@ -187,7 +197,7 @@ In a cloud, part of every control is run by the provider: the building, the hard
 
 (Read on 22 November 2026.) Module 20 builds on this, with the clouds' own tools for collecting evidence all the time and not once a year, which is called continuous compliance.
 
-**Going further (all optional, except the reading below).** Everything the questions and labs ask is in the lesson above. Below it is NIST's own announcement of CSF 2.0, copied in: six minutes on what the framework is and whom it is for, from the people who wrote it. The other pages are for when you want more: the framework's own page, with its quick-start guides; SP 800-53's page, with a browser for all its controls; the PCI council's library, where the standard itself can be read, and its note on what v4.0.1 changed; the CIS Benchmarks' page; and Microsoft's guide to its Service Trust Portal, as an example of where a cloud's own reports live.
+**Going further (all optional, except the reading below).** Everything the questions and labs ask is in the lesson above. Below it is NIST's own announcement of CSF 2.0, copied in: six minutes on what the framework is and whom it is for, from the people who wrote it. The other pages are for when you want more: the framework's own page, with its quick-start guides; SP 800-53's page, with a browser for all its controls; the PCI council's library, where the standard itself can be read, its note on what v4.0.1 changed, and its announcement of the newest scoping guidance, for cloud and other modern networks; the CIS Benchmarks' page; and Microsoft's guide to its Service Trust Portal, as an example of where a cloud's own reports live.
 
 </Intro>
 
