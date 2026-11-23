@@ -3,7 +3,7 @@ FROM lab-base-id
 # connector with its gaps, and the checks' own scenario.
 COPY topology /etc/netlab/topology
 COPY machines/ /etc/netns/
-COPY base-fix hr-check /usr/local/lib/shop/
+COPY hr-check /usr/local/lib/shop/
 COPY staff.csv /srv/hr/staff.csv
 COPY hr-sync /home/learner/bin/hr-sync
 # Everything secret is made here, at build: the lab's CA, the connector's
@@ -13,7 +13,6 @@ COPY hr-sync /home/learner/bin/hr-sync
 # to be laid over it.
 RUN chmod 755 /usr/local/lib/shop/hr-check /home/learner/bin/hr-sync \
  && chown -R learner:learner /home/learner/bin \
- && python3 /usr/local/lib/shop/base-fix \
  && netlab enable \
  && idlab idp idp https://login.shop.test \
  && idlab names login.shop.test=10.0.5.10 hr.shop.test=10.0.5.50 \

@@ -3,7 +3,7 @@ FROM lab-base-id
 COPY topology /etc/netlab/topology
 COPY machines/ /etc/netns/
 COPY shop/ /usr/local/lib/shop/
-COPY saml-setup base-fix /usr/local/lib/shop/
+COPY saml-setup /usr/local/lib/shop/
 # Everything secret or signed is made here, at build, so none of it is in
 # the repository: the lab's CA and each server's certificate, the orders
 # site's client secret, the two people's passwords, the realm's two signing
@@ -13,7 +13,6 @@ COPY saml-setup base-fix /usr/local/lib/shop/
 # story: nobody enabled it when the server was built), and the scenery is
 # sealed.
 RUN chmod 755 /usr/local/lib/shop/orders/* /usr/local/lib/shop/hr/* /usr/local/lib/shop/saml-setup \
- && python3 /usr/local/lib/shop/base-fix \
  && netlab enable \
  && idlab idp idp https://login.shop.test \
  && idlab names login.shop.test=10.0.5.10 app.shop.test=10.0.5.20 api.shop.test=10.0.5.30 time.shop.test=10.0.5.40 \

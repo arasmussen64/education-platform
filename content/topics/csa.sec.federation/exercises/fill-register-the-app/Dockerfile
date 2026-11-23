@@ -3,7 +3,6 @@ FROM lab-base-id
 COPY topology /etc/netlab/topology
 COPY machines/ /etc/netns/
 COPY shop/ /usr/local/lib/shop/
-COPY base-fix /usr/local/lib/shop/
 # Everything secret or signed is made here, at build: the lab's CA and the
 # site's certificate, the client secret the two sides will share, the two
 # people's passwords and the realm's two signing keys.
@@ -14,7 +13,6 @@ COPY base-fix /usr/local/lib/shop/
 # the lab starts with a running realm that has no orders-web client, and a
 # file that is waiting for the learner.
 RUN chmod 755 /usr/local/lib/shop/orders/* \
- && python3 /usr/local/lib/shop/base-fix \
  && netlab enable \
  && idlab idp idp https://login.shop.test \
  && idlab names login.shop.test=10.0.5.10 orders.shop.test=10.0.5.21 \
