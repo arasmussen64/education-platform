@@ -1,0 +1,35 @@
+id: example-model-the-print-shop
+stage: worked_example
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "A threat model with its scope, worked through"
+steps:
+  - label: "Read the design and the format"
+    lines: "4-5"
+    note: "`cat` prints the design note; in the lab, `less ~/design.md` pages through it. List what Quickprint itself runs: the till PC, the print server, the sign-in service and the bucket. The customer and PayLink are externals: Quickprint runs neither. `tm-check --help` prints the format, with the `scope` line this checkpoint adds."
+  - label: "Zones by owner and network, then elements and flows"
+    lines: "6-24"
+    note: "Four zones: the internet, PayLink, the shop floor's network and Quickprint's cloud account. The till and the print server share the floor zone because one owner runs both on one network with nothing filtering between them; the sign-in service and the bucket are Quickprint's too, on another network, so they get a zone of their own. Each flow runs from the side that starts it: the till asks the sign-in service, so `f3` runs from `till-pc` to `directory`."
+  - label: "The scope line for each part, by the rule"
+    lines: "25-31"
+    note: "Ask the three questions in order. Card details pass through the till PC on their way to PayLink: `cde`. The print server never sees a card, but it is on the till's network with nothing filtering between them: `cde` by connection, because whoever takes it over stands next to the card data. No card reaches the sign-in service, but it signs staff in to the till, a `cde` system: whoever controls it could sign in there, so it is `impacting`. The bucket holds print files, in another network, and nothing there touches a card: `out`. The customer and PayLink get no scope line: Quickprint doesn't run them."
+  - label: "STRIDE on every flow that crosses a boundary"
+    lines: "32-42"
+    note: "Five flows cross (`f5` stays on the floor, and its threat is recorded anyway, because the design describes it). The design never says weak; its facts do. Anyone can list the bucket and download every file: information disclosure on `f1`, likelihood 3 (anyone, nothing needed first), impact 2 (customers' files), risk 6. Every member of staff types the same PIN: spoofing on `f3`, likelihood 2 (it needs a PIN someone knows), impact 3 (refunds to any card), risk 6. The `none` lines take every other letter, never a letter the flow has a threat for."
+  - label: "Rank by the scales"
+    lines: "43-46"
+    note: "Risk is likelihood times impact: 6, 6 and 2. `top` lists every risk of 6 or more, highest first; two of 6 can go in either order. `tm-check ranking` checks every product and the `top` line."
+  - label: "A control that answers the letter, and one that doesn't"
+    lines: "47-54"
+    note: "The first try answers the shared PIN with `tls`, and `tm-check controls` refuses it: `a control is of a kind that doesn't answer its threat`. TLS hides what travels and proves the server; it says nothing about which person typed the PIN, and spoofing is about who someone is. Each member of staff signing in as themselves (`authn`) answers it. The bucket's leak is answered by `authz`: each file to the customer who uploaded it. The stray print job is a risk of 2, so `accept` with a reason is enough."
+  - label: "ATT&CK, and the tree for a highest risk"
+    lines: "55-67"
+    note: "The bucket's leak is `T1530`, Data from Cloud Storage; the shared PIN is `T1078`, Valid Accounts: a real account's real secret, used by the wrong person. The tree's goal is the shared PIN's threat, one of the two highest: learn the PIN by watching the counter (an `and` of two steps: 20 + 0) or by asking a former colleague (50). An `or` takes the cheapest way, so `cheapest` is 20. Then run the checks: they are the checkpoint's build's checks, against this design."
+prompt: |
+  A solved sibling of the checkpoint's part 1, in another story: Quickprint, a print shop that takes cards at its counter and by a payment link the provider emails. Its design is in `~/design.md`: four parts it runs, two outside it, six flows and three weaknesses. The walkthrough writes its threat model in the order part 1 needs: read the design and list what the business runs; zones by owner and network; the scope line for each part, by PCI DSS's rule; STRIDE on every flow that crosses a boundary; ratings by the design's scales; a control that answers each threat's letter (one shown failing first); ATT&CK and an attack tree.
+
+  The format is the threat-modeling labs' (`tm-check --help` prints it) with one more line, `scope ELEMENT cde|impacting|out reason`, for every process and store the business runs. Its words are Compliance basics': `cde` when card data is stored on it or passes through it, or it shares a network with such a system with nothing filtering between them; `impacting` when no card data reaches it but whoever took it over could change what happens to card data; `out` when it is neither, and kept apart.
+
+  Type each line yourself in the lab's shell and read what it prints before you type the next; the comment lines (starting with `#`) say what they are for, and you can leave them out. Then run the checks: they are the ones part 1 uses, against this design, and the model you wrote passes them.

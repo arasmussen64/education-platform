@@ -1,0 +1,64 @@
+#!/bin/bash
+# gcctl: the shop's side of the gift-card company's admin API (the company
+# is the stand-in at 127.0.0.1:9450). Scenery: don't change it.
+#
+#   sudo gcctl keys          the shop's keys there: id, state, when made
+#   sudo gcctl new           make a new key; prints "ID KEY", once
+#   sudo gcctl revoke ID     revoke a key, for good
+#   gcctl check              which key is on standard input, and does it work?
+#                            (echo "$key" | gcctl check)
+#
+# The first three need the shop's admin key for the company, which only
+# root can read (/etc/gift-provider/admin.key): run them with sudo.
+set -euo pipefail
+
+company=http://127.0.0.1:9450
+
+usage() {
+  sed -n '5,9s/^# \{0,3\}//p' "$0" >&2
+  exit 2
+}
+
+# admin METHOD PATH: one request with the admin key, which goes to curl on
+# its standard input, so it is never on a command line that ps would show.
+admin() {
+  [ -r /etc/gift-provider/admin.key ] || {
+    echo "gcctl: the admin key is root's: run sudo gcctl $1" >&2
+    exit 1
+  }
+  printf 'Authorization: Bearer %s' "$(cat /etc/gift-provider/admin.key)" | curl -sS -X "$2" -H @- "$company$3"
+}
+
+case "${1:-}" in
+  keys)
+    admin keys GET /admin/keys | python3 -c '
+import json, sys
+for key in json.load(sys.stdin):
+    print(key["id"] + "  " + key["state"].ljust(8) + " made " + key["made"])
+'
+    ;;
+  new)
+    admin new POST /admin/keys | python3 -c '
+import json, sys
+answer = json.load(sys.stdin)
+print(answer["id"], answer["key"])
+'
+    ;;
+  revoke)
+    [ $# -eq 2 ] || usage
+    admin revoke POST "/admin/keys/$2/revoke" | python3 -c '
+import json, sys
+answer = json.load(sys.stdin)
+print(answer.get("id", ""), answer.get("state", answer.get("error", "")))
+'
+    ;;
+  check)
+    read -r key || true
+    printf 'Authorization: Bearer %s' "$key" | curl -sS -H @- "$company/v1/whoami" | python3 -c '
+import json, sys
+answer = json.load(sys.stdin)
+print(answer["id"] + " " + answer["state"] if "id" in answer else answer["error"])
+'
+    ;;
+  *) usage ;;
+esac

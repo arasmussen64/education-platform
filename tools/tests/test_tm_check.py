@@ -663,6 +663,158 @@ def test_quiet_says_the_same_sentence_whatever_is_wrong_in_a_part(files) -> None
     assert said.startswith("line 1: this line stops too soon: a name is missing")
 
 
+# --- --choose, the cap on a model that lists ------------------------------------
+
+# The staff sign-in's threat written at every likelihood with impact 3, so
+# one of them is bound to be rated as the design's scales give it.
+EVERY_RATING = change(
+    "threat t1 f6 S 3 3 9 An attacker",
+    "threat s1 f6 S 1 3 3 A thief with the laptop can sign in\n"
+    "threat s2 f6 S 2 3 6 A leaver can sign in with an old password\n"
+    "threat s3 f6 S 3 1 3 A stranger can guess passwords for a while\n"
+    "threat t1 f6 S 3 3 9 An attacker",
+)
+EVERY_RATING = change("top t1 t2 t3 t4 t5", "top t1 t2 t3 t4 t5 s2", EVERY_RATING)
+EVERY_RATING = change(
+    "control c1 t1 mfa",
+    "accept s1 laptops are encrypted and staff report a loss the same day\n"
+    "control cs2 s2 access-proxy a leaver loses the proxy with their account\n"
+    "accept s3 the load balancer already slows a guesser to a crawl\n"
+    "control c1 t1 mfa",
+    EVERY_RATING,
+)
+EVERY_CONTROL = change(
+    "control c1 t1 mfa",
+    "control c1b t1 access-proxy put the back office behind the access proxy\n"
+    "control c1c t1 mutual-tls give every staff laptop a client certificate\n"
+    "control c1 t1 mfa",
+)
+EVERY_TECHNIQUE = change(
+    "attack t1 T1110.004\n",
+    "attack t1 T1110.004\nattack t1 T1078\nattack t1 T1566\n",
+)
+
+
+def test_without_choose_a_model_that_lists_still_passes(files) -> None:
+    # The hole --choose closes: each part looks for one right line.
+    assert files.say("findings", EVERY_RATING, CHECKOUT_REF) == "ok"
+    assert files.say("controls", EVERY_CONTROL, CHECKOUT_REF) == "ok"
+    assert files.say("attack", EVERY_TECHNIQUE, CHECKOUT_REF) == "ok"
+
+
+def test_choose_refuses_a_model_that_lists_in_the_part_it_slips_through(
+    files,
+) -> None:
+    said = files.say("findings", EVERY_RATING, CHECKOUT_REF, "--choose")
+    assert said == (
+        "the model lists where it should choose: a flow has more than three "
+        "threats under one letter"
+    )
+    said = files.say("controls", EVERY_CONTROL, CHECKOUT_REF, "--choose")
+    assert said == (
+        "the model lists where it should choose: a threat has more than two controls"
+    )
+    said = files.say("attack", EVERY_TECHNIQUE, CHECKOUT_REF, "--choose")
+    assert said == (
+        "the model lists where it should choose: a threat has more than two "
+        "ATT&CK techniques"
+    )
+    # Each list fails only its own part.
+    for text, part in [
+        (EVERY_RATING, "findings"),
+        (EVERY_CONTROL, "controls"),
+        (EVERY_TECHNIQUE, "attack"),
+    ]:
+        failed = [
+            p
+            for p in CHECKOUT_PARTS
+            if files.say(p, text, CHECKOUT_REF, "--choose") != "ok"
+        ]
+        assert failed == [part], part
+
+
+def test_choose_on_one_weakness_minds_only_that_weaknesss_threat(files) -> None:
+    # Checkpoint 4 part 1 checks each high weakness's control alone, so
+    # every kind of control on the sign-in fails that weakness's check only.
+    failed = [
+        only
+        for only in ["1", "2", "3", "4", "5", "6", "rest"]
+        if files.say(
+            "controls", EVERY_CONTROL, CHECKOUT_REF, "--only", only, "--choose"
+        )
+        != "ok"
+    ]
+    assert failed == ["1"]
+    # A threat no weakness narrows is "rest"'s to cap.
+    ref = json.loads(json.dumps(CHECKOUT_REF))
+    del ref["weak"][5]["controls"]
+    listed = change(
+        "control c6 t6 audit-log",
+        "control c6b t6 signing sign every refund record\n"
+        "control c6c t6 audit-log keep a second copy of every refund record\n"
+        "control c6 t6 audit-log",
+    )
+    said = files.say("controls", listed, ref, "--only", "rest", "--choose")
+    assert said.startswith("the model lists where it should choose")
+    assert files.say("controls", listed, ref, "--only", "1", "--choose") == "ok"
+
+
+def test_choose_allows_what_the_cap_allows(files) -> None:
+    # Three threats on a flow under one letter, two controls and two
+    # techniques on a threat: a model that chooses carefully passes.
+    three = change(
+        "threat t1 f6 S 3 3 9 An attacker",
+        "threat s1 f6 S 1 3 3 A thief with the laptop can sign in\n"
+        "threat s2 f6 S 2 3 6 A leaver can sign in with an old password\n"
+        "threat t1 f6 S 3 3 9 An attacker",
+    )
+    three = change("top t1 t2 t3 t4 t5", "top t1 t2 t3 t4 t5 s2", three)
+    three = change(
+        "control c1 t1 mfa",
+        "control cs1 s1 mfa keys for everyone\n"
+        "control cs2 s2 access-proxy staff leave and the proxy forgets them\n"
+        "control c1b t1 access-proxy only through the proxy\n"
+        "control c1 t1 mfa",
+        three,
+    )
+    three = change(
+        "attack t1 T1110.004\n", "attack t1 T1110.004\nattack t1 T1078\n", three
+    )
+    assert files.failing(CHECKOUT_PARTS, three, CHECKOUT_REF) == {}
+    for part in CHECKOUT_PARTS:
+        assert files.say(part, three, CHECKOUT_REF, "--choose") == "ok", part
+    for only in ["1", "2", "3", "4", "5", "6", "rest"]:
+        said = files.say("controls", three, CHECKOUT_REF, "--only", only, "--choose")
+        assert said == "ok", only
+
+
+def test_choose_passes_both_reference_models_and_quiet_hides_its_sentence(
+    files,
+) -> None:
+    for part in CHECKOUT_PARTS:
+        assert files.say(part, CHECKOUT_MODEL, CHECKOUT_REF, "--choose") == "ok"
+    for part in PARCELS_PARTS:
+        assert files.say(part, PARCELS_MODEL, PARCELS_REF, "--choose") == "ok"
+    said = files.say("controls", EVERY_CONTROL, CHECKOUT_REF, "--choose", "--quiet")
+    assert said == tm.QUIET["controls"]
+    # Any part takes the flag, so a lab may pass it to every check; only
+    # findings, controls and attack read it.
+    assert files.say("stride", EVERY_RATING, CHECKOUT_REF, "--choose") == "ok"
+
+
+def test_what_choose_says_never_names_a_part_of_the_model(files) -> None:
+    names = set(CHECKOUT_REF["elements"]) | set(CHECKOUT_REF["flows"])
+    names |= {"t1", "s1", "s2", "s3", "c1", "c1b", "c1c"}
+    for text, part in [
+        (EVERY_RATING, "findings"),
+        (EVERY_CONTROL, "controls"),
+        (EVERY_TECHNIQUE, "attack"),
+    ]:
+        said = files.say(part, text, CHECKOUT_REF, "--choose")
+        words = {word.strip(".,:()") for word in said.split()}
+        assert not words & names, said
+
+
 # --- the command line, and a reference an author got wrong ---------------------
 
 

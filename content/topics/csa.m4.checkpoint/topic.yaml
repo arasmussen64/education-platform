@@ -1,26 +1,130 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
+# Checkpoint 4 ends Module 4, "Security and identity foundations". Its plan
+# is docs/plans/cloud-module-4/MODULE-4-BRIEF.md, section 6, and the
+# designer's brief docs/plans/cloud-module-4/csa.m4.checkpoint.md: three
+# parts in three slots (prove.build, prove.debug and prove.more, ADR-0012
+# as amended 2026-11-11), each a lab proven locally and for free.
+#
+# - Part 1, build-model-the-checkout: a threat model of the shop's checkout
+#   with its PCI DSS scope, on the threat-model base (content/lab-bases/tm),
+#   with tm-check's --choose cap and its scope part kept quiet.
+# - Part 2, debug-the-staff-sign-in: a staff single sign-on that fails in
+#   three ways, on the identity base (content/lab-bases/id).
+# - Part 3, build-answer-the-leak: a repository that was public, on the
+#   vault base (content/lab-bases/vault), with OpenBao left off.
+#
+# Facts, each read on the day these labs were written (2026-11-23) or
+# taken from the topics that verified them:
+# - PCI DSS v4.0.1's scope (cde, connected-to and security-impacting, out)
+#   and requirements 3.3.1, 6.4.3, 10.5.1, as csa.sec.compliance's lesson
+#   and its facts give them; the PCI SSC's own library is the source.
+# - ATT&CK v20.1: T1078.001 Default Accounts and T1557 Adversary-in-the-
+#   Middle (https://attack.mitre.org/techniques/T1078/001/ and
+#   https://attack.mitre.org/techniques/T1557/, read 2026-11-23); T1195
+#   Supply Chain Compromise (https://attack.mitre.org/techniques/T1195/,
+#   read 2026-11-23); T1110, T1110.004, T1190, T1530, T1552, T1566, T1619
+#   as csa.sec.threat-modeling recorded them.
+# - mod_auth_openidc 2.4.15.1 refuses an ID token issued more than 600 s
+#   in its future; Keycloak 26.8.2 compares redirect addresses exactly
+#   and answers "Invalid parameter: redirect_uri"; mod_oauth2 3.3.1
+#   answers 401 for a token whose audience isn't required: captured in
+#   part 2's lab on the identity base (the base's README has the same).
+# - gitleaks 8.16.0 (Ubuntu 24.04): [extend] useDefault with a rule of the
+#   shop's own; --log-opts; a pre-receive hook in a bare repository:
+#   captured in part 3's lab on the vault base.
+#
+# Counted (estimated_minutes): part 1 75, part 2 60, part 3 60 (each the
+# target its prompt states, reading its design or sheet included) and the
+# explain 20: 215 of work, and about 25 more for starting three labs
+# (part 2's identity lab takes 10 to 25 s to boot) and running their
+# checks more than once (part 2's take about 30 s a run). 240.
 id: csa.m4.checkpoint
 kind: checkpoint
-status: planned
-title: 'Checkpoint 4: the threat model, the broken sign-in and the leak'
-summary: 'Threat-model a web app that takes payments: its trust boundaries, its PCI DSS scope, its top risks and a control for each.'
+status: ready
+title: "Checkpoint 4: the threat model, the broken sign-in and the leak"
+summary: "Threat-model a shop's checkout that takes card payments, with its PCI DSS scope and a control for each high risk; find and fix a staff single sign-on that fails in three ways, run locally with an open-source identity provider; and answer a leak: find the secrets in a repository's history, rotate the key, guard the push, revoke and replace the certificate, and read the audit trail for what the leaked key did."
 prerequisites:
-- csa.sec.threat-modeling
-- csa.sec.authn-authz
-- csa.sec.crypto
-- csa.sec.pki
-- csa.sec.federation
-- csa.sec.strong-auth
-- csa.sec.secrets
-- csa.sec.audit
-- csa.sec.zero-trust
-- csa.sec.vulnerabilities
-- csa.sec.compliance
-estimated_minutes: 480
+  - csa.sec.threat-modeling
+  - csa.sec.authn-authz
+  - csa.sec.crypto
+  - csa.sec.pki
+  - csa.sec.federation
+  - csa.sec.strong-auth
+  - csa.sec.secrets
+  - csa.sec.audit
+  - csa.sec.zero-trust
+  - csa.sec.vulnerabilities
+  - csa.sec.compliance
+estimated_minutes: 240
 rev: 1
 objectives:
-- 'Threat-model a web app that takes payments: its trust boundaries, its PCI DSS scope, its top risks and a control for each.'
-- Fix a single sign-on, run locally with an open-source identity provider, that fails in three ways.
-- 'Answer a leak: find the secrets in a repository''s history, rotate the key, revoke and replace the certificate, and read the audit trail for what the leaked key did.'
+  - "Threat-model a shop's checkout that takes card payments: draw it, mark where trust changes, find and rank what can go wrong, say which parts are in PCI DSS scope, and choose a control that answers each high risk, aiming for 75 minutes on your own clock."
+  - "Find and fix a staff single sign-on that fails in three ways, from the evidence it leaves, without weakening any check it makes and with every fix lasting past a reboot, aiming for 60 minutes on your own clock."
+  - "Answer a leak: find every secret in a repository's history, rotate the key and revoke and replace the certificate without taking the service down, stop the next leak at the push, and read the audit trail for what the leaked key did, aiming for 60 minutes on your own clock."
+  - "Explain how a system's identity, keys, secrets, logs, patches and evidence fit together, and how the three clouds differ."
+prove:
+  build: build-model-the-checkout
+  debug: debug-the-staff-sign-in
+  more:
+    - id: build-answer-the-leak
+      versions: [build-answer-the-leak-clinic]
+  explain:
+    prompt: |
+      A colleague's plan for the shop's new back office: one shared admin account with a long password; "encrypt everything" with one key kept in the app's settings; ten-year certificates, so nothing ever expires; API keys in the repository, "because it's private"; logs kept on the server for a month; patch whatever scores 9 or more, and the rest when there's time; a VPN, so that everything inside can be trusted; and "we passed the audit, so we're secure".
+
+      In your own words, say what goes wrong with each, and what you would do instead. Then give two ways the three clouds differ that would change how you build it.
+    rubric:
+      - id: identity
+        required: true
+        description: "One shared account means nobody can be held to an action and one phish gives everything. People sign in as themselves, with the least permission the job needs and duties split (who requests is not who approves); administrators use phishing-resistant MFA (a security key or passkey), with a break-glass account kept apart, alerted on and tested."
+      - id: keys
+        required: true
+        description: "One key beside the data protects nothing: whoever reads the settings reads everything. Envelope encryption: a data key for each item or set, wrapped by a key that stays in a key-management service, which decides and records who may unwrap; keys rotate."
+      - id: certificates
+        required: true
+        description: "A ten-year certificate is a ten-year exposure if its key leaks, and revocation only works where clients check it. Short lifetimes issued and renewed automatically, a CA whose root stays offline, and revocation published and checked."
+      - id: secrets
+        required: true
+        description: "A private repository is read by many people and machines, and history keeps what was removed. Secrets stay out of code, images and logs, in a store that hands them to the workload by its identity; they are rotated, and scanners stop them at the push. Short-lived, issued-on-demand credentials are better still."
+      - id: logs
+        required: true
+        description: "Logs on the server are lost with it and can be edited by whoever breaks in. Decide what to record (who, what, when, from where, the outcome; never secrets or card data), send it off the machine, make it tamper-evident (a hash chain, sealing, write-once storage), and keep it as long as the rules say (PCI DSS: 12 months, three of them at hand)."
+      - id: patching
+        required: true
+        description: "A severity score says how bad, not how likely. Rank by what is being exploited (CISA's KEV list), how likely exploitation is (EPSS) and what the system holds and faces; give each rank a deadline, and track what's overdue."
+      - id: zero-trust
+        required: true
+        description: "A VPN trusts a place: one stolen laptop is inside. Decide each request by who is asking, from which device, for which app, as close to the app as possible, and keep services apart from each other."
+      - id: compliance
+        required: true
+        description: "An audit samples evidence against a framework's controls, for a scope, at a point in time. It is a floor and a way to prove what you do; the threats that matter to this system come from modelling it."
+      - id: clouds
+        required: true
+        description: "Two real differences, from the topics' own tables. For example: how permissions combine (AWS identity and resource policies with explicit deny and organisation-wide guardrails; Azure role assignments at a scope; Google Cloud allow policies inherited down the hierarchy); what each cloud's audit trail records with no setup; each cloud's key-management or secrets service."
+      - id: sign-in
+        required: false
+        description: "Single sign-on: tokens issued for one audience, sent back only to registered addresses, short-lived, on machines whose clocks agree."
+    model_answer: |
+      A shared admin account means nobody can be held to what it did, and one phished person hands over all of it. Everyone signs in as themselves, with only the permissions their job needs, and whoever asks for a refund is not who approves it. Administrators use phishing-resistant MFA, a security key or a passkey, and one break-glass account is kept apart, its use alerted on and tested.
+
+      One key in the settings protects nothing: whoever reads the settings reads everything. Envelope encryption instead: each record or file gets its own data key, wrapped by a key that never leaves a key-management service, which decides and records who may unwrap. Keys rotate.
+
+      A ten-year certificate is a ten-year exposure the day its key leaks, and revoking it helps only where clients check the CRL. Short-lived certificates renewed automatically, a root CA kept offline, and revocation published and checked.
+
+      A private repository is read by every developer, contractor and build machine, and history keeps what a later commit deleted. Secrets stay out of code, images and logs, in a store that hands them to the workload by its identity; they are rotated, and a scanner on the server refuses a push that carries one. Credentials issued on demand that expire by themselves are better still.
+
+      Logs on the server die with it, and whoever breaks in can edit them. Record who, what, when, from where and the outcome, never a secret or a card number; ship it off the machine, make it tamper-evident (a hash chain, sealing or write-once storage), and keep it as long as the rules say: PCI DSS asks for twelve months, three of them at hand.
+
+      A CVSS score says how bad a flaw could be, not how likely it is to be used. I'd rank by whether it is being exploited (CISA's KEV list), how likely exploitation is (EPSS) and what the system faces and holds, give each rank a deadline, and track what's overdue.
+
+      A VPN trusts a place, and a stolen laptop is inside it. Zero trust decides each request by who is asking, from which device, for which app, at a proxy in front of the app, and keeps services apart so one foothold doesn't reach the rest. And an audit samples evidence against a framework's controls, for a scope, at a moment: a floor, and a way to prove what we do. The threats that matter come from modelling this system.
+
+      The clouds: AWS weighs identity and resource policies together, with explicit denies and organisation-wide guardrails; Azure grants roles at a scope its children inherit; Google Cloud's allow policies flow down the resource hierarchy. And each cloud's audit trail records different things with no setup, so I'd switch on the data-access records the back office needs before the first day.
+# A way through for a learner who's stuck on part 1 (ADR-0012): a solved
+# sibling in another story, the build in four steps with the other parts
+# done for them, and fresh versions in other stories. Parts 2 and 3's
+# practice is the module's topics, which their failed checks bring back
+# on Today; part 3's fresh version is its second try.
+unstuck:
+  example: example-model-the-print-shop
+  steps: [step-draw-and-scope, step-find-the-threats, step-rank-and-answer, step-the-whole-model]
+  versions: [build-model-the-checkout-clinic, build-model-the-checkout-bakery]

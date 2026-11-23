@@ -1,0 +1,14 @@
+#!/bin/bash
+# The orders site's "my orders" page: who signed in, then the orders API's
+# answer for them, asked with the access token the identity provider gave
+# the site for them.
+printf 'Content-Type: text/plain\n\n'
+echo "signed in as ${REMOTE_USER:-nobody}"
+answer=$(curl -s -m 5 -w '\n%{http_code}' -H "Authorization: Bearer ${OIDC_access_token:-}" https://orders-api.shop.test/v1/orders)
+status=${answer##*$'\n'}
+body=${answer%$'\n'*}
+if [[ $status == 200 ]]; then
+  echo "orders: $body"
+else
+  echo "the orders API refused the request: HTTP $status"
+fi

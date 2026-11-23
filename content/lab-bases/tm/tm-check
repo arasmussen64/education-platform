@@ -55,9 +55,12 @@ findings, scope, attack and kept need one.
 
 For a lab's author (content/lab-bases/tm/README.md has the whole story):
 "--quiet" prints one fixed sentence for each part, the end state still
-missing, for debug labs; "controls --only N" checks only the control on the
-reference's Nth weakness, and "controls --only rest" everything else;
-REF.json may be "-" to read the reference from standard input.
+missing, for debug labs; "--choose" makes findings, controls and attack
+refuse a model that lists where it should choose (more than three threats
+on a flow under one letter, more than two controls or two techniques on a
+threat); "controls --only N" checks only the control on the reference's Nth
+weakness, and "controls --only rest" everything else; REF.json may be "-"
+to read the reference from standard input.
 """
 
 import difflib
@@ -70,6 +73,15 @@ ELEMENT_KINDS = ("external", "process", "store")
 LETTERS = "STRIDE"
 SCOPES = ("cde", "impacting", "out")
 HIGH = 6  # a risk of 6 or more must be answered with a control
+
+# What --choose allows. A model that writes a threat at every rating, or
+# answers a threat with every kind of control, has decided nothing, and
+# without a cap it would still pass findings, controls and attack: each
+# looks for one right line among them. A lab turns the cap on and says it
+# in its prompt; the threat-modeling topic's review set these numbers.
+MOST_THREATS = 3  # threats on one flow under one letter
+MOST_CONTROLS = 2  # controls on one threat
+MOST_TECHNIQUES = 2  # ATT&CK techniques on one threat
 
 # Which control kinds answer which letter. "patch" answers a flaw in
 # software someone else wrote, which is how T, I and E usually arrive.
@@ -797,6 +809,46 @@ def kept(m, ref, only):
     return None
 
 
+def listed(m, ref, part, only):
+    """With --choose: a model that lists where it should choose fails the
+    part its list would otherwise slip through. None when it chooses."""
+    if part == "findings":
+        on_flow = {}
+        for t in m.threat.values():
+            key = (t["flow"], t["letter"])
+            on_flow[key] = on_flow.get(key, 0) + 1
+        if any(n > MOST_THREATS for n in on_flow.values()):
+            return (
+                "the model lists where it should choose: a flow has more "
+                "than three threats under one letter"
+            )
+    elif part == "controls":
+        threats = list(m.threat)
+        if only is not None:
+            picked = stands_for(m, ref)
+            narrowed = {
+                tid
+                for weak, tid in zip(ref["weak"], picked)
+                if tid and "controls" in weak
+            }
+            if isinstance(only, int):
+                threats = [picked[only - 1]] if picked[only - 1] else []
+            else:
+                threats = [tid for tid in threats if tid not in narrowed]
+        if any(len(m.control.get(tid, [])) > MOST_CONTROLS for tid in threats):
+            return (
+                "the model lists where it should choose: a threat has more "
+                "than two controls"
+            )
+    elif part == "attack":
+        if any(len(kinds) > MOST_TECHNIQUES for kinds in m.attack.values()):
+            return (
+                "the model lists where it should choose: a threat has more "
+                "than two ATT&CK techniques"
+            )
+    return None
+
+
 PARTS = {
     "reads": reads,
     "diagram": diagram,
@@ -944,12 +996,14 @@ def read_reference(path):
 
 
 def parse(argv):
-    quiet, only, rest = False, None, []
+    quiet, choose, only, rest = False, False, None, []
     args = list(argv)
     while args:
         arg = args.pop(0)
         if arg == "--quiet":
             quiet = True
+        elif arg == "--choose":
+            choose = True
         elif arg == "--only" or arg.startswith("--only="):
             value = (
                 arg.partition("=")[2] if "=" in arg else (args.pop(0) if args else "")
@@ -977,7 +1031,7 @@ def parse(argv):
                     "--only takes a weakness's number, from 1, or the word rest"
                 )
             only = int(only)
-    return part, model, reference, quiet, only
+    return part, model, reference, quiet, choose, only
 
 
 def run(argv):
@@ -985,7 +1039,7 @@ def run(argv):
     if not argv or argv[0] in ("--help", "-h", "help"):
         return __doc__.strip(), 0
     try:
-        part, model, reference, quiet, only = parse(argv)
+        part, model, reference, quiet, choose, only = parse(argv)
     except Usage as error:
         return f"tm-check: {error}. tm-check --help shows the format and the parts.", 2
     if reference is None and part in NEEDS_REFERENCE:
@@ -1019,7 +1073,7 @@ def run(argv):
     if not m.lines:
         # Nothing is wrong with nothing: say so, whatever the part.
         return "the model is empty: it has no line of the format yet", 0
-    said = PARTS[part](m, ref, only)
+    said = (listed(m, ref, part, only) if choose else None) or PARTS[part](m, ref, only)
     if said and quiet and part in QUIET:
         said = QUIET[part]
     return said or "ok", 0

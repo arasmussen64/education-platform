@@ -1,0 +1,151 @@
+{
+  "realm": "shop",
+  "enabled": true,
+  "sslRequired": "all",
+  "accessTokenLifespan": 300,
+  "eventsEnabled": true,
+  "groups": [{ "name": "staff" }, { "name": "warehouse" }],
+  "users": [
+    {
+      "id": "0c000000-0000-4000-8000-000000000001",
+      "username": "ana",
+      "enabled": true,
+      "firstName": "Ana",
+      "lastName": "Lima",
+      "email": "ana@shop.test",
+      "emailVerified": true,
+      "groups": ["/staff"],
+      "credentials": [{ "type": "password", "value": "${ANA_PASSWORD}", "temporary": false }]
+    },
+    {
+      "id": "0c000000-0000-4000-8000-000000000002",
+      "username": "ben",
+      "enabled": true,
+      "firstName": "Ben",
+      "lastName": "Okoro",
+      "email": "ben@shop.test",
+      "emailVerified": true,
+      "groups": ["/warehouse"],
+      "credentials": [{ "type": "password", "value": "${BEN_PASSWORD}", "temporary": false }]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "orders-web",
+      "name": "The orders site",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${ORDERS_WEB_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": ["https://admin.shop.test/orders/oidc/callback"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "multivalued": "true",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "orders-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "https://admin.shop.test/api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "stock-sync",
+      "name": "The stock job, which reads orders",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${STOCK_SYNC_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "attributes": { "oauth2.device.authorization.grant.enabled": "false" },
+      "protocolMappers": [
+        {
+          "name": "orders-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "https://orders-api.shop.test",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "kiosk",
+      "name": "The shop-floor kiosk",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${KIOSK_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "attributes": { "oauth2.device.authorization.grant.enabled": "false" },
+      "protocolMappers": [
+        {
+          "name": "kiosk-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "https://kiosk-api.shop.test",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "old-admin-reports",
+      "name": "The old admin site's report job",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${REPORTS_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "attributes": { "oauth2.device.authorization.grant.enabled": "false" },
+      "protocolMappers": [
+        {
+          "name": "admin-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "https://admin.shop.test/api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ]
+}

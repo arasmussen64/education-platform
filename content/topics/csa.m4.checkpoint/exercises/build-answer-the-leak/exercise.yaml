@@ -1,0 +1,39 @@
+id: build-answer-the-leak
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The leak"
+prompt: |
+  Part 3 of the checkpoint. Yesterday a contractor pushed a copy of the shop's gift-card service's repository to a public mirror, with its whole history, for six hours. This machine is the shop's gift-card server, and the incident is yours: `/srv/incident/sheet.txt` says what happened and **what must be true when you are done**. Read it first: the checks hold you to it, and to nothing else.
+
+  Every part of the machine, the broken and the working alike:
+
+  - **The gift-card service**, `giftcards.service`, runs `/usr/local/lib/giftcards/giftcards` as the user `giftcards`: `https://gifts.shop.test:8443`, where the tills ask for gift cards (`POST /issue?amount=N`). It issues each card at the gift-card company with the shop's key for the company, read from the file its settings name, for every card. Its settings, `/etc/giftcards/giftcards.conf`, also name the certificate (followed by its chain) and the private key it serves HTTPS with, read when it starts. `journalctl -u giftcards` shows what it did.
+  - **The gift-card company** is a stand-in for an outside company's API, `gift-provider.service`, on `127.0.0.1:9450`. Its keys look like `gk_live_` and 32 letters and digits, and the shop may have several active at once. `gcctl` is the shop's tool for its account there: `sudo gcctl keys`, `sudo gcctl new` (prints `ID KEY`, once), `sudo gcctl revoke ID`, and `gcctl check`, which says which key is on its standard input and whether it works (`echo "$key" | gcctl check`).
+  - **The repository**, `/srv/git/giftcards.git`, which the developers push to; `~/giftcards` is your clone of it. Its hooks folder is yours to write in. git runs a hook called `pre-receive` there once for each push, before anything is accepted, with one line on its standard input for each branch pushed (`OLD NEW REF`, 40 zeros for a branch that is new); if the hook exits with anything but 0, the push is refused. **The shop's scanner settings** are `/etc/gitleaks/server.toml`: gitleaks' built-in rules and one for the gift-card company's keys. gitleaks 8.16 here: `gitleaks detect --source DIR --config FILE` scans a repository's history, `--no-git` the files alone, `--log-opts="RANGE"` the commits `git log RANGE` lists; `-v` prints each finding, `--redact` hides the secret, `--no-banner` the logo, and it exits 1 when it finds something.
+  - **The shop's CA.** The root's certificate is `/srv/ca/public/root.pem`; its key is kept offline, elsewhere. The issuing CA is `/srv/ca/issuing/`, laid out for `openssl ca -config /srv/ca/issuing/ca.cnf` (its database, serial and CRL number, and its key, which root reads), and it publishes its CRL as `/srv/ca/public/issuing.crl`. Every certificate it issues is a server's, with the name the request asks for.
+  - **The tills** run `till-check` before every sale: it connects to the service trusting only the shop's root, expects the chain, and refuses a certificate the latest published CRL lists. Run it yourself: `till-check`, or `till-check HOST:PORT`.
+  - **The evidence.** The gift-card company sent its trail of every call made with the shop's keys yesterday, `/srv/incident/provider-trail.log`, and the trail's last hash, its anchor, `/srv/incident/provider-trail.anchor`. Each line is a hash and a record, chained as in Audit logging's labs; `chain-verify LOG ANCHOR` is that topic's verifier.
+
+  **Order matters.** The tills use the service all day: a new key in place before the leaked one dies, and a certificate revoked only with its replacement at hand.
+
+  **Time yourself.** An incident like this should take about 60 minutes. Note the time when you open the lab's shell (`date`). Nothing stops you at 60 minutes: the target is yours to hold yourself to.
+
+  When the sheet's five points are true, run the checks.
+test_skills:
+  leaks-listed: [csa.sec.secrets/scan-for-leaks]
+  service-issues: [csa.sec.secrets/rotate-and-revoke]
+  leaked-keys-dead: [csa.sec.secrets/rotate-and-revoke]
+  key-kept-private: [csa.sec.secrets/keep-secrets-out]
+  current-files-clean: [csa.sec.secrets/keep-secrets-out]
+  push-guard: [csa.sec.secrets/scan-for-leaks]
+  old-cert-revoked: [csa.sec.pki/revocation]
+  tills-refuse-the-old: [csa.sec.pki/revocation]
+  new-cert-served: [csa.sec.pki/run-a-ca, csa.sec.pki/fix-chains]
+  key-file-private: [csa.linux.permissions/chmod-chown]
+  trail-intact: [csa.sec.audit/hash-chains]
+  exposure-right: [csa.sec.audit/what-to-log]
+  lasting: [csa.linux.services/systemctl]

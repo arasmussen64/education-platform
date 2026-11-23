@@ -1,0 +1,64 @@
+#!/bin/bash
+# mlctl: the clinic's side of the laboratory's admin API (the laboratory
+# is the stand-in at 127.0.0.1:9460). Scenery: don't change it.
+#
+#   sudo mlctl keys          the clinic's keys there: id, state, when made
+#   sudo mlctl new           make a new key; prints "ID KEY", once
+#   sudo mlctl revoke ID     revoke a key, for good
+#   mlctl check              which key is on standard input, and does it work?
+#                            (echo "$key" | mlctl check)
+#
+# The first three need the clinic's admin key for the laboratory, which only
+# root can read (/etc/medilab/admin.key): run them with sudo.
+set -euo pipefail
+
+company=http://127.0.0.1:9460
+
+usage() {
+  sed -n '5,9s/^# \{0,3\}//p' "$0" >&2
+  exit 2
+}
+
+# admin METHOD PATH: one request with the admin key, which goes to curl on
+# its standard input, so it is never on a command line that ps would show.
+admin() {
+  [ -r /etc/medilab/admin.key ] || {
+    echo "mlctl: the admin key is root's: run sudo mlctl $1" >&2
+    exit 1
+  }
+  printf 'Authorization: Bearer %s' "$(cat /etc/medilab/admin.key)" | curl -sS -X "$2" -H @- "$company$3"
+}
+
+case "${1:-}" in
+  keys)
+    admin keys GET /admin/keys | python3 -c '
+import json, sys
+for key in json.load(sys.stdin):
+    print(key["id"] + "  " + key["state"].ljust(8) + " made " + key["made"])
+'
+    ;;
+  new)
+    admin new POST /admin/keys | python3 -c '
+import json, sys
+answer = json.load(sys.stdin)
+print(answer["id"], answer["key"])
+'
+    ;;
+  revoke)
+    [ $# -eq 2 ] || usage
+    admin revoke POST "/admin/keys/$2/revoke" | python3 -c '
+import json, sys
+answer = json.load(sys.stdin)
+print(answer.get("id", ""), answer.get("state", answer.get("error", "")))
+'
+    ;;
+  check)
+    read -r key || true
+    printf 'Authorization: Bearer %s' "$key" | curl -sS -H @- "$company/v1/whoami" | python3 -c '
+import json, sys
+answer = json.load(sys.stdin)
+print(answer["id"] + " " + answer["state"] if "id" in answer else answer["error"])
+'
+    ;;
+  *) usage ;;
+esac

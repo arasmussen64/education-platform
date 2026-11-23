@@ -1,0 +1,156 @@
+# The checks of "the bakery's online orders": as the build's, with this
+# design's reference. Zones: the internet, the developers' laptops,
+# CardWorks, the bakery's cloud subnet and the kitchen. Scope: the
+# shopfront, orders and the saved cards are cde (the bakery takes the card
+# on its own form and keeps it); the kitchen's print server is out. The
+# weaknesses, in --only's order: admin pages any customer can open (E,
+# 3x3: authz or least-privilege), the plain old address (I, 2x3: tls), the
+# price from the browser (T, 3x2: input-validation), the saved card
+# numbers (I, 2x3: encryption or minimise-data) and unrecorded queries (R,
+# 2x2).
+checks:
+  - id: model-reads
+    description: "The model reads: every line is one of the format's."
+    timeout: 10
+    command: |
+      tm-check reads /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: design-untouched
+    description: "~/design.md is as it was."
+    timeout: 10
+    command: echo '18c6c2309f2309d38eaea57e66f2bce8be0847d3d0536327d37241bfe57fbf5d  /home/learner/design.md' | sha256sum -c --status - && echo same
+    expect:
+      equals: same
+  - id: diagram-matches-design
+    description: "Every part and flow the design names is there, of the right kind, drawn from the side that starts it."
+    timeout: 10
+    command: |
+      tm-check diagram /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: zones-where-trust-changes
+    description: "Two parts share a zone exactly when one organisation runs both on one network with nothing filtering between them."
+    timeout: 10
+    command: |
+      tm-check boundaries /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: in-pci-scope
+    description: "Every process and store the business runs has the PCI DSS scope the standard's rule gives it."
+    timeout: 10
+    command: |
+      tm-check scope /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: every-crossing-reviewed
+    description: "Every flow that crosses a boundary has all six letters reviewed, and no two threats read the same."
+    timeout: 10
+    command: |
+      tm-check stride /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: design-weaknesses-found
+    description: "Everything the design describes as weak has a threat on its flow, rated by the design's scales, and none of it is marked as nothing to record; no flow has more than three threats under one letter."
+    timeout: 10
+    command: |
+      tm-check findings /home/learner/model.tm - --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: ranked-by-risk
+    description: "Each risk is likelihood times impact, and top lists every risk of 6 or more, highest first."
+    timeout: 10
+    command: |
+      tm-check ranking /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: chosen-not-listed
+    description: "The model chooses: at most twenty threats in all, and at most ten of them with a risk of 6 or more."
+    timeout: 10
+    command: |
+      awk '
+        $1 == "threat" { threats++; if ($5 * $6 >= 6) high++ }
+        END {
+          if (threats > 20 || high > 10) print "the model lists where it should choose: it has more than twenty threats, or more than ten with a risk of 6 or more"
+          else print "ok"
+        }
+      ' /home/learner/model.tm
+    expect:
+      equals: ok
+  - id: answered-a
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 4 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-b
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 1 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-c
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 3 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: answered-d
+    description: "A risk of 6 or more that the design describes has a control of a kind that answers it, and at most two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only 2 --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: nothing-left-open
+    description: "Every other threat has a control of a kind that answers it or an accept line, no risk of 6 or more is accepted, and no threat has more than two controls."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --only rest --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: attack-techniques
+    description: "The two threats the task names each carry an ATT&CK technique that fits, and no threat more than two."
+    timeout: 10
+    command: |
+      tm-check attack /home/learner/model.tm - --choose <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
+  - id: attack-tree
+    description: "A tree for one of the highest risks: three leaves or more, an and node with two steps, and the cheapest path's cost."
+    timeout: 10
+    command: |
+      tm-check tree /home/learner/model.tm - <<'REF'
+      {"elements":{"customer":["external","internet"],"developer":["external","devs"],"psp":["external","provider"],"shopfront":["process","cloud"],"orders":["process","cloud"],"cards-db":["store","cloud"],"bake-list":["store","kitchen"]},"flows":{"f1":["customer","shopfront"],"f2":["shopfront","orders"],"f3":["orders","psp"],"f4":["orders","cards-db"],"f5":["orders","bake-list"],"f6":["developer","cards-db"]},"weak":[{"flow":"f1","letters":["E"],"L":3,"I":3,"controls":["authz","least-privilege"],"attack":["T1078","T1190"]},{"flow":"f1","letters":["I"],"L":2,"I":3,"controls":["tls"],"attack":["T1557"]},{"flow":"f1","letters":["T"],"L":3,"I":2,"controls":["input-validation"]},{"flow":"f6","letters":["I"],"L":2,"I":3,"controls":["encryption","minimise-data"]},{"flow":"f6","letters":["R"],"L":2,"I":2}],"scope":{"shopfront":"cde","orders":"cde","cards-db":"cde","bake-list":"out"}}
+      REF
+    expect:
+      equals: ok
