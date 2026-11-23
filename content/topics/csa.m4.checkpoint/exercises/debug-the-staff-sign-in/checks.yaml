@@ -123,7 +123,13 @@ checks:
       . /usr/local/lib/idlab/idlib.sh
       for m in orders api; do
         [ "$(systemctl is-enabled "timesync@$m" 2> /dev/null)" = enabled ] || { echo "a machine's time sync won't start at boot"; exit 0; }
-        clock_synced "$m" > /dev/null 2>&1 || { echo "a machine's clock isn't kept right by a time server it reaches"; exit 0; }
+        said=$(clock_synced "$m" 2>&1) || { echo "a machine's clock isn't kept right by a time server it reaches"; exit 0; }
+        # The server it agrees with must be the shop's: a time server of the
+        # machine's own (its own chronyd) agrees with whatever clock it has.
+        addr=$(on "$m" getent ahostsv4 "${said#in sync with time server }" | awk '{ print $1; exit }')
+        [ "$addr" = 10.0.5.40 ] || { echo "a machine's clock is kept by a time server that isn't the shop's"; exit 0; }
+        off=$(clock_offset "$m")
+        [ "${off#-}" -le 5 ] || { echo "a machine's clock isn't right"; exit 0; }
       done
       echo right
     expect:
@@ -132,14 +138,19 @@ checks:
     description: "Nothing accepts a token further from its own clock, or for longer, than before: the orders site's slack on when a token was issued, the API's way of checking tokens, and every token lifetime are as they were."
     command: |
       . /usr/local/lib/idlab/idlib.sh
-      files() { on "$1" bash -c '. /etc/apache2/envvars; apache2 -t -D DUMP_INCLUDES' 2> /dev/null | grep -o '/etc/apache2/[^ ]*'; }
+      # Every file each Apache loads, wherever it is, and their lines as
+      # Apache reads them: a line ending in a backslash goes on, and
+      # quotes are taken off a value.
+      files() { on "$1" bash -c '. /etc/apache2/envvars; apache2 -t -D DUMP_INCLUDES' 2> /dev/null | awk '$1 ~ /^\(/ { print $NF }'; }
+      lines() { for f in $2; do on "$1" cat "$f"; echo; done | tr -d '\r' | sed -e ':a' -e '/\\$/N' -e 's/\\\n//' -e 'ta'; }
       site=$(files orders)
       [ -n "$site" ] || { echo "the orders site's Apache files don't load"; exit 0; }
-      slack=$(for f in $site; do on orders cat "$f"; done | tr -d '\r' | awk 'tolower($1) ~ /slack$/ && $2 + 0 > 600 { print }')
+      # An allowlist: a slack is a plain number of at most 600 seconds.
+      slack=$(lines orders "$site" | tr -d "\"'" | awk '$1 !~ /^#/ && tolower($1) ~ /slack$/ && !($2 ~ /^[0-9]+$/ && $2 + 0 <= 600) { print }')
       [ -z "$slack" ] || { echo "the orders site accepts tokens further from its clock than it did"; exit 0; }
       api=$(files api)
       [ -n "$api" ] || { echo "the API's Apache files don't load"; exit 0; }
-      verify=$(for f in $api; do on api cat "$f"; done | tr -d '\r' | grep -i '^[[:space:]]*OAuth2TokenVerify' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\{1,\}/ /g' | sort -u)
+      verify=$(lines api "$api" | grep -i '^[[:space:]]*OAuth2TokenVerify' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\{1,\}/ /g' | sort -u)
       [ "$verify" = "OAuth2TokenVerify jwks_uri https://login.shop.test/realms/shop/protocol/openid-connect/certs" ] || { echo "the API checks tokens in another way than it did"; exit 0; }
       kc get shop 2> /dev/null | json "'kept' if d.get('accessTokenLifespan') == 300 else 'changed'" | grep -x kept > /dev/null || { echo "the realm's tokens don't last as long as they did"; exit 0; }
       longer=$(kc get shop/clients 2> /dev/null | json "[c['clientId'] for c in d if int(c.get('attributes', {}).get('access.token.lifespan') or 0) > 300]")
