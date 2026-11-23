@@ -1,0 +1,41 @@
+id: write-review-gaps
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Review gaps"
+prompt: |
+  A security board keeps dozens of threat models, each in this topic's line format, and wants to see at a glance which reviews are unfinished. From a blank file, write `~/bin/review-gaps`, a bash script that uses awk. It is run as `review-gaps MODEL` and prints one line for every flow that **crosses a trust boundary** (its two ends are in different zones), in the order the flows appear in the file, and then one last line:
+
+  ```
+  f1: reviewed
+  f3: STRIDE
+  f4: TIDE
+  crossing 3, unreviewed 2
+  ```
+
+  - A flow's line is `FLOW: reviewed` when all six STRIDE letters have been reviewed on it, and otherwise `FLOW: ` followed by the letters still missing, in the order S T R I D E.
+  - A letter is reviewed on a flow by a `threat` line for that flow and letter, or by a `none` line for that flow whose letters include it. A `none` line can cover several letters, in any order (`EDIRT`).
+  - A flow whose two ends share a zone is not printed and not counted, whatever reviews it has.
+  - The last line counts the flows that cross, and how many of those are not fully reviewed. A model in which nothing crosses prints only `crossing 0, unreviewed 0`.
+
+  The lines the script reads, with awk's field numbers (the rest of the format doesn't matter here, and other kinds of line are passed over):
+
+  ```
+  element ID KIND ZONE words          $2 is the element, $4 its zone
+  flow ID FROM TO words               $2 is the flow, $3 and $4 its two ends
+  threat ID FLOW LETTER L I RISK ...  $3 is the flow, $4 the letter
+  none FLOW LETTERS reason            $2 is the flow, $3 the letters
+  ```
+
+  A line can only use names that lines above it define, so an element is always above the flows that use it, and a review is always somewhere below its flow, though other flows may come after it. A line that starts with `#` is a comment, and so is a commented-out line such as `#none f4 TIDE ...`: neither is a review. Words may have more than one space between them, and a line may start with spaces, which awk's fields take care of.
+
+  awk you have used before: `$1 == "flow" { ... }` runs its block on matching lines; an array remembers things between lines (`zone[$2] = $4`); `END { ... }` runs after the last line. Three more pieces are worth knowing here. An array can be indexed by two things at once: `seen[$3, $4] = 1`. `substr(TEXT, i, 1)` is the character at place `i` of TEXT, and `length(TEXT)` how many it has, so `for (i = 1; i <= length($3); i++)` walks the letters of a `none` line. And `flows[++n] = $2` keeps the flows in the order met, for a loop in `END`.
+
+  Make the file with `nano ~/bin/review-gaps`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/review-gaps`. `~/example.tm` is the shop's order API part of the way through its review, and `~/bin/review-gaps ~/example.tm` should print the four lines above. The checks also run it on models made up as they run, with other names, zones, flows and reviews.
+hints:
+  - "One shape that works is a single awk program with `\"$1\"` (the script's first argument, the model's file) after its closing quote: one block for `element` lines, one for `flow` lines that cross, one for `threat` lines, one for `none` lines, and an `END` block that does the printing."
+  - "A flow crosses when `zone[$3] != zone[$4]`. For a `threat` line the flow is `$3`, not `$2` (that is the threat's own id). In `END`, for each kept flow build a string of missing letters: loop `i` from 1 to 6, take `substr(\"STRIDE\", i, 1)`, and add it when `seen[FLOW, LETTER]` was never set."
+  - "A count that was never added to prints as an empty string: write `(n + 0)` to print 0. To join strings in awk, write them side by side: `print name \": \" missing`."
+skills: [draw-the-system, stride]

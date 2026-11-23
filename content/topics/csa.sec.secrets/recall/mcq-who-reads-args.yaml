@@ -1,0 +1,16 @@
+id: mcq-who-reads-args
+type: mcq
+rev: 1
+prompt: |
+  The shop's export job runs as the user `export`. Its unit starts it as `shop-export --api-key pg_live_...`, with `PAYGATE_KEY` also set in its environment from a file that only root can read, and it keeps a copy of the key in `/etc/shop/paygate.key`, mode `0400`, owner `export`. Another ordinary user on the server, with no `sudo`, wants the key. Which of the three can they read?
+choices:
+  - "The command line, with `ps`: every user can read `/proc/PID/cmdline`"
+  - "The environment, with `cat /proc/PID/environ`, which is open to all"
+  - "The key file, because any user may read files under `/etc`"
+  - "None of the three: a process's details are private to its own user and to root"
+answer: 0
+explanation: |
+  In the lab, `ls -l /proc/PID/cmdline /proc/PID/environ` printed `-r--r--r--` for the first and `-r--------` for the second. A process's arguments are public on the machine: `ps -eo user,args` shows them to anyone. Its environment is readable by its own user and root only, and for the other user `cat /proc/PID/environ` said `Permission denied`. A file with mode `0400` is readable by its owner (and root), wherever it lives: being under `/etc` gives nobody anything.
+
+  So a secret must never be a command-line argument. The environment is better and still not good: every program the job starts inherits it, crash reports and debug output print it, and `Environment=` in a unit file puts it where `systemctl show` gives it to everyone. A file only the service's user can read is the plain, safe choice.
+skills: [keep-secrets-out]

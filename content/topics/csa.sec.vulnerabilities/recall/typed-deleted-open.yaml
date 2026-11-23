@@ -1,0 +1,19 @@
+id: typed-deleted-open
+type: typed
+rev: 1
+prompt: |
+  A package has just been upgraded. You want the list of files that running programs still hold open although they no longer have a name on the disk, which is how a program that is still running its old code shows up. Type the command, as root would run it.
+kind: command
+answers:
+  - "lsof +L1"
+  - "sudo lsof +L1"
+mistakes:
+  - id: every-open-file
+    answers: ["lsof", "sudo lsof"]
+    why: "That lists every open file on the machine, thousands of lines. The option that keeps only files with no name left on the disk is missing."
+  - id: process-list
+    answers: ["ps aux", "ps -ef", "ps"]
+    why: "That lists the processes, and nothing in it says whether a program's file has been replaced since it started."
+explanation: |
+  **`sudo lsof +L1`** lists open files whose link count is below 1: files that are still open and have no name left on the disk. After an upgrade, a line ending `(deleted)` for a program or a library means some process is still running the old code. Disks and filesystems used the same command to find the deleted log file that was still filling a disk. Without `sudo` it shows only your own processes.
+skills: [remediate-and-track]

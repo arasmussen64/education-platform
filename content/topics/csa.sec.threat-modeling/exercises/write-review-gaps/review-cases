@@ -1,0 +1,272 @@
+#!/usr/bin/python3
+"""review-cases: the checks' own side of "Review gaps".
+
+    review-cases make FILE      write a threat model made up now into FILE
+    review-cases flat FILE      write one in which no flow crosses a boundary
+    review-cases answer FILE    print what review-gaps must print for FILE
+
+The checks' tool, never the learner's: the lab asks for bash and awk. It
+runs on the lab's Python 3.12.
+
+A model made up here always holds, whatever else differs, a flow that
+crosses a boundary and is fully reviewed (by threats and by none lines
+whose letters are jumbled), one that is partly reviewed and misses two
+letters or more, one with no review at all, a flow inside one zone with
+a review of its own, a review that is commented out, and lines of other
+kinds. So each rule of the task shows in every model, and a script that
+skips one prints something else.
+"""
+
+import random
+import sys
+
+LETTERS = "STRIDE"
+
+ZONES = [
+    "internet", "office", "plant", "depot", "store", "cloud", "partner",
+    "bank", "lab", "branch", "hq", "vendor", "field", "edge",
+]  # fmt: skip
+ELEMENTS = [
+    "portal", "api", "ledger", "queue", "cache", "gateway", "kiosk", "badge",
+    "sensor", "billing", "mailer", "search", "archive", "relay", "broker",
+    "scanner", "printer", "console", "reports", "vault", "tracker", "feeds",
+]  # fmt: skip
+KINDS = ["external", "process", "store"]
+WORDS = [
+    "orders", "over", "HTTPS", "and", "nothing", "else", "none", "threat",
+    "flow", "S", "I", "E", "reads", "the", "nightly", "file", "reviewed",
+    "a", "signed", "report", "zone", "crossing", "by", "role",
+]  # fmt: skip
+
+
+def text(rng, n):
+    """n words. The first is never a lone letter, which at the start of a
+    none line's reason would read as letters written apart."""
+    first = rng.choice([w for w in WORDS if len(w) > 1])
+    return " ".join([first] + [rng.choice(WORDS) for _ in range(n - 1)])
+
+
+def spaced(rng, line):
+    """The same line with the spacing a person leaves: sometimes two spaces
+    between words, sometimes a few in front."""
+    words = line.split(" ")
+    out = words[0]
+    for word in words[1:]:
+        out += ("  " if rng.random() < 0.15 else " ") + word
+    return ("   " if rng.random() < 0.1 else "") + out
+
+
+def none_lines(rng, flow, letters):
+    """none lines that cover these letters between them, each line's letters
+    in a jumbled order; with three letters or more, one line has two or more."""
+    letters = list(letters)
+    rng.shuffle(letters)
+    out = []
+    while letters:
+        take = rng.randint(2, len(letters)) if len(letters) >= 2 else 1
+        group, letters = letters[:take], letters[take:]
+        out.append(f"none {flow} {''.join(group)} {text(rng, rng.randint(5, 8))}")
+    return out
+
+
+def make(rng):
+    while True:
+        lines = build(rng)
+        said = answer(lines)[:-1]
+        crossing = [line.split(":")[0] for line in said]
+        # A script that sorts the flows must not be right by luck, whether
+        # it sorts the names, its whole lines, or the numbers in the names.
+        orders = (
+            sorted(crossing),
+            [line.split(":")[0] for line in sorted(said)],
+            sorted(crossing, key=lambda f: int("".join(c for c in f if c.isdigit()))),
+        )
+        if crossing not in orders and crossing[::-1] not in orders:
+            return lines
+
+
+def build(rng):
+    zones = rng.sample(ZONES, rng.randint(3, 4))
+    names = rng.sample(ELEMENTS, 7)
+    # Two elements in the first zone (for the flow that stays inside), one
+    # in each other zone, the rest anywhere.
+    where = {names[0]: zones[0], names[1]: zones[0]}
+    for name, zone in zip(names[2:], zones[1:], strict=False):
+        where[name] = zone
+    for name in names:
+        where.setdefault(name, rng.choice(zones))
+
+    def pair(crossing):
+        while True:
+            a, b = rng.sample(names, 2)
+            if (where[a] != where[b]) == crossing:
+                return a, b
+
+    ids = rng.sample(range(1, 40), 6)
+    style = rng.choice(["f", "flow-", "df"])
+    flow_ids = [f"{style}{n}" for n in ids]
+    full, partly, bare, inside, full2 = flow_ids[:5]
+    ends = {
+        full: pair(True),
+        partly: pair(True),
+        bare: pair(True),
+        inside: (names[0], names[1]),
+        full2: pair(True),
+    }
+    order = [full, partly, bare, inside, full2]
+    rng.shuffle(order)
+
+    reviews = []
+    threat_n = [rng.randint(1, 9)]
+
+    def threat(flow, letter):
+        threat_n[0] += rng.randint(1, 3)
+        likely, impact = rng.randint(1, 3), rng.randint(1, 3)
+        return (
+            f"threat t{threat_n[0]} {flow} {letter} "
+            f"{likely} {impact} {likely * impact} "
+            f"An attacker can {text(rng, rng.randint(5, 8))}"
+        )
+
+    # Fully reviewed: one letter or two only a threat covers, the rest by
+    # none lines, and one letter covered twice.
+    by_threat = rng.sample(LETTERS, rng.randint(1, 2))
+    rest = [c for c in LETTERS if c not in by_threat]
+    reviews += [threat(full, c) for c in by_threat]
+    reviews += none_lines(rng, full, rest)
+    reviews.append(threat(full, rng.choice(by_threat)))
+    # Partly reviewed: two to four letters missing; of the others, one by a
+    # threat and the rest by none lines.
+    missing = rng.sample(LETTERS, rng.randint(2, 4))
+    covered = [c for c in LETTERS if c not in missing]
+    rng.shuffle(covered)
+    reviews.append(threat(partly, covered[0]))
+    if covered[1:]:
+        reviews += none_lines(rng, partly, covered[1:])
+    # The flow inside one zone: a review of its own, never complete.
+    some = rng.sample(LETTERS, rng.randint(2, 4))
+    reviews.append(threat(inside, some[0]))
+    reviews += none_lines(rng, inside, some[1:])
+    # The second full one: none lines alone.
+    reviews += none_lines(rng, full2, LETTERS)
+    rng.shuffle(reviews)
+
+    # Reviews that are commented out, which count for nothing: they would
+    # finish the partly reviewed flow and start the bare one.
+    jumbled = "".join(rng.sample(missing, len(missing)))
+    off = [
+        f"#none {partly} {jumbled} {text(rng, 6)}",
+        f"# none {bare} {''.join(rng.sample(LETTERS, 6))} {text(rng, 6)}",
+        f"# threat t99 {bare} S 3 3 9 An attacker can {text(rng, 6)}",
+    ]
+    threats = [line.split()[1] for line in reviews if line.startswith("threat ")]
+    other = [
+        f"control c1 {threats[0]} signing {text(rng, 4)}",
+        f"accept {threats[-1]} {text(rng, 5)}",
+        f"attack {threats[0]} T1190",
+    ]
+
+    out = [f"# {text(rng, 5)}"]
+    out += [f"zone {z} {text(rng, 3)}" for z in zones]
+    declared = set()
+    pending = list(order)
+    # Elements go in just above the first flow that needs them, so some
+    # come after earlier flows; reviews come anywhere after their flow.
+    waiting = list(reviews)
+    for flow in pending:
+        for name in ends[flow]:
+            if name not in declared:
+                declared.add(name)
+                out.append(
+                    f"element {name} {rng.choice(KINDS)} {where[name]} {text(rng, 3)}"
+                )
+        out.append(f"flow {flow} {ends[flow][0]} {ends[flow][1]} {text(rng, 4)}")
+        if rng.random() < 0.3:
+            out.append("")
+        declared_flows = {line.split()[1] for line in out if line.startswith("flow ")}
+        for review in list(waiting):
+            its_flow = review.split()[2 if review.startswith("threat") else 1]
+            if its_flow in declared_flows and rng.random() < 0.3:
+                out.append(review)
+                waiting.remove(review)
+    tail = waiting + off + other
+    # A control or an accept must come below its threat.
+    rng.shuffle(tail)
+    tail.sort(key=lambda line: line.split()[0] in ("control", "accept", "attack"))
+    out += tail
+    out = [
+        spaced(rng, line) if line and not line.startswith("#") else line for line in out
+    ]
+    if rng.random() < 0.5:
+        out.append(f"# {text(rng, 4)}")
+    return out
+
+
+def flat(rng):
+    zone = rng.choice(ZONES)
+    names = rng.sample(ELEMENTS, 4)
+    out = [f"zone {zone} {text(rng, 3)}"]
+    out += [f"element {n} {rng.choice(KINDS)} {zone} {text(rng, 3)}" for n in names]
+    out += [
+        f"flow f{i} {a} {b} {text(rng, 4)}"
+        for i, (a, b) in enumerate(zip(names, names[1:], strict=False), 1)
+    ]
+    out += [
+        f"none f1 SE {text(rng, 5)}",
+        f"threat t1 f2 T 2 2 4 An attacker can {text(rng, 6)}",
+    ]
+    return out
+
+
+def words_of(raw):
+    words = []
+    for word in raw.split():
+        if word.startswith("#"):
+            break
+        words.append(word)
+    return words
+
+
+def answer(lines):
+    zone, flows, seen = {}, [], set()
+    for raw in lines:
+        w = words_of(raw)
+        if not w:
+            continue
+        if w[0] == "element":
+            zone[w[1]] = w[3]
+        elif w[0] == "flow":
+            flows.append((w[1], w[2], w[3]))
+        elif w[0] == "threat":
+            seen.add((w[2], w[3]))
+        elif w[0] == "none":
+            seen |= {(w[1], c) for c in w[2]}
+    out, unreviewed = [], 0
+    crossing = [f for f, a, b in flows if zone[a] != zone[b]]
+    for f in crossing:
+        missing = "".join(c for c in LETTERS if (f, c) not in seen)
+        if missing:
+            unreviewed += 1
+        out.append(f"{f}: {missing or 'reviewed'}")
+    out.append(f"crossing {len(crossing)}, unreviewed {unreviewed}")
+    return out
+
+
+def main(argv):
+    if len(argv) != 2 or argv[0] not in ("make", "flat", "answer"):
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    mode, path = argv
+    if mode == "answer":
+        with open(path, encoding="utf-8") as file:
+            print("\n".join(answer(file.read().splitlines())))
+        return 0
+    rng = random.SystemRandom()
+    lines = make(rng) if mode == "make" else flat(rng)
+    with open(path, "w", encoding="utf-8", newline="\n") as file:
+        file.write("\n".join(lines) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,16 @@
+id: mcq-aws-scp-grants-nothing
+type: mcq
+rev: 1
+prompt: |
+  An AWS organization's service control policy (SCP) allows every EC2 action in one of its accounts. A new IAM user is created in that account with no policies attached. Can the user start an EC2 instance?
+choices:
+  - "No: an SCP only limits what an account's policies may grant, and grants nothing itself"
+  - "Yes: an SCP applies to everyone in the account, so its allow reaches the new user"
+  - "Yes, until someone sets a permissions boundary on the user to narrow it down"
+  - "No: SCPs cover roles, and an IAM user needs a resource control policy instead"
+answer: 0
+explanation: |
+  SCPs, resource control policies and permissions boundaries are **limits**. The effective permissions are the intersection: an action must be allowed by the identity's own policies **and** fall inside every limit. AWS's words: "No permissions are granted by SCPs and RCPs." The new user has no policy of its own, so there's nothing to intersect with, and default deny answers.
+
+  The SCP's "allow" means "this account's policies are permitted to grant EC2", not "everyone here has EC2". A permissions boundary is one more limit, and can't be the thing that was granting access. SCPs apply to users and roles alike.
+skills: [cloud-policy-models]

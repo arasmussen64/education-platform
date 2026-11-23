@@ -1,0 +1,53 @@
+id: whiteout-layers
+type: predict_shell
+rev: 1
+prompt: |
+  An image was built from this recipe, and then saved with `podman save` and unpacked. The three files are the listings (`tar -tf`) of its three layers, oldest first, captured in this topic's first lab on 2026-11-23 (the first is cut short).
+
+  ```
+  FROM busybox
+  ARG PAYGATE_KEY
+  ENV GREETING=hello
+  COPY deploy.token /tmp/deploy.token
+  RUN echo "checked the gateway with $PAYGATE_KEY" > /opt/checked.txt && rm /tmp/deploy.token
+  ```
+
+  What does the command print?
+files:
+  layer1.txt: |
+    ./
+    ./etc/
+    ./etc/group
+    ./etc/passwd
+    ./opt/
+    ./root/
+    ./tmp/
+    ./usr/
+    ./usr/bin/
+    ./var/
+  layer2.txt: |
+    tmp/
+    tmp/deploy.token
+  layer3.txt: |
+    dev/
+    etc/
+    etc/hostname
+    etc/hosts
+    etc/resolv.conf
+    opt/
+    opt/checked.txt
+    proc/
+    run/
+    sys/
+    tmp/
+    tmp/.wh.deploy.token
+command: |
+  grep -l deploy.token layer*.txt
+expected_output: |
+  layer2.txt
+  layer3.txt
+explanation: |
+  `grep -l` prints the names of the files that hold a match. Two layers mention the token. The second layer is the one the `COPY` made, and it holds the file itself, `tmp/deploy.token`. The third layer is the one the `RUN` made: it adds `opt/checked.txt`, and where the step deleted the token it holds `tmp/.wh.deploy.token`, a whiteout, an empty marker that hides the file from the layers below when a container is started.
+
+  Hiding isn't removing. Anyone who has the image can unpack the second layer and read the token, which the lab did with `tar -xOf LAYER tmp/deploy.token`. A file that was ever copied into an image is in the image, whatever a later step does. (And the `ARG` leaked too, another way: the image's history shows the `RUN` step with `|1 PAYGATE_KEY=...` in front of it.)
+skills: [keep-secrets-out]

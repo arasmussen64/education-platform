@@ -1,0 +1,208 @@
+#!/usr/bin/python3
+"""vuln-truth: what this week's register should say, worked out by the checks.
+
+The checks' own arithmetic, never the learner's: it scans the package lists
+as they were when the lab was built (the payments server's sealed copy, and
+any other machine's list named in MACHINES), looks each finding up in the
+lab's KEV and SSVC extracts, the asset list, the first-seen dates and the
+policy table, and works out each finding's due date. A check then compares
+the learner's register with it and prints one sentence: "right", or the
+first thing that is wrong.
+
+    vuln-truth rows                     the expected rows, for an author
+    vuln-truth complete REGISTER        one line for each finding, no more
+    vuln-truth due REGISTER [CVE...]    due dates and triage (only the named
+                                        CVEs' rows on pay1, when given)
+    vuln-truth status REGISTER [CVE...] status and owner
+    vuln-truth must-fix                 the CVEs on pay1 with a timeline of
+                                        14 days or less that a scan still finds
+"""
+
+import csv
+import datetime
+import subprocess
+import sys
+from pathlib import Path
+
+DATA = Path("/usr/share/lab-pay")
+SEALED = Path("/usr/local/lib/lab-vuln")
+SCAN = "/usr/local/lib/lab-pay/scan-tsv"
+# The machine this lab is: its findings can be fixed here, so its rows have
+# a status to track. Every other machine's stay open with their owner.
+HERE = "pay1"
+
+
+def scan(source: str | None) -> list[list[str]]:
+    """A scan as rows of cve, package, installed, fixed, severity."""
+    command = [SCAN] + ([f"dpkg-status:{source}"] if source else [])
+    out = subprocess.run(command, capture_output=True, text=True, check=False).stdout
+    return [line.split("\t") for line in out.splitlines() if line.strip()]
+
+
+def table(path: Path) -> list[list[str]]:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return [line.split("\t") for line in lines if line.strip()]
+
+
+def truth() -> list[dict[str, str]]:
+    """Every finding of the original scans, with its due date and triage."""
+    with (DATA / "kev-2026.11.10.csv").open(encoding="utf-8", newline="") as f:
+        kev = {row["cveID"]: row["dateAdded"] for row in csv.DictReader(f)}
+    with (DATA / "ssvc.csv").open(encoding="utf-8", newline="") as f:
+        ssvc = {row["cve"]: row for row in csv.DictReader(f)}
+    assets = {row[0]: row for row in table(SEALED / "assets.tsv")}
+    seen = dict(row[:2] for row in table(SEALED / "first-seen.tsv"))
+    policy = {tuple(row[:4]): (row[4], row[5]) for row in table(SEALED / "policy.tsv")}
+    rows = []
+    for asset, source in (row[:2] for row in table(SEALED / "MACHINES")):
+        for cve, package, _installed, _fixed, _severity in scan(source):
+            in_kev = "yes" if cve in kev else "no"
+            key = (
+                assets[asset][1],
+                in_kev,
+                ssvc[cve]["automatable"],
+                ssvc[cve]["technical_impact"],
+            )
+            days, triage = policy[key]
+            start = min(seen[asset], kev.get(cve, "9999-12-31"))
+            if days == "on-upgrade":
+                due = days
+            else:
+                first = datetime.date.fromisoformat(start)
+                due = (first + datetime.timedelta(days=int(days))).isoformat()
+            rows.append(
+                {
+                    "cve": cve,
+                    "asset": asset,
+                    "package": package,
+                    "due": due,
+                    "triage": triage,
+                    "days": days,
+                    "owner": assets[asset][2],
+                }
+            )
+    return rows
+
+
+def register(path: str) -> list[list[str]] | str:
+    """The learner's register as rows of seven fields, or what is wrong."""
+    file = Path(path)
+    if not file.is_file():
+        return f"there is no {path.replace('/home/learner', '~')}"
+    rows = []
+    text = file.read_text(encoding="utf-8", errors="replace")
+    for number, line in enumerate(text.splitlines(), 1):
+        fields = line.split()
+        if not fields:
+            continue
+        if len(fields) != 7:
+            return f"line {number} of the register has {len(fields)} fields, not 7"
+        rows.append(fields)
+    return rows
+
+
+def find(rows: list[list[str]], cve: str, asset: str) -> list[list[str]]:
+    return [row for row in rows if row[0] == cve and row[1] == asset]
+
+
+def wanted(rows: list[dict[str, str]], only: list[str]) -> list[dict[str, str]]:
+    if not only:
+        return rows
+    return [row for row in rows if row["asset"] == HERE and row["cve"] in only]
+
+
+def complete(path: str) -> str:
+    rows = register(path)
+    if isinstance(rows, str):
+        return rows
+    expected = truth()
+    for want in expected:
+        got = find(rows, want["cve"], want["asset"])
+        if not got:
+            return "a finding of this week's scans has no line in the register"
+        if len(got) > 1:
+            return f"{want['cve']} on {want['asset']} has {len(got)} lines"
+        package = got[0][2]
+        if not package.startswith(want["package"]):
+            return f"{want['cve']} on {want['asset']} names the package {package}"
+    known = {(want["cve"], want["asset"]) for want in expected}
+    for row in rows:
+        if (row[0], row[1]) not in known:
+            return f"the register has a line the scans don't: {row[0]} on {row[1]}"
+    return "right"
+
+
+def due(path: str, only: list[str]) -> str:
+    rows = register(path)
+    if isinstance(rows, str):
+        return rows
+    for want in wanted(truth(), only):
+        got = find(rows, want["cve"], want["asset"])
+        if len(got) != 1:
+            return f"{want['cve']} on {want['asset']} has {len(got)} lines"
+        if got[0][3] != want["due"]:
+            return f"{want['cve']} on {want['asset']}: the due date isn't {got[0][3]}"
+        if got[0][4] != want["triage"]:
+            return (
+                f"{want['cve']} on {want['asset']}: forensic triage isn't {got[0][4]}"
+            )
+    return "right"
+
+
+def status(path: str, only: list[str]) -> str:
+    rows = register(path)
+    if isinstance(rows, str):
+        return rows
+    still = {row[0] for row in scan(None)}
+    for want in wanted(truth(), only):
+        got = find(rows, want["cve"], want["asset"])
+        if len(got) != 1:
+            return f"{want['cve']} on {want['asset']} has {len(got)} lines"
+        fixed = want["asset"] == HERE and want["cve"] not in still
+        state = "fixed" if fixed else "open"
+        if got[0][5] != state:
+            where = f"{want['cve']} on {want['asset']}"
+            return f"{where} is {state}, and the register says {got[0][5]}"
+        if got[0][6] != want["owner"]:
+            return f"{want['cve']} on {want['asset']}: the owner isn't {got[0][6]}"
+    return "right"
+
+
+def must_fix() -> str:
+    still = {row[0] for row in scan(None)}
+    late = [
+        row["cve"]
+        for row in truth()
+        if row["asset"] == HERE
+        and row["cve"] in still
+        and row["days"] != "on-upgrade"
+        and int(row["days"]) <= 14
+    ]
+    if late:
+        return f"a scan still finds {len(late)} of the findings due within 14 days"
+    return "right"
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    if not args:
+        sys.exit(__doc__)
+    if args[0] == "rows":
+        for row in truth():
+            print(
+                *(row[k] for k in ("cve", "asset", "package", "due", "triage", "owner"))
+            )
+    elif args[0] == "complete" and len(args) == 2:
+        print(complete(args[1]))
+    elif args[0] == "due" and len(args) >= 2:
+        print(due(args[1], args[2:]))
+    elif args[0] == "status" and len(args) >= 2:
+        print(status(args[1], args[2:]))
+    elif args[0] == "must-fix":
+        print(must_fix())
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()

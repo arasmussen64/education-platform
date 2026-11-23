@@ -1,0 +1,24 @@
+id: est-trail-size
+type: estimate
+rev: 1
+prompt: |
+  The shop's checkout service writes 80000 audit events a day, about 250 bytes each as stored. The policy keeps the trail for 400 days. How much storage does the trail need, in GB (1 GB is 1000000000 bytes)? Within 5%.
+unit: GB
+answer: 8
+tolerance: { percent: 5 }
+given: { events: 80000, size: 250, days: 400 }
+working: events * size * days / 1000000000
+mistakes:
+  - id: one-year
+    value: 7.3
+    working: events * size * 365 / 1000000000
+    why: That is one year. The policy keeps 400 days, the year the rules ask for and a margin on top, and the oldest five weeks need room too.
+  - id: one-day
+    value: 0.02
+    working: events * size / 1000000000
+    why: That is one day's events. Multiply by the 400 days the trail is kept.
+explanation: |
+  Events a day, times bytes an event, times days kept: 80,000 × 250 is 20,000,000 bytes a day, 20 MB, and 400 days of that is 8,000 MB, 8 GB.
+
+  It is a small number for a disk and a big one for a default. journald caps a journal at 4 GB unless told otherwise, so this trail would lose its oldest months without anyone deciding it should. Size the trail from the policy, then set the limit to fit.
+skills: [retention]

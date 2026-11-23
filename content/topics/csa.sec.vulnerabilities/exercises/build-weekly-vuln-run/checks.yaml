@@ -1,0 +1,112 @@
+# The checks of "This week's vulnerability run". The register is compared
+# with what the checks work out themselves (vuln-truth, in
+# /usr/local/lib/lab-vuln): the scans of both machines' package lists as the
+# lab was built, the lab's KEV and SSVC extracts, the asset list, the
+# first-seen dates and the policy table. The fixes are read from a fresh
+# scan and from what is running.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: register-complete
+    description: "~/vuln/register.tsv has exactly one line of seven fields for each finding of this week's scans of pay1 and batch-01, and no other line."
+    command: /usr/local/lib/lab-vuln/vuln-truth complete /home/learner/vuln/register.tsv
+    expect:
+      equals: right
+  - id: due-dates-right
+    description: "Each line's due date and forensic-triage field are what the shop's policy gives that finding on that machine, counted in calendar days from the right start."
+    command: /usr/local/lib/lab-vuln/vuln-truth due /home/learner/vuln/register.tsv
+    expect:
+      equals: right
+  - id: status-and-owner
+    description: "Each line's status says what a scan says today (fixed or open), and each line names its machine's owner."
+    command: /usr/local/lib/lab-vuln/vuln-truth status /home/learner/vuln/register.tsv
+    expect:
+      equals: right
+  - id: due-findings-fixed
+    description: "A fresh scan of the payments server shows no finding whose timeline is 14 days or shorter, and the programs on disk are the fixed packages' own."
+    command: |
+      said=$(/usr/local/lib/lab-vuln/vuln-truth must-fix)
+      [ "$said" = right ] || { echo "$said"; exit 0; }
+      # A package list can be made to say anything. The program on disk has
+      # to be the one inside the patch repository's package.
+      real() {
+        deb=$(ls /srv/patches/"$1"_*.deb 2> /dev/null | head -n 1)
+        [ -n "$deb" ] && dpkg-deb --fsys-tarfile "$deb" 2> /dev/null | tar -xO ".$2" 2> /dev/null | cmp -s - "$2"
+      }
+      for pair in sudo:/usr/bin/sudo openssh-server:/usr/sbin/sshd less:/usr/bin/less rsync:/usr/bin/rsync git:/usr/bin/git; do
+        real "${pair%%:*}" "${pair#*:}" || { echo "the package list says ${pair%%:*} is fixed, and ${pair#*:} is not the fixed package's program"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: nothing-removed
+    description: "sudo, OpenSSH, less, rsync and git are all still installed and still work."
+    command: |
+      for package in sudo openssh-server openssh-client less rsync git; do
+        [ "$(dpkg-query -W -f '${db:Status-Status}' "$package" 2> /dev/null)" = installed ] \
+          || { echo "$package is no longer installed"; exit 0; }
+      done
+      su learner -c 'sudo -n true' > /dev/null 2>&1 || { echo "sudo no longer works for the learner"; exit 0; }
+      git --version > /dev/null 2>&1 || { echo "git no longer runs"; exit 0; }
+      less --version > /dev/null 2>&1 || { echo "less no longer runs"; exit 0; }
+      rsync --version > /dev/null 2>&1 || { echo "rsync no longer runs"; exit 0; }
+      echo "all five"
+    expect:
+      equals: "all five"
+  - id: no-old-code
+    description: "Nothing on the server still runs a program that an upgrade replaced: the settlement sync is running and answering on port 873, and the SSH server on port 22 announces the installed OpenSSH."
+    command: |
+      for p in /proc/[0-9]*; do
+        exe=$(readlink "$p/exe" 2> /dev/null) || continue
+        case $exe in
+          *' (deleted)') echo "a process is still running a program file that has been replaced on disk: $(cat "$p/comm" 2> /dev/null)"; exit 0 ;;
+        esac
+      done
+      [ "$(systemctl is-enabled shop-sync 2> /dev/null)" = enabled ] || { echo "shop-sync is no longer enabled"; exit 0; }
+      answers() { nc -w 3 127.0.0.1 873 < /dev/null 2> /dev/null | grep '^@RSYNCD:' > /dev/null; }
+      ok=no
+      for try in 1 2 3 4 5; do
+        if systemctl is-active --quiet shop-sync && answers; then ok=yes; break; fi
+        sleep 1
+      done
+      [ "$ok" = yes ] || { echo "the settlement sync isn't answering on port 873"; exit 0; }
+      want="SSH-2.0-$(/usr/sbin/sshd -V 2>&1 | cut -d, -f1)"
+      banner=$(nc -w 3 127.0.0.1 22 < /dev/null 2> /dev/null | head -n 1 | tr -d '\r')
+      [ "$banner" = "$want" ] || { echo "port 22 announces \"$banner\", and the installed OpenSSH is \"$want\""; exit 0; }
+      echo "current"
+    expect:
+      equals: current
+  - id: ssh-unchanged
+    description: "SSH's settings and host keys are what they were."
+    command: |
+      sealed=/usr/local/lib/lab-vuln
+      [ "$(sshd -T 2> /dev/null)" = "$(cat $sealed/sshd-T)" ] || { echo "SSH's settings have changed"; exit 0; }
+      now=$(for key in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$key"; done 2> /dev/null)
+      [ "$now" = "$(cat $sealed/host-keys)" ] || { echo "SSH's host keys have changed"; exit 0; }
+      echo "unchanged"
+    expect:
+      equals: unchanged
+  - id: scanner-untouched
+    description: "The scanner, its advisory records, the lab's data and this week's inputs (the asset list, batch-01's package list, the policy and the first-seen dates) are as the image shipped them."
+    command: |
+      said=$(/usr/local/lib/lab-pay/base-intact 2>&1 | head -n 3)
+      [ "$said" = intact ] || { echo "$said"; exit 0; }
+      sha256sum --quiet -c /usr/local/lib/lab-vuln/SHA256SUMS > /dev/null 2>&1 || { echo "one of this week's input files has changed"; exit 0; }
+      echo "intact"
+    expect:
+      equals: intact
+  - id: rescan-saved
+    description: "~/vuln/rescan.txt is a scan of the payments server in the vertical format that lists exactly what a fresh scan lists now."
+    command: |
+      f=/home/learner/vuln/rescan.txt
+      [ -f "$f" ] || { echo "there is no ~/vuln/rescan.txt"; exit 0; }
+      grep 'Scanned /var/lib/dpkg/status file' "$f" > /dev/null || { echo "~/vuln/rescan.txt isn't a scan of this server's package list"; exit 0; }
+      saved=$(grep -o 'UBUNTU-CVE-[0-9]*-[0-9]*' "$f" | sed 's/^UBUNTU-//' | sort -u)
+      fresh=$(/usr/local/lib/lab-pay/scan-tsv 2> /dev/null | cut -f1 | sort -u)
+      [ "$saved" = "$fresh" ] || { echo "~/vuln/rescan.txt doesn't list what a scan lists now"; exit 0; }
+      if [ -z "$fresh" ]; then
+        grep 'No issues found' "$f" > /dev/null || { echo "~/vuln/rescan.txt doesn't say what a clean scan says"; exit 0; }
+      fi
+      echo "saved"
+    expect:
+      equals: saved

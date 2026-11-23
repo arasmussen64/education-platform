@@ -1,0 +1,16 @@
+id: mcq-object-lock-mode
+type: mcq
+rev: 1
+prompt: |
+  Audit logs in an S3 bucket must be impossible to delete for 400 days, for anyone, the account's root user included. Which setting does that?
+choices:
+  - "Object Lock in compliance mode, with a 400-day retention period"
+  - "Object Lock in governance mode, with a 400-day retention period"
+  - "A legal hold on every object, removed by hand after 400 days"
+  - "Versioning alone, which keeps every old version of an object"
+answer: 0
+explanation: |
+  S3 Object Lock stores objects write-once: a locked version can't be overwritten or deleted until its retention period ends. Its two modes differ in who can get round that. In **compliance mode** nobody can, the root user included, and the period can't be shortened. In **governance mode** a user with the `s3:BypassGovernanceRetention` permission can, which makes it right for testing and wrong for "anyone".
+
+  A legal hold has no date and is lifted by anyone with the permission to place one, so it protects until someone decides otherwise. Versioning keeps old versions when an object is overwritten, and lets a user with delete rights remove any version; Object Lock needs it switched on, but it is no lock.
+skills: [sealing-and-worm]

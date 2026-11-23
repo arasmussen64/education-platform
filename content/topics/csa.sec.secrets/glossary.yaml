@@ -1,0 +1,51 @@
+# The terms this topic teaches (ADR-0026). Where another topic's lesson
+# first uses one, the app shows its definition and links back here.
+# Module 4's plan (section 3.5) gives this topic secret, secret sprawl,
+# git's minimum, build secret, scanner rule, rotation, secret zero,
+# AppRole, seal, dynamic secret and lease. Some are entered as longer
+# phrases, because the short word already means something else in an
+# earlier lesson, where the app would mark it with this definition:
+# "commit" and "repository" alone, "rotation" (log rotation, Module 1),
+# "lease" (DHCP, Module 3) and "seal" (Applied cryptography's labs seal
+# orders).
+- term: secret
+  definition: "A value that gives access to whoever holds it: a password, an API key, a token, a private key. It is worth exactly as much as the number of places it can be read from is small."
+- term: secret sprawl
+  definition: "Copies of secrets spreading to places nobody tracks: repositories, images, logs, config files, chat. Each copy is one more place to leak from."
+- term: secrets manager
+  definition: "A service that stores secrets encrypted, hands each one only to callers its policy allows, and logs every read. OpenBao, AWS Secrets Manager, Azure Key Vault and Google Secret Manager are four."
+- term: git repository
+  definition: "A folder whose every saved state git keeps, with the whole history inside it. Each copy (a clone) holds all of it."
+- term: git commit
+  definition: "One saved state of every file in a repository, with an author, a date and a message. Later commits never change it, so a file deleted today is still in yesterday's commit."
+- term: pre-receive hook
+  definition: "A script on a git server that git runs for each push before accepting anything. If it exits with an error the push is refused, and the person pushing can't switch it off."
+- term: build secret
+  aliases: [secret mount]
+  definition: "A secret shown to one step of an image build as a file, for that step alone (`RUN --mount=type=secret`). It ends up in no layer and no history."
+- term: secret scanner
+  definition: "A tool that searches files and git history for secrets: by rules that know a key's format, and by a keyword next to a random-looking string. gitleaks and trufflehog are two."
+- term: entropy
+  definition: "A measure of how random a string looks. Secret scanners use it to tell a generated key from an ordinary word, which is why they miss passwords people choose."
+- term: push protection
+  definition: "A code host's own scan of each push, which refuses one that holds a secret it recognises. On GitHub it can be bypassed by giving a reason."
+- term: secret rotation
+  definition: "Replacing a secret with a new one and making the old one stop working. Done on a schedule to limit how long an unnoticed leak lasts, and at once after a known leak."
+- term: secret zero
+  definition: "The first credential a program needs before a secrets manager will give it any other. Stored beside the program, it is one static secret that opens all the rest."
+- term: AppRole
+  definition: "An OpenBao sign-in for programs: a RoleID that names the role and a SecretID that is the password, which can be limited to a number of uses and a lifetime."
+- term: response wrapping
+  definition: "Having OpenBao put an answer inside a single-use, short-lived token instead of returning it. Whoever unwraps it first gets the answer, so a failed unwrap means someone else did."
+- term: unseal key
+  definition: "The key a secrets manager must be given at each start before it can read its own encrypted store. Whoever holds it can open everything in the store."
+- term: auto-unseal
+  definition: "A secrets manager getting its unseal key by itself at start, by having a cloud key service unwrap it under the server's own platform identity."
+- term: dynamic secret
+  definition: "A credential a secrets manager makes on request, for one caller, with a lease: a lifetime after which the manager removes it. It can also be revoked early."
+- term: OpenBao Agent
+  definition: "OpenBao running beside a program as a helper: it signs in for the program, fetches its secrets, writes them to a file from a template, and replaces them before they expire."
+- term: podman
+  definition: "A tool that builds and runs container images with docker's commands and file formats, and needs no background service."
+- term: systemd credential
+  definition: "A secret systemd hands to one service as a file (`LoadCredential=`), readable by that service's user alone and not part of its environment."

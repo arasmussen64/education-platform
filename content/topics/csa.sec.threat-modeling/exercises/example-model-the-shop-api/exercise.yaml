@@ -1,0 +1,50 @@
+id: example-model-the-shop-api
+stage: worked_example
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Model the shop's order API"
+prompt: |
+  **Before your first threat-model lab.** A threat-model lab has no servers to fix. It is a small Linux machine with two files in your home folder, and the work is thinking written down:
+
+  - **`~/design.md`** describes a system as plain facts: its parts, its flows, what is already in place, and the scales to rate with. Read it with `less ~/design.md` (`q` leaves). It never says "this is weak": finding that is your job. Leave the file as it is.
+  - **`~/model.tm`** is the threat model you write, in the format the lesson showed: one fact a line (`zone`, `element`, `flow`, `threat`, `none`, `control`, `accept`, `top`, `attack`, the tree's lines, `abuse`, `test`). Edit it with `nano ~/model.tm`.
+
+  **`tm-check`** reads a model. `tm-check --help` prints the whole format and the kinds of control, so you never need to remember them. `tm-check PART ~/model.tm` prints `ok` or one sentence about what is still wrong. Six parts work by themselves, and you run them as you go: `reads` (every line is in the format, and if one isn't, which line and how it should be written), `stride` (every flow that crosses a boundary is reviewed for all six letters), `ranking` (the sums and the `top` line), `controls` (every threat is answered by a control that fits its letter), `tree` (the attack tree and its cheapest path) and `abuse` (every risk of 6 or more has an abuse case with a test). Those six check the form and the sums. Whether the model is right for *this* design (the parts, the zones, the weaknesses and their ratings) only the lab's checks can say, because they hold the design's answers, and they say it without naming the flow or the letter: you go back to the design and read it again. That goes for controls too. Run by you, `tm-check controls` knows only which kinds answer which letter, so it says `ok` to any kind that fits the letter. The lab's check asks more: does that kind stop *this* threat? A kind can fit the letter and still be something the design already has, or something this attacker walks straight past. Then the check says `a control is of a kind that doesn't answer its threat` where your own run said `ok`, and the thing to read again is the threat's sentence: what lets the attacker do it?
+
+  The lab is small: about 270 MB of disk, next to no memory, and nothing to wait for when it starts.
+
+  **This walkthrough** models the order API of the shop you have run since Module 1. `~/design.md` describes it: a customer, the API, its database, the payment company and the courier, with four flows. You will write the model in the order of the four questions: what are we working on (the zones, elements and flows), what can go wrong (STRIDE on every flow that crosses a boundary), what are we going to do about it (ranking, controls, an attack tree, an abuse case), and did we do a good enough job (the checks). Type each line yourself, or add the model's lines in nano, and read what `tm-check` says before you go on. A line can only use names that the lines above it define, so keep the order.
+steps:
+  - label: "Read the design and the format"
+    lines: "4-5"
+    note: "`cat` prints the design note; in the lab, `less ~/design.md` lets you page through it. Read the flows twice. Three sentences matter most, and none of them is labelled: customers sign in with a password and nothing else; the hook takes a report from any caller; the hook keeps no record. `tm-check --help` prints the format and the control kinds."
+  - label: "What are we working on: zones and elements"
+    lines: "6-17"
+    note: "Four zones, because four different organisations or networks are in the story: the internet (anyone), the shop's own network, the payment company and the courier company. A zone is one owner on one network. Each element is `external` (outside the shop's control: the customer, the payment company's API, the courier's servers), `process` (it decides or changes something: the API) or `store` (it keeps something until asked: the database). The API and its database share the shop's zone, since the shop runs both on one network. `tm-check reads` says `ok`: every line so far is in the format."
+  - label: "Where trust changes: the flows that cross"
+    lines: "18-24"
+    note: "Each flow is drawn from the side that starts the conversation: the courier calls the shop, so `f4` runs from `courier` to `shop-api`. The `awk` line reads the model in one pass: for an `element` line it remembers the element's zone (`zone[$2] = $4`), and for a `flow` line whose two ends have different zones it prints the flow and the two zones. It prints `f1: internet -> shop`, `f3: shop -> payments-co` and `f4: courier-co -> shop`. Those three cross a trust boundary and get a full review. `f2` stays inside the shop's zone and is not printed."
+  - label: "What can go wrong: STRIDE on the courier's hook"
+    lines: "25-30"
+    note: "Six letters on `f4`, one at a time. **S**poofing: the hook takes a report from any caller, so anyone can pretend to be the courier. That is `t1`: likelihood 3 (anyone on the internet, nothing needed first), impact 3 (any order number, so many customers), risk 9. **R**epudiation: the hook keeps no record, so the courier could deny a report. That is `t2`: likelihood 2 (it needs a place inside the courier), impact 1, risk 2. **T**, **I**, **D** and **E** have nothing to record, and the `none` line says why, from the design's \"Already in place\". Each threat reads \"A/An WHO can DO WHAT\". Then `tm-check stride` says `a flow that crosses a boundary hasn't been reviewed for all six letters`: `f1` and `f3` cross too."
+  - label: "The other two crossings"
+    lines: "31-36"
+    note: "`f1`: customers sign in with a password alone, so a password leaked from another site signs an attacker in as that customer: `t3`, spoofing, likelihood 2 (it needs one customer's password first), impact 2 (one customer), risk 4. The other five letters are `none`, with the reasons the design gives. `f3` is `none` for all six: the payment company's certificate proves it to the shop, the key travels inside HTTPS, and no card number passes through. A `none` line is a recorded review, not a skipped one: someone looked, and wrote why. Now `tm-check stride` says `ok`."
+  - label: "Rank"
+    lines: "37-40"
+    note: "Risk is likelihood times impact: 9, 2 and 4. `top` lists every risk of 6 or more, highest first. Here that is `t1` alone. `tm-check ranking` checks every product and the `top` line."
+  - label: "What are we going to do: controls, and one that doesn't fit"
+    lines: "41-48"
+    note: "The first try answers the forged report with `tls`. `tm-check controls` refuses it: `a control is of a kind that doesn't answer its threat`. TLS is already there, and it proves the server to the caller and hides the traffic; it says nothing about who the caller is, so the stranger's report arrives over perfectly good HTTPS. Spoofing is answered by something that proves the sender: `signing` (check each report's signature with the secret the shop and the courier share), which `sed -i` puts in place of the `tls` line. `t2` is low, so it may be accepted, with a reason. `t3` gets `mfa`. Then `tm-check controls` says `ok`."
+  - label: "Name the technique"
+    lines: "49-52"
+    note: "MITRE ATT&CK's names for what an attacker would do, version 20.1: `T1190`, Exploit Public-Facing Application, for the hook that trusts any caller, and `T1110.004`, Credential Stuffing (a sub-technique of Brute Force), for trying passwords leaked elsewhere."
+  - label: "An attack tree for the worst risk"
+    lines: "53-62"
+    note: "The goal is `t1`'s: cancel other customers' deliveries. Three ways sit under it, and a goal takes the cheapest of them, as an `or` node does: post a made-up report from anywhere (5), or get inside the courier (an `and` node: phish an employee, 300, **and** find the sending server, 100, so 400), or bribe a shop administrator (2000). The cheapest path is 5. The numbers are rough costs to the attacker in dollars; what matters is their order. Once signing is on, the first leaf is gone and the cheapest path costs 400: eighty times more, and it needs a crime against the courier first."
+  - label: "An abuse case and its test"
+    lines: "63-68"
+    note: "The threat told as a story in the attacker's voice (`As a ..., I ... so that ...`), with a test the team can run and keep: an unsigned report gets `401` and changes nothing. `tm-check abuse` checks that every risk of 6 or more has one. The last line reads the whole model once more; then run the checks, which compare it with the design."
+skills: [draw-the-system, stride, rank-risks, respond-to-risk, attack-trees, attack-and-abuse]

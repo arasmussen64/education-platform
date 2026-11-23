@@ -1,0 +1,24 @@
+id: est-unused-count
+type: estimate
+rev: 1
+# A constructed count (the plan, MODULE-4-BRIEF.md, section 5): it doesn't
+# depend on how many permissions a real basic role holds on any day.
+prompt: |
+  A service account holds a broad role with 1840 permissions (a made-up count for this question). The cloud's role recommender reports that the account used 14 of them in its observation period. The team that owns the service knows of 3 more that its yearly archive job needs, which the period didn't see. A custom role with exactly what the service needs replaces the broad one. How many permissions does the service lose? Exactly.
+unit: permissions
+answer: 1823
+tolerance: { absolute: 0 }
+given: { held: 1840, used: 14, rare: 3 }
+working: held - used - rare
+mistakes:
+  - id: rare-forgotten
+    value: 1826
+    working: held - used
+    why: That cuts everything the recommender didn't see, the yearly job's 3 permissions among them. The job would fail the next time it ran.
+  - id: kept-not-lost
+    value: 17
+    working: used + rare
+    why: That's how many permissions the custom role keeps. The question asks how many are lost.
+explanation: |
+  The custom role keeps 14 + 3 = 17 permissions, so 1840 - 17 = 1823 go. More than 99% of what the account could do, it never needed. The 3 are the part no tool could have told you: the recommender reports what happened in its period, and the people who own the service know what it is for.
+skills: [least-privilege]

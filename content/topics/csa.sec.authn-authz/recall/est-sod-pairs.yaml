@@ -1,0 +1,22 @@
+id: est-sod-pairs
+type: estimate
+rev: 1
+prompt: |
+  A finance system has 12 roles. To find the pairs of roles that one person should never hold together, a reviewer looks at every pair of different roles once. How many pairs is that? Exactly.
+unit: pairs
+answer: 66
+tolerance: { absolute: 0 }
+given: { roles: 12 }
+working: roles * (roles - 1) / 2
+mistakes:
+  - id: counted-twice
+    value: 132
+    working: roles * (roles - 1)
+    why: That counts "requester with approver" and "approver with requester" as two pairs. They're the same pair, so halve it.
+  - id: squared
+    value: 144
+    working: roles * roles
+    why: That pairs every role with every role, itself included, and counts each pair twice.
+explanation: |
+  Each of the 12 roles can be paired with 11 others, which counts every pair twice: 12 × 11 / 2 = 66. The number grows fast (20 roles give 190 pairs), which is one reason to keep roles few, and to write the conflicts that matter as rules a machine checks on every request instead of a table a person reviews once a year.
+skills: [separation-of-duties]

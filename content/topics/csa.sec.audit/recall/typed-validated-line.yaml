@@ -1,0 +1,22 @@
+id: typed-validated-line
+type: typed
+rev: 1
+prompt: |
+  A sealed journal and a careful forgery of it both come through the check with `PASS`. The real one prints one more line, starting `=>`, that names the time range the key vouches for. What is that line's first word after the arrow?
+kind: text
+answers:
+  - Validated
+  - Validated from
+mistakes:
+  - id: sealed
+    answers: [Sealed]
+    why: "SEALED is a flag in the file's header, which --header shows. The line the check prints begins with another word."
+  - id: verified
+    answers: [Verified, Verify]
+    why: "Close: the option is --verify, but the line it prints for a sealed file begins with a different word."
+  - id: pass
+    answers: [PASS]
+    why: "PASS is the line both files print, and it only means the file is well formed. The proof is the line after it."
+explanation: |
+  **Validated**: `=> Validated from Mon 2026-11-23 03:34:17 UTC to Mon 2026-11-23 03:34:40 UTC, final 0 entries not sealed.` Only the sealing key can make the seals behind that line, so a file written again without it passes with no such line. Look for the range, and check that it covers the time you care about.
+skills: [sealing-and-worm]

@@ -1,0 +1,25 @@
+id: est-event-history-gap
+type: estimate
+rev: 1
+prompt: |
+  On 12 November an investigation needs every AWS management event since 1 June, which is 164 days back. The account never had a trail: there is only CloudTrail's event history. How many of those 164 days are missing? Exactly.
+unit: days
+answer: 74
+tolerance: { absolute: 0 }
+given: { window: 164 }
+# Event history keeps 90 days, which the learner knows.
+working: window - 90
+mistakes:
+  - id: the-history
+    value: 90
+    working: "90"
+    why: That is how many days event history holds. The question is how many of the 164 days it no longer holds.
+  - id: nothing-kept
+    value: 164
+    working: window
+    why: Event history is on from the day the account is made, with no setup, so the newest 90 days are there.
+explanation: |
+  Event history keeps the last 90 days of management events and nothing older, so of 164 days, 164 − 90 = 74 are gone, and nothing brings them back.
+
+  An account that must answer questions about last summer needs a trail (or a CloudTrail Lake event data store) delivering events to storage it keeps for as long as its rules say. The time to set that up is before the question is asked.
+skills: [retention, cloud-audit-trails]

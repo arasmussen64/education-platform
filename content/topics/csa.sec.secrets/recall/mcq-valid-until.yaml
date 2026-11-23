@@ -1,0 +1,24 @@
+id: mcq-valid-until
+type: mcq
+rev: 1
+prompt: |
+  OpenBao made a database account for a request to `database/creds/report`, with a lease of 10 minutes. The database's own list, captured in the lab on 2026-11-23:
+
+  ```
+                        rolname                      |     rolvaliduntil
+  ---------------------------------------------------+------------------------
+   v-token-le-report-yW7dDR7lNUdnbNmjYl2E-1795410928 | 2026-11-23 05:25:33+00
+  ```
+
+  The lease is never renewed. What happens to the account?
+choices:
+  - "Its password stops working at that time, and OpenBao then drops the account"
+  - "PostgreSQL deletes the account and every row it ever wrote at that time"
+  - "Nothing: the time is a note for administrators, and the account stays"
+  - "The account keeps working until the database is next restarted"
+answer: 0
+explanation: |
+  Two things end it, and either would do. The role's SQL made the account with `VALID UNTIL` the lease's end, so from that moment the database itself refuses the password. And OpenBao keeps the lease: when it ends, OpenBao connects with its admin account and drops the account. In the lab the account was gone seconds after its lease ended, and after `bao lease revoke -prefix database/creds/report` it was gone at once: `password authentication failed`.
+
+  Nothing the account wrote is deleted: rows belong to tables, not to the account that inserted them. The name is worth reading too: `v-`, then who asked (`token-le` is the start of the token's name, `token-learner`), then the role. In the database's logs, every statement names the workload that ran it.
+skills: [dynamic-secrets]

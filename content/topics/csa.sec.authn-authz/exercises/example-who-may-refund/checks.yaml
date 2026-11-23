@@ -1,0 +1,41 @@
+# Each rule check asks the learner's policies about requests the policy
+# base's check library makes up as the check runs
+# (/usr/local/lib/lab-checks/shop-cases): new names for every person, store
+# and order, every role, both sides of the refund limit.
+checks:
+  - id: validates
+    description: "cedar validate accepts the policies against the shop's schema."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases validates
+    expect:
+      equals: ok
+  - id: view-rules
+    description: "Support staff, supervisors among them, can view the orders of their own store, and nobody else can view anything."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases view
+    expect:
+      equals: ok
+  - id: refund-rules
+    description: "Support staff can refund an order of their own store of 100 or less, and nothing over."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases refund
+    expect:
+      equals: ok
+  - id: forbid-rules
+    description: "Nobody can refund an order they handled, or refund in a session without MFA."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases forbid
+    expect:
+      equals: ok
+  - id: default-deny
+    description: "What no rule allows is denied."
+    timeout: 10
+    command: /usr/local/lib/lab-checks/shop-cases default-deny
+    expect:
+      equals: ok
+  - id: shop-untouched
+    description: "The shop's schema, entities.json and Alice's session are as they were."
+    timeout: 10
+    command: sha256sum -c --status /usr/local/lib/lab-checks/shop.sha256 && echo same
+    expect:
+      equals: same

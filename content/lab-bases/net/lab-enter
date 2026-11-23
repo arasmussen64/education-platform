@@ -64,17 +64,27 @@ exec 9>&-
 # Python's time.sleep (the identity-lab base's README, "Clocks"). A machine
 # without the file, or an image without the library, is left exactly as it
 # was: that is every lab on this base alone.
+#
+# A program that must read the real time even there (the identity base's
+# time sync, which is what sets the machine's clock) is started with
+# NETLAB_REAL_CLOCK=1 and gets no libfaketime at all.
 faketime=/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1
-if [[ -e /etc/netns/$m/faketimerc && -e $faketime ]]; then
-  # libfaketime leaves two small files in /dev/shm for every command started
-  # here (faketime_shm_PID and sem.faketime_sem_PID, 8 kB between them), and
-  # stops working when /dev/shm is full (64 MB: some 8,000 commands). So the
-  # ones whose process is gone, and has been for an hour, are removed here.
-  # (An hour, because a process's children go on using its two files.)
-  for f in $(find /dev/shm -maxdepth 1 -name 'faketime_shm_*' -mmin +60 2> /dev/null); do
-    [[ -e /proc/${f##*_} ]] || rm -f "$f" "/dev/shm/sem.faketime_sem_${f##*_}"
-  done
-  export LD_PRELOAD=$faketime
+unset FAKETIME_SHARED
+if [[ -n ${NETLAB_REAL_CLOCK:-} ]]; then unset LD_PRELOAD; fi
+if [[ -e /etc/netns/$m/faketimerc && -e $faketime && -z ${NETLAB_REAL_CLOCK:-} ]]; then
+  # libfaketime 0.9.10 would also keep a semaphore and a shared-memory file
+  # in /dev/shm for every command, name them in FAKETIME_SHARED (unset
+  # above, in case this was started from a program that had one) and stop
+  # any program that can neither open them nor make its own. On GitHub's
+  # runner that stopped every command on such a machine. A fixed offset
+  # doesn't need them, so the identity base's faketime-noshm, loaded just
+  # before the library, makes it do without (its source says how).
+  noshm=/usr/local/lib/idlab/faketime-noshm.so
+  if [[ -e $noshm ]]; then
+    export LD_PRELOAD="$noshm $faketime"
+  else
+    export LD_PRELOAD=$faketime
+  fi
   export FAKETIME_CACHE_DURATION=1 DONT_FAKE_MONOTONIC=1 FAKETIME_DONT_FAKE_MONOTONIC=1
 fi
 

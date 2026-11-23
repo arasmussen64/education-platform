@@ -1,0 +1,271 @@
+#!/usr/bin/python3
+"""triage-cases: tries ~/bin/triage on a week of findings made up as it runs.
+
+    triage-cases kev | epss | cvss | missing
+
+Each run makes its own three files (the findings, an EPSS file and a KEV
+file in the real files' shapes, with rows that have nothing to do with the
+findings), runs the learner's script on them as the learner, and compares
+what it printed with the order worked out here. It prints "right", or one
+sentence about the first thing that is wrong. The four words choose which
+part of the answer is judged, so that one mistake fails one check:
+
+    kev      every line's last field, and the KEV entries before the rest
+    epss     every line's EPSS, and each group in order of EPSS
+    cvss     the whole order, where CVSS and then the CVE settle the ties
+    missing  the findings that have no line in the EPSS file
+
+The made-up week always holds what a wrong order needs to show: a KEV entry
+with a lower EPSS than a finding that isn't in KEV, findings with the same
+EPSS and different CVSS (10.0 beside 9.x among them, which sorting as text
+gets wrong), findings alike in all three, and two with no EPSS at all.
+"""
+
+import random
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+SCRIPT = "/home/learner/bin/triage"
+PACKAGES = [
+    "nginx",
+    "curl",
+    "openssl",
+    "bash",
+    "zlib",
+    "python3",
+    "tar",
+    "vim",
+    "glibc",
+    "expat",
+]
+
+
+def cve(rng: random.Random, used: set[str]) -> str:
+    while True:
+        name = f"CVE-{rng.randint(2019, 2026)}-{rng.randint(10000, 99999)}"
+        if name not in used:
+            used.add(name)
+            return name
+
+
+def make(rng: random.Random) -> tuple[list[dict], dict[str, str], set[str], list[str]]:
+    """The findings, the EPSS scores (as text), the KEV set, unrelated CVEs."""
+    used: set[str] = set()
+    findings: list[dict] = []
+
+    def add(cvss: str, epss: str | None, kev: bool, name: str | None = None) -> None:
+        findings.append(
+            {
+                "cve": name or cve(rng, used),
+                "package": rng.choice(PACKAGES),
+                "cvss": cvss,
+                "epss": epss,
+                "kev": kev,
+            }
+        )
+
+    def pair() -> tuple[str, str]:
+        """Two new CVEs, the one that sorts first as text first."""
+        a, b = sorted([cve(rng, used), cve(rng, used)])
+        return a, b
+
+    def score() -> str:
+        return f"{rng.uniform(0.0002, 0.98):.5f}".rstrip("0")
+
+    def severity() -> str:
+        return f"{rng.randint(20, 98) / 10:.1f}"
+
+    # A KEV entry with a low EPSS, and a finding outside KEV with a high one.
+    add(severity(), f"0.0{rng.randint(1000, 4999)}", True)
+    add(severity(), f"0.9{rng.randint(1000, 8999)}", False)
+    # The same EPSS, different CVSS: 10.0 beside 9.x, and 7.x beside 8.x. In
+    # each pair the higher CVSS has the CVE that sorts later, so an order
+    # that falls back on the CVE too early gets the pair the wrong way round.
+    tied = f"0.{rng.randint(20000, 60000)}"
+    first, later = pair()
+    add("10.0", tied, False, later)
+    add(f"9.{rng.randint(0, 8)}", tied, False, first)
+    tied = f"0.{rng.randint(61000, 89000)}"
+    first, later = pair()
+    add(f"7.{rng.randint(0, 9)}", tied, True, first)
+    add(f"8.{rng.randint(0, 9)}", tied, True, later)
+    # Alike in all three: only the CVE can order them.
+    tied, same = f"0.00{rng.randint(100, 999)}", severity()
+    add(same, tied, False)
+    add(same, tied, False)
+    # No line in the EPSS file: one of them in KEV.
+    add(severity(), None, False)
+    add(severity(), None, True)
+    for _ in range(rng.randint(4, 18)):
+        add(severity(), score(), rng.random() < 0.3)
+    rng.shuffle(findings)
+    epss = {f["cve"]: f["epss"] for f in findings if f["epss"] is not None}
+    kev = {f["cve"] for f in findings if f["kev"]}
+    others = [cve(rng, used) for _ in range(rng.randint(15, 30))]
+    for name in others:
+        epss[name] = score()
+    kev.update(rng.sample(others, 6))
+    return findings, epss, kev, others
+
+
+def expected(findings: list[dict]) -> list[list[str]]:
+    def key(f: dict) -> tuple:
+        return (not f["kev"], -float(f["epss"] or 0), -float(f["cvss"]), f["cve"])
+
+    return [
+        [
+            f["cve"],
+            f["package"],
+            f["cvss"],
+            f["epss"] or "0",
+            "yes" if f["kev"] else "no",
+        ]
+        for f in sorted(findings, key=key)
+    ]
+
+
+def write(
+    folder: Path,
+    findings: list[dict],
+    epss: dict[str, str],
+    kev: set[str],
+    rng: random.Random,
+) -> None:
+    lines = [
+        "\t".join([f["cve"], f["package"], "1.0-1", "1.0-2", f["cvss"]])
+        for f in findings
+    ]
+    (folder / "findings.tsv").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8", newline="\n"
+    )
+    rows = sorted(epss.items())
+    body = [f"{name},{value},{rng.uniform(0.01, 0.99):.5f}" for name, value in rows]
+    head = [
+        "#model_version:v2026.06.15,score_date:2026-11-10T12:00:24Z",
+        "cve,epss,percentile",
+    ]
+    (folder / "epss.csv").write_text(
+        "\n".join(head + body) + "\n", encoding="utf-8", newline="\n"
+    )
+    head = [
+        "cveID,vendorProject,product,dateAdded,dueDate,"
+        "knownRansomwareCampaignUse,forensicTriage"
+    ]
+    body = []
+    for name in sorted(kev):
+        added = f"2026-0{rng.randint(1, 9)}-1{rng.randint(0, 9)}"
+        body.append(f"{name},Vendor,Product,{added},2026-10-01,Unknown,No")
+    rng.shuffle(body)
+    (folder / "kev.csv").write_text(
+        "\n".join(head + body) + "\n", encoding="utf-8", newline="\n"
+    )
+
+
+def is_zero(text: str) -> bool:
+    try:
+        return float(text) == 0
+    except ValueError:
+        return False
+
+
+def judge(mode: str, got: list[list[str]], want: list[list[str]]) -> str:
+    if len(got) != len(want):
+        return f"for {len(want)} findings triage printed {len(got)} lines"
+    for number, fields in enumerate(got, 1):
+        if len(fields) != 5:
+            return f"line {number} has {len(fields)} tab-separated fields, not 5"
+    by_cve = {row[0]: row for row in want}
+    if {row[0] for row in got} != set(by_cve):
+        return "the lines printed aren't this week's findings, one line each"
+    for row in got:
+        if row[1:3] != by_cve[row[0]][1:3]:
+            return f"{row[0]}: the package or the CVSS isn't the finding's"
+    if mode == "kev":
+        for row in got:
+            if row[4] != by_cve[row[0]][4]:
+                listed = "in" if by_cve[row[0]][4] == "yes" else "not in"
+                said = f"its last field says {row[4]}"
+                return f"{row[0]} is {listed} the KEV file, and {said}"
+        flags = [row[4] for row in got]
+        if flags != sorted(flags, reverse=True):
+            return "a finding that isn't in KEV is printed above one that is"
+    elif mode == "missing":
+        for row in got:
+            if by_cve[row[0]][3] == "0" and not is_zero(row[3]):
+                said = f'its EPSS field says "{row[3]}"'
+                return f"{row[0]} has no line in the EPSS file, and {said}"
+        where = {row[0]: n for n, row in enumerate(got)}
+        for a in want:
+            for b in want:
+                if (
+                    a[4] == b[4]
+                    and a[3] == "0"
+                    and b[3] != "0"
+                    and where[a[0]] < where[b[0]]
+                ):
+                    return (
+                        "a finding with no EPSS at all is printed above one "
+                        "with a score, in the same group"
+                    )
+    elif mode == "epss":
+        for row in got:
+            if by_cve[row[0]][3] != "0" and row[3] != by_cve[row[0]][3]:
+                real = by_cve[row[0]][3]
+                return f"{row[0]}: the EPSS printed is {row[3]}, the file says {real}"
+        for above, below in zip(got, got[1:], strict=False):
+            upper, lower = by_cve[above[0]][3], by_cve[below[0]][3]
+            if above[4] == below[4] and float(upper) < float(lower):
+                first = f"{above[0]} (EPSS {upper})"
+                second = f"{below[0]} (EPSS {lower})"
+                return f"{first} is printed above {second}, in the same group"
+    elif mode == "cvss":
+        for position, (have, need) in enumerate(zip(got, want, strict=True), 1):
+            if have[0] != need[0]:
+                real = by_cve[have[0]]
+                wanted = f"{need[0]} (CVSS {need[2]}, EPSS {need[3]}, KEV {need[4]})"
+                printed = f"{real[0]} (CVSS {real[2]}, EPSS {real[3]}, KEV {real[4]})"
+                return f"line {position} should be {wanted}, not {printed}"
+    return "right"
+
+
+def main() -> None:
+    mode = sys.argv[1] if len(sys.argv) == 2 else ""
+    if mode not in ("kev", "epss", "cvss", "missing"):
+        sys.exit(__doc__)
+    if not Path(SCRIPT).is_file():
+        print("there is no ~/bin/triage")
+        return
+    rng = random.Random()
+    folder = Path(tempfile.mkdtemp(prefix="triage-"))
+    try:
+        folder.chmod(0o755)
+        findings, epss, kev, _others = make(rng)
+        write(folder, findings, epss, kev, rng)
+        files = [str(folder / name) for name in ("findings.tsv", "epss.csv", "kev.csv")]
+        try:
+            ran = subprocess.run(
+                ["sudo", "-u", "learner", "env", "LC_ALL=C", SCRIPT, *files],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            print("triage didn't finish in 15 seconds")
+            return
+        if ran.returncode != 0:
+            said = (ran.stderr.strip() or ran.stdout.strip()).splitlines()
+            last = said[-1] if said else "no message"
+            print(f"triage stopped with exit status {ran.returncode}: {last}")
+            return
+        got = [line.split("\t") for line in ran.stdout.splitlines() if line.strip()]
+        print(judge(mode, got, expected(findings)))
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()

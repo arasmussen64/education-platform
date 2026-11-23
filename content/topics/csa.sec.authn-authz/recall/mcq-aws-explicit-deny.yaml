@@ -1,0 +1,16 @@
+id: mcq-aws-explicit-deny
+type: mcq
+rev: 1
+prompt: |
+  In one AWS account, the policy attached to an IAM role allows `s3:GetObject` on a bucket. The bucket's own policy has a statement that denies `s3:GetObject` to that same role. The role asks for an object. What does AWS decide?
+choices:
+  - "Denied: an explicit deny in either policy overrides the allow"
+  - "Allowed: inside one account, the policy on the identity is the one that counts"
+  - "Allowed: the two policies are added together, and the sum includes the allow"
+  - "Denied, but only because the more specific of two statements always wins"
+answer: 0
+explanation: |
+  Inside one account AWS adds an identity's policies and the resource's policy together: an action is allowed if either allows it (a union). But an **explicit deny** anywhere beats every allow, as Cedar's `forbid` does. So the answer is denied, whichever policy the deny is written in.
+
+  "Added together" is half the rule, and the half that misleads: the union is of allows, and a deny isn't outvoted. Nor does AWS weigh how specific a statement is: one deny that matches is enough.
+skills: [cloud-policy-models]

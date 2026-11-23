@@ -1,0 +1,20 @@
+id: mask-card
+type: predict_shell
+rev: 1
+prompt: |
+  `trail.txt` holds three lines from an application's log, in the shape of the shop's audit trail. Two of them carry a whole card number, which should never have been written. The command rewrites every line with `sed`, keeps the card updates, and prints their third and fourth words. What is printed?
+files:
+  trail.txt: |
+    time=2026-11-23T03:34:15Z event=refund actor=ana order=42 amount=19.99 src=203.0.113.9 outcome=ok
+    time=2026-11-23T03:34:16Z event=card.update user=ana card=4111111111111111 src=203.0.113.9 outcome=ok
+    time=2026-11-23T03:35:02Z event=card.update user=ben card=5555555555554444 src=198.51.100.7 outcome=ok
+command: |
+  sed -E 's/card=[0-9]{12}([0-9]{4})/card=************\1/' trail.txt | grep card.update | cut -d' ' -f3,4
+expected_output: |
+  user=ana card=************1111
+  user=ben card=************4444
+explanation: |
+  `-E` lets the pattern count: `[0-9]{12}` is twelve digits, and `([0-9]{4})` is four more, in brackets so that `\1` in the replacement can put them back. So each 16-digit number becomes twelve stars and its own last four digits. The refund line has no `card=` and passes through unchanged; `grep` then drops it, and `cut` keeps the third and fourth space-separated words.
+
+  That is **masking**: the line still says which card (the last four digits are what a receipt shows), and nobody who reads the log can charge it. The shop's audit writer does the same before a line is ever written, which is the right place: a filter run afterwards, like this one, leaves the whole number in the file it read from.
+skills: [what-to-log]

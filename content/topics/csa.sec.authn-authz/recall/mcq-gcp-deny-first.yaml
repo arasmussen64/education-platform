@@ -1,0 +1,16 @@
+id: mcq-gcp-deny-first
+type: mcq
+rev: 1
+prompt: |
+  A Google Cloud organization has a deny policy that denies deleting storage buckets to everyone. In one of its projects, Dev is granted Storage Admin, a role that includes deleting buckets. Dev tries to delete a bucket in that project. What happens?
+choices:
+  - "Denied: deny policies are checked before allow policies, and are inherited too"
+  - "Allowed: the grant on the project is closer to the bucket than the deny is"
+  - "Allowed: a role granted by name outranks a policy written for everyone"
+  - "Denied, but only until the project's owner writes an allow policy over it"
+answer: 0
+explanation: |
+  Google's rule: "IAM always checks relevant deny policies before checking relevant allow policies." A deny policy set on the organization is inherited by every folder and project under it, exactly as allow policies are, so it applies to Dev's project, and the check ends there. The Storage Admin grant is never reached.
+
+  Distance from the resource doesn't matter and neither does who the policy names. And no allow policy can write over a deny: the deny has to be changed, or Dev added to its list of exceptions, by whoever controls it at the organization.
+skills: [cloud-policy-models]

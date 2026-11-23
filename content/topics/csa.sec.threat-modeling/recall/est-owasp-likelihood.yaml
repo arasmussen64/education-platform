@@ -1,0 +1,25 @@
+id: est-owasp-likelihood
+type: estimate
+rev: 1
+prompt: |
+  OWASP's risk rating method scores each likelihood factor from 0 to 9 and takes the average of all eight. A team scores the four threat-agent factors as skill 6, motive 9, opportunity 7 and size 9, and the four vulnerability factors as ease of discovery 7, ease of exploit 5, awareness 6 and intrusion detection 9. What is the likelihood? Within 0.05.
+unit: out of 9
+answer: 7.25
+tolerance: { absolute: 0.05 }
+given: { skill: 6, motive: 9, opportunity: 7, size: 9, discovery: 7, exploit: 5, awareness: 6, detection: 9 }
+# The 8 is "all eight", written as a word in the prompt.
+working: (skill + motive + opportunity + size + discovery + exploit + awareness + detection) / 8
+mistakes:
+  - id: threat-agent-only
+    value: 7.75
+    working: (skill + motive + opportunity + size) / 4
+    why: "That averages the four threat-agent factors alone. The likelihood is the average of all eight."
+  - id: two-averages-added
+    value: 14.5
+    working: (skill + motive + opportunity + size) / 4 + (discovery + exploit + awareness + detection) / 4
+    why: "That adds the two groups' averages. A likelihood can't pass 9: average all eight scores together."
+explanation: |
+  The eight scores add up to 58, and 58 / 8 = 7.25. On OWASP's bands (below 3 is LOW, from 3 to below 6 MEDIUM, from 6 to 9 HIGH) that is a HIGH likelihood. The method does the same for eight impact factors, then reads the overall severity from a table: HIGH likelihood with HIGH impact is Critical.
+
+  It is the same idea as a 1-to-3 scale, likelihood and impact from stated factors, with more steps. More steps make a rating easier to defend, and no more exact: each score is still a judgement.
+skills: [rank-risks]

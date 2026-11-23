@@ -1,0 +1,50 @@
+id: write-chain-verify
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Verify the chain"
+prompt: |
+  The shop's audit log is chained with `chain-add`, the script you finished in the last lab (it's installed here; `cat /usr/local/bin/chain-add` shows it). Every line is a hash, one space, and a record, and the hash is the SHA-256 of the line before's hash, a space and this line's record; the first line uses 64 zeros as its line before's hash. Each week the auditors copy down the last line's hash and keep it where the shop's admins can't reach: the **anchor**.
+
+  From a blank file, write `~/bin/chain-verify`, a bash script run as `chain-verify LOG ANCHOR`. It prints exactly one line:
+
+  - `ok N`, and exits 0, when every line's hash is right and the last line's hash equals ANCHOR. N is the number of lines.
+  - `broken at line K`, and exits 1, when some line's hash isn't the SHA-256 of the line before's hash, a space and its record. K is the first such line, counting from 1.
+  - `anchor mismatch`, and exits 1, when every line's hash is right but the last one isn't ANCHOR. A log with no lines left in it is this case too: no line is wrong, and the log doesn't end where the auditors saw it end.
+
+  The pieces:
+
+  - **Reading a file a line at a time.** `while IFS= read -r line; do ... done < "$log"` runs the loop's body once for each line, with the line in `$line`. The worked example showed what the two extras are for: `IFS=` keeps the spaces at a line's ends, and `-r` keeps backslashes. A record must be hashed exactly as it was written.
+  - **Splitting a line at its first space.** `${line%% *}` is the line with everything from the first space on taken off: the hash. `${line#* }` is the line with everything up to the first space taken off: the record, whatever spaces it holds itself.
+  - **The hash to compare with.** As in `chain-add`: `printf '%s %s' "$prev" "$record" | sha256sum | cut -d' ' -f1`.
+  - **Counting.** `n=$((n + 1))`. `exit 1` ends the script with status 1.
+
+  Make the file with `nano ~/bin/chain-verify`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/chain-verify`.
+
+  `~/audit` has five logs to try it on, and the auditors' anchor in `shop.anchor`. With a right script,
+
+  ```
+  cd ~/audit
+  for log in shop edited deleted cut rewritten; do ~/bin/chain-verify "$log.log" "$(cat shop.anchor)"; done
+  ```
+
+  prints
+
+  ```
+  ok 12
+  broken at line 5
+  broken at line 7
+  anchor mismatch
+  anchor mismatch
+  ```
+
+  `shop.log` is the log as the auditors saw it. In `edited.log` someone changed an amount on line 5. In `deleted.log` line 7 is gone, so the line that is now seventh doesn't fit the one before it. `cut.log` has lost its last two lines, and every line that is left still fits: only the anchor shows it. In `rewritten.log` someone changed line 9 and worked out every hash from there on again with `chain-add`, so every line fits there too. `diff shop.log rewritten.log` shows what that took.
+
+  The checks make logs of their own as they run, 10 to 39 lines long, and tamper with them in these ways, by swapping two lines, and by emptying the log. Every one of their logs has records with a `%`, backslashes, a `$`, quotes, a tab, runs of spaces, and spaces at the very end.
+hints:
+  - "Keep two things as you go down the log: `prev`, the hash written on the line before (64 zeros to start with: `prev=$(printf '%064d' 0)`), and `n`, the line's number. For each line, split it, work out what its hash should be from `prev` and its record, and compare with `[ \"$hash\" != \"$want\" ]`."
+  - "On the first line that doesn't fit: `echo \"broken at line $n\"` and `exit 1`, inside the loop. Otherwise set `prev=$hash` and carry on. After `done`, every line has passed: now compare `$prev` with `$anchor`."
+  - "If `shop.log` itself comes out as broken at line 6, the script is losing the backslashes in that record: `read` needs `-r`. If every log is broken at line 1, look for a line break being hashed (`echo` adds one, `printf '%s %s'` doesn't)."
+skills: [hash-chains]

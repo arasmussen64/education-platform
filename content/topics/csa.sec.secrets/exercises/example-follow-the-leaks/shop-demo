@@ -1,0 +1,14 @@
+#!/bin/bash
+# shop-demo --api-key=KEY: a demo of the shop's export job. Every 20
+# seconds it charges a test order at the payment gateway and logs what it
+# did, at debug level. Scenery: don't change it.
+key=${1#--api-key=}
+n=0
+while true; do
+  n=$((n + 1))
+  echo "DEBUG POST /charges order=demo-$n Authorization: Bearer $key"
+  answer=$(printf 'Authorization: Bearer %s' "$key" \
+    | curl -sS -m 5 -H @- -d "order=demo-$n" http://127.0.0.1:9440/charges 2>&1)
+  echo "INFO the gateway answered: $answer"
+  sleep 20
+done

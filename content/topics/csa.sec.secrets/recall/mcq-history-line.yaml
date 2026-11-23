@@ -1,0 +1,27 @@
+id: mcq-history-line
+type: mcq
+rev: 1
+prompt: |
+  `sudo podman history --no-trunc --format '{{.CreatedBy}}' shop-export:1`, captured in this topic's first lab on 2026-11-23, with the key's digits replaced and one long name shortened:
+
+  ```
+  /bin/sh -c #(nop) CMD ["/bin/sh", "-c", "echo $GREETING from the export image"]
+  |1 PAYGATE_KEY=pg_live_... /bin/sh -c echo "checked the gateway with $PAYGATE_KEY" > /opt/checked.txt && rm /tmp/deploy.token
+  /bin/sh -c #(nop) COPY file:7ec34014... in /tmp/deploy.token
+  /bin/sh -c #(nop) ENV GREETING=hello
+  /bin/sh -c #(nop) ARG PAYGATE_KEY
+  /bin/sh -c #(nop) ADD file:d8d0dc95... in /
+  ```
+
+  The image was built with `--build-arg PAYGATE_KEY=...`. Where in this history is the key's value?
+choices:
+  - "In the `RUN` step's line, which starts `|1 PAYGATE_KEY=`"
+  - "Nowhere: build arguments are dropped when the build ends"
+  - "In the `ARG PAYGATE_KEY` line, which declares the argument"
+  - "In the `ENV GREETING=hello` line, where variables are kept"
+answer: 0
+explanation: |
+  A build argument is handed to every later `RUN` step as a variable, and the history records each such step with its arguments in front: `|1` means one build argument, then `NAME=value`, then the command. So the value is in the image's history for everyone who has the image, and `docker history` shows the same. The `ARG` line only declares the name. `ENV` lines hold their own values (`GREETING=hello`), which also stay in the image's settings, so a secret in `ENV` is no better.
+
+  Docker's own documentation says build arguments and environment variables are "inappropriate for passing secrets to your build". The tool for that job is a secret mount: `RUN --mount=type=secret,id=NAME ...` with `--secret id=NAME,src=FILE` on the build command.
+skills: [keep-secrets-out]

@@ -1,0 +1,16 @@
+id: mcq-env-in-unit
+type: mcq
+rev: 1
+prompt: |
+  A service's unit had its API key on the command line: `ExecStart=/usr/local/bin/shop-export --api-key pg_live_...`. To fix that, a colleague moves the key into the unit as `Environment=PAYGATE_KEY=pg_live_...`, with `ExecStart=/usr/local/bin/shop-export --api-key ${PAYGATE_KEY}`. Who can read the key now?
+choices:
+  - "Every user, as before: `systemctl show` and `ps` both print it"
+  - "Only root: systemd keeps `Environment=` values to itself"
+  - "Only the service's own user and root, by reading `/proc/PID/environ`"
+  - "Nobody: systemd encrypts `Environment=` values in unit files"
+answer: 0
+explanation: |
+  Nothing got better. systemd puts the value back on the command line before it starts the program, so `ps` shows it as before. And now the key is in a second public place: unit files are readable by every user, and `systemctl show shop-export -p Environment` printed the whole line for an account with no rights in the lab. systemd's own documentation says a value set in a unit file is only for things that aren't sensitive, for that reason.
+
+  What works: the program reads the key from a file that only its user can read (`--api-key-file`, mode `0400`), or, on a real server, from a systemd credential (`LoadCredential=`), which is given to that one service and is not in its environment.
+skills: [keep-secrets-out]

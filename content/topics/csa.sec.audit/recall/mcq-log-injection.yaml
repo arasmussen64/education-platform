@@ -1,0 +1,18 @@
+id: mcq-log-injection
+type: mcq
+rev: 1
+prompt: |
+  A sign-up form takes a user name, and the service writes `event=signup user=NAME` to a plain text log with the name exactly as typed. Someone signs up as `bob`, then a line break, then `event=role.change actor=root user=bob new=admin`. What is the result, and what is the cure?
+choices:
+  - "The log gains a line that reads as a real role change; escape line breaks in every value"
+  - "The log refuses the name, because a field's value can't contain an equals sign or a space"
+  - "Only bob's own view of his account is affected; nothing an auditor reads has changed"
+  - "A sealed log rejects the line, since sealing checks each field against the event that made it"
+answer: 0
+explanation: |
+  This is **log injection**. A text log has no idea where one event ends except the line break, so a value that brings its own line break starts a "new event" that the attacker wrote. An auditor reading the file later sees root making bob an admin.
+
+  The cure is in the writer: a value is data, and it never gets to end a line. The shop's audit writer writes a line break inside a value as the two characters `\n`, and puts quotes round a value that holds a space or an equals sign. A structured format such as JSON does the same job.
+
+  Nothing refuses the name by itself: a log is a file and takes what it is given. And sealing doesn't help. A seal proves that the journal's keeper wrote these bytes at that time and that nobody changed them since. It says nothing about whether the bytes were honest when they were written.
+skills: [what-to-log]

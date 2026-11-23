@@ -1,0 +1,16 @@
+id: mcq-azure-rejected
+type: mcq
+rev: 1
+prompt: |
+  An attacker with a stolen account tries to delete a VM ten times. Azure Resource Manager refuses each request at authorization, before any operation starts. Where are the ten attempts in the subscription's activity log?
+choices:
+  - "Nowhere: requests rejected before an operation starts leave no entry"
+  - "As ten failed delete operations, each marked with the status Forbidden"
+  - "In the log's Security category, which records refused requests"
+  - "As one entry, since the log merges repeats of the same operation"
+answer: 0
+explanation: |
+  Microsoft's documentation says it in so many words: the activity log "isn't an authentication or authorization audit log", and requests that Azure Resource Manager rejects during authentication or authorization, before an operation starts, generate no entries. No entry means no alert and nothing sent on to storage either.
+
+  That surprises people, because "all invalid access attempts" is exactly what an audit trail is meant to capture (PCI DSS 10.2.1.4 asks for it). On Azure the evidence that someone is trying doors is elsewhere: the sign-in logs of Entra ID, and resource logs. The activity log records operations that started.
+skills: [cloud-audit-trails]

@@ -1,0 +1,26 @@
+id: typed-stride-letter-error
+type: typed
+rev: 1
+prompt: |
+  The shop's API answers a malformed request with an error page that shows the database's connection string, password included. Which STRIDE category is this threat? Give the category's name.
+kind: text
+answers:
+  - information disclosure
+  - disclosure
+  - info disclosure
+  - I
+mistakes:
+  - id: the-property
+    answers: [confidentiality]
+    why: "That is the property this threat breaks. The category is named for the breaking of it."
+  - id: spoofing
+    answers: [spoofing, S]
+    why: "Nobody is pretending to be anyone yet. Signing in to the database with the stolen password would be the next threat; this one is the page showing it."
+  - id: elevation
+    answers: [elevation of privilege, E]
+    why: "Using the password to do more would be elevation of privilege. The threat on this page is that the password is shown at all."
+explanation: |
+  **Information disclosure**: data shown to someone who shouldn't see it, here a secret in an error message. It breaks confidentiality. The control is to stop the data reaching the page at all (a plain error for the caller, the detail in a log only staff can read), which the labs' format calls `minimise-data`.
+
+  One threat often opens the next: with that password an attacker could sign in to the database as the API. A model records each step as its own threat, on its own flow, because each has its own control.
+skills: [stride]

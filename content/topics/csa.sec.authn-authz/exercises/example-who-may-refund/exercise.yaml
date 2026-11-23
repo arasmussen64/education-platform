@@ -1,0 +1,48 @@
+id: example-who-may-refund
+stage: worked_example
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Who may refund?"
+prompt: |
+  The shop's order system doesn't decide by itself who may do what. For every request it asks a set of rules, written as code in a file, and obeys the answer. In this walkthrough you write that file, four rules long, in **Cedar**, the policy language the lesson introduced, and watch each rule change the answers.
+
+  This is a one-machine lab with no network: the first of a new kind, a **policy lab**. `~/shop/` holds the system as it is, which you only read:
+
+  - `shop.cedarschema`, the **schema**: staff have a `store`; orders have a `store`, an `amount` and `handled_by`, the member of staff who handled them; the actions are `view`, `refund` and `export`; and every request carries one fact about the session, `mfa`, yes or no.
+  - `entities.json`: the shop's roles (`support`, `supervisor`, `finance`, `warehouse`), eight members of staff and twelve orders. Alice and Lea are support staff at the north store, Sam is their supervisor, Wen works in the north warehouse, Ben and Dina are support staff at the south store, and Finn is in finance.
+  - `session-alice.json`: what the shop's sign-in service said about Alice after she signed in.
+
+  and one file that is yours, `policies.cedar`, which starts with no rules in it.
+
+  Two tools do the asking. `ask PERSON ACTION ORDER` puts one request to your rules and prints `ALLOW` or `DENY` with the rules that decided it; add `mfa=yes` for a session that used MFA (left out, it counts as no), and `-v` to see each deciding rule's kind. `cedar validate --schema shop.cedarschema --policies policies.cedar` checks every name in your rules against the schema.
+
+  The steps below write the file with `cat > policies.cedar <<'EOF'`, which puts the lines that follow, up to `EOF`, into the file, replacing what was there; `cat >>` adds them to the end instead. You can type the same rules in `nano ~/shop/policies.cedar` if you prefer. Type each line yourself, and before each `ask`, say what you expect it to print.
+
+  The checks at the end don't ask about Alice or the north store. They make up new people, stores and orders every time they run and ask your rules about those, so a rule has to be right for any store, not for the ones in `entities.json`.
+steps:
+  - label: "Authentication already happened"
+    lines: "1-3"
+    note: "`session-alice.json` is the result of authentication: the sign-in service says who this is (`alice`), how she proved it (a password and a code from her authenticator app: something she knows and something she has, so `mfa` is true) and until when that holds. The order system trusts that statement about *who*. It says nothing about what Alice may do. That is authorization, and the rules file decides it, starting from nothing: `ask alice view o-1001` prints `DENY` and `no policy applies, and what no permit allows is denied`. That is **default deny**: with no rule, the answer is no."
+  - label: "A rule for a role"
+    lines: "4-11"
+    note: "One `permit`. Its first line, in brackets, is the **scope**: which principal, which action, which resource. `principal in Role::\"support\"` means anyone in the support role, `action == Action::\"view\"` means that one action, and a bare `resource` means any. `@id(\"...\")` gives the rule a name for `ask` to print. Now Alice may view order o-1001. Wen, in the warehouse, may not: no permit covers her, so default deny answers. Sam may, though his role is `supervisor`: in `entities.json` the supervisor role sits inside support, so `in` is true for him too. This is **role-based access control** (RBAC): the rule names a role, never a person. The last line shows what a role alone can't say: Alice, at the north store, may view o-1009, an order of the south store."
+  - label: "Narrow it with an attribute"
+    lines: "12-18"
+    note: "The same permit with a condition: `when { principal.store == resource.store }` compares an **attribute** of the person asking with an attribute of the thing asked for. The file is written again from the top (`cat >`), so the old rule is gone. Alice is now denied o-1009 and still allowed o-1001. This is **attribute-based access control** (ABAC): one rule holds for every store there is or ever will be, where roles alone would need a role for each store."
+  - label: "A typo, caught by the schema"
+    lines: "19-22"
+    note: "`sed -i 's/A/B/' FILE` (Module 1) changes the file in place: here it misspells `principal.store` as `principal.stor`, as a slip of the finger would. `cedar validate` refuses the file, points at the line, and offers `did you mean `store`?`. It ends with a status that isn't 0, which is why the line has `|| true`: only so that this walkthrough carries on. The second `sed` puts the letter back and the file validates. Without the schema check the misspelt rule would simply never apply: nobody could view anything, and nothing would say why."
+  - label: "A refund rule"
+    lines: "23-31"
+    note: "A second permit, added to the end of the file: support staff refund orders of their own store up to 100. `&&` means both conditions must hold, and `<=` means 100 itself is allowed. Order o-1002 is exactly 100: allowed. o-1003 is 101: denied, by default, since no permit covers it. And o-1004, an order of 60 that Alice handled herself, is allowed: nothing yet stops someone refunding their own sale."
+  - label: "A forbid, for separation of duties"
+    lines: "32-39"
+    note: "A `forbid` takes away what no permit may give: nobody refunds an order they handled, whatever their role (its scope's bare `principal` means anyone). Ask about o-1004 again with `-v`: `DENY`, decided by `no-refund-of-your-own-order (a forbid)`. The refund permit still applies to this request; the forbid wins, as a forbid always does. That is **separation of duties** decided for each request: the person who handled a sale is never the one who refunds it. The last line asks for an allowed refund in a session without MFA: still `ALLOW`, because no rule mentions MFA yet."
+  - label: "An authentication fact in an authorization rule"
+    lines: "40-48"
+    note: "The second forbid uses `unless`: it applies in every case except the one in the braces, so a refund is forbidden unless the session used MFA. `context.mfa` is the fact the sign-in service reported in step 1. The same refund is now denied with `mfa=no` and allowed with `mfa=yes`: authentication produced a fact, and authorization used it. Last, Finn in finance asks to export an order: `DENY`, with no rule named. Nobody wrote \"finance may not export\"; nothing allows it, and that is enough."
+  - label: "Validate, read it back, and run the checks"
+    lines: "49-50"
+    note: "The file validates: every name in it is in the schema. Four rules: two permits that say who may do what, and two forbids that no permit, now or later, can undo. Now run the lab's checks, which ask these rules about a few hundred requests made up on the spot: every role, the person's own store and another, amounts on both sides of 100, orders they handled and orders a colleague handled, with MFA and without."

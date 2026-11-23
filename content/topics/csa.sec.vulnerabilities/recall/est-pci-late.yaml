@@ -1,0 +1,26 @@
+id: est-pci-late
+type: estimate
+rev: 1
+prompt: |
+  A vendor released a patch for a critical vulnerability on 5 September. PCI DSS requirement 6.3.3 gives such patches one month from release. The patch was installed on 20 October. How many days late was it? Exactly.
+unit: days
+answer: 15
+tolerance: { absolute: 0 }
+given: { released: 5, installed: 20 }
+# One month from 5 September is 5 October (September has 30 days, so
+# counting 30 days gives the same day).
+working: installed - released
+mistakes:
+  - id: since-release
+    value: 45
+    working: (30 - released) + installed
+    why: That is the days since the patch was released. The month it was allowed ended on 5 October, and lateness counts from there.
+  - id: three-months
+    value: 0
+    working: "0"
+    why: Three months is PCI DSS's example for other patches. A patch for a critical vulnerability has one month, which ended on 5 October.
+explanation: |
+  One month from 5 September is 5 October. Installed on 20 October: 15 days late.
+
+  PCI DSS counts from the patch's **release**, not from the day you noticed it, and gives the patches for critical vulnerabilities one month (version 4.0.1, the one in force; version 4.0 included high-risk ones); for the rest it asks for "an appropriate time frame" and offers three months as an example. BOD 26-04 counts differently (from the KEV listing or the day you found the flaw, whichever is earlier). A shop that takes cards and adopts CISA's table has to meet whichever date comes first.
+skills: [patch-slas]

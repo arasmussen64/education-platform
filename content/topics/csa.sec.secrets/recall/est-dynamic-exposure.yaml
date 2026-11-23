@@ -1,0 +1,24 @@
+id: est-dynamic-exposure
+type: estimate
+rev: 1
+prompt: |
+  A dynamic database credential lasts 15 minutes and is never renewed. It leaks at a random moment of its life (a debug line in a log). On average, for how many minutes can whoever reads the log use it? Exactly.
+unit: minutes
+answer: 7.5
+tolerance: { absolute: 0 }
+given: { life: 15 }
+working: life / 2
+mistakes:
+  - id: whole-life
+    value: 15
+    working: "15"
+    why: That is the most it could be, for a leak in its first second. A leak at a random moment leaves, on average, half the lifetime.
+  - id: hours
+    value: 0.25
+    working: life / 60
+    why: That is 15 minutes written as hours. The question asks for minutes left, on average, after a leak at a random moment.
+explanation: |
+  15 ÷ 2 = 7.5 minutes, with no scanner, no alert and nobody on call. Compare a static password rotated once a year: the same sum gives half a year, about 35,000 times longer. And most leaked log lines are read hours or days after they were written, when the credential in them is long dead.
+
+  That is the real argument for dynamic secrets. They don't stop leaks, since programs will always print things they shouldn't. They make what leaks worthless before anyone can use it.
+skills: [dynamic-secrets]

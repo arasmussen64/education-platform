@@ -1,0 +1,31 @@
+// The clinic's records system: who there is, what there is, what can be asked.
+// Staff and patients are all people; a member of staff can be a patient too.
+entity Role;
+entity Person in [Role] { ward: String };
+
+// Every record is about one patient and belongs to the ward treating them.
+entity Chart { patient: Person, ward: String };
+entity Invoice { patient: Person, ward: String };
+entity Prescription { patient: Person, ward: String, written_by: Person };
+
+// Every request says two things about the session it comes from.
+action view appliesTo {
+  principal: [Person],
+  resource: [Chart, Invoice],
+  context: { mfa: Bool, on_shift: Bool }
+};
+action annotate, edit, prescribe appliesTo {
+  principal: [Person],
+  resource: [Chart],
+  context: { mfa: Bool, on_shift: Bool }
+};
+action dispense appliesTo {
+  principal: [Person],
+  resource: [Prescription],
+  context: { mfa: Bool, on_shift: Bool }
+};
+action export appliesTo {
+  principal: [Person],
+  resource: [Chart, Invoice, Prescription],
+  context: { mfa: Bool, on_shift: Bool }
+};

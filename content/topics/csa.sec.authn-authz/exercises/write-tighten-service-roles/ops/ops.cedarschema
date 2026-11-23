@@ -1,0 +1,19 @@
+// The shop's operations: accounts (people and services alike) and the
+// kinds of thing they act on.
+entity Role;
+entity Account in [Role];
+entity Order, Report, Summary, Release, StoreData, Vault;
+// A change to the live site, waiting for approval.
+entity Change { made_by: Account };
+
+action read, write appliesTo {
+  principal: [Account],
+  resource: [Order, Report, StoreData, Vault]
+};
+action delete appliesTo {
+  principal: [Account],
+  resource: [Order, Report, StoreData, Vault, Release]
+};
+action export appliesTo { principal: [Account], resource: [Summary] };
+action create, update appliesTo { principal: [Account], resource: [Release] };
+action open, approve appliesTo { principal: [Account], resource: [Change] };

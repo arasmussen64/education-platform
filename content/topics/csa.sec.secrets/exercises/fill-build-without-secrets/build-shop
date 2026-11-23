@@ -1,0 +1,26 @@
+#!/bin/bash
+# build-shop: builds the export job's image, shop-export:2, from the
+# recipe in ~/shop-export.
+# The build downloads the shop's library from the package server, which
+# wants a token. The token lives in OpenBao's key-value store, at
+# secret/ci/pkg-token. This script asks OpenBao with the token in
+# BAO_TOKEN, or with yours when there is none.
+set -euo pipefail
+
+# A scratch file for the package token. mktemp makes a new, empty file
+# that only you can read, and prints its name.
+tmp=$(mktemp)
+
+# The scratch file must be gone when this script ends, however it ends:
+# when the build works, when it fails, when you press Ctrl+C.
+trap 'rm -f "$tmp"' ___
+
+# The token (the secret's field called "token") goes from OpenBao's
+# key-value store straight into the scratch file. It is never an argument
+# of a command, where `ps` would show it.
+bao ___ -field=token secret/ci/pkg-token > "$tmp"
+
+# Build, handing the scratch file to the build as the secret called pkg.
+sudo podman build -q ___ id=pkg,src="$tmp" -t shop-export:2 ~/shop-export
+
+echo "built shop-export:2"

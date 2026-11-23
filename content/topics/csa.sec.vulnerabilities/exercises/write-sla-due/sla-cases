@@ -1,0 +1,286 @@
+#!/usr/bin/python3
+"""sla-cases: tries ~/bin/sla-due on findings, assets and a policy made up as it runs.
+
+    sla-cases rows | start | upgrade | triage | assets | policy
+
+Each run makes its own FINDINGS, ASSETS and POLICY files, runs the learner's
+script on them as the learner, and compares what it printed with the dates
+worked out here. It prints "right", or one sentence about the first line
+that is wrong. The word chooses the inputs and the part of the answer that
+is judged, so that one mistake fails one check:
+
+    rows     32 findings, two for each row of the shop's policy, none listed
+             in KEV before it was found: the due dates of the rows that have
+             a number of days
+    start    KEV entries listed before they were found, and after: the due
+             dates, which count from the earlier day
+    upgrade  the rows whose timeline is "on-upgrade"
+    triage   the last field of every line
+    assets   the same findings twice, with every asset's exposure the other
+             way round the second time, on assets whose names mislead
+    policy   another policy table, with other numbers of days and other
+             rows asking for triage
+
+Start days are spread over every day of the week and over month ends, a
+year end and a leap day, so that counting working days, or 30-day months,
+shows.
+"""
+
+import datetime
+import random
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+SCRIPT = "/home/learner/bin/sla-due"
+# CISA's BOD 26-04, Table 1 (read 2026-11-22): exposed, in KEV, automatable,
+# impact, days, forensic triage.
+SHOP = [
+    ("yes", "yes", "yes", "total", "3", "yes"),
+    ("yes", "yes", "yes", "partial", "3", "no"),
+    ("yes", "yes", "no", "total", "3", "yes"),
+    ("yes", "yes", "no", "partial", "14", "no"),
+    ("yes", "no", "yes", "total", "3", "no"),
+    ("yes", "no", "yes", "partial", "14", "no"),
+    ("yes", "no", "no", "total", "14", "no"),
+    ("yes", "no", "no", "partial", "60", "no"),
+    ("no", "yes", "yes", "total", "3", "yes"),
+    ("no", "yes", "yes", "partial", "14", "no"),
+    ("no", "yes", "no", "total", "14", "no"),
+    ("no", "yes", "no", "partial", "14", "no"),
+    ("no", "no", "yes", "total", "60", "no"),
+    ("no", "no", "yes", "partial", "60", "no"),
+    ("no", "no", "no", "total", "on-upgrade", "no"),
+    ("no", "no", "no", "partial", "on-upgrade", "no"),
+]
+# Days that a careless count gets wrong: a Friday and a Saturday (working
+# days), the ends of a 31-day month and of February in a leap year and in a
+# plain one, and the end of a year.
+AWKWARD = [
+    "2026-11-13",
+    "2026-11-14",
+    "2026-10-30",
+    "2028-02-27",
+    "2027-02-26",
+    "2026-12-30",
+    "2027-07-31",
+]
+NAMES = ["web", "edge", "public", "internal", "batch", "db", "vault", "office"]
+
+
+def other_policy(rng: random.Random) -> list[tuple[str, ...]]:
+    """A table in the same shape with other numbers, shuffled."""
+    days = ["2", "7", "10", "21", "30", "45", "90", "on-upgrade"]
+    rows = []
+    for row in SHOP:
+        rows.append((*row[:4], rng.choice(days), rng.choice(["yes", "no"])))
+    # Never the shop's own answer for a row, so a table known by heart shows.
+    rows = [
+        (*new[:4], "5" if new[4] == old[4] else new[4], new[5])
+        for new, old in zip(rows, SHOP, strict=True)
+    ]
+    rng.shuffle(rows)
+    return rows
+
+
+def day(rng: random.Random) -> datetime.date:
+    return datetime.date(2025, 1, 1) + datetime.timedelta(days=rng.randrange(0, 1300))
+
+
+def make(
+    mode: str, rng: random.Random
+) -> tuple[list[dict], dict[str, str], list[tuple[str, ...]]]:
+    policy = other_policy(rng) if mode == "policy" else list(SHOP)
+    # Assets: names that say nothing true about exposure.
+    assets: dict[str, str] = {}
+    for exposed in ("yes", "no"):
+        for name in rng.sample(NAMES, 4):
+            assets[f"{name}-{rng.randrange(16**4):04x}"] = exposed
+    by_exposure = {e: [a for a, v in assets.items() if v == e] for e in ("yes", "no")}
+    findings: list[dict] = []
+    awkward = [datetime.date.fromisoformat(d) for d in AWKWARD]
+    rng.shuffle(awkward)
+    used: set[str] = set()
+    for row in SHOP * 2:
+        exposed, in_kev, automatable, impact = row[:4]
+        found = awkward.pop() if awkward else day(rng)
+        if in_kev == "no":
+            kev = "-"
+        elif mode == "rows":
+            # Listed after it was found here (or on the same day): the clock
+            # started when it was found.
+            kev = (
+                found + datetime.timedelta(days=rng.choice([0, 1, 9, 200]))
+            ).isoformat()
+        else:
+            gap = rng.choice([-400, -35, -3, -1, 2, 30])
+            kev = (found + datetime.timedelta(days=gap)).isoformat()
+        while True:
+            cve = f"CVE-{rng.randint(2019, 2026)}-{rng.randint(10000, 99999)}"
+            if cve not in used:
+                used.add(cve)
+                break
+        findings.append(
+            {
+                "cve": cve,
+                "asset": rng.choice(by_exposure[exposed]),
+                "found": found.isoformat(),
+                "kev": kev,
+                "automatable": automatable,
+                "impact": impact,
+            }
+        )
+    if mode == "start":
+        # Both ways round, always: one listed long before, one listed after.
+        listed = [f for f in findings if f["kev"] != "-"]
+        early, late = listed[0], listed[1]
+        found = datetime.date.fromisoformat(early["found"])
+        early["kev"] = (found - datetime.timedelta(days=120)).isoformat()
+        found = datetime.date.fromisoformat(late["found"])
+        late["kev"] = (found + datetime.timedelta(days=45)).isoformat()
+    rng.shuffle(findings)
+    return findings, assets, policy
+
+
+def expected(
+    findings: list[dict], assets: dict[str, str], policy: list[tuple[str, ...]]
+) -> list[list[str]]:
+    table = {row[:4]: row[4:] for row in policy}
+    lines = []
+    for f in findings:
+        in_kev = "no" if f["kev"] == "-" else "yes"
+        days, triage = table[
+            (assets[f["asset"]], in_kev, f["automatable"], f["impact"])
+        ]
+        start = f["found"] if f["kev"] == "-" else min(f["found"], f["kev"])
+        if days == "on-upgrade":
+            due = days
+        else:
+            first = datetime.date.fromisoformat(start)
+            due = (first + datetime.timedelta(days=int(days))).isoformat()
+        lines.append([f["cve"], f["asset"], due, triage])
+    return lines
+
+
+def run(
+    folder: Path,
+    findings: list[dict],
+    assets: dict[str, str],
+    policy: list[tuple[str, ...]],
+) -> list[list[str]] | str:
+    def save(name: str, rows: list[list[str]] | list[tuple[str, ...]]) -> str:
+        text = "".join("\t".join(row) + "\n" for row in rows)
+        (folder / name).write_text(text, encoding="utf-8", newline="\n")
+        return str(folder / name)
+
+    keys = ("cve", "asset", "found", "kev", "automatable", "impact")
+    files = [
+        save("findings.tsv", [[f[k] for k in keys] for f in findings]),
+        save("assets.tsv", [[a, e] for a, e in sorted(assets.items())]),
+        save("policy.tsv", policy),
+    ]
+    try:
+        ran = subprocess.run(
+            ["sudo", "-u", "learner", SCRIPT, *files],
+            capture_output=True,
+            text=True,
+            timeout=25,
+            check=False,
+            cwd="/home/learner",
+        )
+    except subprocess.TimeoutExpired:
+        return "sla-due didn't finish in 25 seconds"
+    if ran.returncode != 0:
+        said = (ran.stderr.strip() or ran.stdout.strip()).splitlines()
+        last = said[-1] if said else "no message"
+        return f"sla-due stopped with exit status {ran.returncode}: {last}"
+    return [line.split() for line in ran.stdout.splitlines() if line.strip()]
+
+
+def describe(f: dict, assets: dict[str, str]) -> str:
+    kev = "not in KEV" if f["kev"] == "-" else f"in KEV since {f['kev']}"
+    exposed = (
+        "an exposed asset"
+        if assets[f["asset"]] == "yes"
+        else "an asset that isn't exposed"
+    )
+    flaw = f"automatable {f['automatable']}, impact {f['impact']}"
+    return f"a finding found on {f['found']}, {kev}, on {exposed}, {flaw}"
+
+
+def judge(
+    mode: str,
+    findings: list[dict],
+    assets: dict[str, str],
+    policy: list[tuple[str, ...]],
+    got: list[list[str]],
+) -> str:
+    want = expected(findings, assets, policy)
+    if len(got) != len(want):
+        return f"for {len(want)} findings sla-due printed {len(got)} lines"
+    rows = zip(got, want, findings, strict=True)
+    for number, (have, need, f) in enumerate(rows, 1):
+        if len(have) != 4:
+            return f"line {number} has {len(have)} fields, not 4"
+        if have[:2] != need[:2]:
+            return (
+                f"line {number} isn't the finding on line {number} of FINDINGS "
+                "(the lines keep FINDINGS' order)"
+            )
+        numbered = need[2] != "on-upgrade"
+        listed_first = f["kev"] != "-" and f["kev"] < f["found"]
+        judged = {
+            "rows": numbered,
+            "start": numbered and f["kev"] != "-",
+            "upgrade": not numbered,
+            "triage": False,
+            "assets": True,
+            "policy": True,
+        }[mode]
+        if judged and have[2] != need[2]:
+            if mode == "start":
+                which = "before" if listed_first else "after"
+                when = f"(listed {which} it was found)"
+                return f"for {describe(f, assets)} {when}, the due date isn't {have[2]}"
+            return f"for {describe(f, assets)}, the due date isn't {have[2]}"
+        if mode in ("triage", "policy", "assets") and have[3] != need[3]:
+            return f"for {describe(f, assets)}, forensic triage isn't {have[3]}"
+    return "right"
+
+
+def main() -> None:
+    mode = sys.argv[1] if len(sys.argv) == 2 else ""
+    if mode not in ("rows", "start", "upgrade", "triage", "assets", "policy"):
+        sys.exit(__doc__)
+    if not Path(SCRIPT).is_file():
+        print("there is no ~/bin/sla-due")
+        return
+    rng = random.Random()
+    folder = Path(tempfile.mkdtemp(prefix="sla-"))
+    try:
+        folder.chmod(0o755)
+        findings, assets, policy = make(mode, rng)
+        rounds = [assets]
+        if mode == "assets":
+            # The second time, every asset's exposure is the other way round.
+            rounds.append(
+                {a: ("no" if e == "yes" else "yes") for a, e in assets.items()}
+            )
+        for exposure in rounds:
+            got = run(folder, findings, exposure, policy)
+            if isinstance(got, str):
+                print(got)
+                return
+            verdict = judge(mode, findings, exposure, policy, got)
+            if verdict != "right":
+                print(verdict)
+                return
+        print("right")
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()

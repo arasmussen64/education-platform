@@ -1,0 +1,16 @@
+id: mcq-verify-calls-out
+type: mcq
+rev: 1
+prompt: |
+  The scanner trufflehog marks some of its findings "verified". What did it do to verify one?
+choices:
+  - "It tried the credential against the API of the service it belongs to"
+  - "It compared the credential with a list of leaked ones kept on your disk"
+  - "It asked GitHub whether that credential was ever pushed to a public repository"
+  - "It recomputed the credential's checksum to rule out a typing mistake"
+answer: 0
+explanation: |
+  trufflehog's own words: a verified result means it "confirmed the credential is valid by testing it against the service's API". That answers the question that matters after a scan, which of these 200 findings still work, and it is why its verified findings have almost no false positives.
+
+  It also means the scanner sends each thing it finds to an outside service, from your machine, with your address on the request. In a network with no way out, or when that isn't acceptable, `--no-verification` turns it off and it behaves like any other pattern scanner. No list, no question to GitHub and no checksum is involved. (trufflehog is released under the AGPL 3 licence; it isn't in the labs because a lab has no internet to verify against.)
+skills: [scan-for-leaks]

@@ -228,7 +228,8 @@ The lesson says once that this time sync is a stand-in, because the lab's machin
 
 - **Python's `time.sleep` fails** on a machine with a clock of its own: `OSError: [Errno 22] Invalid argument` (found building this base: Python sleeps until a time on the steady clock, and 0.9.10 moves that time though it was told to leave the steady clock alone; upstream fixed it later, and 0.9.13 has the fix). A Python program there that only reads the time, waits on a socket or serves requests is fine: `signin`, `jwt` and `stock-api` all are. The base's own `timesync` steps outside libfaketime for this reason. So: no lab runs a Python program that sleeps on a machine that runs `timesync`; a shell script's `sleep` works.
 - **Go programs read the real time** (they don't use the C library's clock: libfaketime's own README, not tried here), so oauth2-proxy can't be skewed.
-- **It leaves two small files in `/dev/shm` for every command** started on such a machine. `lab-enter` removes the ones whose process has been gone an hour, or `/dev/shm` (64 MB) would fill after some 8,000 commands and libfaketime would stop every command there.
+- **It is kept away from `/dev/shm`.** Left alone, libfaketime 0.9.10 makes a semaphore and a shared-memory file in `/dev/shm` for the first program of every command (named after its process number, mode 600, never removed: 8 kB a command), names them in `FAKETIME_SHARED`, and every program started from there must open them or make its own; one that can do neither exits (`ft_shm_init`: `sem_open failed and recreation attempts failed`). On GitHub's runner every command on `app` exited that way, with `Permission denied`, which Docker Desktop never showed; why the runner refuses was not found. The files only let one command's processes agree on when it began, which a fixed offset doesn't need, and the library carries on without them where it can't make its semaphore. So `lib/faketime-noshm.c`, twenty lines of C built in the `Dockerfile` and preloaded just before the library, fails that one call (`sem_open` for a name starting `/faketime_sem_`): no file is made, no program is told to open one, and nothing piles up. Every other semaphore goes through untouched: Apache with mod_auth_openidc makes its own in `/dev/shm`, so that folder must stay writable.
+- **`timesync` itself never loads it.** Its unit sets `NETLAB_REAL_CLOCK=1`, which makes `lab-enter` leave libfaketime out, and `clock_synced` asks the same way.
 
 ## Check helpers
 
@@ -272,7 +273,7 @@ Everything the network base needs, and three things of this base's own. "Works" 
 | --- | --- | --- | --- |
 | Keycloak's boot, which is CPU-bound, with four labs at once on four CPUs | every identity lab | works: see "Size and time" | **untried; the main risk** |
 | `net.ipv4.ip_unprivileged_port_start` set inside a namespace | `keycloak@idp` | works | untried |
-| libfaketime preloaded, with its files in `/dev/shm` | a machine that runs `timesync` | works for Apache, curl, openssl, `date`, a shell's `sleep`; not Python's `time.sleep`, not Go | untried |
+| libfaketime preloaded, behind `faketime-noshm` (it makes no semaphore of its own) | a machine that runs `timesync` | works for Apache, curl, openssl, `date`, a shell's `sleep`; not Python's `time.sleep`, not Go | untried |
 | `chronyd -x` serving NTP on a machine (UDP 123 in a namespace) | `chrony@M` | works | untried |
 
 ## Still untried on this base
@@ -307,6 +308,7 @@ Each is small, and belongs to the first writer who needs it (Module 4 brief, sec
 | `lib/machine-clock` | each machine's clock from its hardware clock at boot; `clock_offset` |
 | `lib/make-key` | a security key made at image build, or for a check's person |
 | `lib/kc-build-run`, `lib/first-start`, `lib/kc-wait` | Keycloak inside an image build; its first start; the wait that makes "started" mean "answering" |
+| `lib/faketime-noshm.c` | keeps libfaketime from making a semaphore and shared memory in `/dev/shm`; the `Dockerfile` compiles it in a stage of its own |
 | `lib/apache2-run` | Apache inside a machine, whose `/run` starts empty |
 | `lib/plain-units` | the plain `apache2` and `chrony` units, replaced by ones that say what to type |
 | `units/` | `keycloak@`, `apache2@`, `stock-api@`, `timesync@`, `chrony@` and `machine-clocks.service` |

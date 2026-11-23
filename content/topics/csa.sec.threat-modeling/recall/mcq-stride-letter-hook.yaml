@@ -1,0 +1,16 @@
+id: mcq-stride-letter-hook
+type: mcq
+rev: 1
+prompt: |
+  The shop's payment provider reports each payment by posting a message to the shop's webhook. The webhook doesn't check the messages' signatures. An attacker posts a made-up "payment succeeded" message for an order nobody paid for, and the shop ships it. Which STRIDE category names the flaw the attacker used?
+choices:
+  - "Tampering: the order's state is changed without permission"
+  - "Repudiation: the provider can deny that it sent the message"
+  - "Spoofing: the sender pretends to be the payment provider"
+  - "Elevation of privilege: an outsider gains the provider's rights"
+answer: 2
+explanation: |
+  The webhook acts on a message without knowing who sent it, and the attacker pretends to be the payment provider: **spoofing**, which breaks authentication. Naming it that way points straight at the fix, something that proves the sender, such as checking each message's signature.
+
+  Tampering is close, and a full model often records it as well: the order's state does end up changed. But the change is the *effect*. Nothing was altered in transit or in the database behind the shop's back; the shop changed its own order because it believed a caller. Fix the spoofing and the tampering goes with it. Repudiation is about denying an action afterwards. Elevation of privilege is a caller doing more than its rights allow; here the attacker has no rights at all and borrows someone else's identity.
+skills: [stride]

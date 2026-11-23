@@ -1,0 +1,43 @@
+id: fill-chain-add
+stage: fill_in
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Finish the chain"
+prompt: |
+  The shop wants an audit log that shows when it has been changed. `~/bin/chain-add LOG RECORD` (one record, or several) adds each record to a **chained log**: every line is a hash, one space, and the record, and the hash is the SHA-256 of the line before's hash, a space and this line's record. The first line has no line before it, so it uses 64 zeros in that place.
+
+  The script is written except for four pieces, each marked `...`. Open it with `nano ~/bin/chain-add` and fill them in:
+
+  1. the command that reads the line to chain from, out of a log that already has lines;
+  2. what `prev` is when the log is empty or doesn't exist yet;
+  3. the format `printf` uses to put together what is hashed;
+  4. the format `printf` uses to write the new line.
+
+  What you need is all from Module 1 and Applied cryptography. `sha256sum` reads its standard input and prints the hash, a space and `-`, which is why `cut -d' ' -f1` follows it. `printf FORMAT VALUE...` prints its values where the format has `%s`, and adds nothing the format doesn't have: no line break unless the format ends in `\n`. That is why the script uses `printf` and not `echo`: `echo` adds a line break by itself, and a hash of the text plus a line break is a different hash. Put the format in single quotes, and keep the record as a value: a record that holds a `%` or a backslash must come through unchanged. In the script, `[ -s "$log" ]` is true when the file exists and isn't empty, and `printf '%064d' 0` prints 64 zeros.
+
+  Until the first gap is filled the script stops as soon as the log has something in it (`...: command not found`). The other three don't stop it: with a `...` left in any of them it runs, and writes a wrong log.
+
+  Try it:
+
+  ```
+  ~/bin/chain-add ~/audit/audit.log "event=login.ok user=ana src=203.0.113.9 outcome=ok"
+  ~/bin/chain-add ~/audit/audit.log "event=refund actor=ana order=42 amount=19.99 outcome=ok" "event=note text=100% done"
+  cat ~/audit/audit.log
+  ```
+
+  A right script gives exactly these three lines (if yours differ, `rm ~/audit/audit.log` before you try again, or the wrong lines stay in the chain):
+
+  ```
+  0dc1507544bbb21c366a43f2f8544705b765c7807ae224bcf24509ee2d049de4 event=login.ok user=ana src=203.0.113.9 outcome=ok
+  deb2c9a20ac77a1298cb761927ba0fb5a2d923b3ff7904d47e8bbdb4ec83f85e event=refund actor=ana order=42 amount=19.99 outcome=ok
+  0c3fdb087f0fce805400cf2f93a15ff8ace80da17d727e0ab499799c26e79bf9 event=note text=100% done
+  ```
+
+  Then run the checks. They make logs and records of their own as they run.
+hints:
+  - "Gap 1: the newest line of a file is its last. `tail -n 1 \"$log\"` prints it, and the `cut` after it keeps the hash."
+  - "Gap 2: the line above it already made the 64 zeros and kept them in a variable. Gaps 3 and 4 are formats with two `%s` in them and one space between: the first has nothing after the second `%s`, the second ends with `\\n`."
+  - "The finished lines: `prev=$(tail -n 1 \"$log\" | cut -d' ' -f1)`, `prev=$genesis`, `hash=$(printf '%s %s' \"$prev\" \"$record\" | sha256sum | cut -d' ' -f1)` and `printf '%s %s\\n' \"$hash\" \"$record\" >> \"$log\"`."
+skills: [hash-chains]
