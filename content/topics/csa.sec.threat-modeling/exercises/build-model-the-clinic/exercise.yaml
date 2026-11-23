@@ -1,0 +1,22 @@
+id: build-model-the-clinic
+stage: build
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Model the clinic"
+prompt: |
+  Northfield Clinic is about to put its booking service in front of a design review, and you write its threat model. `~/design.md` describes the service as it is today: seven parts, six flows, what is already in place, and the scales to rate with. Read it (`less ~/design.md`), then write the model in `~/model.tm` (`nano ~/model.tm`), from a blank file, one fact a line, in the format of this topic's labs. `tm-check --help` prints the format and the kinds of control.
+
+  The model needs:
+
+  1. **What are we working on.** The zones, and every element and flow the design names, each element of the right kind and each flow from the side that starts it. Two parts share a zone only when one organisation runs both on one network.
+  2. **What can go wrong.** Every flow that crosses a boundary reviewed for all six STRIDE letters: a `threat` line for what can go wrong, written as who can do what, and a `none` line with its reason for the rest. The design states facts and never calls anything weak: what it describes, the model must hold as threats, on the flows where they happen.
+  3. **How much it matters.** Each threat rated by the design's scales, with its risk (likelihood times impact), and a `top` line listing every risk of 6 or more, highest first.
+  4. **What we are going to do about it.** A `control` of a kind that answers it for every risk of 6 or more, and a control or an `accept` line for every other threat. What is already in place answers nothing new.
+  5. **An ATT&CK technique** (`attack`) for every risk of 9: the technique an attacker would use, as ATT&CK version 20.1 names it. The lab has no way to look one up, so here are the ones this topic has met, to choose from: `T1190` Exploit Public-Facing Application; `T1566` Phishing; `T1110` Brute Force, with `T1110.004` Credential Stuffing; `T1078` Valid Accounts, with `T1078.004` Cloud Accounts; `T1552.005` Cloud Instance Metadata API; `T1619` Cloud Storage Object Discovery; `T1530` Data from Cloud Storage; `T1537` Transfer Data to Cloud Account.
+  6. **An attack tree** for one of the highest risks (`goal`, `node`, `leaf`, `cheapest`): three leaves or more, and one `and` node with two steps.
+  7. **An abuse case with a test** for every risk of 6 or more (`abuse`, `test`).
+
+  As you go, `tm-check reads ~/model.tm` says whether every line is in the format (and which line isn't), and `tm-check stride`, `ranking`, `controls`, `tree` and `abuse` check the review's coverage and the sums. Whether the model is right for this design, only the checks say. Leave `~/design.md` as it is.
+skills: [draw-the-system, stride, rank-risks, respond-to-risk, attack-trees, attack-and-abuse]

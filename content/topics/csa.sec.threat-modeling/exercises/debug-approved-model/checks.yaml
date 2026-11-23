@@ -1,0 +1,85 @@
+# The checks of "The approved model": each runs one part of the
+# threat-model base's tm-check on the learner's model, with --quiet, so a
+# failure says only the end state still missing and never which kind of
+# fault is left. The design's own answers (the reference) are handed to
+# tm-check on standard input ("-"), from here, so they are never a file in
+# the lab. The last check is that the design note is as it was.
+checks:
+  - id: model-reads
+    description: "The model reads: every line is one of the format's."
+    timeout: 10
+    command: |
+      tm-check reads /home/learner/model.tm - <<'REF'
+      {"elements":{"driver":["external","internet"],"customer":["external","internet"],"app":["process","depot"],"parcels-db":["store","depot"],"photos":["store","depot"],"maps":["external","maps-co"]},"flows":{"f1":["driver","app"],"f2":["app","parcels-db"],"f3":["app","photos"],"f4":["customer","photos"],"f5":["maps","app"]},"weak":[{"flow":"f1","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"]},{"flow":"f4","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"]}],"either":[["driver","customer"],["app","photos"],["parcels-db","photos"]],"kept":{"t1":"f1","t2":"f1","t3":"f4"}}
+      REF
+    expect:
+      equals: ok
+  - id: diagram-matches-design
+    description: "The model has every part and flow the design names, each of the right kind and drawn from the side that starts it."
+    timeout: 10
+    command: |
+      tm-check diagram /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"driver":["external","internet"],"customer":["external","internet"],"app":["process","depot"],"parcels-db":["store","depot"],"photos":["store","depot"],"maps":["external","maps-co"]},"flows":{"f1":["driver","app"],"f2":["app","parcels-db"],"f3":["app","photos"],"f4":["customer","photos"],"f5":["maps","app"]},"weak":[{"flow":"f1","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"]},{"flow":"f4","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"]}],"either":[["driver","customer"],["app","photos"],["parcels-db","photos"]],"kept":{"t1":"f1","t2":"f1","t3":"f4"}}
+      REF
+    expect:
+      equals: ok
+  - id: zones-where-trust-changes
+    description: "Two parts share a zone only when one organisation runs both on one network."
+    timeout: 10
+    command: |
+      tm-check boundaries /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"driver":["external","internet"],"customer":["external","internet"],"app":["process","depot"],"parcels-db":["store","depot"],"photos":["store","depot"],"maps":["external","maps-co"]},"flows":{"f1":["driver","app"],"f2":["app","parcels-db"],"f3":["app","photos"],"f4":["customer","photos"],"f5":["maps","app"]},"weak":[{"flow":"f1","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"]},{"flow":"f4","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"]}],"either":[["driver","customer"],["app","photos"],["parcels-db","photos"]],"kept":{"t1":"f1","t2":"f1","t3":"f4"}}
+      REF
+    expect:
+      equals: ok
+  - id: every-crossing-reviewed
+    description: "Every flow that crosses a boundary has all six letters reviewed."
+    timeout: 10
+    command: |
+      tm-check stride /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"driver":["external","internet"],"customer":["external","internet"],"app":["process","depot"],"parcels-db":["store","depot"],"photos":["store","depot"],"maps":["external","maps-co"]},"flows":{"f1":["driver","app"],"f2":["app","parcels-db"],"f3":["app","photos"],"f4":["customer","photos"],"f5":["maps","app"]},"weak":[{"flow":"f1","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"]},{"flow":"f4","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"]}],"either":[["driver","customer"],["app","photos"],["parcels-db","photos"]],"kept":{"t1":"f1","t2":"f1","t3":"f4"}}
+      REF
+    expect:
+      equals: ok
+  - id: rated-by-the-scales
+    description: "Everything the design describes that can go wrong is a threat on its flow, rated by the design's scales."
+    timeout: 10
+    command: |
+      tm-check findings /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"driver":["external","internet"],"customer":["external","internet"],"app":["process","depot"],"parcels-db":["store","depot"],"photos":["store","depot"],"maps":["external","maps-co"]},"flows":{"f1":["driver","app"],"f2":["app","parcels-db"],"f3":["app","photos"],"f4":["customer","photos"],"f5":["maps","app"]},"weak":[{"flow":"f1","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"]},{"flow":"f4","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"]}],"either":[["driver","customer"],["app","photos"],["parcels-db","photos"]],"kept":{"t1":"f1","t2":"f1","t3":"f4"}}
+      REF
+    expect:
+      equals: ok
+  - id: ranked-by-risk
+    description: "Each risk is likelihood times impact, and top lists every risk of 6 or more, highest first."
+    timeout: 10
+    command: |
+      tm-check ranking /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"driver":["external","internet"],"customer":["external","internet"],"app":["process","depot"],"parcels-db":["store","depot"],"photos":["store","depot"],"maps":["external","maps-co"]},"flows":{"f1":["driver","app"],"f2":["app","parcels-db"],"f3":["app","photos"],"f4":["customer","photos"],"f5":["maps","app"]},"weak":[{"flow":"f1","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"]},{"flow":"f4","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"]}],"either":[["driver","customer"],["app","photos"],["parcels-db","photos"]],"kept":{"t1":"f1","t2":"f1","t3":"f4"}}
+      REF
+    expect:
+      equals: ok
+  - id: every-threat-answered
+    description: "Every risk of 6 or more has a control of a kind that answers it, and every other threat a control or an accept line."
+    timeout: 10
+    command: |
+      tm-check controls /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"driver":["external","internet"],"customer":["external","internet"],"app":["process","depot"],"parcels-db":["store","depot"],"photos":["store","depot"],"maps":["external","maps-co"]},"flows":{"f1":["driver","app"],"f2":["app","parcels-db"],"f3":["app","photos"],"f4":["customer","photos"],"f5":["maps","app"]},"weak":[{"flow":"f1","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"]},{"flow":"f4","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"]}],"either":[["driver","customer"],["app","photos"],["parcels-db","photos"]],"kept":{"t1":"f1","t2":"f1","t3":"f4"}}
+      REF
+    expect:
+      equals: ok
+  - id: threats-kept
+    description: "Every threat the approved model had is still there, on its flow."
+    timeout: 10
+    command: |
+      tm-check kept /home/learner/model.tm - --quiet <<'REF'
+      {"elements":{"driver":["external","internet"],"customer":["external","internet"],"app":["process","depot"],"parcels-db":["store","depot"],"photos":["store","depot"],"maps":["external","maps-co"]},"flows":{"f1":["driver","app"],"f2":["app","parcels-db"],"f3":["app","photos"],"f4":["customer","photos"],"f5":["maps","app"]},"weak":[{"flow":"f1","letters":["S"],"L":3,"I":3,"controls":["mfa","mutual-tls","access-proxy"]},{"flow":"f4","letters":["I"],"L":3,"I":3,"controls":["authz","least-privilege","minimise-data","access-proxy","encryption"]}],"either":[["driver","customer"],["app","photos"],["parcels-db","photos"]],"kept":{"t1":"f1","t2":"f1","t3":"f4"}}
+      REF
+    expect:
+      equals: ok
+  - id: design-untouched
+    description: "~/design.md is as it was."
+    timeout: 10
+    command: echo '493c31621c6481c65ff89506accc75e0e6412502f0826548cc767d99bb7b050a  /home/learner/design.md' | sha256sum -c --status - && echo same
+    expect:
+      equals: same
