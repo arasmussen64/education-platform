@@ -1,0 +1,20 @@
+# Apache on one of the lab's machines: "systemctl status apache2@app". Its
+# configuration is the machine's /etc/apache2; its logs are the machine's
+# /var/log/apache2.
+[Unit]
+Description=Apache on %i
+After=netlab.service keycloak@idp.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+Type=simple
+ExecStartPre=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/lib/idlab/apache2-run configtest
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/lib/idlab/apache2-run -D FOREGROUND
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/lib/idlab/apache2-run -k graceful
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

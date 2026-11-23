@@ -1,0 +1,35 @@
+#!/bin/bash
+# date, guarded: /usr/local/bin/date, found before /usr/bin/date by the
+# learner, by sudo and by "on MACHINE". A lab's container is privileged, so
+# its clock is the real clock of Docker's whole machine: "date -s" here
+# would move the time of every other container on this computer, or of the
+# CI runner. This refuses that one use and says why; every other use goes
+# straight to /usr/bin/date, unchanged.
+#
+# It is a guard against a habit, not a wall: /usr/bin/date -s still works
+# for root, as does anything else that sets a clock. No lab asks for either.
+# On the identity-lab base a machine's own clock is set by its time sync
+# (timesync@MACHINE), which is what the second line points at.
+value=no
+for a in "$@"; do
+  # What follows -d, -f or -r is that option's value, not an option.
+  if [[ $value == yes ]]; then
+    value=no
+    continue
+  fi
+  case $a in
+    -d | --date | -f | --file | -r | --reference)
+      value=yes
+      ;;
+    # -s STRING, -sSTRING, --set, --set=STRING, GNU's shortened --s and --se,
+    # and -s behind the flags that take no value (-us).
+    -s* | --s* | -[uR]s* | -[uR][uR]s*)
+      echo "date: not here: this lab's clock is the real clock of Docker's whole machine," >&2
+      echo "      so setting it would move the time for everything else running on it." >&2
+      echo "      Where a lab gives a machine a clock of its own, its time sync sets it:" >&2
+      echo "      systemctl status timesync@MACHINE" >&2
+      exit 1
+      ;;
+  esac
+done
+exec /usr/bin/date "$@"

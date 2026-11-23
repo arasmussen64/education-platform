@@ -1,0 +1,18 @@
+id: probe-seal-scan-patch
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Probe: seal the trail, pass a benchmark rule, patch a finding"
+prompt: |
+  A probe for the payments-server base's CI spike, not a lesson: the Module 4 topics Audit logging, Compliance basics and Vulnerability management will teach each part.
+
+  This lab machine is the shop's payments server. Its audit trail is a journal of its own, the `audit` journal namespace (`journalctl --namespace=audit`), written by `shop-audit.service`; `shop-cli login.ok` makes the shop record a sign-in. Three jobs, each made to last a restart:
+
+  1. **Seal the audit trail, and give the auditors the key.** Make the sealing keys with `sudo journalctl --setup-keys --interval=10s` (10 seconds is the lab's stand-in for the usual 15 minutes). Its last line is the verification key: save that line as `/srv/auditors/verify-key`. Then switch sealing on for the namespace, `Seal=yes` in `/etc/systemd/journald@audit.conf`, and restart its journal service, `sudo systemctl restart systemd-journald@audit`.
+  2. **Stop root logging in over SSH.** A drop-in file in `/etc/ssh/sshd_config.d/` that says `PermitRootLogin no`, then `sudo sshd -t` and `sudo systemctl reload ssh`. The benchmark's rule for it is `sshd_disable_root_login`.
+  3. **Patch sudo.** The scan, `osv-scanner scan source --offline-vulnerabilities --offline -L /var/lib/dpkg/status`, lists seven findings in five packages. Upgrade sudo from the server's own patch repository: `sudo apt-get update`, then `sudo apt-get install --only-upgrade sudo`. Leave the other packages, the scanner and its records as they are.
+
+  Then run the checks. One of them changes a copy of the trail in two ways, as an attacker would, and passes only if the auditors' key gives both away.

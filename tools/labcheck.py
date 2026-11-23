@@ -46,7 +46,8 @@ A lab's Dockerfile may start `FROM lab-base-<name>` instead of
 `FROM ubuntu:24.04`: the network labs share one base this way. The checker
 builds content/lab-bases/<name>/ first, tagged lab-base-<name>, whenever it
 builds such a lab; when nothing in the base has changed, Docker's cache makes
-that a second or two.
+that a second or two. A base may start from another base the same way (the
+identity base starts FROM lab-base-net), and that one is built before it.
 
 Each check gets 30 seconds, or what its `timeout:` in checks.yaml says (up
 to 300). A check that runs out of time is stopped inside the container,
@@ -296,14 +297,33 @@ def bases_of(lab: Lab) -> Path:
     return lab.folder.parents[3] / "lab-bases"
 
 
-def build_base(name: str, bases: Path, quiet: bool = True) -> None:
-    """Builds content/lab-bases/<name>/ as the image lab-base-<name>."""
+def build_base(
+    name: str, bases: Path, quiet: bool = True, children: tuple[str, ...] = ()
+) -> None:
+    """Builds content/lab-bases/<name>/ as the image lab-base-<name>.
+
+    A base may itself start FROM another base (ADR-0018, fourth amendment:
+    the identity base is the network base with more on it). That one is
+    built first, and its own before it, so a machine that has none of the
+    images (every CI runner) can still build the lab. `children` holds the
+    bases that are waiting for this one, so a base that leads back to
+    itself is refused instead of followed for ever.
+    """
     folder = bases / name
     if not (folder / "Dockerfile").exists():
         raise LabError(
             f"no lab base called {name}: a Dockerfile says FROM lab-base-{name}, "
             f"and {folder.as_posix()}/Dockerfile doesn't exist"
         )
+    if name in children:
+        loop = " -> ".join([*children[children.index(name) :], name])
+        raise LabError(
+            f"lab base {name} starts from itself ({loop}): a base's Dockerfile "
+            "must start FROM another base, or FROM ubuntu:24.04"
+        )
+    parent = base_named_in((folder / "Dockerfile").read_text(encoding="utf-8"))
+    if parent:
+        build_base(parent, bases, quiet, (*children, name))
     args = ["build", "-t", f"lab-base-{name}", str(folder)]
     if quiet:
         args.insert(1, "-q")

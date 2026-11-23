@@ -1,0 +1,1031 @@
+#!/usr/bin/python3
+"""tm-check: checks a threat model written as plain lines of text.
+
+    tm-check PART MODEL             what a model can be checked for by itself
+    tm-check PART MODEL REF.json    a lab's check: the model against a design
+    tm-check --help                 this text
+
+It prints "ok", or one sentence that says what is still wrong, and ends
+with status 0 either way (a lab's check compares the sentence with "ok").
+
+THE FORMAT. One line is one fact. Words are separated by spaces. A "#" at
+the start of a word begins a comment. A line can only use names that the
+lines above it define, so zones come first, then elements, then flows.
+
+    zone NAME words                         a trust zone: one owner, one network
+    element ID external|process|store ZONE words
+    flow ID FROM TO words                   FROM is the side that starts it
+    threat ID FLOW LETTER LIKELIHOOD IMPACT RISK A/An ... can ...
+                                            LETTER is one of S T R I D E;
+                                            LIKELIHOOD and IMPACT are 1 to 3;
+                                            RISK is LIKELIHOOD times IMPACT
+    none FLOW LETTERS reason                reviewed, nothing to record: the
+                                            letters together (TID), then why
+                                            in at least 5 words
+    control ID THREAT KIND words            what will be done about a threat
+    accept THREAT reason                    live with it (only below risk 6)
+    top THREAT THREAT ...                   every risk of 6 or more, highest first
+    attack THREAT TECHNIQUE                 an ATT&CK id: T1110 or T1110.004
+    scope ELEMENT cde|impacting|out reason  PCI DSS scope, why in 5 words or more
+    goal ID THREAT words                    an attack tree for a threat
+    node ID PARENT and|or words             and: every step under it is needed
+    leaf ID PARENT COST words               one step and what it costs
+    cheapest GOAL COST                      the cheapest way to reach the goal
+    abuse ID THREAT As a/an ..., I ... so that ...
+    test ID ABUSE words                     how the team will try the abuse case
+
+CONTROL KINDS, and the letters each one answers:
+
+    S  authn mfa mutual-tls signing access-proxy
+    T  signing integrity input-validation mutual-tls patch
+    R  audit-log signing
+    I  tls encryption minimise-data authz least-privilege access-proxy
+       secret-store patch
+    D  rate-limit quota redundancy
+    E  authz least-privilege sandbox allow-list separation-of-duties
+       input-validation patch
+
+PARTS. Without a reference: reads (every line is one of the format's),
+stride (every flow that crosses a boundary is reviewed for all six letters),
+ranking (the risks and the top line), controls (every threat is answered),
+tree (the attack tree and its cheapest path), abuse (every risk of 6 or
+more has an abuse case with a test). A lab's checks add a reference, the
+design's own answers, which is not in the lab: diagram, boundaries,
+findings, scope, attack and kept need one.
+
+For a lab's author (content/lab-bases/tm/README.md has the whole story):
+"--quiet" prints one fixed sentence for each part, the end state still
+missing, for debug labs; "controls --only N" checks only the control on the
+reference's Nth weakness, and "controls --only rest" everything else;
+REF.json may be "-" to read the reference from standard input.
+"""
+
+import difflib
+import json
+import os
+import re
+import sys
+
+ELEMENT_KINDS = ("external", "process", "store")
+LETTERS = "STRIDE"
+SCOPES = ("cde", "impacting", "out")
+HIGH = 6  # a risk of 6 or more must be answered with a control
+
+# Which control kinds answer which letter. "patch" answers a flaw in
+# software someone else wrote, which is how T, I and E usually arrive.
+CONTROLS = {
+    "S": {"authn", "mfa", "mutual-tls", "signing", "access-proxy"},
+    "T": {"signing", "integrity", "input-validation", "mutual-tls", "patch"},
+    "R": {"audit-log", "signing"},
+    "I": {
+        "tls",
+        "encryption",
+        "minimise-data",
+        "authz",
+        "least-privilege",
+        "access-proxy",
+        "secret-store",
+        "patch",
+    },
+    "D": {"rate-limit", "quota", "redundancy"},
+    "E": {
+        "authz",
+        "least-privilege",
+        "sandbox",
+        "allow-list",
+        "separation-of-duties",
+        "input-validation",
+        "patch",
+    },
+}
+ALL_CONTROLS = sorted(set().union(*CONTROLS.values()))
+
+# How each kind of line is written, shown whenever a line is wrong.
+SHAPES = {
+    "zone": "zone NAME words",
+    "element": "element ID external|process|store ZONE words",
+    "flow": "flow ID FROM TO words",
+    "threat": "threat ID FLOW LETTER LIKELIHOOD IMPACT RISK A/An ... can ...",
+    "none": "none FLOW LETTERS reason",
+    "control": "control ID THREAT KIND words",
+    "accept": "accept THREAT reason",
+    "top": "top THREAT THREAT ...",
+    "attack": "attack THREAT TECHNIQUE",
+    "scope": "scope ELEMENT cde|impacting|out reason",
+    "goal": "goal ID THREAT words",
+    "node": "node ID PARENT and|or words",
+    "leaf": "leaf ID PARENT COST words",
+    "cheapest": "cheapest GOAL COST",
+    "abuse": "abuse ID THREAT As a/an ..., I ... so that ...",
+    "test": "test ID ABUSE words",
+}
+# The words a line must have before its free text, in order, in plain words.
+FIELDS = {
+    "zone": ["a name"],
+    "element": ["an id", "its kind (external, process or store)", "its zone"],
+    "flow": ["an id", "the element that starts it", "the element it goes to"],
+    "threat": [
+        "an id",
+        "the flow",
+        "the letter",
+        "the likelihood",
+        "the impact",
+        "the risk",
+    ],
+    "none": ["the flow", "the letters"],
+    "control": ["an id", "the threat", "the kind of control"],
+    "accept": ["the threat"],
+    "top": [],
+    "attack": ["the threat", "the ATT&CK technique"],
+    "scope": ["the element", "cde, impacting or out"],
+    "goal": ["an id", "the threat"],
+    "node": ["an id", "what it sits under", "and or or"],
+    "leaf": ["an id", "what it sits under", "its cost"],
+    "cheapest": ["the goal", "the cost"],
+    "abuse": ["an id", "the threat"],
+    "test": ["an id", "the abuse case"],
+}
+# The kinds of line that give something a name, and what that thing is called.
+DEFINES = {
+    "zone": "zone",
+    "element": "element",
+    "flow": "flow",
+    "threat": "threat",
+    "control": "control",
+    "goal": "tree",
+    "node": "tree",
+    "leaf": "tree",
+    "abuse": "abuse",
+    "test": "test",
+}
+NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+TECHNIQUE = re.compile(r"T\d{4}(\.\d{3})?")
+
+NEEDS_REFERENCE = ("diagram", "boundaries", "findings", "scope", "attack", "kept")
+POINTER = 'the model doesn\'t read yet: "tm-check reads" on it says where'
+
+# What --quiet prints for a part that isn't right yet: the end state still
+# missing, the same sentence whatever is wrong, so a debug lab's check never
+# says which kind of fault is left.
+QUIET = {
+    "diagram": "the model's parts and flows are not yet the design's",
+    "boundaries": "the zones are not yet where trust changes",
+    "stride": "the review of the flows that cross a boundary is not yet complete",
+    "findings": "something the design describes as weak is not yet a threat on "
+    "its flow, rated by the design's scales",
+    "ranking": "the risks and the top line are not yet right",
+    "controls": "a threat is not yet answered by a control that fits it, "
+    "or by an accept line where the risk is below 6",
+    "scope": "the scope lines are not yet what the rule gives",
+    "attack": "a threat that needs an ATT&CK technique has none that fits yet",
+    "tree": "the attack tree is not yet right",
+    "abuse": "a risk of 6 or more has no abuse case with a test yet",
+    "kept": "a threat the approved model had is gone",
+}
+
+
+class Bad(Exception):
+    """A line of the model that isn't in the format; the text says where."""
+
+
+class BadReference(Exception):
+    """The lab's own reference is wrong: an author's mistake, not a learner's."""
+
+
+class Usage(Exception):
+    """The command line can't be understood."""
+
+
+def words_of(raw):
+    """A line's words, with a comment (a word that starts with #) cut off."""
+    words = []
+    for word in raw.split():
+        if word.startswith("#"):
+            break
+        words.append(word)
+    return words
+
+
+def did_you_mean(name, known):
+    close = difflib.get_close_matches(name, list(known), n=1, cutoff=0.6)
+    return f' (did you mean "{close[0]}"?)' if close else ""
+
+
+class Model:
+    """A threat model as read from its file, each fact with its line number."""
+
+    def __init__(self):
+        self.zone = {}  # name -> line
+        self.element = {}  # id -> {"kind", "zone", "line"}
+        self.flow = {}  # id -> {"from", "to", "line"}
+        self.threat = {}  # id -> {"flow", "letter", "L", "I", "risk", "words", "line"}
+        self.none = []  # (flow, letters, line)
+        self.control = {}  # threat -> [kind, ...]
+        self.control_ids = {}  # id -> line
+        self.accept = {}  # threat -> line
+        self.top = None  # [threat, ...] once there is a top line
+        self.top_line = 0
+        self.attack = {}  # threat -> [technique, ...]
+        self.scope = {}  # element -> word
+        self.goal = {}  # id -> threat
+        self.node = {}  # id -> (parent, "and" or "or")
+        self.leaf = {}  # id -> (parent, cost)
+        self.tree_line = {}  # goal, node or leaf id -> line
+        self.cheapest = {}  # goal -> cost
+        self.abuse = {}  # id -> threat
+        self.test = {}  # id -> abuse
+        self.lines = 0  # how many lines held a fact
+
+
+def read_text(path):
+    if os.path.isdir(path):
+        raise Bad(f"{path} is a folder, and a model is a file")
+    try:
+        with open(path, "rb") as file:
+            data = file.read()
+    except FileNotFoundError:
+        raise Bad(f"there is no model at {path} yet") from None
+    except PermissionError:
+        raise Bad(f"{path} can't be read: check its permissions") from None
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise Bad(
+            f"{path} isn't plain text: write the model in nano, not in a word processor"
+        ) from None
+    return text.lstrip(chr(0xFEFF))
+
+
+def load(path):
+    """Reads a model, or raises Bad with the line and what was expected."""
+    lines = read_text(path).splitlines()
+
+    # First, where every name is defined, so that a name used above its own
+    # line gets "move it up" instead of "there is no such thing".
+    defined = {what: {} for what in set(DEFINES.values())}
+    for n, raw in enumerate(lines, 1):
+        words = words_of(raw)
+        if len(words) >= 2 and words[0] in DEFINES:
+            defined[DEFINES[words[0]]].setdefault(words[1], n)
+
+    m = Model()
+    for n, raw in enumerate(lines, 1):
+        words = words_of(raw)
+        if not words:
+            continue
+        read_line(m, n, words[0], words[1:], defined)
+        m.lines += 1
+    return m
+
+
+def read_line(m, n, kind, a, defined):
+    def wrong(problem):
+        a_kind = f"An {kind}" if kind[0] in "aeiou" else f"A {kind}"
+        return Bad(f"line {n}: {problem}. {a_kind} line is written: {SHAPES[kind]}")
+
+    def new_name(what, name, table):
+        """A name this line gives must be a plain word, used once."""
+        if not NAME.fullmatch(name):
+            raise wrong(
+                f'"{name}" is not a usable name: use letters, digits, "-", "_" and "."'
+            )
+        if name in table:
+            first = defined[DEFINES[kind]][name]
+            raise wrong(f"the {what} {name} is already defined on line {first}")
+
+    def known(what, name, table, where):
+        """A name this line uses must be defined on a line above it."""
+        if name in table:
+            return
+        later = defined[where].get(name)
+        if later and later > n:
+            raise Bad(
+                f"line {n}: the {what} {name} is only defined on line {later}, "
+                f"below this one. Move line {later} up: a line can only use "
+                "names that the lines above it define"
+            )
+        if not table:
+            raise wrong(f"no {what} is defined above this line, so {name} is unknown")
+        raise wrong(
+            f"there is no {what} called {name} above this line"
+            + did_you_mean(name, table)
+        )
+
+    if kind not in SHAPES:
+        guess = did_you_mean(kind.lower(), SHAPES)
+        raise Bad(
+            f'line {n}: "{kind}" is not a kind of line{guess}. '
+            f"A line starts with one of: {', '.join(SHAPES)}"
+        )
+    for word in a:
+        if "___" in word:
+            raise Bad(f"line {n}: this line still has a gap (___) to fill in")
+    fields = FIELDS[kind]
+    if len(a) < len(fields):
+        raise wrong(f"this line stops too soon: {fields[len(a)]} is missing")
+
+    if kind == "zone":
+        new_name("zone", a[0], m.zone)
+        m.zone[a[0]] = n
+    elif kind == "element":
+        new_name("element", a[0], m.element)
+        if a[1] not in ELEMENT_KINDS:
+            raise wrong(
+                f'an element is external, process or store, and this one says "{a[1]}"'
+            )
+        known("zone", a[2], m.zone, "zone")
+        m.element[a[0]] = {"kind": a[1], "zone": a[2], "line": n}
+    elif kind == "flow":
+        new_name("flow", a[0], m.flow)
+        known("element", a[1], m.element, "element")
+        known("element", a[2], m.element, "element")
+        if a[1] == a[2]:
+            raise wrong("a flow goes from one element to another, not to itself")
+        m.flow[a[0]] = {"from": a[1], "to": a[2], "line": n}
+    elif kind == "threat":
+        new_name("threat", a[0], m.threat)
+        known("flow", a[1], m.flow, "flow")
+        if len(a[2]) != 1 or a[2] not in LETTERS:
+            raise wrong(
+                f'the letter is one of S T R I D E, a capital, and this one says "{a[2]}"'
+            )
+        for name, value in (("likelihood", a[3]), ("impact", a[4])):
+            if value not in ("1", "2", "3"):
+                raise wrong(f'the {name} is 1, 2 or 3, and this one says "{value}"')
+        if not a[5].isdigit():
+            raise wrong(f'the risk is a whole number, and this one says "{a[5]}"')
+        words = a[6:]
+        if len(words) < 7 or words[0] not in ("A", "An") or "can" not in words:
+            raise wrong(
+                "after the risk, write what can go wrong as a sentence of at "
+                "least 7 words that starts with A or An and has the word can: "
+                "who can do what"
+            )
+        m.threat[a[0]] = {
+            "flow": a[1],
+            "letter": a[2],
+            "L": int(a[3]),
+            "I": int(a[4]),
+            "risk": int(a[5]),
+            "words": words,
+            "line": n,
+        }
+    elif kind == "none":
+        known("flow", a[0], m.flow, "flow")
+        letters = a[1]
+        if any(c not in LETTERS for c in letters):
+            raise wrong(
+                f"the letters come from S T R I D E, capitals written together "
+                f'(TID), and this one says "{letters}"'
+            )
+        if len(set(letters)) != len(letters):
+            raise wrong(f'a letter is written twice in "{letters}"')
+        reason = a[2:]
+        spaced = reason and (
+            (len(reason[0]) == 1 and reason[0] in "STRDE")
+            or (reason[0] == "I" and len(reason) > 1 and reason[1] in tuple(LETTERS))
+        )
+        if spaced:
+            raise wrong(
+                "write the letters together with no spaces between them, "
+                "as in TID, and then the reason"
+            )
+        if len(reason) < 5:
+            raise wrong(
+                "after the letters, say why there is nothing to record, "
+                "in at least 5 words"
+            )
+        m.none.append((a[0], letters, n))
+    elif kind == "control":
+        new_name("control", a[0], m.control_ids)
+        known("threat", a[1], m.threat, "threat")
+        if a[2] not in ALL_CONTROLS:
+            raise Bad(
+                f'line {n}: "{a[2]}" is not a kind of control'
+                f"{did_you_mean(a[2], ALL_CONTROLS)}. "
+                f"The kinds are: {', '.join(ALL_CONTROLS)}"
+            )
+        m.control_ids[a[0]] = n
+        m.control.setdefault(a[1], []).append(a[2])
+    elif kind == "accept":
+        known("threat", a[0], m.threat, "threat")
+        m.accept.setdefault(a[0], n)
+    elif kind == "top":
+        if m.top is not None:
+            raise wrong(
+                f"there is already a top line, on line {m.top_line}, "
+                "and a model has one"
+            )
+        for name in a:
+            known("threat", name, m.threat, "threat")
+        m.top, m.top_line = list(a), n
+    elif kind == "attack":
+        known("threat", a[0], m.threat, "threat")
+        if not TECHNIQUE.fullmatch(a[1]):
+            raise wrong(
+                "an ATT&CK technique is written T and four digits, with a "
+                f"sub-technique's three after a dot (T1110 or T1110.004), "
+                f'and this one says "{a[1]}"'
+            )
+        m.attack.setdefault(a[0], []).append(a[1])
+    elif kind == "scope":
+        known("element", a[0], m.element, "element")
+        if a[1] not in SCOPES:
+            raise wrong(
+                f'the scope is cde, impacting or out, and this one says "{a[1]}"'
+            )
+        if len(a[2:]) < 5:
+            raise wrong("after the scope word, say why, in at least 5 words")
+        if a[0] in m.scope:
+            raise wrong(f"{a[0]} already has a scope line")
+        m.scope[a[0]] = a[1]
+    elif kind == "goal":
+        new_name("part of a tree", a[0], m.tree_line)
+        known("threat", a[1], m.threat, "threat")
+        m.goal[a[0]] = a[1]
+        m.tree_line[a[0]] = n
+    elif kind in ("node", "leaf"):
+        new_name("part of a tree", a[0], m.tree_line)
+        if a[1] in m.leaf:
+            raise wrong(
+                f"{a[1]} is a leaf, one step, and nothing can sit under a leaf: "
+                "put this line under a goal or a node"
+            )
+        known("goal or node", a[1], {**m.goal, **m.node}, "tree")
+        if kind == "node":
+            if a[2] not in ("and", "or"):
+                raise wrong(f'a node is and or or, and this one says "{a[2]}"')
+            m.node[a[0]] = (a[1], a[2])
+        else:
+            if not a[2].isdigit():
+                raise wrong(
+                    f'a leaf\'s cost is a whole number, and this one says "{a[2]}"'
+                )
+            m.leaf[a[0]] = (a[1], int(a[2]))
+        m.tree_line[a[0]] = n
+    elif kind == "cheapest":
+        known("goal", a[0], m.goal, "tree")
+        if not a[1].isdigit():
+            raise wrong(f'the cost is a whole number, and this one says "{a[1]}"')
+        if a[0] in m.cheapest:
+            raise wrong(f"{a[0]} already has a cheapest line")
+        m.cheapest[a[0]] = int(a[1])
+    elif kind == "abuse":
+        new_name("abuse case", a[0], m.abuse)
+        known("threat", a[1], m.threat, "threat")
+        words = a[2:]
+        starts = len(words) >= 2 and words[0] == "As" and words[1] in ("a", "an")
+        so_that = any(
+            words[i] == "so" and words[i + 1] == "that" for i in range(len(words) - 1)
+        )
+        if not (starts and "I" in words and so_that):
+            raise wrong(
+                "after the threat, write the abuse case as a story in the "
+                "attacker's voice: As a/an ..., I ... so that ..."
+            )
+        m.abuse[a[0]] = a[1]
+    elif kind == "test":
+        new_name("test", a[0], m.test)
+        known("abuse case", a[1], m.abuse, "abuse")
+        if len(a[2:]) < 4:
+            raise wrong(
+                "after the abuse case, say what the team will try, in at least 4 words"
+            )
+        m.test[a[0]] = a[1]
+
+
+# --- what the parts look at -------------------------------------------------
+
+
+def crossing(m):
+    """The flows whose two ends are in different zones."""
+    return [
+        f
+        for f, flow in m.flow.items()
+        if m.element[flow["from"]]["zone"] != m.element[flow["to"]]["zone"]
+    ]
+
+
+def reviewed(m, flow):
+    """The letters a flow has a threat or a none line for."""
+    seen = {t["letter"] for t in m.threat.values() if t["flow"] == flow}
+    for f, letters, _ in m.none:
+        if f == flow:
+            seen |= set(letters)
+    return seen
+
+
+def rated_as(threat, weak):
+    return threat["L"] in weak["L"] and threat["I"] in weak["I"]
+
+
+def stands_for(m, ref):
+    """For each weakness the design describes, the model's threat for it (or
+    None): a threat on the weakness's flow with one of its letters, the one
+    rated as the design's scales give when there are several. No threat
+    stands for two weaknesses."""
+    used, found = set(), []
+    for weak in ref["weak"]:
+        on_it = [
+            tid
+            for tid, t in m.threat.items()
+            if t["flow"] == weak["flow"]
+            and t["letter"] in weak["letters"]
+            and tid not in used
+        ]
+        rated = [tid for tid in on_it if rated_as(m.threat[tid], weak)]
+        pick = (rated or on_it or [None])[0]
+        if pick:
+            used.add(pick)
+        found.append(pick)
+    return found
+
+
+def answers(letter):
+    return CONTROLS[letter]
+
+
+# --- the parts: each returns None, or one sentence --------------------------
+
+
+def reads(m, ref, only):
+    if not m.lines:
+        return "the model is empty: it has no line of the format yet"
+    return None
+
+
+def diagram(m, ref, only):
+    for e, (kind, _) in ref["elements"].items():
+        if e not in m.element:
+            return "the model leaves out a part the design names"
+        if m.element[e]["kind"] != kind:
+            return "a part of the design is drawn as the wrong kind of element"
+    if set(m.element) - set(ref["elements"]):
+        return "the model has an element the design doesn't name"
+    for f, ends in ref["flows"].items():
+        if f not in m.flow:
+            return "the model leaves out a flow the design names"
+        if [m.flow[f]["from"], m.flow[f]["to"]] != ends:
+            return (
+                "a flow doesn't run from the side that starts it "
+                "to the side that answers"
+            )
+    if set(m.flow) - set(ref["flows"]):
+        return "the model has a flow the design doesn't name"
+    return None
+
+
+def boundaries(m, ref, only):
+    # Two elements share a zone in the model exactly when they do in the
+    # design, whatever the zones are called. A pair the reference lists
+    # under "either" may go either way.
+    either = {frozenset(pair) for pair in ref.get("either", [])}
+    names = list(ref["elements"])
+    for i, a in enumerate(names):
+        for b in names[i + 1 :]:
+            if a not in m.element or b not in m.element:
+                return "the model leaves out a part the design names"
+            if frozenset((a, b)) in either:
+                continue
+            same_ref = ref["elements"][a][1] == ref["elements"][b][1]
+            same = m.element[a]["zone"] == m.element[b]["zone"]
+            if same and not same_ref:
+                return (
+                    "two parts that different people run, or that sit on "
+                    "different networks, share a zone"
+                )
+            if same_ref and not same:
+                return (
+                    "two parts the design puts on one network under one "
+                    "owner are in different zones"
+                )
+    return None
+
+
+def stride(m, ref, only):
+    for f in crossing(m):
+        if reviewed(m, f) != set(LETTERS):
+            return (
+                "a flow that crosses a boundary hasn't been reviewed "
+                "for all six letters"
+            )
+    for f, letters, _ in m.none:
+        recorded = {t["letter"] for t in m.threat.values() if t["flow"] == f}
+        if recorded & set(letters):
+            return "a none line covers a letter that the same flow has a threat for"
+    names = set(m.zone) | set(m.element) | set(m.flow)
+    texts = set()
+    for t in m.threat.values():
+        plain = [re.sub(r"[^\w-]", "", word) for word in t["words"]]
+        text = " ".join(w.lower() for w in plain if w and w not in names)
+        if text in texts:
+            return "two threats read the same once the names are taken out"
+        texts.add(text)
+    return None
+
+
+def findings(m, ref, only):
+    for weak, tid in zip(ref["weak"], stands_for(m, ref)):
+        for f, letters, _ in m.none:
+            if f == weak["flow"] and set(letters) & set(weak["no_none"]):
+                return (
+                    "something the design describes as weak is marked "
+                    "as nothing to record"
+                )
+        if tid is None:
+            return "the design describes a weakness the model has no threat for"
+        if not rated_as(m.threat[tid], weak):
+            return (
+                "a threat's likelihood or impact isn't what the design's scales give it"
+            )
+    return None
+
+
+def ranking(m, ref, only):
+    for t in m.threat.values():
+        if t["risk"] != t["L"] * t["I"]:
+            return (
+                f"line {t['line']}: the risk says {t['risk']}, and likelihood "
+                f"{t['L']} times impact {t['I']} is {t['L'] * t['I']}"
+            )
+    high = {tid for tid, t in m.threat.items() if t["risk"] >= HIGH}
+    top = m.top or []
+    if set(top) != high or len(top) != len(high):
+        return "the top line doesn't list every threat of risk 6 or more, once each"
+    risks = [m.threat[t]["risk"] for t in top]
+    if risks != sorted(risks, reverse=True):
+        return "the top line isn't in order, highest risk first"
+    return None
+
+
+def controls(m, ref, only):
+    picked = stands_for(m, ref) if ref else []
+    # The weaknesses whose design narrows what answers them: threat -> kinds.
+    narrowed = {
+        tid: set(weak["controls"])
+        for weak, tid in zip(ref["weak"] if ref else [], picked)
+        if tid and "controls" in weak
+    }
+    if isinstance(only, int):
+        weak, tid = ref["weak"][only - 1], picked[only - 1]
+        if tid is None:
+            return "a risk the design describes has no control"
+        allowed = narrowed.get(tid, answers(m.threat[tid]["letter"]))
+        kinds = m.control.get(tid, [])
+        if not kinds:
+            high = min(weak["L"]) * min(weak["I"]) >= HIGH
+            if tid in m.accept and not high:
+                return None
+            return "a risk the design describes has no control"
+        if not set(kinds) & allowed:
+            return "a control is of a kind that doesn't answer its threat"
+        return None
+    for tid, t in m.threat.items():
+        kinds = m.control.get(tid, [])
+        if t["risk"] >= HIGH:
+            if tid in m.accept:
+                return "a risk of 6 or more is accepted"
+            if not kinds:
+                return "a risk of 6 or more has no control"
+        elif not kinds and tid not in m.accept:
+            return "a threat has neither a control nor an accept line"
+        if only == "rest" and tid in narrowed:
+            continue
+        allowed = narrowed.get(tid, answers(t["letter"]))
+        if kinds and not set(kinds) & allowed:
+            return "a control is of a kind that doesn't answer its threat"
+    return None
+
+
+def scope(m, ref, only):
+    for e, (kind, _) in ref["elements"].items():
+        if kind == "external":
+            if e in m.scope:
+                return "a scope line names something the business doesn't run"
+        elif e not in m.scope:
+            return "a process or a store the business runs has no scope line"
+    for e, right in ref["scope"].items():
+        got = m.scope.get(e)
+        if got == right:
+            continue
+        if got == "out":
+            return (
+                "something that card data reaches, or that could change what "
+                "happens to it, is marked out of scope"
+            )
+        if right == "out":
+            return "something the design keeps apart from card data is marked in scope"
+        return (
+            "an in-scope part has the wrong reason for being in scope "
+            "(cde or impacting)"
+        )
+    return None
+
+
+def attack(m, ref, only):
+    for weak, tid in zip(ref["weak"], stands_for(m, ref)):
+        if "attack" not in weak:
+            continue
+        got = m.attack.get(tid, []) if tid else []
+        if not any(g.split(".")[0] in weak["attack"] for g in got):
+            return (
+                "a threat the task asks an ATT&CK technique for has none that fits it"
+            )
+    return None
+
+
+def tree(m, ref, only):
+    if not m.goal:
+        return "there is no attack tree: it starts with a goal line"
+    under = {}
+    for name, (parent, _) in list(m.node.items()) + list(m.leaf.items()):
+        under.setdefault(parent, []).append(name)
+
+    def below(x):
+        """Everything under x, x included."""
+        found = [x]
+        for kid in under.get(x, []):
+            found += below(kid)
+        return found
+
+    def cost(x):
+        if x in m.leaf:
+            return m.leaf[x][1]
+        costs = [cost(kid) for kid in under[x]]
+        return sum(costs) if x in m.node and m.node[x][1] == "and" else min(costs)
+
+    top = max(t["risk"] for t in m.threat.values())
+    for g, threat in m.goal.items():
+        if m.threat[threat]["risk"] != top:
+            return "the attack tree's goal isn't one of the highest risks"
+        parts = below(g)
+        for x in parts:
+            if x not in m.leaf and not under.get(x):
+                return (
+                    f"line {m.tree_line[x]}: {x} has nothing under it: a goal "
+                    "or a node needs a leaf or a node below it"
+                )
+        leaves = [x for x in parts if x in m.leaf]
+        two_steps = any(
+            x in m.node and m.node[x][1] == "and" and len(under[x]) >= 2 for x in parts
+        )
+        if len(leaves) < 3 or not two_steps:
+            return (
+                "the attack tree needs at least three leaves "
+                "and an and node with two steps"
+            )
+        if g not in m.cheapest:
+            return "the attack tree has no cheapest line for its goal"
+        if m.cheapest[g] != cost(g):
+            return "the cheapest line isn't the cheapest path through the tree"
+    return None
+
+
+def abuse(m, ref, only):
+    tested = set(m.test.values())
+    covered = {threat for case, threat in m.abuse.items() if case in tested}
+    for tid, t in m.threat.items():
+        if t["risk"] >= HIGH and tid not in covered:
+            return "a risk of 6 or more has no abuse case with a test"
+    return None
+
+
+def kept(m, ref, only):
+    for tid, flow in ref["kept"].items():
+        if tid not in m.threat or m.threat[tid]["flow"] != flow:
+            return "a threat the approved model had is gone"
+    return None
+
+
+PARTS = {
+    "reads": reads,
+    "diagram": diagram,
+    "boundaries": boundaries,
+    "stride": stride,
+    "findings": findings,
+    "ranking": ranking,
+    "controls": controls,
+    "scope": scope,
+    "attack": attack,
+    "tree": tree,
+    "abuse": abuse,
+    "kept": kept,
+}
+
+
+# --- the reference a lab's checks hand over ---------------------------------
+
+REFERENCE_KEYS = {"elements", "flows", "weak", "scope", "either", "kept"}
+WEAK_KEYS = {"flow", "letters", "L", "I", "controls", "attack", "no_none"}
+
+
+def read_reference(path):
+    """The design's answers, checked, with each weakness's L and I as lists.
+    A mistake here is the lab author's, so it is said loudly."""
+    try:
+        if path == "-":
+            ref = json.load(sys.stdin)
+        else:
+            with open(path, encoding="utf-8") as file:
+                ref = json.load(file)
+    except (OSError, ValueError) as error:
+        raise BadReference(f"it can't be read as JSON ({error})") from None
+
+    def need(ok, what):
+        if not ok:
+            raise BadReference(what)
+
+    need(isinstance(ref, dict), "it must be a JSON object")
+    need(
+        not set(ref) - REFERENCE_KEYS,
+        f"unknown keys: {sorted(set(ref) - REFERENCE_KEYS)}",
+    )
+    elements, flows = ref.get("elements"), ref.get("flows")
+    need(
+        isinstance(elements, dict) and elements,
+        '"elements" must map each id to [kind, zone]',
+    )
+    for e, value in elements.items():
+        need(
+            isinstance(value, list) and len(value) == 2 and value[0] in ELEMENT_KINDS,
+            f"element {e} must be [kind, zone], the kind one of {ELEMENT_KINDS}",
+        )
+    need(isinstance(flows, dict) and flows, '"flows" must map each id to [from, to]')
+    for f, ends in flows.items():
+        need(
+            isinstance(ends, list)
+            and len(ends) == 2
+            and all(x in elements for x in ends),
+            f"flow {f} must be [from, to], both of them elements",
+        )
+    ref.setdefault("weak", [])
+    need(isinstance(ref["weak"], list), '"weak" must be a list')
+    for i, weak in enumerate(ref["weak"], 1):
+        where = f"weakness {i}"
+        need(isinstance(weak, dict), f"{where} must be an object")
+        need(
+            not set(weak) - WEAK_KEYS,
+            f"{where}: unknown keys {sorted(set(weak) - WEAK_KEYS)}",
+        )
+        need(weak.get("flow") in flows, f"{where}: its flow must be one of the flows")
+        letters = weak.get("letters")
+        need(
+            isinstance(letters, list)
+            and letters
+            and all(x in tuple(LETTERS) for x in letters),
+            f"{where}: letters must be a list from S T R I D E",
+        )
+        for key in ("L", "I"):
+            value = weak.get(key)
+            value = [value] if isinstance(value, int) else value
+            need(
+                isinstance(value, list)
+                and value
+                and all(x in (1, 2, 3) for x in value),
+                f"{where}: {key} must be 1, 2 or 3, or a list of them",
+            )
+            weak[key] = value
+        if "controls" in weak:
+            need(
+                isinstance(weak["controls"], list)
+                and weak["controls"]
+                and all(x in ALL_CONTROLS for x in weak["controls"]),
+                f"{where}: controls must be a list of control kinds",
+            )
+        if "attack" in weak:
+            need(
+                isinstance(weak["attack"], list)
+                and all(
+                    isinstance(x, str) and re.fullmatch(r"T\d{4}", x)
+                    for x in weak["attack"]
+                ),
+                f"{where}: attack must list techniques without sub-techniques, such as T1110",
+            )
+        # A weakness with one letter can't be "nothing to record" for that
+        # letter. One the design lets sit under several letters must say
+        # itself which of them a none line may not cover.
+        weak.setdefault("no_none", letters if len(letters) == 1 else [])
+        need(
+            isinstance(weak["no_none"], list)
+            and all(x in tuple(LETTERS) for x in weak["no_none"]),
+            f"{where}: no_none must be a list from S T R I D E",
+        )
+    if "scope" in ref:
+        need(
+            isinstance(ref["scope"], dict),
+            '"scope" must map elements to cde, impacting or out',
+        )
+        ours = {e for e, (kind, _) in elements.items() if kind != "external"}
+        need(
+            set(ref["scope"]) == ours,
+            '"scope" must name every process and store, and no external',
+        )
+        need(
+            all(x in SCOPES for x in ref["scope"].values()),
+            f'"scope" values are {SCOPES}',
+        )
+    for pair in ref.get("either", []):
+        need(
+            isinstance(pair, list)
+            and len(pair) == 2
+            and all(x in elements for x in pair),
+            '"either" must be a list of pairs of elements',
+        )
+    if "kept" in ref:
+        need(
+            isinstance(ref["kept"], dict)
+            and all(f in flows for f in ref["kept"].values()),
+            '"kept" must map each threat id to its flow',
+        )
+    return ref
+
+
+# --- the command line -------------------------------------------------------
+
+
+def parse(argv):
+    quiet, only, rest = False, None, []
+    args = list(argv)
+    while args:
+        arg = args.pop(0)
+        if arg == "--quiet":
+            quiet = True
+        elif arg == "--only" or arg.startswith("--only="):
+            value = (
+                arg.partition("=")[2] if "=" in arg else (args.pop(0) if args else "")
+            )
+            only = value
+        elif arg.startswith("--"):
+            raise Usage(f"{arg} is not an option of tm-check")
+        else:
+            rest.append(arg)
+    if len(rest) not in (2, 3):
+        raise Usage("give a part and a model, as in: tm-check reads model.tm")
+    part, model = rest[0], rest[1]
+    reference = rest[2] if len(rest) == 3 else None
+    if part not in PARTS:
+        raise Usage(
+            f'"{part}" is not a part{did_you_mean(part, PARTS)}. '
+            f"The parts are: {', '.join(PARTS)}"
+        )
+    if only is not None:
+        if part != "controls" or reference is None:
+            raise Usage("--only goes with the controls part and a reference")
+        if only != "rest":
+            if not only.isdigit() or int(only) < 1:
+                raise Usage(
+                    "--only takes a weakness's number, from 1, or the word rest"
+                )
+            only = int(only)
+    return part, model, reference, quiet, only
+
+
+def run(argv):
+    """What tm-check prints for these arguments, and its exit status."""
+    if not argv or argv[0] in ("--help", "-h", "help"):
+        return __doc__.strip(), 0
+    try:
+        part, model, reference, quiet, only = parse(argv)
+    except Usage as error:
+        return f"tm-check: {error}. tm-check --help shows the format and the parts.", 2
+    if reference is None and part in NEEDS_REFERENCE:
+        return (
+            f"the {part} part compares the model with the design's own answers, "
+            "which only the lab's checks hold. By yourself you can run: "
+            + ", ".join(p for p in PARTS if p not in NEEDS_REFERENCE),
+            0,
+        )
+    ref = None
+    if reference is not None:
+        try:
+            ref = read_reference(reference)
+            if part == "scope" and "scope" not in ref:
+                raise BadReference('the scope part needs "scope" in the reference')
+            if part == "kept" and "kept" not in ref:
+                raise BadReference('the kept part needs "kept" in the reference')
+            if isinstance(only, int) and only > len(ref["weak"]):
+                raise BadReference(
+                    f"--only {only}: it has {len(ref['weak'])} weaknesses"
+                )
+        except BadReference as error:
+            return (
+                f"tm-check: the lab's reference is wrong, which is not your doing: {error}",
+                2,
+            )
+    try:
+        m = load(model)
+    except Bad as error:
+        return (str(error) if part == "reads" else POINTER), 0
+    if not m.lines:
+        # Nothing is wrong with nothing: say so, whatever the part.
+        return "the model is empty: it has no line of the format yet", 0
+    said = PARTS[part](m, ref, only)
+    if said and quiet and part in QUIET:
+        said = QUIET[part]
+    return said or "ok", 0
+
+
+if __name__ == "__main__":
+    text, status = run(sys.argv[1:])
+    print(text)
+    sys.exit(status)

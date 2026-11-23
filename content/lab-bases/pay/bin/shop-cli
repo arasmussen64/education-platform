@@ -1,0 +1,115 @@
+#!/usr/bin/python3
+"""shop-cli: makes the shop do something, as a customer or an admin would.
+
+    shop-cli EVENT [FIELD=VALUE...]     one event
+    shop-cli settle [COUNT] [FIELD=VALUE...]
+                                        the nightly settlement batch: COUNT
+                                        refunds (1500 unless given) at once
+    shop-cli events                     the events and their fields
+
+    shop-cli refund order=42 amount=19.99
+    shop-cli login.failed user=ana src=203.0.113.9
+
+A field you don't give gets an everyday value (you as the person, this
+server as the source, a made-up password or token), as the shop itself
+would have one. What ends up in the audit trail is not decided here: the
+audit writer follows /etc/shop/audit.conf. Scenery for the payments-server
+labs.
+"""
+
+import getpass
+import json
+import os
+import secrets
+import socket
+import sys
+
+sys.path.insert(0, "/usr/local/lib/shop")
+from shop_events import EVENTS, SOCKET  # noqa: E402
+
+SETTLEMENT = 1500
+
+
+def fail(message: str) -> None:
+    print(f"shop-cli: {message}", file=sys.stderr)
+    sys.exit(2)
+
+
+def everyday(event: str, field: str) -> str:
+    """What the shop would have in this field when nobody says otherwise."""
+    me = os.environ.get("SUDO_USER") or getpass.getuser()
+    values = {
+        "user": me,
+        "actor": me,
+        "src": "127.0.0.1",
+        "outcome": "failed" if event.endswith(".failed") else "ok",
+        "password": "pw-" + secrets.token_hex(6),
+        "session": "sess-" + secrets.token_hex(12),
+        "token": "tok-" + secrets.token_hex(12),
+        "path": "/health" if event == "health.check" else "/",
+        "order": str(1000 + secrets.randbelow(9000)),
+        "amount": "10.00",
+        "table": "orders",
+        "rows": "1",
+        "card": "4111111111111111",  # the card networks' test number
+        "setting": "checkout.timeout",
+        "old": "-",
+        "new": "-",
+    }
+    return values[field]
+
+
+def fields_for(event: str, words: list[str]) -> dict[str, str]:
+    given = {}
+    for word in words:
+        if "=" not in word:
+            fail(f'"{word}" is not FIELD=VALUE')
+        field, value = word.split("=", 1)
+        if field not in EVENTS[event]:
+            fail(f'{event} has no field "{field}" (it has: {" ".join(EVENTS[event])})')
+        given[field] = value
+    return {field: given.get(field, everyday(event, field)) for field in EVENTS[event]}
+
+
+def send(shop: socket.socket, event: str, fields: dict[str, str]) -> None:
+    shop.send(json.dumps({"event": event, "fields": fields}).encode("utf-8"))
+
+
+def main() -> None:
+    words = sys.argv[1:]
+    if not words or words[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0 if words else 2)
+    if words[0] == "events":
+        for event, fields in EVENTS.items():
+            print(event, *fields)
+        return
+    shop = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        shop.connect(SOCKET)
+    except OSError:
+        print(
+            "shop-cli: the shop isn't answering: its audit writer isn't running"
+            " (systemctl status shop-audit)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if words[0] == "settle":
+        rest = words[1:]
+        count = SETTLEMENT
+        if rest and rest[0].isdigit():
+            count, rest = int(rest[0]), rest[1:]
+        fields = fields_for("refund", rest)
+        batch = fields["order"] if any(w.startswith("order=") for w in rest) else "settle"
+        for number in range(1, count + 1):
+            send(shop, "refund", {**fields, "order": f"{batch}-{number}"})
+        print(f"settled: {count} refunds")
+        return
+    event = words[0]
+    if event not in EVENTS:
+        fail(f'no such event "{event}" (shop-cli events lists them)')
+    send(shop, event, fields_for(event, words[1:]))
+
+
+if __name__ == "__main__":
+    main()
