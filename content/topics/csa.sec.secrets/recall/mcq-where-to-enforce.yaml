@@ -2,7 +2,7 @@ id: mcq-where-to-enforce
 type: mcq
 rev: 1
 prompt: |
-  The shop wants no secret to reach its git server, ever. It can run a scanner in several places. Which one can a developer in a hurry not get round?
+  The shop wants no secret to reach its git server, ever. It can run a scanner in several places. Which one can a developer in a hurry not skip or switch off?
 choices:
   - "A pre-receive hook on the server, scanning with the server's own settings"
   - "A pre-commit hook on each laptop, scanning whatever is staged"
@@ -10,7 +10,7 @@ choices:
   - "A weekly scan of the newest files on the main branch"
 answer: 0
 explanation: |
-  A pre-receive hook runs on the server for every push, before anything is accepted, and a non-zero exit refuses the push. Nobody pushing can switch it off, and because it scans with a settings file on the server, nothing in the push can change its rules.
+  A pre-receive hook runs on the server for every push, before anything is accepted, and a non-zero exit refuses the push. Nobody pushing can switch it off, and because it scans with a settings file on the server, no settings file in the push can change its rules. (It is still only as good as its scanner: the lesson lists what got past the lab's.)
 
   A pre-commit hook is worth having, because it catches the mistake earliest, but it lives on the laptop: `git commit --no-verify` skips it, and a new clone doesn't have it until somebody installs it. A CI job runs after the push, when the secret is already on the server and in everyone's next fetch, and a scan of a clone obeys the `.gitleaks.toml` inside that clone, which a push can change. A weekly scan of the newest files misses whatever was added and removed in between, and finds the rest days late.
 skills: [scan-for-leaks]
