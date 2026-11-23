@@ -7,6 +7,7 @@ The writing plan for Module 4, "Security and identity foundations", before any o
 | File | What it is |
 | --- | --- |
 | [MODULE-4-BRIEF.md](MODULE-4-BRIEF.md) | The final plan: the topic order (one topic moved), the rules every item follows, how each lesson meets ADR-0025, 0026 and 0031, the five lab bases in their final form, each topic's changes to its designer's brief with its puzzle, incident and reading, Checkpoint 4, the platform work, the writing waves, CI time, decisions for the owner queue, what to look up again, and the replacement text for the spec |
+| [BUILD-NOTES.md](BUILD-NOTES.md) | What building the lab bases found, after the plan was written: where a base as built differs from its brief. A topic's writer reads it after the brief, and it wins on how a base behaves |
 | [CRITIQUE.md](CRITIQUE.md) | What the critic read and didn't, every problem found and what was done about it, the facts and incidents re-checked, the two experiments, and what is still unverified |
 | [identity-lab-base.md](identity-lab-base.md) | The identity-lab base (`lab-base-id`): Keycloak on the network base, the realm file as the configuration, the scripted browser, clocks. The brief's section 4.1 decides its fourteen mismatches and adds the earlier image's time model |
 | [lab-base-sec.md](lab-base-sec.md) | The payments-server base for audit, vulnerabilities and compliance. **Renamed `pay`** by the plan; the cryptography brief's section 10 designs a different base it also called `lab-base-sec`, now `vault` |
