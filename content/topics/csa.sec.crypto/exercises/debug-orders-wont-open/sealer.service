@@ -1,0 +1,18 @@
+# The web front end's order sealer: seals each order that arrives in
+# /srv/orders/incoming into /srv/orders/archive. It runs as the user web,
+# and starts once OpenBao is up.
+[Unit]
+Description=The web front end's order sealer
+After=openbao.service lab-bao-init.service
+Wants=openbao.service
+
+[Service]
+User=web
+Environment=BAO_ADDR=http://127.0.0.1:8200
+ExecStart=/usr/local/bin/sealer
+SyslogIdentifier=sealer
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

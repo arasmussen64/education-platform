@@ -1,0 +1,61 @@
+#!/bin/bash
+# sealer: the web front end's order sealer. It watches the incoming folder
+# and seals each order it finds into the archive: the order encrypted by
+# gcm under a data key of its own, and that key, wrapped by OpenBao,
+# beside it. Its settings are in /etc/shop/sealer.conf, read once, when it
+# starts; its token is in /etc/shop/sealer.token.
+#   sealer          run until stopped (sealer.service)
+#   sealer --once   seal what is waiting, and stop
+set -uo pipefail
+
+conf=/etc/shop/sealer.conf
+
+# setting NAME: the value on the conf file's "NAME = VALUE" line.
+setting() {
+  sed -n "s/^$1 *= *//p" "$conf" | head -n 1
+}
+
+say() {
+  logger -t sealer -- "$*"
+}
+
+key=$(setting key)
+incoming=$(setting incoming)
+archive=$(setting archive)
+[ -n "$key" ] && [ -d "$incoming" ] && [ -d "$archive" ] || {
+  say "can't start: $conf must name a key, an incoming folder and an archive folder"
+  exit 1
+}
+BAO_TOKEN=$(cat /etc/shop/sealer.token) || exit 1
+export BAO_TOKEN BAO_ADDR=http://127.0.0.1:8200
+umask 002
+
+# Orders that couldn't be sealed, so that each is reported once, not once
+# a second.
+declare -A failed
+
+seal_one() {
+  local file=$1 name answer
+  name=$(basename "$file")
+  answer=$(bao write -f "transit/datakey/plaintext/$key" 2>&1) || {
+    [ -n "${failed[$name]:-}" ] || say "can't seal $name: OpenBao gave no data key from $key ($(echo "$answer" | grep '^\*' | head -n 1 | cut -c 3-))"
+    failed[$name]=1
+    return 1
+  }
+  echo "$answer" | awk '$1 == "ciphertext" {print $2}' > "$archive/$name.key"
+  echo "$answer" | awk '$1 == "plaintext" {print $2}' | gcm seal "$file" "$archive/$name.sealed" || return 1
+  chmod 664 "$archive/$name.sealed" "$archive/$name.key"
+  rm -f "$file"
+  unset "failed[$name]"
+  say "sealed $name"
+}
+
+say "started"
+while true; do
+  for file in "$incoming"/*.txt; do
+    [ -e "$file" ] || continue
+    seal_one "$file" || true
+  done
+  [ "${1:-}" = --once ] && exit 0
+  sleep 1
+done

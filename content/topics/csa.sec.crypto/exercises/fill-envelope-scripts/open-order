@@ -1,0 +1,17 @@
+#!/bin/bash
+# open-order FILE.sealed: prints the order sealed in FILE.sealed, with the
+# wrapped key that seal-order left in FILE.key.
+# It talks to OpenBao with the token in BAO_TOKEN, or yours when there is
+# none.
+set -euo pipefail
+
+[ $# -eq 1 ] && [ -f "$1" ] || {
+  echo "usage: open-order FILE.sealed" >&2
+  exit 2
+}
+
+# FILE.sealed without its ending, and .key in its place.
+wrapped="${1%.sealed}.key"
+
+# Have OpenBao unwrap the data key, and pipe it straight into gcm.
+bao write -field=plaintext ___ ciphertext="$(cat "$wrapped")" | gcm open "$1" -

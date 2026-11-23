@@ -1,0 +1,27 @@
+#!/bin/bash
+# report-orders: the nightly report. It opens every sealed order in the
+# archive, with the report's own token (/etc/shop/report.token), and says
+# how many it could open. For each one it can't, it says why.
+set -uo pipefail
+
+archive=/srv/orders/archive
+BAO_TOKEN=$(cat /etc/shop/report.token) || exit 1
+export BAO_TOKEN BAO_ADDR=http://127.0.0.1:8200
+
+opened=0
+total=0
+for sealed in "$archive"/*.sealed; do
+  [ -e "$sealed" ] || continue
+  total=$((total + 1))
+  name=$(basename "${sealed%.sealed}")
+  if ! key=$(bao write -field=plaintext transit/decrypt/orders ciphertext="$(cat "${sealed%.sealed}.key" 2> /dev/null)" 2>&1); then
+    echo "$name: OpenBao wouldn't unwrap its key ($(echo "$key" | grep '^\*' | head -n 1 | cut -c 3-))"
+    continue
+  fi
+  if echo "$key" | gcm open "$sealed" - > /dev/null 2>&1; then
+    opened=$((opened + 1))
+  else
+    echo "$name: the key beside it doesn't open it"
+  fi
+done
+echo "opened $opened of $total"

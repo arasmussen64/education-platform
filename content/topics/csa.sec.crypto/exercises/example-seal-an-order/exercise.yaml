@@ -1,0 +1,60 @@
+id: example-seal-an-order
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Seal an order"
+prompt: |
+  **Before your first key-service lab.** The labs of this topic, of Secrets and of part of Checkpoint 4 are one server, the shop's, with a key and secrets service running on it. The service is **OpenBao**, an open-source program that speaks the same commands and the same API as HashiCorp Vault, which many companies run; here it stands in for a cloud's key service (AWS KMS, Azure Key Vault, Google Cloud KMS). It runs as `openbao.service` and listens on this machine only, at `http://127.0.0.1:8200`. What you need to know about it fits in six lines:
+
+  - **`bao`** is its command. `bao read PATH` asks for something, `bao write PATH name=value` sends something or asks OpenBao to do something, and `-f` writes with no values. Everything in OpenBao lives at a **path**, like a file: the shop's key for orders is `transit/keys/orders`.
+  - **`-field=NAME`** prints one field of an answer on its own, which is how a command's answer goes into a file or a pipe.
+  - **A token** is what proves to OpenBao who is asking. Yours is in `~/.vault-token`, where `bao` finds it by itself. A script or a service gets a token of its own in the variable `BAO_TOKEN`.
+  - **A policy** says which paths a token may use, and how (Authentication and authorization's idea, in OpenBao's spelling). Your token's policy, `lab-admin`, allows everything. Never type `sudo bao`: root has no token.
+  - **The transit engine**, under `transit/`, is OpenBao's key service: it keeps keys and encrypts and decrypts what it is sent, and never hands a key out.
+  - **The audit log**, `/var/log/openbao/audit.log`, records every request. Only root can read it: `sudo tail`.
+
+  OpenBao must be opened with a key of its own each time it starts (unsealed). In these labs it unseals itself at boot from a key file made when the lab first started; Secrets explains that choice. A lab like this needs about 0.9 GB of disk for its image, once, and under 150 MB of memory.
+
+  **The lab.** The shop sends payment orders to its bank and keeps exports of its orders, card numbers included. In `~/orders` are `order.txt` (one payment order), `hmac.key` (a key the shop and the bank share) and `export.csv` (30 orders). OpenBao already has the transit key `orders`.
+
+  The walkthrough takes a fingerprint of the order three ways (a hash, a MAC, a signature) and sees what each one catches; changes an encrypted order without the key; lets OpenBao encrypt with authentication; seals the export in an envelope (a data key of its own, kept wrapped by the `orders` key); rotates the key, rewraps and retires the old version; splits who may seal from who may open with two policies; and reads the audit log. Two helpers are the lab's own: `gcm seal IN OUT` and `gcm open IN OUT` encrypt and decrypt a file with AES-256-GCM, reading the key, in base64, from standard input (`openssl enc` can't do GCM).
+
+  Type each line yourself and read what it prints before you type the next. Lines that end in `|| true` are meant to fail: read the error.
+steps:
+  - label: "Meet OpenBao"
+    lines: "1-4"
+    note: "`bao status` says OpenBao is unsealed (`Sealed false`) by a `static` seal, the key file. `bao token lookup` shows who you are to it: the token called `token-learner`, with the policy `lab-admin`. `bao secrets list` shows what is mounted where: `transit/` is the key service. `bao read transit/keys/orders` describes the shop's key without showing it: its type, `aes256-gcm96` (AES with a 256-bit key in GCM mode, with a 96-bit nonce), `exportable false` (the key can never be handed out), `latest_version 1`, and `min_decryption_version 1`, the oldest version that may still decrypt."
+  - label: "A hash: a fingerprint anyone can take"
+    lines: "5-6"
+    note: "`sha256sum` prints the SHA-256 hash of the order, 64 hex digits. `sed` writes a copy with 100 changed to 900, and its hash shares nothing with the first: any change alters the whole fingerprint. But nothing secret went into either line. Whoever changes the order can run `sha256sum` too and send the new hash along."
+  - label: "A MAC: a fingerprint only key holders can take"
+    lines: "7"
+    note: "`openssl dgst -sha256 -hmac KEY` prints an HMAC-SHA256 of each file: a hash worked out from the data and a secret key together. The two differ, as the hashes did, but this time someone who changes the order can't work out the new one without `hmac.key`. The bank, which holds the same key, can check it; and because the bank holds the same key, the bank could have made it too."
+  - label: "A signature: made by one, checked by anyone"
+    lines: "8-11"
+    note: "`genpkey` makes a private key (Ed25519, a modern signature algorithm) and `pkey -pubout` writes its public half. `pkeyutl -sign` signs the order with the private key (`-rawin`: the file itself is what's signed), and `-verify` with the public key says `Signature Verified Successfully`. The same signature against the changed order: `Signature Verification Failure`. Only `sign.key` can make a signature that `sign.pub` accepts, and `sign.pub` can be given to everyone."
+  - label: "Encrypt, then change it without the key"
+    lines: "12-16"
+    note: "Line 12 makes a random 256-bit key and a 128-bit starting value (the IV), as hex. Line 13 encrypts the order with AES in **CTR mode**, which has no authentication, and `xxd` shows 15 bytes of ciphertext that say nothing. Line 15 plays the attacker, who has no key but guesses the layout: `od` reads the fifth byte as a number, `$((byte ^ 8))` flips one bit of it (`^` is XOR; the digits `1` and `9` differ in exactly that bit), and `printf` and `dd` write the byte back in place (`seek=4`: after four bytes; `conv=notrunc`: leave the rest). Line 16 decrypts with the right key and prints `PAY 900 TO ALEX`. No error: the cipher has no way to know."
+  - label: "Encryption that notices"
+    lines: "17-19"
+    note: "OpenBao's transit key encrypts with AES-GCM, an **AEAD**: it adds a tag that only the key can make. `transit/encrypt/orders` takes the plaintext in base64 (`base64 <<< 'text'` encodes it; `<<<` hands a command one line as its input) and returns `vault:v1:...`: the `v1` says which version of the key did it. Line 18 decrypts it back to `card 4111`. Line 19 sends the same ciphertext with two characters changed (`${sealed:0:20}` is its first 20 characters, `${sealed:22}` everything from the 23rd) and OpenBao refuses: `cipher: message authentication failed`."
+  - label: "An envelope for the export"
+    lines: "20-24"
+    note: "`transit/datakey/plaintext/orders` makes a new random 256-bit **data key** and returns it twice: `plaintext`, the key itself in base64, and `ciphertext`, the same key wrapped (encrypted) by the `orders` key. Line 20 keeps the answer in a variable and prints only the field names. Line 21 saves the wrapped key beside the data, as `export.csv.key`: it is safe on disk, because only OpenBao can unwrap it. Line 22 pipes the plaintext key into `gcm seal`, so it is never in a file. Line 23 forgets the key (`unset`), deletes the unencrypted export, and shows what is left. Line 24 opens the export again: OpenBao unwraps the key (`transit/decrypt/orders`), and the key goes down a pipe to `gcm open`."
+  - label: "Rotate, rewrap, retire"
+    lines: "25-31"
+    note: "Line 25 keeps a copy of the wrapped key as it is now. Line 26 **rotates** the `orders` key: `latest_version 2`. Nothing else changed: line 27 still opens the export with the old wrapped key, because OpenBao kept version 1 and the `v1` in the ciphertext says which to use. Line 28 **rewraps**: OpenBao unwraps the data key with version 1 and wraps it again with version 2, inside itself, and returns `vault:v2:...`; the data key never came out, and `export.csv.sealed` wasn't touched. Line 29 **retires** version 1 by raising `min_decryption_version` to 2. Now the old copy fails (line 30: `ciphertext or signature version is disallowed by policy (too old)`), and the rewrapped one works (line 31). In that order, always: rotate, rewrap everything, then retire."
+  - label: "Who may seal, who may open"
+    lines: "32-36"
+    note: "Two policies, each one path and one capability (`update` is what `bao write` needs). `order-writer` may ask for data keys; `order-reader` may unwrap. `bao token create -policy=order-writer` makes a token with only that policy, and `bao token capabilities TOKEN PATH` asks OpenBao what it may do: `update` on the data-key path, `deny` on decrypt. Line 36 tries it: with `BAO_TOKEN` set to the writer's token for that one command, unwrapping is refused, `permission denied`. A program that only seals orders can't open any."
+  - label: "The audit log"
+    lines: "37-39"
+    note: "Line 37 takes the request before the last in the audit log, the writer's refused unwrap, and shows a few of its fields: `\"type\":\"request\"`, the token's `display_name`, the `operation` and the `path`. The ciphertext it sent is there as `hmac-sha256:...`, not as itself: OpenBao logs an HMAC of every value, under a key only it holds, so the log gives nothing away and can still be searched. `sys/audit-hash/file` works out that HMAC for a value you name (line 38, for the wrapped key), and line 39 counts the requests in the log that carried it: 3, which are your unwrap in line 31, the writer's refused one, and the question line 38 itself asked. That is how an auditor answers \"who has opened this export?\" without the log holding one key."
+  - label: "What you made"
+    lines: "40"
+    note: "A signed order, a sealed export with its wrapped key beside it, an old wrapped key that no longer opens anything, and in OpenBao a key at version 2 with version 1 retired, and two policies. Run the checks."
+skills: [hash-mac-signature, authenticated-encryption, envelope-encryption]

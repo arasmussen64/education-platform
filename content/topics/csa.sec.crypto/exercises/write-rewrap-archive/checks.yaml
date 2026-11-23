@@ -1,0 +1,48 @@
+# The checks try ~/bin/rewrap-archive on an archive of their own, made on
+# the spot: a transit key with a made-up name, rotated three or four times,
+# and 5 to 12 sealed orders in folders of several depths, one with a space
+# in its name, their keys wrapped by versions picked at random. The script
+# runs twice, as the learner, with a token that may only rewrap with that
+# key and read its description. rewrapcheck.sh, beside this file, is the
+# trial; it runs once for all five checks.
+checks:
+  - id: all-current
+    description: "After a run, every .key file under DIR, at any depth, is wrapped by the latest version of KEY and still opens its order."
+    command: |
+      . /usr/local/lib/lab/rewrapcheck.sh
+      rewrap_finding all-current
+    timeout: 60
+    expect:
+      equals: ok
+  - id: sealed-untouched
+    description: "No .sealed file is changed."
+    command: |
+      . /usr/local/lib/lab/rewrapcheck.sh
+      rewrap_finding sealed-untouched
+    timeout: 60
+    expect:
+      equals: ok
+  - id: counts
+    description: "The last line printed is \"rewrapped N, already current M\", with the right N and M."
+    command: |
+      . /usr/local/lib/lab/rewrapcheck.sh
+      rewrap_finding counts
+    timeout: 60
+    expect:
+      equals: ok
+  - id: idempotent
+    description: "A second run over the same archive rewraps nothing, changes nothing and says so."
+    command: |
+      . /usr/local/lib/lab/rewrapcheck.sh
+      rewrap_finding idempotent
+    timeout: 60
+    expect:
+      equals: ok
+  - id: no-unwrap
+    description: "No data key is unwrapped on the way: OpenBao is never asked to decrypt."
+    command: |
+      . /usr/local/lib/lab/rewrapcheck.sh
+      rewrap_finding no-unwrap
+    timeout: 60
+    expect:
+      equals: ok
