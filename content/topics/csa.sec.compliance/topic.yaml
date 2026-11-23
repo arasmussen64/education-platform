@@ -1,15 +1,396 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.sec.compliance
 kind: topic
-status: planned
+status: ready
 title: Compliance basics
-summary: Read a control framework (SOC 2, ISO 27001, PCI DSS 4, HIPAA, FedRAMP, CMMC, GDPR, CIS Benchmarks, NIST CSF 2.0 and SP 800-53) and map a control to technical evidence.
-prerequisites:
-- csa.m3.checkpoint
-estimated_minutes: 240
+summary: "What the common security frameworks are and who checks each (SOC 2, ISO/IEC 27001, PCI DSS, HIPAA, FedRAMP, CMMC, GDPR, the CIS Benchmarks, NIST's CSF 2.0 and SP 800-53); how to read one control and turn it into a setting; which systems the card rules reach (PCI DSS scope); how to show an assessor that a control is met with evidence they can run again, including a control no scanner tests; why one setting counts for several frameworks; and what to do with a rule you can't pass."
+# Module 4's plan (docs/plans/cloud-module-4/MODULE-4-BRIEF.md, sections 2,
+# 3 and 5), its designer's brief (csa.sec.compliance.md) and the build notes
+# (BUILD-NOTES.md), with the pay base as it was built
+# (content/lab-bases/pay/README.md). Where they differ, in that order of
+# weight: the build notes and the base win on how the base behaves, the
+# plan on everything else.
+#
+# What the build notes changed:
+# - Labs run named rules only, through the base's oscap-rules (a short name
+#   for it, `oscap-rules`, is on the learner's PATH in every lab here). One
+#   whole-profile run hung again while these labs were written (60 s, 218 of
+#   408 results), so no lab or check runs the profile.
+# - partition_for_tmp is "notapplicable" on the base, so the one accepted
+#   exception is another rule: package_rsync_removed (CIS 2.1.13). It fails
+#   honestly, and the server can't pass it, because the shop's settlement
+#   sync (Vulnerability management's shop-sync.service) is an rsync daemon
+#   the bank fetches from. A real organisation accepts that with a written
+#   reason and a compensating control, which here is real: the share is
+#   read-only and answers one address.
+# - Tried on the base before the lesson, 2026-11-22: the three password
+#   rules (accounts_password_pam_minlen, _dcredit, _lcredit) pass with
+#   "minlen = 14", "dcredit = -1" and "lcredit = -1" in
+#   /etc/security/pwquality.conf, fail with minlen = 12, and fail when the
+#   settings are in a pwquality.conf.d folder (which the library itself
+#   reads); journald_storage passes with Storage=persistent in a drop-in
+#   under /etc and fails under /run, with a misspelt value, and with a later
+#   drop-in that says volatile, and it passes when the main file says
+#   persistent and a drop-in says volatile (so the checks also read the
+#   settings in force); sshd_disable_root_login fails when any file says
+#   yes, and passes on the files while a server that wasn't reloaded, or
+#   was started with "-o PermitRootLogin=yes", still lets root in (so the
+#   checks also try a real login with the base's root-login);
+#   a tailoring file that unselects a rule leaves the rule out of a
+#   tailored whole-profile report, and has no effect on a rule named with
+#   --rule.
+# - Found while the labs were built, and now part of them: a journal that
+#   started in memory (Storage=volatile) goes on writing under /run after
+#   its settings say persistent and journald is restarted, until
+#   `journalctl --flush` or the next boot (the debug's prompt gives the
+#   command); and awk compares `$3 == c` as numbers when both sides look
+#   like numbers, so 4.2 equals 4.20 (the write lab's check makes such a
+#   pair, and its prompt gives the comparison as text).
+#
+# This topic builds on csa.sec.audit (the audit journal namespace, its
+# settings and `systemd-analyze cat-config`, retention, PCI DSS's 12
+# months) and csa.sec.vulnerabilities (the offline scan, the register, due
+# dates, exception and compensating control, which that topic's glossary
+# owns), and through them on csa.sec.threat-modeling (risk, security
+# control), csa.sec.authn-authz and csa.sec.crypto. From Module 1:
+# csa.linux.hardening (what a CIS Benchmark is, Level 1 and 2, that OpenSCAP
+# prints Title, Rule and Result, SSH drop-ins where the first value read
+# wins, reload after an edit), csa.linux.shell and csa.linux.scripting (awk
+# -F'\t' with -v, grep, sort, a script with chmod +x), csa.linux.services
+# (systemctl cat, drop-ins, daemon-reload). From Module 3: subnets and
+# firewalls.
+#
+# It defines, for the module (the plan's 3.5): framework, control objective,
+# parameter, evidence, attestation, crosswalk, cardholder data environment
+# and PCI DSS scope; and with them assessor, sample, stale evidence,
+# segmentation and tailoring. It gives OSCAL, inherited controls and
+# continuous compliance one sentence each (Module 20 owns them).
+prerequisites: [csa.sec.audit, csa.sec.vulnerabilities]
+# Worked out: the lesson about 34 minutes (4,400 words with its tables at
+# 130 a minute), the copied reading 6 (NIST's news release, 832
+# words), 25 practice quick items at 1.5 each 38, the worked example 30, the
+# fill-in 30, the write 40, the build 60, the debug 45, the explain 20 and
+# the puzzle about 3: 305. The plan's figure is 300.
+estimated_minutes: 305
 rev: 1
 objectives:
-- Read a control framework (SOC 2, ISO 27001, PCI DSS 4, HIPAA, FedRAMP, CMMC, GDPR, CIS Benchmarks, NIST CSF 2.0 and SP 800-53) and map a control to technical evidence.
-- Say which systems are in PCI DSS scope.
+  - "Say what each of the common frameworks is, whom it binds, who checks it and whether its text is free: SOC 2, ISO/IEC 27001, PCI DSS, the HIPAA Security Rule, FedRAMP, CMMC, GDPR, the CIS Benchmarks, and NIST's CSF 2.0 and SP 800-53; tell a law from a contract, a certification and a catalogue."
+  - "Read a control: its identifier, its statement, the parameters the organisation fills in, its enhancements and its discussion; tell a requirement from guidance; turn a parameter into a setting in the setting's own units."
+  - "Say which systems are in PCI DSS scope: the cardholder data environment, the systems connected to it or able to affect it, and what is out; what segmentation does, and what handing the card form to a provider changes and doesn't."
+  - "Map a control to technical evidence: the benchmark rules that test it, a reading of the configuration or another tool's report where no rule exists, saved as the tool printed it, current, and something an assessor can run again."
+  - "Use a crosswalk: one setting supports controls in several frameworks, one control needs several rules, a mapping belongs to one version of each side, and a mapped rule supports a control without proving it."
+  - "Handle gaps and exceptions: a control nothing tests automatically, a rule that passes while the control isn't met, a benchmark stricter than the framework, a rule the business can't pass (a written exception with a compensating control, an owner and an expiry), and evidence that went stale."
+# Facts the lesson, the items and the labs rely on, each read on 2026-11-22
+# unless a line says otherwise.
+# - NIST CSF 2.0: released 26 February 2024; six functions, Identify,
+#   Protect, Detect, Respond, Recover and the new Govern; "all organizations
+#   in any sector", where version 1 aimed at critical infrastructure:
+#   nist.gov/news-events/news/2024/02/nist-releases-version-20-landmark-cybersecurity-framework
+#   The framework's page links the document, the quick-start guides, the
+#   informative references (mappings) and the CSF 2.0 tool:
+#   nist.gov/cyberframework
+# - NIST SP 800-53 Rev. 5: 20 control families; the newest release is
+#   5.2.0 of 27 August 2025 (it adds SA-15(13), SA-24 and SI-02(07)):
+#   csrc.nist.gov/pubs/sp/800/53/r5/upd1/final. The control texts quoted in
+#   the lesson, the items and the labs (AC-6(2), AC-7, AU-11) are the pay
+#   base's copies, made from NIST's OSCAL catalogue (public domain; the
+#   base's data/SOURCES.md).
+# - NIST on its own pages: except where marked as copyrighted, "information
+#   presented on NIST sites are considered public information" and may be
+#   shared or copied; credit is requested: nist.gov/oism/copyrights
+# - PCI DSS v4.0.1: published June 2024, "a limited revision" with no
+#   requirement added or removed; v4.0 retired on 31 December 2024; in
+#   requirement 6 the wording went back to v3.2.1's, so that the 30-day
+#   patching rule applies only to critical vulnerabilities (the PCI SSC's
+#   announcement of 11 June 2024):
+#   blog.pcisecuritystandards.org/just-published-pci-dss-v4-0-1
+#   The standard itself: the PCI SSC's document library lists v4.0.1 and
+#   refused the download to the tool used (HTTP 403), so its text was read
+#   in a copy a college hosts
+#   (middlebury.edu/sites/default/files/2025-01/PCI-DSS-v4_0_1.pdf, "v4.0.1
+#   June 2024", "©2006 - 2024 PCI Security Standards Council, LLC. All
+#   Rights Reserved"). Nothing of it is copied here; it is described, with
+#   requirement numbers. Read there: section 4 (the requirements apply to
+#   the cardholder data environment, which is the system components, people
+#   and processes that store, process or transmit cardholder data or
+#   sensitive authentication data, and the system components with
+#   unrestricted connectivity to those; and to system components, people and
+#   processes that could impact the security of that data; without adequate
+#   segmentation, "a flat network", the entire network is in scope; to be
+#   out of scope a component must be segmented so that it could not impact
+#   the security of the data even if it were compromised; segmentation is
+#   recommended, not required; scope is confirmed at least every 12 months,
+#   requirement 12.5.2); 6.3.3 (critical vulnerabilities patched within one
+#   month of release, the rest within a time the entity's own risk ranking
+#   sets); 6.4.3 and 11.6.1 (payment-page scripts authorised, their
+#   integrity assured and inventoried; a change- and tamper-detection
+#   mechanism for payment pages); 8.3.4 (lock out after not more than 10
+#   attempts, for at least 30 minutes or until identity is confirmed); 8.3.6
+#   (at least 12 characters, numeric and alphabetic); 10.5.1 (audit log
+#   history kept at least 12 months, the latest three immediately
+#   available); 8.3.9 (where a password is the only factor, changed at
+#   least once every 90 days, or the account's security posture analysed
+#   dynamically); 3.3.1 (sensitive authentication data not stored after
+#   authorization).
+# - The PCI SSC's glossary: the CDE; cardholder data is at least the full
+#   PAN; sensitive authentication data includes card verification codes,
+#   full track data and PINs; a payment page may be an inline frame within a
+#   non-payment page; QSA companies are qualified by the PCI SSC to validate
+#   adherence; "Copyright © 2006 - 2026 PCI Security Standards Council, LLC.
+#   All rights reserved": pcisecuritystandards.org/glossary/
+# - SAQ A, 30 January 2025: requirements 6.4.3, 11.6.1 and 12.3.1 removed
+#   from that questionnaire, and an eligibility criterion added, that the
+#   merchant has confirmed its site is not susceptible to attacks from
+#   scripts that could affect its e-commerce systems; effective 31 March
+#   2025: blog.pcisecuritystandards.org/important-updates-announced-for-merchants-validating-to-self-assessment-questionnaire-a
+#   FAQ 1588 (February 2025): the criterion applies to merchants whose page
+#   embeds a provider's payment form (an iframe), not to those that
+#   redirect; it is met with techniques like 6.4.3's and 11.6.1's or by the
+#   provider's confirmation: pcisecuritystandards.org/faqs/1588/
+# - SOC 2: engagements are performed by CPAs, under standards the AICPA
+#   promulgates, on controls "Relevant to Security, Availability, Processing
+#   Integrity, Confidentiality, or Privacy":
+#   aicpa-cima.com/topic/audit-assurance/audit-and-assurance-greater-than-soc-2
+#   Type 1 (the description is fairly presented and the controls suitably
+#   designed) against Type 2 (also operating effectively throughout a
+#   period): the Journal of Accountancy, the AICPA's own magazine,
+#   journalofaccountancy.com/issues/2011/jul/20103500/ (the AICPA's SOC
+#   pages don't define the two types in the text fetched).
+# - ISO/IEC 27001:2022: 93 Annex A controls in four themes (organizational,
+#   people, physical, technological), where the 2013 edition had 114 in 14
+#   groups. NOT confirmed at its source: iso.org answered 403 and ANSI's
+#   comparison page 403; the numbers are as several certification firms'
+#   pages give them (search results, 2026-11-22). No lab depends on them.
+# - HIPAA Security Rule: 45 CFR 164.312, technical safeguards for "a
+#   covered entity or business associate"; (b) "Standard: Audit controls":
+#   law.cornell.edu/cfr/text/45/164.312
+# - GDPR Article 33(1): "without undue delay and, where feasible, not later
+#   than 72 hours after having become aware of it", unless the breach is
+#   unlikely to result in a risk to people's rights and freedoms. Read at
+#   gdpr-info.eu/art-33-gdpr/ (an unofficial copy: EUR-Lex returned an empty
+#   page to the tool twice).
+# - CMMC: 32 CFR 170.3(e): Phase 1 begins on the effective date of the
+#   acquisition rule and brings Level 1 and Level 2 self-assessments; Phase
+#   2 begins one calendar year later (Level 2 by a third-party assessor);
+#   Phase 3 a year after that (Level 3); Phase 4, full implementation, a
+#   year after that: law.cornell.edu/cfr/text/32/170.3. 32 CFR 170.14: Level
+#   1 is 48 CFR 52.204-21(b)(1)(i) to (xv); Level 2's requirements "are
+#   identical to the requirements in NIST SP 800-171 R2"; Level 3's are
+#   selected from SP 800-172: law.cornell.edu/cfr/text/32/170.14. The
+#   effective date itself, 10 November 2025, is NOT confirmed at a
+#   government source (the Defense Department's CMMC page and the Federal
+#   Register both refused the tool); law firms' notes agree on it (search
+#   results). The lesson gives the date as reported and the rule's "a year
+#   apart".
+# - FedRAMP's Consolidated Rules for 2026: in effect from 4 July 2026;
+#   "FedRAMP authorization" is now "FedRAMP Certification", and impact
+#   levels (Low, Moderate, High) are now certification classes A to D; new
+#   Rev5 certifications are not accepted after 11 June 2027, and existing
+#   ones stay active until at least 31 December 2028; Rev5's baselines are
+#   selections from SP 800-53: fedramp.gov/2026/providers/updating/changes/
+# - CIS Benchmarks: "consensus-based", "Copyright © 2026 Center for
+#   Internet Security": cisecurity.org/cis-benchmarks. The page read states
+#   no licence, so the benchmarks are linked and never quoted; the labs'
+#   section numbers come from ComplianceAsCode (BSD-3-Clause; the base's
+#   README).
+# - faillock.conf(5) on Ubuntu 24.04: deny, fail_interval (seconds,
+#   default 900) and unlock_time (seconds, default 600):
+#   manpages.ubuntu.com/manpages/noble/man5/faillock.conf.5.html
+# - Where each cloud publishes its own audit reports: AWS Artifact
+#   ("on-demand access to AWS ... compliance reports"; aws.amazon.com/artifact/),
+#   Microsoft's Service Trust Portal (audit reports by external auditors;
+#   SOC, ISO/IEC, PCI and FedRAMP sections; a sign-in and a non-disclosure
+#   agreement for some; ms.date 2026-04-06;
+#   learn.microsoft.com/en-us/compliance/assurance/stp-get-started), Google
+#   Cloud's Compliance Reports Manager (ISO/IEC certificates and SOC
+#   reports, "at no additional cost";
+#   cloud.google.com/security/compliance/compliance-reports-manager).
+# - The story: the UK Information Commissioner fined British Airways £20
+#   million on 16 October 2020 under GDPR Articles 5(1)(f) and 32. The
+#   penalty notice itself could not be opened (404 at ico.org.uk and at
+#   cy.ico.org.uk), so the story is told from a law firm's account of it:
+#   an attacker got into BA's systems, and from 22 June to 5 September 2018
+#   had access; for 15 days customers' payment card details were diverted
+#   from BA's website to a site the attacker controlled; about 430,000
+#   people; names, addresses, card details including CVV codes; a third
+#   party told BA, which notified the regulator on 6 September 2018; the
+#   fine first proposed was £183.39 million:
+#   hunton.com/privacy-and-cybersecurity-law-blog/ico-fines-british-airways-20-million-for-security-breach
+#   The story says only that; it does not say BA was or wasn't PCI DSS
+#   compliant, which the source doesn't.
+# Every output in the lesson, the labs and the recall items marked
+# "captured" is real output of this topic's labs, 2026-11-22.
+#
+# Licences, each read on 2026-11-22: NIST's pages and publications are US
+# government work (the copyright page above); the PCI SSC's pages are
+# "All rights reserved"; Microsoft Learn's page names the MicrosoftDocs
+# repository it comes from (CC BY 4.0); the CIS page is © CIS; Cornell's
+# Legal Information Institute republishes the Code of Federal Regulations,
+# a US government work; FedRAMP's site is the US General Services
+# Administration's.
+resources:
+  - title: "NIST Releases Version 2.0 of Landmark Cybersecurity Framework (NIST, 26 February 2024): what the framework is, who it is for now, and its six functions, about 5 minutes"
+    url: https://www.nist.gov/news-events/news/2024/02/nist-releases-version-20-landmark-cybersecurity-framework
+    type: reading
+    use: embed
+    license: "US government work (NIST): its sites' information is public information and may be shared or copied, with credit"
+    text:
+      file: readings/csf-2-release.html
+      by: "the National Institute of Standards and Technology (NIST), US Department of Commerce; images credited to N. Hanacek and Natasha Hanacek, NIST"
+      license_url: "https://www.nist.gov/oism/copyrights"
+      retrieved: "2026-11-22"
+      changes: "The news release's text and its two images with their credits. The page's menus, its headline block, the media contact, the tags and the list of related news are left out."
+  - title: "Cybersecurity Framework (NIST): the framework's own page, with the CSF 2.0 document, quick-start guides and the mappings to other frameworks"
+    url: https://www.nist.gov/cyberframework
+    type: reading
+    use: link
+    optional: true
+    license: "US government work (NIST); linked, not copied"
+  - title: "SP 800-53 Rev. 5, Security and Privacy Controls (NIST): the catalogue's page, with release 5.2.0 and the control browser"
+    url: https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final
+    type: reading
+    use: link
+    optional: true
+    license: "US government work (NIST); linked, not copied"
+  - title: "PCI SSC Document Library: PCI DSS v4.0.1 itself, free to read under the council's terms"
+    url: https://www.pcisecuritystandards.org/document_library/
+    type: reading
+    use: link
+    optional: true
+    license: "© PCI Security Standards Council, all rights reserved; linked, not copied"
+  - title: "Just Published: PCI DSS v4.0.1 (PCI SSC, June 2024): what the current version changed, including the patching rule"
+    url: https://blog.pcisecuritystandards.org/just-published-pci-dss-v4-0-1
+    type: reading
+    use: link
+    optional: true
+    license: "© PCI Security Standards Council, all rights reserved; linked, not copied"
+  - title: "CIS Benchmarks (Center for Internet Security): what the benchmarks are and where to download one"
+    url: https://www.cisecurity.org/cis-benchmarks
+    type: reading
+    use: link
+    optional: true
+    license: "© Center for Internet Security; linked, not copied"
+  - title: "Get started with the Microsoft Service Trust Portal (Microsoft Learn): where one cloud publishes its own audit reports"
+    url: https://learn.microsoft.com/en-us/compliance/assurance/stp-get-started
+    type: reading
+    use: link
+    optional: true
+    license: "CC BY 4.0 (MicrosoftDocs/Compliance-pr); linked, not copied"
+# The recall items read real output of this topic's labs and real lines of
+# the benchmark's crosswalk. All five labs are systemd labs on the
+# payments-server base (one machine, pay1).
+practice:
+  - example-control-to-evidence
+  - mcq-which-applies
+  - mcq-law-or-contract
+  - mcq-soc2-who
+  - mcq-free-texts
+  - typed-csf-govern
+  - mcq-gdpr-72
+  - parameter-filled
+  - est-unlock-seconds
+  - est-ac7-interval
+  - est-gdpr-hours-left
+  - mcq-scope-flat-network
+  - mcq-scope-provider-frame
+  - typed-scope-word
+  - fill-evidence-map
+  - mcq-good-evidence
+  - mcq-rule-reads-files
+  - typed-stale
+  - mcq-no-rule
+  - oscap-read
+  - rules-for-control
+  - controls-for-rule
+  - mcq-substring-trap
+  - mcq-stale-mapping
+  - write-evidence-report
+  - mcq-exception-parts
+  - mcq-stricter-benchmark
+  - est-coverage
+prove:
+  build: build-evidence-pack
+  debug: debug-audit-findings
+  explain:
+    prompt: |
+      Your company takes card payments, is preparing for its first PCI DSS assessment, and wants a SOC 2 report next year. A director asks: "Can't we just pass the CIS benchmark and be done?" Explain, in your own words: what PCI DSS, SOC 2, ISO/IEC 27001 and NIST's CSF and SP 800-53 each are, who checks them and how they relate; how you'd decide which of your systems the card rules reach; how you'd read one control and turn it into a setting; how you'd show an assessor that a control is met, including one that no scanner rule tests; why one setting can count for several frameworks and what to watch for in a mapping; and what you'd do with a rule you can't pass. Then answer the director's question.
+    rubric:
+      - id: landscape
+        required: true
+        description: "PCI DSS: for anyone handling card data, binding by contract, checked by a qualified assessor or a self-assessment. SOC 2: an independent CPA firm's report on a service company's controls. ISO/IEC 27001: a certifiable management system. NIST's CSF: outcomes in six functions; SP 800-53: the free control catalogue that others build on and map to."
+      - id: scope
+        required: true
+        description: "In scope: systems that store, process or transmit card data, systems with unrestricted connectivity to them (a flat network puts everything in), and systems that could affect their security (an admin jump host, the server that serves or redirects to the payment page). Out of scope only if separated so that taking it over couldn't affect card data. A provider's form shrinks what applies and doesn't remove responsibility for the page around it."
+      - id: read-and-set
+        required: true
+        description: "A control is its statement with the parameters filled in by the organisation's policy; the discussion is guidance. The value becomes a setting in the setting's own units (30 minutes is 1800 seconds)."
+      - id: evidence
+        required: true
+        description: "A benchmark rule run now where one exists; a reading of the configuration or another tool's report where none does; all of it the tool's own output, current, dated and something the assessor can run again. A screenshot or a stale file isn't enough, and a rule reads files, so behaviour is checked as well."
+      - id: crosswalk
+        required: true
+        description: "The benchmark's references map one rule to controls in several frameworks, and one control to several rules that must all pass; identifiers are matched exactly; mappings belong to a version (SP 800-53 revision 4, ISO 27001:2013) and say a rule supports a control, not that the control is met."
+      - id: exceptions
+        required: true
+        description: "A rule that can't pass gets a written exception: the reason, a compensating control that really exists, an owner and an expiry. It is never tailored out of the benchmark or hidden."
+      - id: director
+        required: true
+        description: "No. A benchmark covers the configuration of one kind of system. It doesn't cover scope, retention, patching on time, access reviews, people and process, and compliant isn't the same as secure: the threat model decides what is needed beyond the floor."
+    model_answer: |
+      No, though passing the benchmark is a good part of it. Here is why.
+
+      The documents are different kinds of thing. PCI DSS is the card brands' standard for anyone who stores, processes or transmits card data; we accepted it in our contract with the bank, and a qualified assessor (or, for a small merchant, a self-assessment) checks it. SOC 2 is a report: an independent CPA firm examines our controls against the AICPA's criteria and gives its opinion, which we show customers. ISO/IEC 27001 is a certification of how we manage security as a whole. NIST's CSF is a free framework of outcomes in six functions, and NIST's SP 800-53 is the free catalogue of controls that the others are built on or mapped to. The CIS benchmark is a list of settings for one operating system.
+
+      First I'd settle scope. The card rules reach every system that card data is stored on or passes through, every system on a network with those and nothing filtering between, and every system that could affect them: the jump host admins use, the web server that sends shoppers to the payment page. A system is out only if it is separated so that taking it over couldn't touch card data. Using a provider's card form shrinks the list; it doesn't empty it.
+
+      Then, control by control. A control is a statement with blanks, its parameters, which our policy fills in: lock an account after so many failures for so long. I turn each value into a setting in the setting's own units, 30 minutes into 1800 seconds. To show it is met I use evidence the assessor can run again: the benchmark rule that tests it, run today, saved as the tool printed it with the date. Where no rule exists, as for how long the audit trail is kept, the evidence is a reading of the configuration, or another tool's report such as this week's vulnerability scan. A rule reads files, so for anything that matters I also check what the running system does.
+
+      One setting counts several times: the benchmark's own references map "no root login over SSH" to CIS, PCI DSS, HIPAA and NIST. That saves work, with three cautions. Match a control's number exactly. Check the versions, since our mappings are to SP 800-53 revision 4 and ISO's 2013 numbering. And a mapped rule supports a control; a control with three rules is met when all three pass.
+
+      A rule we can't pass, such as "no rsync" on a server whose bank feed is rsync, gets a written exception: why, what limits the risk in its place, who owns it and when it ends. We never switch the rule off to make the report clean.
+
+      So the benchmark gives us part of the evidence for part of the controls on some of the systems. Scope, retention, patching in time, who has access, and what we do when something goes wrong are all outside it. And passing everything is a floor: what this system needs beyond that comes from its threat model.
+review_pool:
+  - mcq-which-applies
+  - mcq-free-texts
+  - mcq-built-on
+  - mcq-gdpr-72
+  - typed-csf-govern
+  - est-unlock-seconds
+  - est-gdpr-hours-left
+  - parameter-filled
+  - mcq-requirement-or-guidance
+  - mcq-good-evidence
+  - mcq-no-rule
+  - mcq-rule-reads-files
+  - typed-stale
+  - controls-for-rule
+  - mcq-stale-mapping
+  - mcq-substring-trap
+  - mcq-compliant-secure
+  - est-coverage
+  - mcq-stricter-benchmark
+  - mcq-tailoring
+  - mcq-exception-parts
+  - mcq-scope-flat-network
+  - mcq-scope-provider-frame
+  - mcq-scope-five-systems
+  - mcq-scope-out-test
+  - typed-scope-word
+# Labs short enough for a hands-on refresher in a review (ADR-0009, amended
+# 2026-11-16): the review asks one in place of a quick question.
+review_labs:
+  - fill-evidence-map
+  - write-evidence-report
+skills:
+  - id: framework-landscape
+    description: "The ten frameworks: what each is, whom it binds, who checks it and whether its text is free; laws (HIPAA, GDPR) against contracts (PCI DSS), certifications and reports you choose (ISO/IEC 27001, SOC 2), programmes for selling to the US government (FedRAMP, CMMC) and catalogues everything maps to (NIST's CSF and SP 800-53, the CIS Benchmarks); which are built on which"
+  - id: read-a-control
+    description: "The anatomy of a control: identifier, statement, parameters the organisation fills in, enhancements, discussion; requirement against guidance; PCI DSS's numbered requirements as identifiers; turning a parameter into a setting in the setting's units; reading a rule report"
+  - id: control-to-evidence
+    description: "Finding the rules that test a control and running them by name; evidence kinds (a rule's result, a configuration reading, another tool's report, a document); what makes evidence good (from the system, the tool's own output, current, dated, reproducible); a rule reads files and a server may behave otherwise; stale evidence"
+  - id: crosswalks
+    description: "One setting, many controls and one control, many rules, from the benchmark's own references; matching an identifier exactly; mappings carry versions (SP 800-53 revision 4 against 5, ISO 27001:2013 against 2022); supports against satisfies; compliant against secure"
+  - id: gaps-and-exceptions
+    description: "A control with no automated evidence; a failing rule the business can't pass and its written exception (reason, compensating control, owner, expiry); benchmark parameters against framework parameters; tailoring and what it hides; not-applicable results; coverage arithmetic"
+  - id: pci-scope
+    description: "What card data is; the cardholder data environment; in scope by storing, processing or transmitting, by unrestricted connectivity and by being able to affect security; what is out and why; segmentation and the flat network; what a provider's hosted page or framed form changes and doesn't (the page around it, PCI DSS 6.4.3 and 11.6.1)"
